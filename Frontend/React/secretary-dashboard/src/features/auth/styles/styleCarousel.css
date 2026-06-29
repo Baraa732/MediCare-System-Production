@@ -1,0 +1,42 @@
+.custom-swiper-pagination.swiper-pagination-bullets-dynamic {
+  overflow: visible !important;
+  width: auto !important;
+  transform: none !important;
+  left: 0 !important;
+  position: static !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.custom-swiper-pagination .custom-bullet {
+  width: 8px !important;
+  height: 8px !important;
+  margin: 0 6px !important;
+  background-color:white !important;
+  opacity: 1 !important;
+  border-radius: 50% !important;
+  display: inline-block;
+  cursor: pointer;
+  transform: scale(1) !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.custom-swiper-pagination .custom-bullet-active {
+  width: 12px !important;
+  height: 12px !important;
+  background-color: #ffffff00 !important;
+  border: 1px solid white;
+}
+
+.custom-swiper-pagination .custom-bullet-active-prev,
+.custom-swiper-pagination .custom-bullet-active-next {
+  width: 10px !important;
+  height: 10px !important;
+}
+
+/* .custom-swiper-pagination .custom-bullet-active-prev-prev,
+.custom-swiper-pagination .custom-bullet-active-next-next {
+  width: 8px !important;
+  height: 8px !important;
+} */

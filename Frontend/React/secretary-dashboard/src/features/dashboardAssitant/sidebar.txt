@@ -1,0 +1,99 @@
+<div className="w-[280px] h-full flex flex-col overflow-hidden">
+            
+            {/* Identity Platform Brand Block */}
+            <div className="h-16 px-5 border-b border-neutral-100 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-[#0066ff] text-white flex items-center justify-center font-black text-base">
+                  +
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-sm font-bold tracking-tight text-neutral-900 leading-none">Project name</span>
+                  <span className="text-[11px] text-neutral-400 font-medium mt-0.5">Clinic management system</span>
+                </div>
+              </div>
+              <button 
+                onClick={onClose}
+                className="text-neutral-400 hover:text-neutral-600 p-1.5 rounded-md hover:bg-neutral-50 transition-colors"
+              >
+                <SidebarCloseIcon className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Controller Action Triggers Stack */}
+            <div className="p-4 space-y-2.5 border-b border-neutral-100 shrink-0">
+              <Button className="w-full h-11 bg-[#0066ff] hover:bg-[#0052cc] text-white font-bold rounded-xl shadow-xs justify-between px-4 text-xs">
+                <span>New appointment</span>
+                <kbd className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded text-white/90 font-mono">Ctrl+N</kbd>
+              </Button>
+
+              <Button 
+                variant="outline"
+                onClick={onToggleEdit}
+                className={cn(
+                  "w-full h-11 font-bold rounded-xl justify-between px-4 text-xs border transition-colors",
+                  isEditMode 
+                    ? "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100" 
+                    : "bg-white border-neutral-200 text-neutral-700 hover:bg-neutral-50"
+                )}
+              >
+                <span>{isEditMode ? "Exit Column Edit" : "Edit mode"}</span>
+                <kbd className="text-[10px] bg-neutral-100 border border-neutral-200 px-1.5 py-0.5 rounded text-neutral-500 font-mono">Ctrl+E</kbd>
+              </Button>
+            </div>
+
+            {/* Quick Stats Metric Cluster */}
+            <div className="p-5 border-b border-neutral-100 shrink-0">
+              <h4 className="text-[11px] font-bold uppercase tracking-wider text-neutral-400 mb-3.5">Quick Stats:</h4>
+              <div className="space-y-3">
+                {[
+                  { label: "Total appointments", count: 28, icon: Calendar, color: "text-blue-500", bg: "bg-blue-50" },
+                  { label: "Checked In", count: 12, icon: CheckCircle2, color: "text-green-500", bg: "bg-green-50" },
+                  { label: "No-shows", count: 2, icon: XCircle, color: "text-red-500", bg: "bg-red-50" },
+                  { label: "Pending", count: 3, icon: Clock, color: "text-amber-500", bg: "bg-amber-50" },
+                ].map((stat, idx) => (
+                  <div key={idx} className="flex items-center justify-between text-xs font-semibold">
+                    <div className="flex items-center gap-2 text-neutral-500">
+                      <div className={cn("w-5 h-5 rounded-md flex items-center justify-center", stat.bg, stat.color)}>
+                        <stat.icon className="w-3.5 h-3.5 stroke-[2.5]" />
+                      </div>
+                      <span>{stat.label}</span>
+                    </div>
+                    <span className="text-neutral-900 font-bold bg-neutral-50 px-2 py-0.5 rounded-full border border-neutral-100">{stat.count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Scrollable Pending Requests Area Container */}
+            <div className="flex-1 flex flex-col min-h-0 p-5">
+              <div className="flex items-center justify-between mb-4 shrink-0">
+                <div className="flex items-center gap-1.5">
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">Pending requests:</h4>
+                  <span className="bg-red-50 text-red-500 text-[10px] font-extrabold w-4 h-4 rounded-full flex items-center justify-center border border-red-100">3</span>
+                </div>
+              </div>
+
+              {/* Internal vertical auto scroll node */}
+              <div className="flex-1 overflow-y-auto pr-1 space-y-3 scrollbar-thin scrollbar-thumb-neutral-200">
+                {[1, 2, 3, 4, 5].map((item) => (
+                  <div key={item} className="p-3 bg-white border border-neutral-200 rounded-xl shadow-3xs hover:border-neutral-300 transition-all flex flex-col justify-between">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h5 className="text-xs font-bold text-neutral-900">Folan Alfolani</h5>
+                        <p className="text-[11px] text-neutral-400 font-medium mt-0.5">Dr. Folan Alfolani</p>
+                      </div>
+                      <span className="text-[10px] font-bold text-[#0066ff] bg-blue-50/70 border border-blue-100 px-1.5 py-0.5 rounded-md">1 d ago</span>
+                    </div>
+                    <div className="flex items-center gap-4 text-[11px] font-semibold text-neutral-500 mt-3 pt-2.5 border-t border-neutral-50">
+                      <div className="flex items-center gap-1"><Calendar className="w-3 h-3 text-neutral-400" /> 5/5/2026</div>
+                      <div className="flex items-center gap-1"><Clock className="w-3 h-3 text-neutral-400" /> 2:00 PM</div>
+                    </div>
+                    <Button className="w-full h-8 mt-3 bg-[#39A3FF] hover:bg-[#258ce5] text-white text-xs font-bold rounded-lg shadow-3xs transition-colors">
+                      Review
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+          </div>

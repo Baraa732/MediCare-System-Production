@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MediCare Patient AI Test</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="header">
+        <div class="brand">
+          <span class="brand-mark">MC</span>
+          <div>
+            <h1>Patient AI Test Console</h1>
+            <p>Login as patient, then chat with booking & health assistants</p>
+          </div>
+        </div>
+        <div class="session-pill" id="sessionStatus">Not signed in</div>
+      </header>
+
+      <main class="layout">
+        <section class="panel auth-panel">
+          <h2>Patient login</h2>
+          <label>
+            API base
+            <input id="apiBase" type="text" value="/api" />
+          </label>
+          <label>
+            Phone (+96399900XXXX seed)
+            <input id="phoneNumber" type="tel" value="+963999000100" />
+          </label>
+          <label>
+            Password
+            <input id="password" type="password" value="Demo@Test1" />
+          </label>
+
+          <div class="row">
+            <button id="loginBtn" class="btn primary">Login</button>
+            <button id="registerBtn" class="btn">Register + OTP</button>
+          </div>
+
+          <label id="otpWrap" class="otp-wrap hidden">
+            OTP (devOtp from register or login response)
+            <input id="otpCode" type="text" maxlength="6" placeholder="6 digits" />
+            <button id="verifyBtn" class="btn primary">Verify OTP</button>
+          </label>
+
+          <details class="hints">
+            <summary>Postman / seed hints</summary>
+            <ul>
+              <li>Run <code>node tools/dev/seed-demo-clinics.mjs</code> first</li>
+              <li>Register needs header <code>Idempotency-Key: &lt;uuid&gt;</code></li>
+              <li>Seed phones skip WhatsApp — use <code>devOtp</code> from JSON response</li>
+            </ul>
+          </details>
+        </section>
+
+        <section class="panel chat-panel">
+          <div class="chat-toolbar">
+            <label>
+              Mode
+              <select id="chatMode">
+                <option value="booking">Booking assistant</option>
+                <option value="health">Health Q&amp;A</option>
+              </select>
+            </label>
+            <label>
+              Session ID (server-managed)
+              <input id="sessionId" type="text" value="" readonly placeholder="Login to initialize" />
+            </label>
+            <button id="clearChatBtn" class="btn ghost">Clear</button>
+          </div>
+
+          <div id="messages" class="messages" aria-live="polite"></div>
+
+          <form id="chatForm" class="composer">
+            <textarea
+              id="messageInput"
+              rows="2"
+              placeholder="Try: Find cardiology clinics in Damascus"
+            ></textarea>
+            <button type="submit" class="btn primary send">Send</button>
+          </form>
+
+          <div class="quick-prompts">
+            <span>Quick prompts:</span>
+            <button type="button" class="chip" data-prompt="Find cardiology clinics in Damascus">
+              Search clinics
+            </button>
+            <button type="button" class="chip" data-prompt="Show doctors at the first clinic you find">
+              List doctors
+            </button>
+            <button type="button" class="chip" data-prompt="What slots are available tomorrow?">
+              Tomorrow slots
+            </button>
+            <button type="button" class="chip" data-prompt="What should I bring to a cardiology visit?">
+              Health Q&amp;A
+            </button>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="./dist/app.js?v=20260622-1449"></script>
+  </body>
+</html>

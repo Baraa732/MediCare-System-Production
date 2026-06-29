@@ -1,0 +1,102 @@
+export interface ApiErrorBody {
+  message?: string;
+  statusCode?: number;
+  code?: string;
+  suggestion?: string;
+}
+
+export class ApiError extends Error {
+  status: number;
+  code?: string;
+  suggestion?: string;
+
+  constructor(
+    status: number,
+    message: string,
+    code?: string,
+    suggestion?: string,
+  ) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.code = code;
+    this.suggestion = suggestion;
+  }
+}
+
+export interface AuthIdentity {
+  userId: string;
+  role: string;
+  tenantId?: string;
+  clinicId?: string;
+}
+
+export interface AuthSession extends AuthIdentity {
+  message: string;
+  accessToken: string;
+  refreshToken: string;
+}
+
+export interface LoginMfaRequired extends AuthIdentity {
+  message: string;
+  requiresMfa: true;
+  mfaToken: string;
+  requiresPasswordChange?: boolean;
+}
+
+export interface VerifyMfaPasswordChange extends AuthIdentity {
+  message: string;
+  requiresPasswordChange: true;
+  activationToken: string;
+}
+
+export type LoginResponse = AuthSession | LoginMfaRequired;
+
+export interface ClinicDoctor {
+  userId: string;
+  clinicId: string;
+  staffRole: string;
+  firstName?: string;
+  lastName?: string;
+  fullName?: string;
+  specialization?: string;
+}
+
+export interface ApiAppointment {
+  id: string;
+  clinicId: string;
+  doctorId: string;
+  patientId: string;
+  scheduledAt: string;
+  durationMinutes: number;
+  status: string;
+  reason?: string;
+  notes?: string;
+}
+
+export interface EnrichedAppointment extends ApiAppointment {
+  clinicName?: string;
+  clinicAddress?: string;
+  clinicCity?: string;
+  clinicGovernorate?: string;
+  clinicPhone?: string;
+  doctorName?: string;
+  doctorSpecialization?: string;
+}
+
+export interface UserProfile {
+  id: string;
+  phoneNumber: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  role: string;
+  status: string;
+  isPhoneVerified?: boolean;
+  isDashboardActivated?: boolean;
+  clinicId?: string;
+  specialization?: string;
+  profileData?: Record<string, unknown>;
+  createdAt?: string;
+  updatedAt?: string;
+}

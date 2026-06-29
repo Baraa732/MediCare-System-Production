@@ -1,0 +1,14 @@
+{
+  "name": "patient-ai-test",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "dev": "npm run build && vite",
+    "dev:static": "npm run build && npx --yes serve -l 5175 .",
+    "watch": "tsc --watch"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5",
+    "vite": "^6.3.5"
+  }
+}
