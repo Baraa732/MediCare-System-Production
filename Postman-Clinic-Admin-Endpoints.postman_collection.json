@@ -1,0 +1,706 @@
+{
+  "info": {
+    "name": "MediCare – Clinic Admin Endpoints",
+    "_postman_id": "clinic-admin-collection-001",
+    "description": "All CLINIC_ADMIN endpoints for MediCare.\n\n## First-time onboarding (in order)\n1. System Manager creates activation code (System Manager collection)\n2. **Activate Dashboard Code** — POST /api/auth/clinic-admin/activate\n3. **Register** — POST /api/auth/register (role: CLINIC_ADMIN)\n4. **Verify OTP** — POST /api/auth/verify-otp\n5. **Login + MFA** — trusted device skips MFA on return visits\n\nClinic admin does NOT use staff/complete-activation.\n\n## Notes\n- Public auth routes: No Auth in Postman\n- CLINIC_ADMIN cannot GET /api/appointments (list) or GET /api/appointments/:id\n- Use POST/PUT/PATCH appointment endpoints with known appointmentId",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000", "type": "string" },
+    { "key": "accessToken", "value": "", "type": "string" },
+    { "key": "mfaToken", "value": "", "type": "string" },
+    { "key": "refreshToken", "value": "", "type": "string" },
+    { "key": "deviceId", "value": "postman-clinic-admin-device-001", "type": "string" },
+    { "key": "idempotencyKey", "value": "", "type": "string" },
+    { "key": "activationCode", "value": "", "type": "string" },
+    { "key": "clinicId", "value": "", "type": "string" },
+    { "key": "doctorId", "value": "", "type": "string" },
+    { "key": "patientId", "value": "", "type": "string" },
+    { "key": "staffUserId", "value": "", "type": "string" },
+    { "key": "appointmentId", "value": "", "type": "string" },
+    { "key": "userId", "value": "", "type": "string" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "Onboarding",
+      "description": "Clinic admin first-time setup. Requires an 8-character activation code from System Manager. Run steps 1→4 in order before first login.",
+      "item": [
+        {
+          "name": "Step 1 — Activate Dashboard Code",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/auth/clinic-admin/activate", "host": ["{{baseUrl}}"], "path": ["api", "auth", "clinic-admin", "activate"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"{{activationCode}}\",\n  \"phoneNumber\": \"+9647XXXXXXXXX\"\n}"
+            },
+            "description": "Validates the activation code for this phone number. Code must be 8 uppercase letters/numbers (e.g. AB12CD34). Must run BEFORE register. No Auth."
+          }
+        },
+        {
+          "name": "Step 2 — Register as Clinic Admin",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{$guid}}", "description": "Required. Must be a UUID (e.g. 550e8400-e29b-41d4-a716-446655440000). Postman generates a new one each send. Reuse the SAME UUID only when retrying the exact same request body." }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/auth/register", "host": ["{{baseUrl}}"], "path": ["api", "auth", "register"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"+9647XXXXXXXXX\",\n  \"firstName\": \"Omar\",\n  \"lastName\": \"Al-Rashid\",\n  \"password\": \"SecurePass123!\",\n  \"role\": \"CLINIC_ADMIN\",\n  \"email\": \"admin@clinic.com\"\n}"
+            },
+            "description": "Register clinic admin after Step 1 succeeds. Same phone as activation. Sends OTP via WhatsApp. role must be CLINIC_ADMIN. No Auth."
+          }
+        },
+        {
+          "name": "Step 3 — Verify OTP (after register)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/auth/verify-otp", "host": ["{{baseUrl}}"], "path": ["api", "auth", "verify-otp"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"+9647XXXXXXXXX\",\n  \"otp\": \"123456\",\n  \"autoLogin\": \"true\"\n}"
+            },
+            "description": "Verify phone OTP after registration. autoLogin=true returns accessToken + refreshToken. Save tokens to collection variables. Dev: use Dev Helpers → Get Latest OTP."
+          }
+        },
+        {
+          "name": "Send OTP",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/auth/send-otp", "host": ["{{baseUrl}}"], "path": ["api", "auth", "send-otp"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"+9647XXXXXXXXX\"\n}"
+            },
+            "description": "Resend registration OTP if expired. No Auth."
+          }
+        },
+        {
+          "name": "Resend OTP",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/auth/resend-otp", "host": ["{{baseUrl}}"], "path": ["api", "auth", "resend-otp"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"+9647XXXXXXXXX\"\n}"
+            },
+            "description": "Alias for resending phone verification OTP. No Auth."
+          }
+        },
+        {
+          "name": "Check OTP Status",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/auth/check-otp-status", "host": ["{{baseUrl}}"], "path": ["api", "auth", "check-otp-status"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"+9647XXXXXXXXX\"\n}"
+            },
+            "description": "Check if a valid OTP is pending for this phone. No Auth."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "description": "Returning clinic admin login. MFA required on new/untrusted devices. Does NOT use staff/complete-activation.",
+      "item": [
+        {
+          "name": "Login (Step 1)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"+9647XXXXXXXXX\",\n  \"password\": \"YourPassword123!\",\n  \"deviceId\": \"{{deviceId}}\"\n}"
+            },
+            "description": "Untrusted device: returns requiresMfa + mfaToken. Trusted device: returns accessToken directly. Requires isDashboardActivated=true."
+          }
+        },
+        {
+          "name": "Verify MFA OTP (Step 2)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/auth/verify-mfa", "host": ["{{baseUrl}}"], "path": ["api", "auth", "verify-mfa"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mfaToken\": \"{{mfaToken}}\",\n  \"otp\": \"123456\",\n  \"deviceId\": \"{{deviceId}}\"\n}"
+            },
+            "description": "Complete MFA login. Returns accessToken + refreshToken. Trusts device for future logins."
+          }
+        },
+        {
+          "name": "Resend MFA OTP",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/auth/resend-mfa-otp", "host": ["{{baseUrl}}"], "path": ["api", "auth", "resend-mfa-otp"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mfaToken\": \"{{mfaToken}}\"\n}"
+            },
+            "description": "Resend MFA OTP using a pending mfaToken."
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/auth/refresh-token", "host": ["{{baseUrl}}"], "path": ["api", "auth", "refresh-token"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "description": "Exchange refresh token for new access + refresh tokens. No Auth."
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/auth/logout", "host": ["{{baseUrl}}"], "path": ["api", "auth", "logout"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sessionId\": \"optional-session-id\"\n}"
+            },
+            "description": "Logout the current session."
+          }
+        },
+        {
+          "name": "Get Active Sessions",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/auth/sessions", "host": ["{{baseUrl}}"], "path": ["api", "auth", "sessions"] },
+            "description": "List all active sessions for the currently authenticated clinic admin."
+          }
+        },
+        {
+          "name": "Revoke Session by ID",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/api/auth/sessions/:sessionId", "host": ["{{baseUrl}}"], "path": ["api", "auth", "sessions", ":sessionId"], "variable": [{ "key": "sessionId", "value": "" }] },
+            "description": "Revoke a specific session by its ID."
+          }
+        },
+        {
+          "name": "Revoke All Sessions",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/sessions?except=",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "sessions"],
+              "query": [{ "key": "except", "value": "", "description": "Session ID to keep alive (optional)" }]
+            },
+            "description": "Revoke all sessions. Also revokes all trusted devices, forcing MFA on next login."
+          }
+        },
+        {
+          "name": "Send OTP (for password reset)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/auth/send-otp", "host": ["{{baseUrl}}"], "path": ["api", "auth", "send-otp"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"+9647XXXXXXXXX\"\n}"
+            },
+            "description": "Send OTP before Reset Password. No Auth."
+          }
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/auth/reset-password", "host": ["{{baseUrl}}"], "path": ["api", "auth", "reset-password"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"+9647XXXXXXXXX\",\n  \"otp\": \"123456\",\n  \"newPassword\": \"NewPass789!\"\n}"
+            },
+            "description": "Reset password using OTP verification."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Development Helpers",
+      "description": "Dev-only (NODE_ENV=development). Use to fetch OTPs without WhatsApp.",
+      "item": [
+        {
+          "name": "Get Latest OTP (dev)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/dev/latest-otp?phoneNumber=+9647XXXXXXXXX",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "dev", "latest-otp"],
+              "query": [{ "key": "phoneNumber", "value": "+9647XXXXXXXXX" }]
+            },
+            "description": "Returns latest OTP for phone in development. Use after register or MFA."
+          }
+        },
+        {
+          "name": "WhatsApp Status (dev)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/auth/dev/whatsapp-status", "host": ["{{baseUrl}}"], "path": ["api", "auth", "dev", "whatsapp-status"] },
+            "description": "Check Evolution API / WhatsApp connection status."
+          }
+        },
+        {
+          "name": "WhatsApp QR Code (dev)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/auth/dev/whatsapp-qr", "host": ["{{baseUrl}}"], "path": ["api", "auth", "dev", "whatsapp-qr"] },
+            "description": "Get WhatsApp QR image for linking Evolution API."
+          }
+        }
+      ]
+    },
+    {
+      "name": "My Profile",
+      "item": [
+        {
+          "name": "Get My Profile",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/users/{{userId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{userId}}"] },
+            "description": "Get own clinic admin profile."
+          }
+        },
+        {
+          "name": "Update My Profile",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/users/{{userId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{userId}}"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Omar\",\n  \"lastName\": \"Al-Rashid\",\n  \"email\": \"admin@clinic.com\"\n}"
+            },
+            "description": "Update own profile fields."
+          }
+        },
+        {
+          "name": "Change My Password",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/users/{{userId}}/change-password", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{userId}}", "change-password"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"OldPass123!\",\n  \"newPassword\": \"NewPass456!\"\n}"
+            },
+            "description": "Change own password."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Staff Management",
+      "item": [
+        {
+          "name": "Create Staff (Doctor or Secretary)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/auth/clinic/create-user", "host": ["{{baseUrl}}"], "path": ["api", "auth", "clinic", "create-user"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"+9647XXXXXXXXX\",\n  \"firstName\": \"Ahmed\",\n  \"lastName\": \"Hassan\",\n  \"role\": \"DOCTOR\",\n  \"email\": \"doctor@clinic.com\",\n  \"specialization\": \"Cardiology\",\n  \"licenseNumber\": \"DOC-12345\",\n  \"nationalId\": \"1234567890\",\n  \"gender\": \"MALE\",\n  \"yearsOfExperience\": 10,\n  \"governorate\": \"Baghdad\",\n  \"state\": \"Al-Karrada\",\n  \"streetInfo\": \"Street 10\"\n}"
+            },
+            "description": "Create a DOCTOR or SECRETARY under the clinic admin's clinic. Sends temporary credentials via WhatsApp. CLINIC_ADMIN only."
+          }
+        },
+        {
+          "name": "Get Clinic Staff",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/clinics/{{clinicId}}/staff?staffRole=",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "clinics", "{{clinicId}}", "staff"],
+              "query": [{ "key": "staffRole", "value": "", "description": "Filter: DOCTOR, SECRETARY" }]
+            },
+            "description": "List all staff members assigned to the clinic."
+          }
+        },
+        {
+          "name": "Get Clinic Doctors",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/clinics/{{clinicId}}/doctors", "host": ["{{baseUrl}}"], "path": ["api", "clinics", "{{clinicId}}", "doctors"] },
+            "description": "List all doctors at the clinic."
+          }
+        },
+        {
+          "name": "Assign Staff to Clinic",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/clinics/{{clinicId}}/staff", "host": ["{{baseUrl}}"], "path": ["api", "clinics", "{{clinicId}}", "staff"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{staffUserId}}\",\n  \"staffRole\": \"DOCTOR\"\n}"
+            },
+            "description": "Assign an existing user to the clinic. staffRole: DOCTOR | SECRETARY."
+          }
+        },
+        {
+          "name": "Remove Staff from Clinic",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/api/clinics/{{clinicId}}/staff/{{staffUserId}}", "host": ["{{baseUrl}}"], "path": ["api", "clinics", "{{clinicId}}", "staff", "{{staffUserId}}"] },
+            "description": "Remove a staff member from the clinic."
+          }
+        },
+        {
+          "name": "Get Clinics for User",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/clinics/users/{{staffUserId}}", "host": ["{{baseUrl}}"], "path": ["api", "clinics", "users", "{{staffUserId}}"] },
+            "description": "List all clinics a specific user is assigned to."
+          }
+        }
+      ]
+    },
+    {
+      "name": "User Management",
+      "item": [
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/users", "host": ["{{baseUrl}}"], "path": ["api", "users"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"+9647XXXXXXXXX\",\n  \"firstName\": \"New\",\n  \"lastName\": \"User\",\n  \"password\": \"TempPass123!\",\n  \"role\": \"PATIENT\",\n  \"email\": \"user@email.com\",\n  \"clinicId\": \"{{clinicId}}\"\n}"
+            },
+            "description": "Create a new user account. CLINIC_ADMIN and SYSTEM_MANAGER only."
+          }
+        },
+        {
+          "name": "Get User by Phone",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/users/phone/:phoneNumber", "host": ["{{baseUrl}}"], "path": ["api", "users", "phone", ":phoneNumber"], "variable": [{ "key": "phoneNumber", "value": "+9647XXXXXXXXX" }] },
+            "description": "Look up a user by exact phone number."
+          }
+        },
+        {
+          "name": "Lookup Patient by Phone",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/users/lookup/patient/:phoneNumber", "host": ["{{baseUrl}}"], "path": ["api", "users", "lookup", "patient", ":phoneNumber"], "variable": [{ "key": "phoneNumber", "value": "+9647XXXXXXXXX" }] },
+            "description": "Look up a patient account by phone number."
+          }
+        },
+        {
+          "name": "Get User by ID",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/users/{{staffUserId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{staffUserId}}"] },
+            "description": "Get full user profile by ID."
+          }
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/users/{{staffUserId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{staffUserId}}"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Updated\",\n  \"lastName\": \"Name\",\n  \"email\": \"updated@email.com\",\n  \"specialization\": \"Dermatology\"\n}"
+            },
+            "description": "Update user profile fields."
+          }
+        },
+        {
+          "name": "Change User Status",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/users/{{staffUserId}}/status", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{staffUserId}}", "status"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"SUSPENDED\"\n}"
+            },
+            "description": "Activate, suspend, or change a user's account status. Values: ACTIVE | SUSPENDED | etc."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Clinic Management",
+      "item": [
+        {
+          "name": "Get My Clinics",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/clinics/me", "host": ["{{baseUrl}}"], "path": ["api", "clinics", "me"] },
+            "description": "List all clinics the clinic admin is assigned to."
+          }
+        },
+        {
+          "name": "List Clinics",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/clinics?status=",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "clinics"],
+              "query": [{ "key": "status", "value": "", "description": "ClinicStatus filter (optional)" }]
+            },
+            "description": "List clinics visible to the clinic admin."
+          }
+        },
+        {
+          "name": "Search Clinics",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/clinics/search?q=&city=&governorate=&specialization=&page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "clinics", "search"],
+              "query": [
+                { "key": "q", "value": "" },
+                { "key": "city", "value": "" },
+                { "key": "governorate", "value": "" },
+                { "key": "specialization", "value": "" },
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            },
+            "description": "Full-text and filtered search for clinics."
+          }
+        },
+        {
+          "name": "Get Clinic by ID",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/clinics/{{clinicId}}", "host": ["{{baseUrl}}"], "path": ["api", "clinics", "{{clinicId}}"] },
+            "description": "Get basic clinic info by ID."
+          }
+        },
+        {
+          "name": "Get Clinic Profile",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/clinics/{{clinicId}}/profile", "host": ["{{baseUrl}}"], "path": ["api", "clinics", "{{clinicId}}", "profile"] },
+            "description": "Get detailed clinic profile including staff counts and schedule info."
+          }
+        },
+        {
+          "name": "Update Clinic",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/clinics/{{clinicId}}", "host": ["{{baseUrl}}"], "path": ["api", "clinics", "{{clinicId}}"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Al-Rashid Medical Center\",\n  \"description\": \"General practice clinic\",\n  \"address\": \"123 Main St\",\n  \"city\": \"Baghdad\",\n  \"governorate\": \"Baghdad\",\n  \"phone\": \"+9641XXXXXXXXX\",\n  \"email\": \"info@clinic.com\",\n  \"timezone\": \"Asia/Baghdad\"\n}"
+            },
+            "description": "Update clinic details. CLINIC_ADMIN and SYSTEM_MANAGER only."
+          }
+        },
+        {
+          "name": "Delete Clinic",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/api/clinics/{{clinicId}}", "host": ["{{baseUrl}}"], "path": ["api", "clinics", "{{clinicId}}"] },
+            "description": "Delete a clinic. CLINIC_ADMIN and SYSTEM_MANAGER only."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Schedule",
+      "item": [
+        {
+          "name": "Get Available Slots",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/schedule/slots?clinicId={{clinicId}}&doctorId={{doctorId}}&date=2026-06-20&durationMinutes=30",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "schedule", "slots"],
+              "query": [
+                { "key": "clinicId", "value": "{{clinicId}}" },
+                { "key": "doctorId", "value": "{{doctorId}}" },
+                { "key": "date", "value": "2026-06-20", "description": "Format: YYYY-MM-DD" },
+                { "key": "durationMinutes", "value": "30" }
+              ]
+            },
+            "description": "Returns all available appointment time slots for a doctor at a clinic on a given date."
+          }
+        },
+        {
+          "name": "Get Doctor Availability",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/schedule/availability?clinicId={{clinicId}}&doctorId={{doctorId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "schedule", "availability"],
+              "query": [
+                { "key": "clinicId", "value": "{{clinicId}}" },
+                { "key": "doctorId", "value": "{{doctorId}}", "description": "Optional" }
+              ]
+            },
+            "description": "List doctor availability windows (recurring weekly schedule)."
+          }
+        },
+        {
+          "name": "Create Availability Window",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/schedule/availability", "host": ["{{baseUrl}}"], "path": ["api", "schedule", "availability"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clinicId\": \"{{clinicId}}\",\n  \"doctorId\": \"{{doctorId}}\",\n  \"dayOfWeek\": 1,\n  \"startTime\": \"09:00\",\n  \"endTime\": \"13:00\",\n  \"slotDurationMinutes\": 30\n}"
+            },
+            "description": "Create a recurring availability window for a doctor. dayOfWeek: 0=Sunday ... 6=Saturday."
+          }
+        },
+        {
+          "name": "Block Time Period",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/schedule/blocked", "host": ["{{baseUrl}}"], "path": ["api", "schedule", "blocked"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clinicId\": \"{{clinicId}}\",\n  \"doctorId\": \"{{doctorId}}\",\n  \"startsAt\": \"2026-06-25T08:00:00.000Z\",\n  \"endsAt\": \"2026-06-25T12:00:00.000Z\",\n  \"reason\": \"Clinic closure\"\n}"
+            },
+            "description": "Block out a period of time for a doctor or the whole clinic."
+          }
+        },
+        {
+          "name": "Get Clinic Hours",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/schedule/clinics/{{clinicId}}/hours", "host": ["{{baseUrl}}"], "path": ["api", "schedule", "clinics", "{{clinicId}}", "hours"] },
+            "description": "Get the clinic's weekly operating hours."
+          }
+        },
+        {
+          "name": "Update Clinic Hours",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/schedule/clinics/{{clinicId}}/hours", "host": ["{{baseUrl}}"], "path": ["api", "schedule", "clinics", "{{clinicId}}", "hours"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dayOfWeek\": 0,\n  \"openTime\": \"08:00\",\n  \"closeTime\": \"17:00\",\n  \"isClosed\": false\n}"
+            },
+            "description": "Set or update clinic hours for a specific day."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Appointments",
+      "item": [
+        {
+          "name": "Create Appointment (on behalf of patient)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/appointments", "host": ["{{baseUrl}}"], "path": ["api", "appointments"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clinicId\": \"{{clinicId}}\",\n  \"doctorId\": \"{{doctorId}}\",\n  \"patientId\": \"{{patientId}}\",\n  \"scheduledAt\": \"2026-06-20T10:00:00.000Z\",\n  \"durationMinutes\": 30,\n  \"reason\": \"Regular checkup\"\n}"
+            },
+            "description": "Book an appointment on behalf of a patient."
+          }
+        },
+        {
+          "name": "Update Appointment",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/appointments/{{appointmentId}}", "host": ["{{baseUrl}}"], "path": ["api", "appointments", "{{appointmentId}}"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"scheduledAt\": \"2026-06-21T11:00:00.000Z\",\n  \"durationMinutes\": 30,\n  \"reason\": \"Follow-up\",\n  \"notes\": \"Rescheduled by clinic admin\"\n}"
+            },
+            "description": "Reschedule or update appointment details."
+          }
+        },
+        {
+          "name": "Update Appointment Status",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/appointments/{{appointmentId}}/status", "host": ["{{baseUrl}}"], "path": ["api", "appointments", "{{appointmentId}}", "status"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"CONFIRMED\",\n  \"cancellationReason\": \"\"\n}"
+            },
+            "description": "Change appointment status. Values: PENDING | CONFIRMED | COMPLETED | CANCELLED | NO_SHOW."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Doctor Profiles",
+      "item": [
+        {
+          "name": "Get Doctor Public Profile",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/users/doctors/{{doctorId}}/public", "host": ["{{baseUrl}}"], "path": ["api", "users", "doctors", "{{doctorId}}", "public"] },
+            "description": "Get a doctor's public profile."
+          }
+        },
+        {
+          "name": "Get Multiple Doctors Public Profiles",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/users/doctors/public?ids=id1,id2,id3",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "doctors", "public"],
+              "query": [{ "key": "ids", "value": "id1,id2,id3", "description": "Comma-separated UUIDs, max 50" }]
+            },
+            "description": "Batch-fetch public doctor profiles by IDs."
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" agent="MediCare-sequence-export" version="24.7.17">
+  <diagram id="seq-21" name="E2E user journey — register → book → reminder">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="0" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1080" pageHeight="720" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="2" value="E2E user journey — register → book → reminder" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=14;fontStyle=1" vertex="1" parent="1"><mxGeometry x="40" y="10" width="1000" height="24" as="geometry"/></mxCell>
+        <mxCell id="3" value="Test runner" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;" vertex="1" parent="1"><mxGeometry x="80" y="40" width="120" height="40" as="geometry"/></mxCell>
+        <mxCell id="4" value="" style="endArrow=none;dashed=1;html=1;strokeColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="140" y="90" as="sourcePoint"/><mxPoint x="140" y="680" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="5" value="Gateway" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;" vertex="1" parent="1"><mxGeometry x="240" y="40" width="120" height="40" as="geometry"/></mxCell>
+        <mxCell id="6" value="" style="endArrow=none;dashed=1;html=1;strokeColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="300" y="90" as="sourcePoint"/><mxPoint x="300" y="680" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="7" value="auth" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;" vertex="1" parent="1"><mxGeometry x="400" y="40" width="120" height="40" as="geometry"/></mxCell>
+        <mxCell id="8" value="" style="endArrow=none;dashed=1;html=1;strokeColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="460" y="90" as="sourcePoint"/><mxPoint x="460" y="680" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="9" value="appointment" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;" vertex="1" parent="1"><mxGeometry x="560" y="40" width="120" height="40" as="geometry"/></mxCell>
+        <mxCell id="10" value="" style="endArrow=none;dashed=1;html=1;strokeColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="620" y="90" as="sourcePoint"/><mxPoint x="620" y="680" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="11" value="reminder" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;" vertex="1" parent="1"><mxGeometry x="720" y="40" width="120" height="40" as="geometry"/></mxCell>
+        <mxCell id="12" value="" style="endArrow=none;dashed=1;html=1;strokeColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="780" y="90" as="sourcePoint"/><mxPoint x="780" y="680" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="13" value="notification" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;" vertex="1" parent="1"><mxGeometry x="880" y="40" width="120" height="40" as="geometry"/></mxCell>
+        <mxCell id="14" value="" style="endArrow=none;dashed=1;html=1;strokeColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="940" y="90" as="sourcePoint"/><mxPoint x="940" y="680" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="15" value="register + verify OTP dev OTP" style="endArrow=block;endFill=1;html=1;strokeColor=#000000;fontColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="140" y="120" as="sourcePoint"/><mxPoint x="300" y="120" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="16" value="login → JWT" style="endArrow=block;endFill=1;html=1;strokeColor=#000000;fontColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="140" y="170" as="sourcePoint"/><mxPoint x="300" y="170" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="17" value="GET /api/schedule/slots" style="endArrow=block;endFill=1;html=1;strokeColor=#000000;fontColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="140" y="220" as="sourcePoint"/><mxPoint x="300" y="220" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="18" value="POST /api/appointments book" style="endArrow=block;endFill=1;html=1;strokeColor=#000000;fontColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="140" y="270" as="sourcePoint"/><mxPoint x="300" y="270" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="19" value="validate + create → appointment.created" style="endArrow=block;endFill=1;html=1;strokeColor=#000000;fontColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="300" y="320" as="sourcePoint"/><mxPoint x="620" y="320" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="20" value="schedule reminder" style="dashed=1;endArrow=open;endFill=0;html=1;strokeColor=#000000;fontColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="620" y="370" as="sourcePoint"/><mxPoint x="780" y="370" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="21" value="send confirmation" style="dashed=1;endArrow=open;endFill=0;html=1;strokeColor=#000000;fontColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="620" y="420" as="sourcePoint"/><mxPoint x="940" y="420" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="22" value="GET /api/notifications/me → assert SENT" style="endArrow=block;endFill=1;html=1;strokeColor=#000000;fontColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="140" y="470" as="sourcePoint"/><mxPoint x="300" y="470" as="targetPoint"/></mxGeometry></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

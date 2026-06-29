@@ -1,0 +1,131 @@
+<mxfile host="Electron" agent="MediCare-sequence-export">
+  <diagram id="seq-19" name="Clinical workflow — patient onboarding → chart availability">
+    <mxGraphModel dx="1144" dy="787" grid="1" gridSize="10" guides="1" tooltips="1" connect="0" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1080" pageHeight="820" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="3" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#003EA8;strokeColor=#000000;fontColor=#FFFFFF;" value="Patient" vertex="1">
+          <mxGeometry height="40" width="120" x="80" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="4" edge="1" parent="1" style="endArrow=none;dashed=1;html=1;labelBackgroundColor=none;fontColor=default;fontSize=12;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="140" y="90" as="sourcePoint" />
+            <mxPoint x="140" y="780" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="5" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#003EA8;strokeColor=#000000;fontColor=#FFFFFF;" value="auth-service" vertex="1">
+          <mxGeometry height="40" width="120" x="240" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="6" edge="1" parent="1" style="endArrow=none;dashed=1;html=1;labelBackgroundColor=none;fontColor=default;fontSize=12;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="300" y="90" as="sourcePoint" />
+            <mxPoint x="300" y="780" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="7" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#003EA8;strokeColor=#000000;fontColor=#FFFFFF;" value="user-service" vertex="1">
+          <mxGeometry height="40" width="120" x="400" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="8" edge="1" parent="1" style="endArrow=none;dashed=1;html=1;labelBackgroundColor=none;fontColor=default;fontSize=12;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="460" y="90" as="sourcePoint" />
+            <mxPoint x="460" y="780" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="9" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#003EA8;strokeColor=#000000;fontColor=#FFFFFF;" value="Kafka" vertex="1">
+          <mxGeometry height="40" width="120" x="560" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="10" edge="1" parent="1" style="endArrow=none;dashed=1;html=1;labelBackgroundColor=none;fontColor=default;fontSize=12;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="620" y="90" as="sourcePoint" />
+            <mxPoint x="620" y="780" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="11" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#003EA8;strokeColor=#000000;fontColor=#FFFFFF;" value="emr-service" vertex="1">
+          <mxGeometry height="40" width="120" x="720" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="12" edge="1" parent="1" style="endArrow=none;dashed=1;html=1;labelBackgroundColor=none;fontColor=default;fontSize=12;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="780" y="90" as="sourcePoint" />
+            <mxPoint x="780" y="780" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="13" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#003EA8;strokeColor=#000000;fontColor=#FFFFFF;" value="OpenEMR" vertex="1">
+          <mxGeometry height="40" width="120" x="880" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="14" edge="1" parent="1" style="endArrow=none;dashed=1;html=1;labelBackgroundColor=none;fontColor=default;fontSize=12;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="940" y="90" as="sourcePoint" />
+            <mxPoint x="940" y="780" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="15" edge="1" parent="1" style="endArrow=block;endFill=1;html=1;fontColor=default;labelBackgroundColor=none;fontSize=12;" value="register phone">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="140" y="120" as="sourcePoint" />
+            <mxPoint x="300" y="120" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="16" edge="1" parent="1" style="endArrow=block;endFill=1;html=1;fontColor=default;labelBackgroundColor=none;fontSize=12;" value="create user PATIENT">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="300" y="170" as="sourcePoint" />
+            <mxPoint x="460" y="170" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="17" edge="1" parent="1" style="endArrow=block;endFill=1;html=1;fontColor=default;labelBackgroundColor=none;fontSize=12;" value="user.created outbox">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="460" y="220" as="sourcePoint" />
+            <mxPoint x="620" y="220" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="18" edge="1" parent="1" style="endArrow=block;endFill=1;html=1;fontColor=default;labelBackgroundColor=none;fontSize=12;" value="EventPattern user.created">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="620" y="270" as="sourcePoint" />
+            <mxPoint x="780" y="270" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="19" edge="1" parent="1" style="endArrow=block;endFill=1;html=1;fontColor=default;labelBackgroundColor=none;fontSize=12;" value="OAuth2 token + POST /fhir/Patient">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="780" y="320" as="sourcePoint" />
+            <mxPoint x="940" y="320" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="20" edge="1" parent="1" style="dashed=1;endArrow=open;endFill=0;html=1;fontColor=default;labelBackgroundColor=none;fontSize=12;" value="openemrPatientId">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="940" y="370" as="sourcePoint" />
+            <mxPoint x="780" y="370" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="21" edge="1" parent="1" style="endArrow=block;endFill=1;html=1;fontColor=default;curved=1;labelBackgroundColor=none;fontSize=12;" value="link SYNCED">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="870" y="420" />
+              <mxPoint x="870" y="450" />
+            </Array>
+            <mxPoint x="820" y="420" as="sourcePoint" />
+            <mxPoint x="820" y="450" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="22" parent="1" style="shape=note;whiteSpace=wrap;html=1;fillColor=#003EA8;strokeColor=#000000;fontColor=#FFFFFF;size=12;" value="later" vertex="1">
+          <mxGeometry height="50" width="760" x="80" y="460" as="geometry" />
+        </mxCell>
+        <mxCell id="23" edge="1" parent="1" style="endArrow=block;endFill=1;html=1;fontColor=default;labelBackgroundColor=none;fontSize=12;" value="GET /v1/emr/me">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="140" y="520" as="sourcePoint" />
+            <mxPoint x="780" y="520" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="24" edge="1" parent="1" style="endArrow=block;endFill=1;html=1;fontColor=default;labelBackgroundColor=none;fontSize=12;" value="FHIR search parallel + MySQL read">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="780" y="570" as="sourcePoint" />
+            <mxPoint x="940" y="570" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="25" edge="1" parent="1" style="dashed=1;endArrow=open;endFill=0;html=1;fontColor=default;labelBackgroundColor=none;fontSize=12;" value="unified PatientEmrChart">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="780" y="620" as="sourcePoint" />
+            <mxPoint x="140" y="620" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" agent="MediCare-sequence-export" version="24.7.17">
+  <diagram id="seq-12" name="Feature: Appointment event → WhatsApp — Sequence">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="0" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1080" pageHeight="670" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="2" value="Feature: Appointment event → WhatsApp — Sequence" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=14;fontStyle=1" vertex="1" parent="1"><mxGeometry x="40" y="10" width="1000" height="24" as="geometry"/></mxCell>
+        <mxCell id="3" value="Kafka" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;" vertex="1" parent="1"><mxGeometry x="80" y="40" width="120" height="40" as="geometry"/></mxCell>
+        <mxCell id="4" value="" style="endArrow=none;dashed=1;html=1;strokeColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="140" y="90" as="sourcePoint"/><mxPoint x="140" y="630" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="5" value="notification" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;" vertex="1" parent="1"><mxGeometry x="240" y="40" width="120" height="40" as="geometry"/></mxCell>
+        <mxCell id="6" value="" style="endArrow=none;dashed=1;html=1;strokeColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="300" y="90" as="sourcePoint"/><mxPoint x="300" y="630" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="7" value="user-service" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;" vertex="1" parent="1"><mxGeometry x="400" y="40" width="120" height="40" as="geometry"/></mxCell>
+        <mxCell id="8" value="" style="endArrow=none;dashed=1;html=1;strokeColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="460" y="90" as="sourcePoint"/><mxPoint x="460" y="630" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="9" value="clinic-service" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;" vertex="1" parent="1"><mxGeometry x="560" y="40" width="120" height="40" as="geometry"/></mxCell>
+        <mxCell id="10" value="" style="endArrow=none;dashed=1;html=1;strokeColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="620" y="90" as="sourcePoint"/><mxPoint x="620" y="630" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="11" value="Evolution" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;" vertex="1" parent="1"><mxGeometry x="720" y="40" width="120" height="40" as="geometry"/></mxCell>
+        <mxCell id="12" value="" style="endArrow=none;dashed=1;html=1;strokeColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="780" y="90" as="sourcePoint"/><mxPoint x="780" y="630" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="13" value="notification_db" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;" vertex="1" parent="1"><mxGeometry x="880" y="40" width="120" height="40" as="geometry"/></mxCell>
+        <mxCell id="14" value="" style="endArrow=none;dashed=1;html=1;strokeColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="940" y="90" as="sourcePoint"/><mxPoint x="940" y="630" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="15" value="EventPattern appointment.created" style="endArrow=block;endFill=1;html=1;strokeColor=#000000;fontColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="140" y="120" as="sourcePoint"/><mxPoint x="300" y="120" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="16" value="par resolve context" style="shape=umlFrame;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;align=left;verticalAlign=top;spacingLeft=6;" vertex="1" parent="1"><mxGeometry x="60" y="160" width="940" height="100" as="geometry"/></mxCell>
+        <mxCell id="17" value="GET patient, doctor" style="endArrow=block;endFill=1;html=1;strokeColor=#000000;fontColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="300" y="190" as="sourcePoint"/><mxPoint x="460" y="190" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="18" value="get clinic" style="endArrow=block;endFill=1;html=1;strokeColor=#000000;fontColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="300" y="240" as="sourcePoint"/><mxPoint x="620" y="240" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="19" value="alt patient has phone" style="shape=umlFrame;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;align=left;verticalAlign=top;spacingLeft=6;" vertex="1" parent="1"><mxGeometry x="60" y="330" width="940" height="100" as="geometry"/></mxCell>
+        <mxCell id="20" value="POST sendText confirmed" style="endArrow=block;endFill=1;html=1;strokeColor=#000000;fontColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="300" y="360" as="sourcePoint"/><mxPoint x="780" y="360" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="21" value="INSERT log SENT|FAILED" style="endArrow=block;endFill=1;html=1;strokeColor=#000000;fontColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="300" y="410" as="sourcePoint"/><mxPoint x="940" y="410" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="22" value="emit notification.sent|failed" style="endArrow=block;endFill=1;html=1;strokeColor=#000000;fontColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="300" y="460" as="sourcePoint"/><mxPoint x="140" y="460" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="23" value="else no phone" style="shape=umlFrame;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;align=left;verticalAlign=top;spacingLeft=6;" vertex="1" parent="1"><mxGeometry x="60" y="500" width="940" height="100" as="geometry"/></mxCell>
+        <mxCell id="24" value="skip warn" style="endArrow=block;endFill=1;html=1;strokeColor=#000000;fontColor=#000000;curved=1;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="340" y="530" as="sourcePoint"/><mxPoint x="340" y="560" as="targetPoint"/><Array as="points"><mxPoint x="390" y="530"/><mxPoint x="390" y="560"/></Array></mxGeometry></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

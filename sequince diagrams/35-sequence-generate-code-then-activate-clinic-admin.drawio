@@ -1,0 +1,84 @@
+<mxfile host="Electron" agent="MediCare-sequence-export">
+  <diagram id="seq-34" name="Sequence — generate code, then activate clinic admin">
+    <mxGraphModel dx="936" dy="644" grid="1" gridSize="10" guides="1" tooltips="1" connect="0" arrows="1" fold="1" page="1" pageScale="1" pageWidth="900" pageHeight="600" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="2" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=14;fontStyle=1" value="Sequence — generate code, then activate clinic admin" vertex="1">
+          <mxGeometry height="24" width="820" x="40" y="10" as="geometry" />
+        </mxCell>
+        <mxCell id="3" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;" value="Operator" vertex="1">
+          <mxGeometry height="40" width="120" x="80" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="4" edge="1" parent="1" style="endArrow=none;dashed=1;html=1;labelBackgroundColor=none;fontColor=default;fontSize=12;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="140" y="90" as="sourcePoint" />
+            <mxPoint x="140" y="560" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="5" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;" value="System Manager" vertex="1">
+          <mxGeometry height="40" width="120" x="240" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="6" edge="1" parent="1" style="endArrow=none;dashed=1;html=1;labelBackgroundColor=none;fontColor=default;fontSize=12;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="300" y="90" as="sourcePoint" />
+            <mxPoint x="300" y="560" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="7" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;" value="sysmgr_db" vertex="1">
+          <mxGeometry height="40" width="120" x="400" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="8" edge="1" parent="1" style="endArrow=none;dashed=1;html=1;labelBackgroundColor=none;fontColor=default;fontSize=12;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="460" y="90" as="sourcePoint" />
+            <mxPoint x="460" y="560" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="9" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;" value="Kafka" vertex="1">
+          <mxGeometry height="40" width="120" x="560" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="10" edge="1" parent="1" style="endArrow=none;dashed=1;html=1;labelBackgroundColor=none;fontColor=default;fontSize=12;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="620" y="90" as="sourcePoint" />
+            <mxPoint x="620" y="560" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="11" edge="1" parent="1" style="endArrow=block;endFill=1;html=1;fontColor=default;labelBackgroundColor=none;fontSize=12;" value="request activation code">
+          <mxGeometry relative="1" x="-0.125" y="10" as="geometry">
+            <mxPoint as="offset" />
+            <mxPoint x="140" y="120" as="sourcePoint" />
+            <mxPoint x="300" y="120" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="12" edge="1" parent="1" style="endArrow=block;endFill=1;html=1;fontColor=default;curved=1;labelBackgroundColor=none;fontSize=12;" value="create code pending, emit audit.log">
+          <mxGeometry relative="1" x="-0.0769" y="20" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="350" y="170" />
+              <mxPoint x="350" y="200" />
+            </Array>
+            <mxPoint x="300" y="170" as="sourcePoint" />
+            <mxPoint x="300" y="200" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="13" edge="1" parent="1" style="endArrow=block;endFill=1;html=1;fontColor=default;labelBackgroundColor=none;fontSize=12;" value="persist code">
+          <mxGeometry relative="1" y="10" as="geometry">
+            <mxPoint as="offset" />
+            <mxPoint x="300" y="230" as="sourcePoint" />
+            <mxPoint x="460" y="230" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="14" parent="1" style="shape=note;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;size=12;" value="Later, clinic admin activates with the code" vertex="1">
+          <mxGeometry height="50" width="280" x="240" y="270" as="geometry" />
+        </mxCell>
+        <mxCell id="15" edge="1" parent="1" style="endArrow=block;endFill=1;html=1;fontColor=default;labelBackgroundColor=none;fontSize=12;" value="emit system.manager.activate.clinic.admin">
+          <mxGeometry relative="1" y="10" as="geometry">
+            <mxPoint as="offset" />
+            <mxPoint x="300" y="360" as="sourcePoint" />
+            <mxPoint x="620" y="360" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

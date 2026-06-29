@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" agent="MediCare-sequence-export" version="24.7.17">
+  <diagram id="seq-20" name="11.3.3 Authentication architecture (detailed)">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="0" arrows="1" fold="1" page="1" pageScale="1" pageWidth="900" pageHeight="770" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="2" value="11.3.3 Authentication architecture (detailed)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=14;fontStyle=1" vertex="1" parent="1"><mxGeometry x="40" y="10" width="820" height="24" as="geometry"/></mxCell>
+        <mxCell id="3" value="User" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;" vertex="1" parent="1"><mxGeometry x="80" y="40" width="120" height="40" as="geometry"/></mxCell>
+        <mxCell id="4" value="" style="endArrow=none;dashed=1;html=1;strokeColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="140" y="90" as="sourcePoint"/><mxPoint x="140" y="730" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="5" value="Gateway" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;" vertex="1" parent="1"><mxGeometry x="240" y="40" width="120" height="40" as="geometry"/></mxCell>
+        <mxCell id="6" value="" style="endArrow=none;dashed=1;html=1;strokeColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="300" y="90" as="sourcePoint"/><mxPoint x="300" y="730" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="7" value="auth" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;" vertex="1" parent="1"><mxGeometry x="400" y="40" width="120" height="40" as="geometry"/></mxCell>
+        <mxCell id="8" value="" style="endArrow=none;dashed=1;html=1;strokeColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="460" y="90" as="sourcePoint"/><mxPoint x="460" y="730" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="9" value="user-service" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;" vertex="1" parent="1"><mxGeometry x="560" y="40" width="120" height="40" as="geometry"/></mxCell>
+        <mxCell id="10" value="" style="endArrow=none;dashed=1;html=1;strokeColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="620" y="90" as="sourcePoint"/><mxPoint x="620" y="730" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="11" value="login phone+password" style="endArrow=block;endFill=1;html=1;strokeColor=#000000;fontColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="140" y="120" as="sourcePoint"/><mxPoint x="300" y="120" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="12" value="/v1/auth/login public" style="endArrow=block;endFill=1;html=1;strokeColor=#000000;fontColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="300" y="170" as="sourcePoint"/><mxPoint x="460" y="170" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="13" value="validate-login HTTP + x-service-token + HMAC" style="endArrow=block;endFill=1;html=1;strokeColor=#000000;fontColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="460" y="220" as="sourcePoint"/><mxPoint x="620" y="220" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="14" value="ok + role" style="dashed=1;endArrow=open;endFill=0;html=1;strokeColor=#000000;fontColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="620" y="270" as="sourcePoint"/><mxPoint x="460" y="270" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="15" value="alt privileged role" style="shape=umlFrame;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;align=left;verticalAlign=top;spacingLeft=6;" vertex="1" parent="1"><mxGeometry x="60" y="310" width="620" height="100" as="geometry"/></mxCell>
+        <mxCell id="16" value="mfa_pending + OTP sent" style="dashed=1;endArrow=open;endFill=0;html=1;strokeColor=#000000;fontColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="460" y="340" as="sourcePoint"/><mxPoint x="140" y="340" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="17" value="verify-mfa" style="endArrow=block;endFill=1;html=1;strokeColor=#000000;fontColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="140" y="390" as="sourcePoint"/><mxPoint x="300" y="390" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="18" value="/v1/auth/verify-mfa" style="endArrow=block;endFill=1;html=1;strokeColor=#000000;fontColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="300" y="440" as="sourcePoint"/><mxPoint x="460" y="440" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="19" value="access jti + refresh family" style="dashed=1;endArrow=open;endFill=0;html=1;strokeColor=#000000;fontColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="460" y="490" as="sourcePoint"/><mxPoint x="140" y="490" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="20" value="else else" style="shape=umlFrame;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;align=left;verticalAlign=top;spacingLeft=6;" vertex="1" parent="1"><mxGeometry x="60" y="530" width="620" height="100" as="geometry"/></mxCell>
+        <mxCell id="21" value="access + refresh" style="dashed=1;endArrow=open;endFill=0;html=1;strokeColor=#000000;fontColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="460" y="560" as="sourcePoint"/><mxPoint x="140" y="560" as="targetPoint"/></mxGeometry></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" agent="MediCare-sequence-export" version="24.7.17">
+  <diagram id="seq-9" name="Sequence — provision + link admin">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="0" arrows="1" fold="1" page="1" pageScale="1" pageWidth="900" pageHeight="670" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="2" value="Sequence — provision + link admin" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=14;fontStyle=1" vertex="1" parent="1"><mxGeometry x="40" y="10" width="820" height="24" as="geometry"/></mxCell>
+        <mxCell id="3" value="system-manager" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;" vertex="1" parent="1"><mxGeometry x="80" y="40" width="120" height="40" as="geometry"/></mxCell>
+        <mxCell id="4" value="" style="endArrow=none;dashed=1;html=1;strokeColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="140" y="90" as="sourcePoint"/><mxPoint x="140" y="630" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="5" value="clinic-service" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;" vertex="1" parent="1"><mxGeometry x="240" y="40" width="120" height="40" as="geometry"/></mxCell>
+        <mxCell id="6" value="" style="endArrow=none;dashed=1;html=1;strokeColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="300" y="90" as="sourcePoint"/><mxPoint x="300" y="630" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="7" value="user-service" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;" vertex="1" parent="1"><mxGeometry x="400" y="40" width="120" height="40" as="geometry"/></mxCell>
+        <mxCell id="8" value="" style="endArrow=none;dashed=1;html=1;strokeColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="460" y="90" as="sourcePoint"/><mxPoint x="460" y="630" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="9" value="Kafka" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;" vertex="1" parent="1"><mxGeometry x="560" y="40" width="120" height="40" as="geometry"/></mxCell>
+        <mxCell id="10" value="" style="endArrow=none;dashed=1;html=1;strokeColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="620" y="90" as="sourcePoint"/><mxPoint x="620" y="630" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="11" value="POST /internal/provision-from-activation" style="endArrow=block;endFill=1;html=1;strokeColor=#000000;fontColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="140" y="120" as="sourcePoint"/><mxPoint x="300" y="120" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="12" value="idempotent lookup activationCodeId/adminPhone" style="endArrow=block;endFill=1;html=1;strokeColor=#000000;fontColor=#000000;curved=1;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="340" y="170" as="sourcePoint"/><mxPoint x="340" y="200" as="targetPoint"/><Array as="points"><mxPoint x="390" y="170"/><mxPoint x="390" y="200"/></Array></mxGeometry></mxCell>
+        <mxCell id="13" value="create clinic ACTIVE" style="endArrow=block;endFill=1;html=1;strokeColor=#000000;fontColor=#000000;curved=1;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="340" y="220" as="sourcePoint"/><mxPoint x="340" y="250" as="targetPoint"/><Array as="points"><mxPoint x="390" y="220"/><mxPoint x="390" y="250"/></Array></mxGeometry></mxCell>
+        <mxCell id="14" value="emit clinic.created source=activation_code" style="endArrow=block;endFill=1;html=1;strokeColor=#000000;fontColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="300" y="270" as="sourcePoint"/><mxPoint x="620" y="270" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="15" value="on clinic admin registration" style="shape=note;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;size=12;" vertex="1" parent="1"><mxGeometry x="240" y="320" width="140" height="50" as="geometry"/></mxCell>
+        <mxCell id="16" value="POST /internal/link-admin {phone}" style="endArrow=block;endFill=1;html=1;strokeColor=#000000;fontColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="140" y="370" as="sourcePoint"/><mxPoint x="300" y="370" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="17" value="set adminUserId, upsert CLINIC_ADMIN assignment" style="endArrow=block;endFill=1;html=1;strokeColor=#000000;fontColor=#000000;curved=1;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="340" y="420" as="sourcePoint"/><mxPoint x="340" y="450" as="targetPoint"/><Array as="points"><mxPoint x="390" y="420"/><mxPoint x="390" y="450"/></Array></mxGeometry></mxCell>
+        <mxCell id="18" value="emit clinic.staff.assigned" style="endArrow=block;endFill=1;html=1;strokeColor=#000000;fontColor=#000000;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="300" y="470" as="sourcePoint"/><mxPoint x="620" y="470" as="targetPoint"/></mxGeometry></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

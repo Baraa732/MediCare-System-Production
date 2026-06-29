@@ -1,0 +1,118 @@
+<mxfile host="Electron" agent="MediCare-sequence-export">
+  <diagram id="seq-23" name="5.2 OTP Generation">
+    <mxGraphModel dx="1030" dy="708" grid="1" gridSize="10" guides="1" tooltips="1" connect="0" arrows="1" fold="1" page="1" pageScale="1" pageWidth="900" pageHeight="670" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="3" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#003EA8;strokeColor=#000000;fontColor=#FFFFFF;" value="Client" vertex="1">
+          <mxGeometry height="40" width="120" x="80" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="4" edge="1" parent="1" style="endArrow=none;dashed=1;html=1;labelBackgroundColor=none;fontColor=default;entryX=0.51;entryY=0.01;entryDx=0;entryDy=0;entryPerimeter=0;" target="j_-d0CkquH3MjZgLLwyx-18" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="140" y="90" as="sourcePoint" />
+            <mxPoint x="140" y="630" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="5" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#003EA8;strokeColor=#000000;fontColor=#FFFFFF;" value="Auth Service" vertex="1">
+          <mxGeometry height="40" width="120" x="240" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="6" edge="1" parent="1" style="endArrow=none;dashed=1;html=1;labelBackgroundColor=none;fontColor=default;entryX=0.49;entryY=0.09;entryDx=0;entryDy=0;entryPerimeter=0;" target="j_-d0CkquH3MjZgLLwyx-19" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="300" y="90" as="sourcePoint" />
+            <mxPoint x="300" y="630" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="7" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#003EA8;strokeColor=#000000;fontColor=#FFFFFF;" value="Redis" vertex="1">
+          <mxGeometry height="40" width="120" x="400" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="8" edge="1" parent="1" style="endArrow=none;dashed=1;html=1;labelBackgroundColor=none;fontColor=default;entryX=0.503;entryY=0.01;entryDx=0;entryDy=0;entryPerimeter=0;" target="j_-d0CkquH3MjZgLLwyx-20" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="460" y="90" as="sourcePoint" />
+            <mxPoint x="460" y="630" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="9" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#003EA8;strokeColor=#000000;fontColor=#FFFFFF;" value="WhatsApp" vertex="1">
+          <mxGeometry height="40" width="120" x="560" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="10" edge="1" parent="1" style="endArrow=none;dashed=1;html=1;labelBackgroundColor=none;fontColor=default;entryX=0.523;entryY=0.07;entryDx=0;entryDy=0;entryPerimeter=0;" target="j_-d0CkquH3MjZgLLwyx-21" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="620" y="90" as="sourcePoint" />
+            <mxPoint x="620" y="630" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="11" edge="1" parent="1" style="endArrow=block;endFill=1;html=1;fontColor=default;labelBackgroundColor=none;" value="POST /api/auth/otp/request">
+          <mxGeometry relative="1" y="10" as="geometry">
+            <mxPoint as="offset" />
+            <mxPoint x="140" y="120" as="sourcePoint" />
+            <mxPoint x="300" y="120" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="12" edge="1" parent="1" style="endArrow=block;endFill=1;html=1;fontColor=default;curved=1;labelBackgroundColor=none;" value="rate-limit OTP_REQUEST per phone">
+          <mxGeometry relative="1" x="-0.2308" y="10" as="geometry">
+            <mxPoint x="10" y="10" as="offset" />
+            <Array as="points">
+              <mxPoint x="350" y="160" />
+              <mxPoint x="350" y="190" />
+            </Array>
+            <mxPoint x="300" y="160" as="sourcePoint" />
+            <mxPoint x="300" y="190" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="13" edge="1" parent="1" style="endArrow=block;endFill=1;html=1;fontColor=default;curved=1;labelBackgroundColor=none;" value="generate 6-digit code + hash">
+          <mxGeometry relative="1" x="-0.0769" y="10" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="350" y="210" />
+              <mxPoint x="350" y="240" />
+            </Array>
+            <mxPoint x="300" y="210" as="sourcePoint" />
+            <mxPoint x="300" y="240" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="14" edge="1" parent="1" style="endArrow=block;endFill=1;html=1;fontColor=default;labelBackgroundColor=none;" value="SET otp hash key, TTL 300s">
+          <mxGeometry relative="1" y="10" as="geometry">
+            <mxPoint as="offset" />
+            <mxPoint x="300" y="270" as="sourcePoint" />
+            <mxPoint x="460" y="270" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="15" edge="1" parent="1" style="endArrow=block;endFill=1;html=1;fontColor=default;labelBackgroundColor=none;" value="send OTP message">
+          <mxGeometry relative="1" x="0.125" y="10" as="geometry">
+            <mxPoint as="offset" />
+            <mxPoint x="300" y="320" as="sourcePoint" />
+            <mxPoint x="620" y="320" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="16" edge="1" parent="1" style="dashed=1;endArrow=open;endFill=0;html=1;fontColor=default;labelBackgroundColor=none;" value="WhatsApp delivery">
+          <mxGeometry relative="1" y="-10" as="geometry">
+            <mxPoint as="offset" />
+            <mxPoint x="620" y="370" as="sourcePoint" />
+            <mxPoint x="140" y="370" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="17" edge="1" parent="1" style="dashed=1;endArrow=open;endFill=0;html=1;fontColor=default;labelBackgroundColor=none;" value="200 otp sent">
+          <mxGeometry relative="1" y="-10" as="geometry">
+            <mxPoint as="offset" />
+            <mxPoint x="300" y="420" as="sourcePoint" />
+            <mxPoint x="140" y="420" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="18" parent="1" style="shape=note;whiteSpace=wrap;html=1;fillColor=#003EA8;strokeColor=#000000;fontColor=#FFFFFF;size=12;" value="Only the salted hash is stored, never the plaintext OTP" vertex="1">
+          <mxGeometry height="50" width="280" x="240" y="470" as="geometry" />
+        </mxCell>
+        <mxCell id="j_-d0CkquH3MjZgLLwyx-18" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#003EA8;strokeColor=#000000;fontColor=#FFFFFF;" value="Client" vertex="1">
+          <mxGeometry height="40" width="120" x="80" y="560" as="geometry" />
+        </mxCell>
+        <mxCell id="j_-d0CkquH3MjZgLLwyx-19" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#003EA8;strokeColor=#000000;fontColor=#FFFFFF;" value="Auth Service" vertex="1">
+          <mxGeometry height="40" width="120" x="240" y="560" as="geometry" />
+        </mxCell>
+        <mxCell id="j_-d0CkquH3MjZgLLwyx-20" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#003EA8;strokeColor=#000000;fontColor=#FFFFFF;" value="Redis" vertex="1">
+          <mxGeometry height="40" width="120" x="400" y="560" as="geometry" />
+        </mxCell>
+        <mxCell id="j_-d0CkquH3MjZgLLwyx-21" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#003EA8;strokeColor=#000000;fontColor=#FFFFFF;" value="WhatsApp" vertex="1">
+          <mxGeometry height="40" width="120" x="560" y="560" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

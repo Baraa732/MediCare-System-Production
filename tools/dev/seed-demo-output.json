@@ -1,0 +1,81 @@
+{
+  "apiBase": "http://localhost:3000/api",
+  "password": "Demo@Test1",
+  "patient": {
+    "phoneNumber": "+963999000100",
+    "firstName": "Test",
+    "lastName": "Patient",
+    "password": "Demo@Test1"
+  },
+  "clinics": [
+    {
+      "id": "a3d6d4b7-1edf-4476-a25f-c7f4f70df833",
+      "name": "Damascus Heart Clinic",
+      "city": "Damascus",
+      "governorate": "Damascus",
+      "admin": { "phoneNumber": "+963999001001" },
+      "secretary": { "phoneNumber": "+963999001002" },
+      "doctors": [
+        { "phoneNumber": "+963999001010", "specialization": "Cardiology" },
+        { "phoneNumber": "+963999001011", "specialization": "Cardiology" }
+      ]
+    },
+    {
+      "id": "9b567abc-436c-4ec4-8834-d739ace6000a",
+      "name": "Aleppo Family Medical Center",
+      "city": "Aleppo",
+      "governorate": "Aleppo",
+      "admin": { "phoneNumber": "+963999002001" },
+      "secretary": { "phoneNumber": "+963999002002" },
+      "doctors": [
+        { "phoneNumber": "+963999002010", "specialization": "General Practice" }
+      ]
+    },
+    {
+      "id": "673e5d09-ee53-446b-bd6a-4f0cf3ac6f30",
+      "name": "Homs Dental Care",
+      "city": "Homs",
+      "governorate": "Homs",
+      "admin": { "phoneNumber": "+963999003001" },
+      "secretary": { "phoneNumber": "+963999003002", "note": "May need re-run seed if PENDING_ACTIVATION" },
+      "doctors": []
+    }
+  ],
+  "postman": {
+    "registerPatient": {
+      "method": "POST",
+      "url": "http://localhost:3000/api/auth/register",
+      "headers": { "Idempotency-Key": "<uuid>", "Content-Type": "application/json" },
+      "body": {
+        "phoneNumber": "+963999000200",
+        "firstName": "New",
+        "lastName": "Patient",
+        "password": "Demo@Test1",
+        "role": "PATIENT"
+      }
+    },
+    "verifyOtp": {
+      "method": "POST",
+      "url": "http://localhost:3000/api/auth/verify-otp",
+      "body": { "phoneNumber": "+963999000200", "otp": "<devOtp>", "autoLogin": "true" }
+    },
+    "loginPatient": {
+      "method": "POST",
+      "url": "http://localhost:3000/api/auth/login",
+      "body": { "phoneNumber": "+963999000100", "password": "Demo@Test1" },
+      "note": "Returns devOtp when MFA required — then POST /auth/verify-mfa"
+    },
+    "aiBooking": {
+      "method": "POST",
+      "url": "http://localhost:3000/api/ai/patient-booking-assistant",
+      "headers": { "Authorization": "Bearer <accessToken>" },
+      "body": { "sessionId": "demo-session-1", "message": "Find cardiology clinics in Damascus" }
+    },
+    "aiChat": {
+      "method": "POST",
+      "url": "http://localhost:3000/api/ai/patient-chat",
+      "headers": { "Authorization": "Bearer <accessToken>" },
+      "body": { "message": "What should I bring to a cardiology visit?" }
+    }
+  }
+}
