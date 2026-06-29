@@ -1,0 +1,320 @@
+<mxfile host="app.diagrams.net" agent="MediCare" version="24.7.17">
+  <diagram id="architecture" name="1 - Architecture">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="title1" value="MediCare FHIR R4 Integration — Architecture" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=18;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="280" y="20" width="600" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="medicare-box" value="MediCare" style="swimlane;startSize=28;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="40" y="80" width="520" height="420" as="geometry" />
+        </mxCell>
+
+        <mxCell id="emr-record" value="EmrRecordService&#xa;getSyncStatus()&#xa;getPatientEmr()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="medicare-box">
+          <mxGeometry x="30" y="50" width="160" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="chart-svc" value="OpenEmrChartService&#xa;getPatientChart()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="medicare-box">
+          <mxGeometry x="220" y="50" width="170" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="sync-svc" value="PatientSyncService&#xa;syncPatient()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="medicare-box">
+          <mxGeometry x="30" y="160" width="160" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="fhir-reader" value="OpenEmrFhirReader&#xa;loadClinicalData()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="medicare-box">
+          <mxGeometry x="220" y="150" width="170" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="db-reader" value="OpenEmrDbReader&#xa;legacy MySQL read" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="medicare-box">
+          <mxGeometry x="220" y="230" width="170" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="client" value="OpenEmrClient&#xa;OAuth2 · createPatient()&#xa;fhirRead() · fhirSearch()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1" vertex="1" parent="medicare-box">
+          <mxGeometry x="120" y="320" width="280" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="emr-db" value="emr_db&#xa;patient_emr_links" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=12;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="medicare-box">
+          <mxGeometry x="30" y="310" width="70" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="openemr-box" value="OpenEMR (Clinical EHR)" style="swimlane;startSize=28;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="620" y="80" width="480" height="420" as="geometry" />
+        </mxCell>
+
+        <mxCell id="oauth-srv" value="OAuth2 Server&#xa;/oauth2/default/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="openemr-box">
+          <mxGeometry x="40" y="50" width="180" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="fhir-api" value="FHIR R4 API&#xa;/apis/default/fhir/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1" vertex="1" parent="openemr-box">
+          <mxGeometry x="260" y="50" width="180" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="mysql" value="MariaDB / MySQL&#xa;patient_data · lists&#xa;prescriptions · form_vitals" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=12;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="openemr-box">
+          <mxGeometry x="160" y="200" width="160" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="fhir-resources" value="FHIR Resources&#xa;Patient · AllergyIntolerance · Condition&#xa;MedicationRequest · Encounter · Observation&#xa;DiagnosticReport · Immunization · CarePlan" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;align=left;spacingLeft=8;" vertex="1" parent="openemr-box">
+          <mxGeometry x="40" y="330" width="400" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;" edge="1" parent="1" source="emr-record" target="chart-svc">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="chart-svc" target="fhir-reader">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="chart-svc" target="db-reader">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="sync-svc" target="client">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="fhir-reader" target="client">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="db-reader" target="mysql">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" value="FHIR R4 + Bearer token" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#0066CC;fontColor=#0066CC;" edge="1" parent="1" source="client" target="fhir-api">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" value="OAuth2 token" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#CC6600;" edge="1" parent="1" source="client" target="oauth-srv">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;" edge="1" parent="1" source="fhir-api" target="mysql">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="emr-record" target="emr-db">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend" value="Legend&#xa;Blue = MediCare emr-service&#xa;Red = OpenEMR (system of record)&#xa;Solid line = API call · Dashed = DB link" style="rounded=0;whiteSpace=wrap;html=1;align=left;spacingLeft=8;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="530" width="280" height="80" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram id="oauth" name="2 - OAuth2 Flow">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="t2" value="OAuth2 — How emr-service accesses OpenEMR FHIR" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=18;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="280" y="20" width="600" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="oc" value="OpenEmrClient&#xa;(emr-service)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="80" y="120" width="160" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="oauth" value="OpenEMR OAuth2&#xa;/oauth2/default/token" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="360" y="120" width="200" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="fhir" value="OpenEMR FHIR API&#xa;/fhir/Patient, /fhir/Observation..." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="680" y="120" width="220" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cache" value="Token cache&#xa;(in-memory, ~1 hour)" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="80" y="240" width="160" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step1" value="1. One-time: register OAuth client&#xa;→ client_id + client_secret" style="rounded=0;whiteSpace=wrap;html=1;align=left;spacingLeft=8;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="80" y="340" width="320" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step2" value="2. POST /token (password grant)&#xa;client_id, client_secret, admin user, scopes" style="rounded=0;whiteSpace=wrap;html=1;align=left;spacingLeft=8;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="80" y="410" width="320" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step3" value="3. GET /fhir/* with Authorization: Bearer {token}" style="rounded=0;whiteSpace=wrap;html=1;align=left;spacingLeft=8;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="80" y="480" width="320" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="o1" value="getAccessToken()" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;" edge="1" parent="1" source="oc" target="oauth">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="o2" value="access_token" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;" edge="1" parent="1" source="oauth" target="oc">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="460" y="220" />
+              <mxPoint x="160" y="220" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="o3" value="Bearer token" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;strokeColor=#0066CC;" edge="1" parent="1" source="oc" target="fhir">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="o4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;" edge="1" parent="1" source="oc" target="cache">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="o5" value="FHIR JSON response" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;" edge="1" parent="1" source="fhir" target="oc">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="790" y="220" />
+              <mxPoint x="160" y="220" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="note" value="OAuth2 = temporary access pass&#xa;MediCare never sends patient passwords to OpenEMR on every chart request" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=2" vertex="1" parent="1">
+          <mxGeometry x="480" y="340" width="420" height="60" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram id="provision" name="3 - Patient Provisioning">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="t3" value="Patient Registration → OpenEMR FHIR Patient" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=18;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="280" y="20" width="600" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="app" value="Mobile App" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;" vertex="1" parent="1">
+          <mxGeometry x="60" y="100" width="40" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="us" value="user-service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="180" y="110" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="kafka" value="Kafka&#xa;user.created" style="shape=process;whiteSpace=wrap;html=1;backgroundOutline=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="360" y="110" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="emr" value="emr-service&#xa;PatientSyncService" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="540" y="110" width="140" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="linkdb" value="emr_db&#xa;PENDING → SYNCED" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;size=12;fillColor=#f5f5f5;" vertex="1" parent="1">
+          <mxGeometry x="720" y="100" width="90" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="oe" value="OpenEMR&#xa;POST /fhir/Patient" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="880" y="110" width="140" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p1" value="1. register" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="app" target="us">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p2" value="2. event" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="us" target="kafka">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p3" value="3. consume" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="kafka" target="emr">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p4" value="4. save link" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="emr" target="linkdb">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p5" value="5. create Patient" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;strokeColor=#0066CC;" edge="1" parent="1" source="emr" target="oe">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="state-box" value="Sync status (patient_emr_link)" style="swimlane;startSize=24;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="180" y="260" width="520" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="st-p" value="PENDING" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;" vertex="1" parent="state-box">
+          <mxGeometry x="30" y="40" width="90" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="st-s" value="SYNCED" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="state-box">
+          <mxGeometry x="200" y="40" width="90" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="st-f" value="FAILED" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="state-box">
+          <mxGeometry x="370" y="40" width="90" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="st-e1" value="FHIR OK" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="state-box" source="st-p" target="st-s">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="st-e2" value="error" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="state-box" source="st-p" target="st-f">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="st-e3" value="retry" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;" edge="1" parent="state-box" source="st-f" target="st-s">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="415" y="110" />
+              <mxPoint x="245" y="110" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram id="chart-load" name="4 - Chart Loading">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="t4" value="GET /api/emr/my-chart — Clinical data loading" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=18;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="240" y="20" width="680" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="c-app" value="Patient App" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="100" width="40" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="c-gw" value="API Gateway&#xa;JWT auth" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="160" y="110" width="110" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="c-emr" value="emr-service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="320" y="110" width="120" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="c-fhir" value="OpenEmrFhirReader&#xa;10 parallel FHIR searches" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="520" y="80" width="180" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="c-db" value="OpenEmrDbReader&#xa;MySQL legacy" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="520" y="160" width="180" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="c-merge" value="Merge + map&#xa;PatientEmrChart" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="760" y="110" width="140" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="c-oe" value="OpenEMR" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="960" y="110" width="100" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ce1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="c-app" target="c-gw">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ce2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="c-gw" target="c-emr">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ce3" value="parallel" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="c-emr" target="c-fhir">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ce4" value="parallel" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="c-emr" target="c-db">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ce5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="c-fhir" target="c-merge">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ce6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="c-db" target="c-merge">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ce7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="c-fhir" target="c-oe">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ce8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="c-db" target="c-oe">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ce9" value="JSON chart" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;dashed=1;" edge="1" parent="1" source="c-merge" target="c-app">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="830" y="260" />
+              <mxPoint x="80" y="260" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="resources" value="FHIR resources loaded in parallel (~1.5s):&#xa;Patient · AllergyIntolerance · Condition · MedicationRequest · Encounter&#xa;Observation · DiagnosticReport · Immunization · CarePlan · DocumentReference" style="rounded=0;whiteSpace=wrap;html=1;align=left;spacingLeft=8;fillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="160" y="280" width="720" height="60" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

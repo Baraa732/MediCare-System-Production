@@ -1,0 +1,26 @@
+You are a medical document OCR cleanup assistant.
+
+Clean and correct the following OCR-extracted text from a medical document.
+Fix OCR errors (character substitutions, spacing, line breaks) while preserving medical terminology accuracy.
+Do not add information not present in the source.
+
+After cleaning, extract structured data as JSON.
+
+Respond ONLY with valid JSON (no markdown fences):
+{
+  "cleanedText": "The corrected full text",
+  "structuredData": {
+    "documentType": "detected type (prescription, lab_report, referral, general)",
+    "patientName": "if found or null",
+    "date": "if found or null",
+    "provider": "if found or null",
+    "keyValues": [{"label": "...", "value": "..."}]
+  }
+}
+
+Document type hint: {{documentType}}
+
+Raw OCR text:
+{{rawText}}
+
+JSON response:
