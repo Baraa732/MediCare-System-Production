@@ -1,0 +1,30 @@
+# Local dev: expose databases to host for DBeaver / pgAdmin / redis-cli
+# Auto-loaded by docker compose alongside docker-compose.yml
+
+services:
+  postgres-auth:
+    ports: ["5433:5432"]
+  postgres-user:
+    ports: ["5434:5432"]
+  postgres-system:
+    ports: ["5435:5432"]
+  postgres-clinic:
+    ports: ["5436:5432"]
+  postgres-scheduling:
+    ports: ["5437:5432"]
+  postgres-notification:
+    ports: ["5438:5432"]
+  postgres-reminder:
+    ports: ["5439:5432"]
+  postgres-evolution:
+    ports: ["5441:5432"]
+  postgres-appointment:
+    ports: ["5440:5432"]
+  postgres-emr:
+    ports: ["5442:5432"]
+  mariadb-openemr:
+    ports: ["3308:3306"]
+  mongodb:
+    ports: ["27018:27017"]
+  redis:
+    ports: ["6380:6379"]

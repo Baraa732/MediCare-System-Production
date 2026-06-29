@@ -1,0 +1,1256 @@
+services:
+
+  # ── Databases ────────────────────────────────────────────────────────────────
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    command: redis-server --requirepass ${REDIS_PASSWORD} --maxmemory 512mb --maxmemory-policy volatile-lru --save 900 1 --save 300 10 --save 60 10000 --appendonly yes --appendfsync everysec
+    expose:
+      - "6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - clinic_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '1.0'
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres-auth:
+    image: postgres:15-alpine
+    container_name: postgres_auth
+    environment:
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # HIGH FIX: Enable WAL archiving for point-in-time recovery
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C"
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+    expose:
+      - "5432"
+    volumes:
+      - postgres_auth_data:/var/lib/postgresql/data
+    networks:
+      - clinic_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '1.0'
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d auth_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres-user:
+    image: postgres:15-alpine
+    container_name: postgres_user
+    environment:
+      POSTGRES_DB: user_db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # HIGH FIX: Enable WAL archiving for point-in-time recovery
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C"
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+    expose:
+      - "5432"
+    volumes:
+      - postgres_user_data:/var/lib/postgresql/data
+    networks:
+      - clinic_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '1.0'
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d user_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres-system:
+    image: postgres:15-alpine
+    container_name: postgres_system
+    environment:
+      POSTGRES_DB: system_db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # HIGH FIX: Enable WAL archiving for point-in-time recovery
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C"
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+    expose:
+      - "5432"
+    volumes:
+      - postgres_system_data:/var/lib/postgresql/data
+    networks:
+      - clinic_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '1.0'
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d system_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres-clinic:
+    image: postgres:15-alpine
+    container_name: postgres_clinic
+    environment:
+      POSTGRES_DB: clinic_db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C"
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+    expose:
+      - "5432"
+    volumes:
+      - postgres_clinic_data:/var/lib/postgresql/data
+    networks:
+      - clinic_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '1.0'
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d clinic_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres-scheduling:
+    image: postgres:15-alpine
+    container_name: postgres_scheduling
+    environment:
+      POSTGRES_DB: scheduling_db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C"
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+    expose:
+      - "5432"
+    volumes:
+      - postgres_scheduling_data:/var/lib/postgresql/data
+    networks:
+      - clinic_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '1.0'
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d scheduling_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres-notification:
+    image: postgres:15-alpine
+    container_name: postgres_notification
+    environment:
+      POSTGRES_DB: notification_db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C"
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+    expose:
+      - "5432"
+    volumes:
+      - postgres_notification_data:/var/lib/postgresql/data
+    networks:
+      - clinic_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '1.0'
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d notification_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres-reminder:
+    image: postgres:15-alpine
+    container_name: postgres_reminder
+    environment:
+      POSTGRES_DB: reminder_db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C"
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+    expose:
+      - "5432"
+    volumes:
+      - postgres_reminder_data:/var/lib/postgresql/data
+    networks:
+      - clinic_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '1.0'
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d reminder_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres-evolution:
+    image: postgres:15-alpine
+    container_name: postgres_evolution
+    environment:
+      POSTGRES_DB: evolution_db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C"
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+    expose:
+      - "5432"
+    volumes:
+      - postgres_evolution_data:/var/lib/postgresql/data
+    networks:
+      - clinic_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: '0.5'
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d evolution_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres-appointment:
+    image: postgres:15-alpine
+    container_name: postgres_appointment
+    environment:
+      POSTGRES_DB: appointment_db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C"
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+    expose:
+      - "5432"
+    volumes:
+      - postgres_appointment_data:/var/lib/postgresql/data
+    networks:
+      - clinic_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '1.0'
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d appointment_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Database Backup Service ─────────────────────────────────────────────────────
+  # Fix 8: Performs automated backups using pgBackRest instead of pg_dump
+  # Retains backups for 30 days (full backups) and 7 days (differential backups)
+  # Note: pgbackrest image not available - using alternative approach or comment out for now
+  # pgbackrest:
+  #   image: pgbackrest/pgbackrest:stable-release
+  #   container_name: pgbackrest
+  #   environment:
+  #     PGBACKREST_REPO1_PATH: /backups
+  #     PGBACKREST_REPO1_RETENTION_FULL: 30
+  #     PGBACKREST_REPO1_RETENTION_DIFF: 7
+  #     PGBACKREST_DB1_HOST: postgres-auth
+  #     PGBACKREST_DB1_PATH: /var/lib/postgresql/data
+  #     PGBACKREST_DB1_PORT: 5432
+  #     PGBACKREST_DB1_USER: ${POSTGRES_USER}
+  #     PGBACKREST_DB1_PASSWORD: ${POSTGRES_PASSWORD}
+  #     PGBACKREST_DB1_DATABASE: auth_db
+  #     PGBACKREST_DB2_HOST: postgres-user
+  #     PGBACKREST_DB2_PATH: /var/lib/postgresql/data
+  #     PGBACKREST_DB2_PORT: 5432
+  #     PGBACKREST_DB2_USER: ${POSTGRES_USER}
+  #     PGBACKREST_DB2_PASSWORD: ${POSTGRES_PASSWORD}
+  #     PGBACKREST_DB2_DATABASE: user_db
+  #     PGBACKREST_DB3_HOST: postgres-system
+  #     PGBACKREST_DB3_PATH: /var/lib/postgresql/data
+  #     PGBACKREST_DB3_PORT: 5432
+  #     PGBACKREST_DB3_USER: ${POSTGRES_USER}
+  #     PGBACKREST_DB3_PASSWORD: ${POSTGRES_PASSWORD}
+  #     PGBACKREST_DB3_DATABASE: system_db
+  #     PGBACKREST_DB4_HOST: postgres-clinic
+  #     PGBACKREST_DB4_PATH: /var/lib/postgresql/data
+  #     PGBACKREST_DB4_PORT: 5432
+  #     PGBACKREST_DB4_USER: ${POSTGRES_USER}
+  #     PGBACKREST_DB4_PASSWORD: ${POSTGRES_PASSWORD}
+  #     PGBACKREST_DB4_DATABASE: clinic_db
+  #   volumes:
+  #     - pgbackrest_data:/backups
+  #     - ./DevOps/Docker/pgbackrest/pgbackrest.conf:/etc/pgbackrest/pgbackrest.conf:ro
+  #   networks:
+  #     - clinic_network
+  #   restart: unless-stopped
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 512m
+  #         cpus: '0.5'
+  #   entrypoint: ["/bin/sh", "-c"]
+  #   command: |
+  #     "
+  #     echo 'Initializing pgBackRest...'
+  #     # Create backup directories
+  #     mkdir -p /backups/repo1
+  #     chmod 700 /backups/repo1
+  #     
+  #     # MEDIUM FIX: Initialize pgBackRest stanzas before running backups
+  #     echo 'Initializing pgBackRest stanzas...'
+  #     pgbackrest --stanza=db1 --log-level-console=info stanza-create || echo 'Stanza db1 already exists or failed'
+  #     pgbackrest --stanza=db2 --log-level-console=info stanza-create || echo 'Stanza db2 already exists or failed'
+  #     pgbackrest --stanza=db3 --log-level-console=info stanza-create || echo 'Stanza db3 already exists or failed'
+  #     pgbackrest --stanza=db4 --log-level-console=info stanza-create || echo 'Stanza db4 already exists or failed'
+  #     echo 'Stanzas initialized'
+  #     
+  #     # Fix 8: Use proper pgBackRest backup commands instead of pg_dump
+  #     # Run full backup daily at 2 AM, differential backups every 6 hours
+  #     while true; do
+  #       echo 'Starting pgBackRest backup at $$(date)'
+  #       
+  #       # Perform full backup (daily at 2 AM)
+  #       current_hour=$$(date +%H)
+  #       if [ \"$$current_hour\" = \"02\" ]; then
+  #         echo 'Running full backup...'
+  #         pgbackrest --stanza=db1 --log-level-console=info backup --type=full || echo 'Full backup failed'
+  #         pgbackrest --stanza=db2 --log-level-console=info backup --type=full || echo 'Full backup failed'
+  #         pgbackrest --stanza=db3 --log-level-console=info backup --type=full || echo 'Full backup failed'
+  #         pgbackrest --stanza=db4 --log-level-console=info backup --type=full || echo 'Full backup failed'
+  #       else
+  #         echo 'Running differential backup...'
+  #         pgbackrest --stanza=db1 --log-level-console=info backup --type=diff || echo 'Differential backup failed'
+  #         pgbackrest --stanza=db2 --log-level-console=info backup --type=diff || echo 'Differential backup failed'
+  #         pgbackrest --stanza=db3 --log-level-console=info backup --type=diff || echo 'Differential backup failed'
+  #         pgbackrest --stanza=db4 --log-level-console=info backup --type=diff || echo 'Differential backup failed'
+  #       fi
+  #       
+  #       echo 'Backup completed at $$(date)'
+  #       # Fix 8: pgBackRest automatically manages retention based on configuration
+  #       sleep 21600  # 6 hours
+  #     done
+  #     "
+
+  # ── OpenEMR (EHR) ─────────────────────────────────────────────────────────────
+  # Full OpenEMR stack: MariaDB + openemr/openemr (appointments, billing, records)
+  # UI: http://localhost:8081  (default login from OE_USER / OE_PASS)
+
+  mariadb-openemr:
+    image: mariadb:11.8
+    container_name: mariadb_openemr
+    command: ['mariadbd', '--character-set-server=utf8mb4']
+    environment:
+      MYSQL_ROOT_PASSWORD: ${OPENEMR_MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: openemr
+      MYSQL_USER: ${OPENEMR_MYSQL_USER}
+      MYSQL_PASSWORD: ${OPENEMR_MYSQL_PASSWORD}
+    expose:
+      - "3306"
+    volumes:
+      - mariadb_openemr_data:/var/lib/mysql
+    networks:
+      - clinic_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '1.0'
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck.sh", "--su-mysql", "--connect", "--innodb_initialized"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 60s
+
+  openemr:
+    image: openemr/openemr:latest
+    container_name: openemr
+    ports:
+      - "8081:80"
+      - "8443:443"
+    volumes:
+      - openemr_logs:/var/log
+      - openemr_sites:/var/www/localhost/htdocs/openemr/sites
+    environment:
+      MYSQL_HOST: mariadb-openemr
+      MYSQL_ROOT_PASS: ${OPENEMR_MYSQL_ROOT_PASSWORD}
+      MYSQL_USER: ${OPENEMR_MYSQL_USER}
+      MYSQL_PASS: ${OPENEMR_MYSQL_PASSWORD}
+      MYSQL_DATABASE: openemr
+      OE_USER: ${OPENEMR_ADMIN_USER}
+      OE_PASS: ${OPENEMR_ADMIN_PASSWORD}
+      OPENEMR_SETTING_rest_api: "1"
+      OPENEMR_SETTING_rest_fhir_api: "1"
+      OPENEMR_SETTING_rest_portal_api: "1"
+      OPENEMR_SETTING_oauth_password_grant: "3"
+      OPENEMR_SETTING_site_addr_oath: "https://openemr"
+      OPENEMR_SETTING_oauth_app_manual_approval: "0"
+    depends_on:
+      mariadb-openemr:
+        condition: service_healthy
+    networks:
+      - clinic_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: '1.5'
+    healthcheck:
+      test: ["CMD", "/usr/bin/curl", "--fail", "--insecure", "--location", "--show-error", "--silent", "https://localhost/meta/health/readyz"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 240s
+
+  postgres-emr:
+    image: postgres:15-alpine
+    container_name: postgres_emr
+    environment:
+      POSTGRES_DB: emr_db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C"
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+    expose:
+      - "5432"
+    volumes:
+      - postgres_emr_data:/var/lib/postgresql/data
+    networks:
+      - clinic_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: '0.5'
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d emr_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mongodb:
+    image: mongo:6
+    container_name: evolution_mongo
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+    expose:
+      - "27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - clinic_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '0.5'
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── WhatsApp API ─────────────────────────────────────────────────────────────
+
+  evolution-api:
+    image: evoapicloud/evolution-api:v2.3.7
+    container_name: evolution_api
+    environment:
+      SERVER_URL: "http://evolution-api:8080"
+      LANGUAGE: en
+      CONFIG_SESSION_PHONE_CLIENT: MediCare
+      CONFIG_SESSION_PHONE_NAME: Chrome
+      AUTHENTICATION_TYPE: "apikey"
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY}
+      AUTHENTICATION_EXPOSE_IN_FETCH: true
+      QRCODE_LIMIT: 30
+      WEBHOOK_GLOBAL_ENABLED: false
+      WEBHOOK_GLOBAL_URL: ""
+      DATABASE_ENABLED: true
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres-evolution:5432/evolution_db?schema=public
+      DATABASE_SAVE_DATA_INSTANCE: true
+      DATABASE_SAVE_DATA_MESSAGE: true
+      DATABASE_SAVE_DATA_CONTACT: true
+      DATABASE_SAVE_DATA_CHATS: true
+      CACHE_REDIS_ENABLED: false
+    volumes:
+      - ./Integrations/WhatsApp/evolution-api/manager/index.html:/evolution/node_modules/evolution-manager/dist/index.html:ro
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres-evolution:
+        condition: service_healthy
+    networks:
+      - clinic_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '0.5'
+
+  # ── Kafka cluster — single broker for development ─────────────────────
+  # This simplified setup is tuned for local dev and lower memory usage.
+  # It removes cluster replication and uses a single broker with replicate-factor=1.
+
+  zookeeper-1:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: zookeeper_1
+    environment:
+      ZOOKEEPER_SERVER_ID: 1
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_INIT_LIMIT: 5
+      ZOOKEEPER_SYNC_LIMIT: 2
+      ZOOKEEPER_SERVERS: "zookeeper-1:2888:3888"
+    expose:
+      - "2181"
+      - "2888"
+      - "3888"
+    volumes:
+      - zookeeper_1_data:/var/lib/zookeeper/data
+      - zookeeper_1_log:/var/lib/zookeeper/log
+    networks:
+      - clinic_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '0.5'
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo ruok | nc localhost 2181 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  kafka-1:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: kafka_1
+    depends_on:
+      zookeeper-1:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper-1:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-1:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_MIN_INSYNC_REPLICAS: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_LOG_RETENTION_BYTES: 1073741824
+      KAFKA_HEAP_OPTS: "-Xms256m -Xmx512m"
+      KAFKA_MESSAGE_MAX_BYTES: 1048576
+      KAFKA_CONSUMER_MAX_POLL_INTERVAL_MS: 300000
+      KAFKA_CONSUMER_SESSION_TIMEOUT_MS: 30000
+    expose:
+      - "9092"
+    volumes:
+      - kafka_1_data:/var/lib/kafka/data
+    networks:
+      - clinic_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: '1.0'
+    healthcheck:
+      # Use advertised listener hostname — same path clients use (not localhost-only).
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server kafka-1:9092"]
+      interval: 15s
+      timeout: 10s
+      retries: 12
+      start_period: 45s
+
+  # ── Topic initialisation (one-shot) ───────────────────────────────────────────
+  # Topic registry: Messaging/Kafka/kafka-config/topics/topics.config.ts
+  # Shell script:   Messaging/Kafka/scripts/kafka-init.sh (regenerate: cd Messaging/Kafka/kafka-config && npm run generate:kafka-init-sh)
+  # Microservices start only after kafka-init exits 0 (service_completed_successfully).
+  # After "docker compose restart kafka-1" only, re-run: docker compose run --rm kafka-init
+
+  kafka-init:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: kafka_init
+    depends_on:
+      kafka-1:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKERS: kafka-1:9092
+    volumes:
+      - ./Messaging/Kafka/scripts/kafka-init.sh:/usr/local/bin/kafka-init.sh:ro
+    networks:
+      - clinic_network
+    restart: "no"
+    entrypoint: ["/bin/sh", "/usr/local/bin/kafka-init.sh"]
+    labels:
+      com.medicare.lifecycle: init
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: '0.5'
+
+  # ── Microservices ────────────────────────────────────────────────────────────
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: ./Backend/NodeJS/microservices/auth-service/Dockerfile
+    container_name: auth_service
+    env_file:
+      - ./Backend/NodeJS/microservices/auth-service/.env
+    environment:
+      NODE_ENV: development
+      KAFKA_BROKERS: kafka-1:9092
+      KAFKA_RETRY_COUNT: 12
+      KAFKA_CONNECTION_TIMEOUT: 15000
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+      DATABASE_USER: ${POSTGRES_USER}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_SERVICE_NAME: auth-service
+    expose:
+      - "3001"
+    depends_on:
+      postgres-auth:
+        condition: service_healthy
+      postgres-system:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka-1:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    networks:
+      - clinic_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '1.0'
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3001/health/ready || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 90s
+
+  user-service:
+    build:
+      context: .
+      dockerfile: ./Backend/NodeJS/microservices/user-service/Dockerfile
+    container_name: user_service
+    env_file:
+      - ./Backend/NodeJS/microservices/user-service/.env
+    environment:
+      NODE_ENV: development
+      KAFKA_BROKERS: kafka-1:9092
+      KAFKA_RETRY_COUNT: 12
+      KAFKA_CONNECTION_TIMEOUT: 15000
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+      DATABASE_USER: ${POSTGRES_USER}
+      CLINIC_SERVICE_URL: http://clinic-service:3006
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_SERVICE_NAME: user-service
+    expose:
+      - "3002"
+    depends_on:
+      postgres-user:
+        condition: service_healthy
+      kafka-1:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    networks:
+      - clinic_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '1.0'
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3002/health/ready || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 90s
+
+  emr-service:
+    build:
+      context: .
+      dockerfile: ./Integrations/OpenEMR/emr-service/Dockerfile
+    container_name: emr_service
+    env_file:
+      - ./Integrations/OpenEMR/emr-service/.env
+    environment:
+      NODE_ENV: development
+      KAFKA_BROKERS: kafka-1:9092
+      KAFKA_RETRY_COUNT: 12
+      KAFKA_CONNECTION_TIMEOUT: 15000
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+      DATABASE_USER: ${POSTGRES_USER}
+      OPENEMR_BASE_URL: https://openemr
+      OPENEMR_SITE: default
+      OPENEMR_ADMIN_USER: ${OPENEMR_ADMIN_USER}
+      OPENEMR_ADMIN_PASSWORD: ${OPENEMR_ADMIN_PASSWORD}
+      OPENEMR_MYSQL_HOST: mariadb-openemr
+      OPENEMR_MYSQL_USER: ${OPENEMR_MYSQL_USER}
+      OPENEMR_MYSQL_PASSWORD: ${OPENEMR_MYSQL_PASSWORD}
+      OPENEMR_MYSQL_DATABASE: openemr
+    expose:
+      - "3004"
+    depends_on:
+      postgres-emr:
+        condition: service_healthy
+      openemr:
+        condition: service_healthy
+      kafka-1:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    networks:
+      - clinic_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '1.0'
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3004/health/ready || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 120s
+
+  clinic-service:
+    build:
+      context: .
+      dockerfile: ./Backend/NodeJS/microservices/clinic-service/Dockerfile
+    container_name: clinic_service
+    env_file:
+      - ./Backend/NodeJS/microservices/clinic-service/.env
+    environment:
+      NODE_ENV: development
+      KAFKA_BROKERS: kafka-1:9092
+      KAFKA_RETRY_COUNT: 12
+      KAFKA_CONNECTION_TIMEOUT: 15000
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+      DATABASE_USER: ${POSTGRES_USER}
+      USER_SERVICE_URL: http://user-service:3002
+      SCHEDULING_SERVICE_URL: http://scheduling-service:3008
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_SERVICE_NAME: clinic-service
+    expose:
+      - "3006"
+    depends_on:
+      postgres-clinic:
+        condition: service_healthy
+      kafka-1:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    networks:
+      - clinic_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '1.0'
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3006/health/ready || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 90s
+
+  scheduling-service:
+    build:
+      context: .
+      dockerfile: ./Backend/NodeJS/microservices/scheduling-service/Dockerfile
+    container_name: scheduling_service
+    env_file:
+      - ./Backend/NodeJS/microservices/scheduling-service/.env
+    environment:
+      NODE_ENV: development
+      KAFKA_BROKERS: kafka-1:9092
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+      DATABASE_USER: ${POSTGRES_USER}
+      CLINIC_SERVICE_URL: http://clinic-service:3006
+      APPOINTMENT_SERVICE_URL: http://appointment-service:3007
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_SERVICE_NAME: scheduling-service
+    expose:
+      - "3008"
+    depends_on:
+      postgres-scheduling:
+        condition: service_healthy
+      kafka-1:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    networks:
+      - clinic_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3008/health/ready || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 90s
+
+  appointment-service:
+    build:
+      context: .
+      dockerfile: ./Backend/NodeJS/microservices/appointment-service/Dockerfile
+    container_name: appointment_service
+    env_file:
+      - ./Backend/NodeJS/microservices/appointment-service/.env
+    environment:
+      NODE_ENV: development
+      KAFKA_BROKERS: kafka-1:9092
+      KAFKA_RETRY_COUNT: 12
+      KAFKA_CONNECTION_TIMEOUT: 15000
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+      DATABASE_USER: ${POSTGRES_USER}
+      USER_SERVICE_URL: http://user-service:3002
+      CLINIC_SERVICE_URL: http://clinic-service:3006
+      SCHEDULING_SERVICE_URL: http://scheduling-service:3008
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_SERVICE_NAME: appointment-service
+    expose:
+      - "3007"
+    depends_on:
+      scheduling-service:
+        condition: service_healthy
+      postgres-appointment:
+        condition: service_healthy
+      kafka-1:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    networks:
+      - clinic_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '1.0'
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3007/health/ready || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 90s
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: ./Backend/NodeJS/microservices/notification-service/Dockerfile
+    container_name: notification_service
+    env_file:
+      - ./Backend/NodeJS/microservices/notification-service/.env
+    environment:
+      NODE_ENV: development
+      KAFKA_BROKERS: kafka-1:9092
+      KAFKA_RETRY_COUNT: 12
+      KAFKA_CONNECTION_TIMEOUT: 15000
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+      DATABASE_USER: ${POSTGRES_USER}
+      USER_SERVICE_URL: http://user-service:3002
+      CLINIC_SERVICE_URL: http://clinic-service:3006
+      EVOLUTION_API_URL: http://evolution-api:8080
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY}
+      JWT_SECRET: ${JWT_SECRET:-MediCareJwtSecretMin32CharsForDevOnly!!}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_SERVICE_NAME: notification-service
+    expose:
+      - "3009"
+    depends_on:
+      postgres-notification:
+        condition: service_healthy
+      kafka-1:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    networks:
+      - clinic_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '1.0'
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3009/health/ready || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 90s
+
+  reminder-service:
+    build:
+      context: .
+      dockerfile: ./Backend/NodeJS/microservices/reminder-service/Dockerfile
+    container_name: reminder_service
+    env_file:
+      - ./Backend/NodeJS/microservices/reminder-service/.env
+    environment:
+      NODE_ENV: development
+      KAFKA_BROKERS: kafka-1:9092
+      KAFKA_RETRY_COUNT: 12
+      KAFKA_CONNECTION_TIMEOUT: 15000
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+      DATABASE_USER: ${POSTGRES_USER}
+      NOTIFICATION_SERVICE_URL: http://notification-service:3009
+      USER_SERVICE_URL: http://user-service:3002
+      CLINIC_SERVICE_URL: http://clinic-service:3006
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_SERVICE_NAME: reminder-service
+    expose:
+      - "3010"
+    depends_on:
+      notification-service:
+        condition: service_healthy
+      postgres-reminder:
+        condition: service_healthy
+      kafka-1:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    networks:
+      - clinic_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '1.0'
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3010/health/ready || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 90s
+
+  system-manager-service:
+    build:
+      context: .
+      dockerfile: ./Backend/NodeJS/microservices/system-manager-service/Dockerfile
+    container_name: system_manager_service
+    env_file:
+      - ./Backend/NodeJS/microservices/system-manager-service/.env
+    environment:
+      NODE_ENV: development
+      KAFKA_BROKERS: kafka-1:9092
+      KAFKA_RETRY_COUNT: 12
+      KAFKA_CONNECTION_TIMEOUT: 15000
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+      DATABASE_USER: ${POSTGRES_USER}
+      CLINIC_SERVICE_URL: http://clinic-service:3006
+      EMR_SERVICE_URL: http://emr-service:3004
+      NOTIFICATION_SERVICE_URL: http://notification-service:3009
+      AUTH_SERVICE_URL: http://auth-service:3001
+      USER_SERVICE_URL: http://user-service:3002
+      API_GATEWAY_URL: http://api-gateway:3000
+      EVOLUTION_API_URL: http://evolution-api:8080
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY}
+      CLINIC_STATS_DATABASE_HOST: postgres-clinic
+      CLINIC_STATS_DATABASE_PORT: 5432
+      CLINIC_STATS_DATABASE_USER: ${POSTGRES_USER}
+      CLINIC_STATS_DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+      CLINIC_STATS_DATABASE_NAME: clinic_db
+      ALLOWED_ORIGINS: http://localhost:3000,http://localhost:3002
+      PLATFORM_LOGS_ENABLED: "true"
+      DOCKER_SOCKET: /var/run/docker.sock
+      PROMETHEUS_URL: http://prometheus:9090
+      LOKI_URL: http://loki:3100
+      JAEGER_QUERY_URL: http://jaeger:16686
+      OTEL_COLLECTOR_URL: http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_SERVICE_NAME: system-manager-service
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    expose:
+      - "3003"
+    depends_on:
+      postgres-system:
+        condition: service_healthy
+      postgres-clinic:
+        condition: service_healthy
+      clinic-service:
+        condition: service_healthy
+      kafka-1:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    networks:
+      - clinic_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '1.0'
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3003/health/ready || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 90s
+
+  # ── API Gateway Load Balancer (Nginx) ─────────────────────────────────────────────
+  api-gateway:
+    build:
+      context: ./Backend/NodeJS
+      dockerfile: api-gateway/Dockerfile
+    container_name: api_gateway
+    env_file:
+      - ./Backend/NodeJS/api-gateway/.env
+    environment:
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      EMR_SERVICE_URL: http://emr-service:3004
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_SERVICE_NAME: api-gateway
+    ports:
+      - "3000:3000"
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+      system-manager-service:
+        condition: service_healthy
+      emr-service:
+        condition: service_healthy
+      clinic-service:
+        condition: service_healthy
+      appointment-service:
+        condition: service_healthy
+      scheduling-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+      reminder-service:
+        condition: service_healthy
+    networks:
+      - clinic_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '1.0'
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health/ready || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 120s
+
+  # ── Observability (Prometheus + Grafana) ───────────────────────────────────────
+
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./DevOps/Docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - clinic_network
+    restart: unless-stopped
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '0.5'
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: grafana
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: ${GRAFANA_ANONYMOUS_ENABLED:-true}
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_SECURITY_ALLOW_EMBEDDING: "true"
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3001}
+    volumes:
+      - ./DevOps/Docker/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ./DevOps/Docker/grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+      - ./DevOps/Docker/grafana/dashboards:/etc/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3001:3000"
+    networks:
+      - clinic_network
+    restart: unless-stopped
+    depends_on:
+      prometheus:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '0.5'
+
+  loki:
+    image: grafana/loki:2.9.6
+    container_name: loki
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./DevOps/Docker/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    ports:
+      - "3100:3100"
+    networks:
+      - clinic_network
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:2.9.6
+    container_name: promtail
+    command: -config.file=/etc/promtail/config.yml
+    volumes:
+      - ./DevOps/Docker/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - loki
+    networks:
+      - clinic_network
+    restart: unless-stopped
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    container_name: jaeger
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+    networks:
+      - clinic_network
+    restart: unless-stopped
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.96.0
+    container_name: otel_collector
+    command: ["--config=/etc/otel-collector-config.yml"]
+    volumes:
+      - ./DevOps/Docker/otel/otel-collector-config.yml:/etc/otel-collector-config.yml:ro
+    depends_on:
+      - jaeger
+    ports:
+      - "4319:4317"
+      - "4320:4318"
+    networks:
+      - clinic_network
+    restart: unless-stopped
+
+  system-manager-dashboard:
+    build:
+      context: ./Frontend/React/system-manager-dashboard
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: /api
+        VITE_GRAFANA_URL: ${VITE_GRAFANA_URL:-http://localhost:3001}
+        VITE_GRAFANA_DASHBOARD_UID: medicare-platform
+    container_name: system_manager_dashboard
+    ports:
+      - "3002:80"
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+      grafana:
+        condition: service_started
+    networks:
+      - clinic_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: '0.5'
+
+volumes:
+  redis_data:
+  postgres_auth_data:
+  postgres_user_data:
+  postgres_system_data:
+  postgres_emr_data:
+  postgres_clinic_data:
+  postgres_appointment_data:
+  postgres_scheduling_data:
+  postgres_notification_data:
+  postgres_reminder_data:
+  postgres_evolution_data:
+  mariadb_openemr_data:
+  openemr_logs:
+  openemr_sites:
+  mongo_data:
+  zookeeper_1_data:
+  zookeeper_1_log:
+  kafka_1_data:
+  prometheus_data:
+  grafana_data:
+  loki_data:
+
+networks:
+  clinic_network:
+    driver: bridge

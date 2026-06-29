@@ -1,0 +1,197 @@
+groups:
+  - name: medicare.auth
+    interval: 30s
+    rules:
+
+      # Fires when login failures exceed 10/sec over a 5-minute window.
+      # This catches both brute-force attacks and auth service degradation.
+      - alert: HighLoginFailureRate
+        expr: |
+          rate(http_requests_total{job="auth-service", path="/auth/login", status=~"4.."}[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "High login failure rate on auth-service"
+          description: >
+            Login failures are {{ $value | humanize }}/sec over the last 5 minutes.
+            Threshold is 10/sec. This may indicate a brute-force attack or
+            auth service degradation. Check account lock metrics and IP rate limits.
+          runbook: "https://wiki.internal/runbooks/high-login-failures"
+
+      # Fires when p95 login latency exceeds 800ms — users will notice above 500ms.
+      - alert: SlowLoginLatency
+        expr: |
+          histogram_quantile(0.95,
+            rate(http_request_duration_ms_bucket{job="auth-service", path="/auth/login"}[5m])
+          ) > 800
+        for: 3m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Login p95 latency above 800ms"
+          description: >
+            p95 login latency is {{ $value | humanizeDuration }}ms.
+            Check DB connection pool saturation and Kafka consumer lag.
+
+  - name: medicare.kafka
+    interval: 30s
+    rules:
+
+      # Fires when any consumer group falls more than 1000 messages behind.
+      # At ~1.4 events/sec average, lag=1000 means ~12 minutes of backlog.
+      - alert: KafkaConsumerLag
+        expr: |
+          kafka_consumer_group_lag > 1000
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Kafka consumer group lag is high"
+          description: >
+            Consumer group {{ $labels.consumergroup }} on topic {{ $labels.topic }}
+            partition {{ $labels.partition }} has lag {{ $value }}.
+            At normal throughput this represents significant backlog.
+            Check consumer service health and processing errors.
+
+      # Critical — lag above 10000 means the consumer is severely behind
+      # or has stopped processing entirely.
+      - alert: KafkaConsumerLagCritical
+        expr: |
+          kafka_consumer_group_lag > 10000
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Kafka consumer group lag is critical"
+          description: >
+            Consumer group {{ $labels.consumergroup }} lag is {{ $value }}.
+            Service may be down or stuck. Immediate investigation required.
+
+      # Fires when a Kafka broker is unreachable.
+      - alert: KafkaBrokerDown
+        expr: |
+          up{job=~"kafka-.*"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Kafka broker {{ $labels.instance }} is down"
+          description: >
+            Broker {{ $labels.instance }} has been unreachable for 1 minute.
+            With replicationFactor=3 and min.insync.replicas=2, one broker
+            failure is tolerated. Two failures will halt all producers.
+
+  - name: medicare.database
+    interval: 30s
+    rules:
+
+      # Fires when active DB connections exceed 90% of pool max (20).
+      # At 18+ connections, new requests will queue and latency will spike.
+      - alert: DatabasePoolExhaustion
+        expr: |
+          pg_stat_activity_count{state="active"} /
+          pg_settings_max_connections > 0.9
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Database connection pool near exhaustion on {{ $labels.datname }}"
+          description: >
+            Active connections are {{ $value | humanizePercentage }} of max_connections.
+            Pool max is 20 (configured in TypeORM extra.max).
+            New requests will queue. Check for slow queries or connection leaks.
+            Run: SELECT pid, query, state, query_start FROM pg_stat_activity;
+
+      # Fires when a Postgres instance is unreachable.
+      - alert: PostgresDown
+        expr: |
+          up{job=~"postgres-.*"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Postgres {{ $labels.job }} is down"
+          description: >
+            Database {{ $labels.job }} has been unreachable for 1 minute.
+            All dependent services will fail. Check container health.
+
+  - name: medicare.redis
+    interval: 30s
+    rules:
+
+      # Fires when Redis memory exceeds 85% of maxmemory (256mb configured).
+      # At 85% Redis will start evicting keys under allkeys-lru policy.
+      # Rate limit keys being evicted means limits stop working correctly.
+      - alert: RedisMemoryHigh
+        expr: |
+          redis_memory_used_bytes / redis_memory_max_bytes > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Redis memory usage above 85%"
+          description: >
+            Redis is using {{ $value | humanizePercentage }} of its 256mb limit.
+            Under allkeys-lru policy, rate limit and session keys may be evicted.
+            This will cause rate limiting to silently stop working.
+            Consider increasing maxmemory or auditing key TTLs.
+
+      # Critical — at 95% eviction is aggressive and rate limiting is unreliable.
+      - alert: RedisMemoryCritical
+        expr: |
+          redis_memory_used_bytes / redis_memory_max_bytes > 0.95
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Redis memory critical — rate limiting may be compromised"
+          description: >
+            Redis is using {{ $value | humanizePercentage }} of maxmemory.
+            Key eviction is aggressive. Rate limiting and account locks
+            are unreliable. Immediate action required.
+
+  - name: medicare.gateway
+    interval: 30s
+    rules:
+
+      # Fires when a service is completely unreachable from the gateway.
+      - alert: ServiceDown
+        expr: |
+          up{job=~"auth-service|user-service|system-manager-service|api-gateway"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: >
+            {{ $labels.job }} has been unreachable for 1 minute.
+            All requests to this service will fail with 503.
+            Check container logs and health endpoint.
+
+      # Fires when gateway error rate exceeds 5% — indicates upstream problems
+      # or circuit breakers opening.
+      - alert: GatewayHighErrorRate
+        expr: |
+          rate(http_requests_total{job="api-gateway", status=~"5.."}[5m]) /
+          rate(http_requests_total{job="api-gateway"}[5m]) > 0.05
+        for: 3m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "API Gateway error rate above 5%"
+          description: >
+            Gateway 5xx error rate is {{ $value | humanizePercentage }}.
+            Circuit breakers may be open. Check gateway logs for
+            'Circuit OPEN' messages and upstream service health.

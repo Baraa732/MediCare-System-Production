@@ -1,0 +1,52 @@
+{
+  "title": "MediCare Platform Overview",
+  "uid": "medicare-platform",
+  "schemaVersion": 38,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "CPU Usage",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "targets": [{
+        "expr": "sum by (job) (rate(process_cpu_seconds_total{job=~\"api-gateway|auth-service|user-service|system-manager-service\"}[5m]))",
+        "legendFormat": "{{job}}"
+      }]
+    },
+    {
+      "id": 2,
+      "title": "Memory Usage",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "targets": [{
+        "expr": "sum by (job) (process_resident_memory_bytes{job=~\"api-gateway|auth-service|user-service|system-manager-service\"})",
+        "legendFormat": "{{job}}"
+      }],
+      "fieldConfig": {
+        "defaults": { "unit": "bytes" }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Metrics Scrape Rate",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "targets": [{
+        "expr": "sum by (job) (rate(scrape_samples_scraped{job=~\"api-gateway|auth-service|user-service|system-manager-service\"}[5m]))",
+        "legendFormat": "{{job}}"
+      }]
+    },
+    {
+      "id": 4,
+      "title": "Targets Down",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "targets": [{
+        "expr": "count(up{job=~\"api-gateway|auth-service|user-service|system-manager-service\"} == 0) or vector(0)",
+        "legendFormat": "down"
+      }]
+    }
+  ]
+}
