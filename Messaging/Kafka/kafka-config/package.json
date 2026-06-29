@@ -1,0 +1,41 @@
+{
+  "name": "@medicare/kafka-config",
+  "version": "1.0.0",
+  "description": "Centralized Kafka configuration for MediCare Clinic Management System",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "kafka:init": "ts-node -r tsconfig-paths/register scripts/kafka-init.ts",
+    "kafka:init:prod": "node dist/scripts/kafka-init.js",
+    "generate:kafka-init-sh": "ts-node scripts/generate-kafka-init-sh.ts",
+    "test": "jest",
+    "lint": "eslint \"src/**/*.ts\" --fix",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@nestjs/common": "^10.0.0",
+    "@nestjs/config": "^3.0.0",
+    "@nestjs/microservices": "^10.0.0",
+    "kafkajs": "^2.2.0",
+    "reflect-metadata": "^0.1.13"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "ts-node": "^10.9.0",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.0.0"
+  },
+  "peerDependencies": {
+    "@nestjs/common": "^10.0.0",
+    "@nestjs/config": "^3.0.0",
+    "@nestjs/microservices": "^10.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
