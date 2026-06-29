@@ -12,6 +12,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Prepare CI env defaults
+        run: |
+          cp .env.example .env
+          {
+            echo "POSTGRES_PASSWORD=ci_test_password"
+            echo "REDIS_PASSWORD=ci_test_password"
+            echo "MONGO_PASSWORD=ci_test_password"
+            echo "EVOLUTION_API_KEY=ci_test_key"
+            echo "OPENEMR_MYSQL_ROOT_PASSWORD=ci_test_password"
+            echo "OPENEMR_MYSQL_PASSWORD=ci_test_password"
+            echo "OPENEMR_ADMIN_PASSWORD=ci_test_password"
+          } >> .env
       - name: Check compose file syntax
         run: docker compose -f docker-compose.yml config --quiet
 
