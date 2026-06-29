@@ -186,3 +186,38 @@ export async function apiRequest<T>(
 }
 
 export { API_BASE };
+
+export async function apiUpload<T>(
+  path: string,
+  formData: FormData,
+  token: string,
+): Promise<T> {
+  const tenantId =
+    useAuthStore.getState().tenantId ?? useAuthStore.getState().clinicId;
+
+  const response = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(tenantId ? { "X-Tenant-ID": tenantId } : {}),
+    },
+    body: formData,
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    let message = `Upload failed (${response.status})`;
+    try {
+      const data = (await response.json()) as {
+        message?: string;
+        error?: { message?: string };
+      };
+      message = data.error?.message ?? data.message ?? message;
+    } catch {
+      // ignore
+    }
+    throw new ApiError(response.status, message);
+  }
+
+  return (await response.json()) as T;
+}

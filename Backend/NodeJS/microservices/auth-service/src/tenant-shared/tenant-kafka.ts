@@ -1,3 +1,4 @@
+import { logKafkaEventIssue } from '@medicare/telemetry';
 import { Logger } from '@nestjs/common';
 import { TenantContextService } from './tenant-context.service';
 
@@ -60,7 +61,7 @@ export async function withValidatedTenantEvent<T extends Record<string, unknown>
   event: unknown,
   context: string,
   tenantContext: TenantContextService,
-  logger: Logger,
+  _logger: Logger,
   handler: (validated: ValidatedTenantEvent<T>) => Promise<R>,
 ): Promise<R | void> {
   try {
@@ -74,9 +75,9 @@ export async function withValidatedTenantEvent<T extends Record<string, unknown>
     );
   } catch (err) {
     if (err instanceof TenantEventValidationError) {
-      logger.error(
-        `tenantId=unknown service=${process.env.SERVICE_NAME ?? context} context=${context} error=${err.message}`,
-      );
+      logKafkaEventIssue('error', context, err.message, {
+        event: 'kafka_event_validation_failed',
+      });
       return;
     }
     throw err;
@@ -88,11 +89,13 @@ export async function withOptionalTenantEvent<T extends Record<string, unknown>,
   event: unknown,
   context: string,
   tenantContext: TenantContextService,
-  logger: Logger,
+  _logger: Logger,
   handler: (payload: T, tenantId?: string) => Promise<R>,
 ): Promise<R | void> {
   if (!event || typeof event !== 'object') {
-    logger.error(`tenantId=unknown service=${process.env.SERVICE_NAME ?? context} context=${context} error=Invalid Kafka event`);
+    logKafkaEventIssue('error', context, 'Invalid Kafka event', {
+      event: 'kafka_event_invalid',
+    });
     return;
   }
 
@@ -111,9 +114,9 @@ export async function withOptionalTenantEvent<T extends Record<string, unknown>,
         ? (raw.payload as T)
         : (raw as T);
     payload = inner;
-    logger.warn(
-      `tenantId=unknown service=${process.env.SERVICE_NAME ?? context} context=${context} warn=missing tenantId on optional event`,
-    );
+    logKafkaEventIssue('warn', context, 'Missing tenantId on optional Kafka event', {
+      event: 'kafka_event_missing_tenant',
+    });
   }
 
   const run = () => handler(payload, tenantId);

@@ -41,11 +41,23 @@ async function bootstrap() {
   app.use(require('express').json({ limit: '10kb' }));
   app.use(require('express').urlencoded({ extended: true, limit: '10kb' }));
 
-  const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000').split(',');
+  const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+
   app.enableCors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) callback(null, true);
-      else callback(new Error('Not allowed by CORS'));
+      // Browser requests proxied via API gateway still carry Origin; missing origin = server-to-server.
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+      if (process.env.NODE_ENV === 'development') {
+        callback(null, true);
+        return;
+      }
+      callback(null, false);
     },
     methods: 'GET,POST,PUT,DELETE,OPTIONS',
     credentials: true,

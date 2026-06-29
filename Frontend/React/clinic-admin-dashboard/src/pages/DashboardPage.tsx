@@ -1,28 +1,81 @@
 import { useMemo } from "react";
-import { RefreshCw } from "lucide-react";
+import { format, parseISO } from "date-fns";
+import { Link } from "react-router";
+import { Calendar, CheckCircle, Clock, RefreshCw, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { EChartPanel } from "@/components/charts/EChartPanel";
+import { KpiTile } from "@/components/layout/KpiTile";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { PageError, PageLoading } from "@/components/layout/PageState";
+import { PanelCard } from "@/components/layout/PanelCard";
+import { VisualCard } from "@/components/layout/VisualCard";
 import { useClinicAdmin } from "@/context/ClinicAdminContext";
 import {
-  buildChordOption,
-  buildGaugeOption,
-  buildHeatmapOption,
-  buildParallelOption,
-  buildSankeyOption,
-  buildStreamgraphOption,
-  buildTreemapOption,
+  buildAppointmentTrendOption,
+  buildDoctorWorkloadOption,
+  buildStatusDonutOption,
   computeKpis,
 } from "@/lib/charts/clinicChartBuilders";
+import type { ApiAppointment } from "@/lib/api/types";
 
-function KpiCard({ label, value }: { label: string; value: string | number }) {
+const STATUS_CLASS: Record<string, string> = {
+  REQUESTED: "bg-amber-50 text-amber-700",
+  CONFIRMED: "bg-[#ecf3ff] text-[#0066ff]",
+  COMPLETED: "bg-emerald-50 text-emerald-700",
+  CANCELLED: "bg-red-50 text-red-700",
+  NO_SHOW: "bg-violet-50 text-violet-700",
+};
+
+function doctorName(
+  doctors: { userId: string; fullName?: string; firstName?: string; lastName?: string }[],
+  id: string,
+) {
+  const d = doctors.find((x) => x.userId === id);
+  if (!d) return "—";
+  return d.fullName ?? (`${d.firstName ?? ""} ${d.lastName ?? ""}`.trim() || "Doctor");
+}
+
+function RecentAppointmentsTable({
+  rows,
+  doctors,
+}: {
+  rows: ApiAppointment[];
+  doctors: ReturnType<typeof useClinicAdmin>["doctors"];
+}) {
+  if (rows.length === 0) {
+    return (
+      <p className="text-sm text-[#929296] py-8 text-center">No appointments in the last 30 days.</p>
+    );
+  }
+
   return (
-    <Card className="ring-neutral-200 shadow-sm">
-      <CardContent className="pt-5">
-        <p className="text-sm text-neutral-500 font-medium">{label}</p>
-        <p className="text-2xl font-bold text-neutral-900 mt-1">{value}</p>
-      </CardContent>
-    </Card>
+    <div className="overflow-x-auto">
+      <table className="pbi-data-table min-w-[640px]">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Doctor</th>
+            <th>Status</th>
+            <th>Duration</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((a) => (
+            <tr key={a.id}>
+              <td className="tabular-nums">
+                {format(parseISO(a.scheduledAt), "MMM d, HH:mm")}
+              </td>
+              <td>{doctorName(doctors, a.doctorId)}</td>
+              <td>
+                <span className={`pbi-status-pill ${STATUS_CLASS[a.status] ?? "bg-neutral-100 text-neutral-600"}`}>
+                  {a.status.replace("_", " ")}
+                </span>
+              </td>
+              <td className="text-[#929296]">{a.durationMinutes} min</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -37,78 +90,97 @@ export function DashboardPage() {
 
   const charts = useMemo(
     () => ({
-      sankey: buildSankeyOption(appointments),
-      treemap: buildTreemapOption(appointments, doctors),
-      stream: buildStreamgraphOption(appointments),
-      parallel: buildParallelOption(appointments, doctors),
-      chord: buildChordOption(staff, appointments),
-      heatmap: buildHeatmapOption(appointments),
-      gauge: buildGaugeOption(appointments),
+      trend: buildAppointmentTrendOption(appointments),
+      status: buildStatusDonutOption(appointments),
+      doctors: buildDoctorWorkloadOption(appointments, doctors),
     }),
-    [appointments, doctors, staff],
+    [appointments, doctors],
   );
 
-  if (loading) {
-    return <div className="text-neutral-500 py-12 text-center">Loading clinic data…</div>;
-  }
+  const recent = useMemo(
+    () =>
+      [...appointments]
+        .sort(
+          (a, b) =>
+            parseISO(b.scheduledAt).getTime() - parseISO(a.scheduledAt).getTime(),
+        )
+        .slice(0, 8),
+    [appointments],
+  );
 
-  if (error) {
-    return (
-      <Card className="border-red-200 bg-red-50">
-        <CardContent className="pt-6 text-red-700">
-          <p>{error}</p>
-          <Button type="button" variant="outline" onClick={() => void reload()} className="mt-3">
-            <RefreshCw className="w-4 h-4 mr-2" /> Retry
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
+  if (loading) return <PageLoading />;
+  if (error) return <PageError message={error} onRetry={() => void reload()} />;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <p className="text-sm text-neutral-500">Clinic overview</p>
-          <h1 className="text-2xl font-bold text-neutral-900">{clinic?.name ?? "Your clinic"}</h1>
+    <div className="pbi-canvas space-y-5">
+      <PageHeader
+        title={clinic?.name ?? "Clinic overview"}
+        subtitle="Last 30 days · live from your clinic workspace"
+        actions={
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => void reload()}
+            className="bg-[#0066ff] hover:bg-[#0052cc] text-white rounded-sm h-9 px-4 text-xs font-semibold shadow-none"
+          >
+            <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+            Refresh
+          </Button>
+        }
+      />
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+        <KpiTile label="Today" value={kpis.todayCount} hint="Scheduled today" icon={Calendar} accent="brand" />
+        <KpiTile label="Pending" value={kpis.pendingCount} hint="Requested or confirmed" icon={Clock} accent="warning" />
+        <KpiTile label="Completed" value={kpis.completed30d} hint={`${kpis.completionRate}% completion rate`} icon={CheckCircle} accent="success" />
+        <KpiTile label="Staff" value={kpis.staffCount} hint={`${kpis.doctorCount} doctors`} icon={Users} accent="neutral" />
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-3">
+        <div className="xl:col-span-8">
+          <VisualCard
+            title="Appointment trend"
+            subtitle="Daily volume by status (14 days)"
+            option={charts.trend}
+            height={320}
+          />
         </div>
-        <Button type="button" variant="outline" onClick={() => void reload()} className="rounded-xl">
-          <RefreshCw className="w-4 h-4 mr-2" /> Refresh
-        </Button>
+        <div className="xl:col-span-4">
+          <VisualCard
+            title="Status mix"
+            subtitle="Share of all appointments"
+            option={charts.status}
+            height={320}
+          />
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <KpiCard label="Today's appointments" value={kpis.todayCount} />
-        <KpiCard label="Pending requests" value={kpis.pendingCount} />
-        <KpiCard label="Completed (30d)" value={kpis.completed30d} />
-        <KpiCard label="Staff / doctors" value={`${kpis.staffCount} / ${kpis.doctorCount}`} />
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <Card className="ring-neutral-200">
-          <CardHeader><CardTitle>Appointment flow (Sankey)</CardTitle></CardHeader>
-          <CardContent><EChartPanel option={charts.sankey} height={320} /></CardContent>
-        </Card>
-        <Card className="ring-neutral-200">
-          <CardHeader><CardTitle>Volume by doctor (Treemap)</CardTitle></CardHeader>
-          <CardContent><EChartPanel option={charts.treemap} height={320} /></CardContent>
-        </Card>
-        <Card className="ring-neutral-200">
-          <CardHeader><CardTitle>Status trend (Streamgraph)</CardTitle></CardHeader>
-          <CardContent><EChartPanel option={charts.stream} height={320} /></CardContent>
-        </Card>
-        <Card className="ring-neutral-200">
-          <CardHeader><CardTitle>Completion rate (Gauge)</CardTitle></CardHeader>
-          <CardContent><EChartPanel option={charts.gauge} height={320} /></CardContent>
-        </Card>
-        <Card className="ring-neutral-200 xl:col-span-2">
-          <CardHeader><CardTitle>Weekly heatmap</CardTitle></CardHeader>
-          <CardContent><EChartPanel option={charts.heatmap} height={280} /></CardContent>
-        </Card>
-        <Card className="ring-neutral-200 xl:col-span-2">
-          <CardHeader><CardTitle>Staff ↔ status relations (Chord)</CardTitle></CardHeader>
-          <CardContent><EChartPanel option={charts.chord} height={360} /></CardContent>
-        </Card>
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-3">
+        <div className="xl:col-span-5">
+          <VisualCard
+            title="Doctor workload"
+            subtitle="Appointments per doctor"
+            option={charts.doctors}
+            height={280}
+          />
+        </div>
+        <div className="xl:col-span-7">
+          <PanelCard
+            title="Recent appointments"
+            subtitle="Latest bookings in your clinic"
+            actions={
+              <Link
+                to="/dashboard/appointments"
+                className="text-xs font-semibold text-[#0066ff] hover:underline"
+              >
+                View all
+              </Link>
+            }
+            noPadding
+          >
+            <RecentAppointmentsTable rows={recent} doctors={doctors} />
+          </PanelCard>
+        </div>
       </div>
     </div>
   );

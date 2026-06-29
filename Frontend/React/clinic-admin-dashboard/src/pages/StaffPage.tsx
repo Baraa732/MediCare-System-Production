@@ -1,57 +1,81 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { RefreshCw, Stethoscope, UserCog, Users } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { useClinicAdmin } from "@/context/ClinicAdminContext";
 import { createClinicStaff } from "@/lib/api/auth";
 import * as clinicApi from "@/lib/api/clinics";
 import * as userApi from "@/lib/api/users";
 import { normalizeCaughtError } from "@/lib/api/errors";
+import { AlertBanner } from "@/components/layout/PageState";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { PanelCard } from "@/components/layout/PanelCard";
+import { KpiTile } from "@/components/layout/KpiTile";
+import {
+  StaffRoleForm,
+  emptyStaffForm,
+  staffFormToPayload,
+  type StaffFormState,
+} from "@/features/staff/StaffRoleForm";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
+
+const ROLE_CLASS: Record<string, string> = {
+  DOCTOR: "bg-[#ecf3ff] text-[#0066ff]",
+  SECRETARY: "bg-violet-50 text-violet-700",
+  CLINIC_ADMIN: "bg-[#f3f2f1] text-[#1a1b1e]",
+};
 
 export function StaffPage() {
   const token = useAuthStore((s) => s.accessToken)!;
   const clinicId = useAuthStore((s) => s.clinicId ?? s.tenantId)!;
   const { staff, reload, loading, error } = useClinicAdmin();
 
-  const [form, setForm] = useState({
-    phoneNumber: "",
-    firstName: "",
-    lastName: "",
-    email: "",
-    role: "SECRETARY" as "SECRETARY" | "DOCTOR" | "CLINIC_ADMIN",
-    specialization: "",
-  });
+  const [form, setForm] = useState<StaffFormState>(emptyStaffForm);
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState<"ALL" | "DOCTOR" | "SECRETARY">("ALL");
   const [message, setMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const debouncedSearch = useDebouncedValue(search, 250);
+
+  const stats = useMemo(() => {
+    const doctors = staff.filter((s) => s.staffRole === "DOCTOR").length;
+    const secretaries = staff.filter((s) => s.staffRole === "SECRETARY").length;
+    const active = staff.filter((s) => (s.status ?? "ACTIVE") === "ACTIVE").length;
+    return { total: staff.length, doctors, secretaries, active };
+  }, [staff]);
+
+  const filtered = useMemo(() => {
+    const q = debouncedSearch.trim().toLowerCase();
+    return staff.filter((member) => {
+      if (roleFilter !== "ALL" && member.staffRole !== roleFilter) return false;
+      if (!q) return true;
+      const name = (member.fullName ?? `${member.firstName ?? ""} ${member.lastName ?? ""}`).toLowerCase();
+      const phone = (member.phoneNumber ?? "").toLowerCase();
+      const spec = (member.specialization ?? "").toLowerCase();
+      return name.includes(q) || phone.includes(q) || spec.includes(q) || member.staffRole.toLowerCase().includes(q);
+    });
+  }, [staff, debouncedSearch, roleFilter]);
+
+  const patchForm = (patch: Partial<StaffFormState>) => setForm((f) => ({ ...f, ...patch }));
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (form.role === "DOCTOR" && !form.specialization.trim()) {
+      setMessage("Specialization is required for doctors.");
+      return;
+    }
     setSubmitting(true);
     setMessage(null);
     try {
-      const result = await createClinicStaff(
-        {
-          ...form,
-          clinicId,
-          email: form.email || undefined,
-          specialization: form.role === "DOCTOR" ? form.specialization || undefined : undefined,
-        },
-        token,
-      );
+      const result = await createClinicStaff(staffFormToPayload(form, clinicId), token);
       const hint = result.whatsappSent
         ? "Credentials sent via WhatsApp."
         : result.whatsappHint ?? "Share credentials manually.";
       setMessage(`${result.message} ${hint}`);
-      setForm({
-        phoneNumber: "",
-        firstName: "",
-        lastName: "",
-        email: "",
-        role: "SECRETARY",
-        specialization: "",
-      });
+      setForm(emptyStaffForm());
       await reload();
     } catch (err) {
       setMessage(normalizeCaughtError(err, "Could not create staff member"));
@@ -83,104 +107,150 @@ export function StaffPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-neutral-900">Staff management</h1>
-        <p className="text-neutral-500 mt-1">Create, assign, and manage clinic staff</p>
+    <div className="pbi-canvas space-y-4">
+      <PageHeader
+        title="Staff management"
+        subtitle="Add doctors and secretaries · live directory"
+        actions={
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => void reload()}
+            disabled={loading}
+            className="rounded-sm h-9 text-xs"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loading ? "animate-spin" : ""}`} />
+            Sync
+          </Button>
+        }
+      />
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <KpiTile label="Total staff" value={stats.total} icon={Users} />
+        <KpiTile label="Doctors" value={stats.doctors} icon={Stethoscope} accent="brand" />
+        <KpiTile label="Secretaries" value={stats.secretaries} icon={UserCog} accent="neutral" />
+        <KpiTile label="Active" value={stats.active} hint="Can sign in" accent="success" icon={Users} />
       </div>
 
-      {error && <p className="text-red-600">{error}</p>}
+      {error && <AlertBanner message={error} tone="error" />}
       {message && (
-        <p className="text-sm text-[#0066ff] bg-[#ecf3ff] px-4 py-2 rounded-xl">{message}</p>
+        <AlertBanner message={message} tone={message.includes("Could not") ? "error" : undefined} />
       )}
 
-      <Card className="ring-neutral-200">
-        <CardHeader><CardTitle>Add staff member</CardTitle></CardHeader>
-        <CardContent>
-          <form onSubmit={(e) => void handleCreate(e)} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label>First name</Label>
-              <Input value={form.firstName} onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))} required />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Last name</Label>
-              <Input value={form.lastName} onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))} required />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Phone</Label>
-              <Input value={form.phoneNumber} onChange={(e) => setForm((f) => ({ ...f, phoneNumber: e.target.value }))} required />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Email (optional)</Label>
-              <Input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Role</Label>
-              <select
-                value={form.role}
-                onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as typeof form.role }))}
-                className="h-8 w-full rounded-lg border border-input px-2.5 text-sm"
-              >
-                <option value="SECRETARY">Secretary</option>
-                <option value="DOCTOR">Doctor</option>
-                <option value="CLINIC_ADMIN">Clinic admin</option>
-              </select>
-            </div>
-            {form.role === "DOCTOR" && (
-              <div className="space-y-1.5">
-                <Label>Specialization</Label>
-                <Input value={form.specialization} onChange={(e) => setForm((f) => ({ ...f, specialization: e.target.value }))} />
-              </div>
-            )}
-            <div className="md:col-span-2">
-              <Button type="submit" disabled={submitting} className="bg-[#0066ff] hover:bg-[#0052cc] rounded-xl h-11 px-6">
-                {submitting ? "Creating…" : "Create & send credentials"}
-              </Button>
-            </div>
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] gap-4 items-start">
+        <PanelCard
+          title="Add team member"
+          subtitle="Role-specific fields · WhatsApp credentials when connected"
+        >
+          <form onSubmit={(e) => void handleCreate(e)} className="space-y-4">
+            <StaffRoleForm form={form} onChange={patchForm} />
+            <Button
+              type="submit"
+              disabled={submitting}
+              className="w-full bg-[#0066ff] hover:bg-[#0052cc] rounded-sm h-9 text-xs font-semibold"
+            >
+              {submitting ? "Creating…" : `Create ${form.role === "DOCTOR" ? "doctor" : "secretary"}`}
+            </Button>
           </form>
-        </CardContent>
-      </Card>
+        </PanelCard>
 
-      <Card className="ring-neutral-200 overflow-hidden">
-        <CardHeader><CardTitle>Clinic staff</CardTitle></CardHeader>
-        <CardContent className="p-0">
-          <table className="w-full text-sm">
-            <thead className="bg-neutral-50 text-left text-neutral-500">
+        <PanelCard
+          title="Clinic directory"
+          subtitle={`${filtered.length} shown`}
+          noPadding
+        >
+          <div className="p-3 border-b border-[#edebe9] space-y-2">
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search name, phone, role…"
+              className="h-9 rounded-sm text-sm"
+            />
+            <div className="flex gap-1 p-0.5 bg-[#f3f2f1] rounded-sm w-fit">
+              {(["ALL", "DOCTOR", "SECRETARY"] as const).map((role) => (
+                <button
+                  key={role}
+                  type="button"
+                  onClick={() => setRoleFilter(role)}
+                  className={cn(
+                    "px-2.5 py-1 text-xs font-semibold rounded-sm transition-colors",
+                    roleFilter === role
+                      ? "bg-white text-[#0066ff] shadow-sm"
+                      : "text-[#929296] hover:text-[#1a1b1e]",
+                  )}
+                >
+                  {role === "ALL" ? "All" : role.charAt(0) + role.slice(1).toLowerCase()}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <table className="pbi-data-table">
+            <thead>
               <tr>
-                <th className="px-4 py-3 font-medium">Name</th>
-                <th className="px-4 py-3 font-medium">Role</th>
-                <th className="px-4 py-3 font-medium">Phone</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium text-right">Actions</th>
+                <th>Name</th>
+                <th>Role</th>
+                <th>Details</th>
+                <th>Status</th>
+                <th className="text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-neutral-500">Loading…</td></tr>
-              ) : staff.length === 0 ? (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-neutral-500">No staff assigned yet</td></tr>
+                <tr>
+                  <td colSpan={5} className="text-center text-[#929296] py-10">Loading…</td>
+                </tr>
+              ) : filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="text-center text-[#929296] py-10">No staff match</td>
+                </tr>
               ) : (
-                staff.map((member) => (
-                  <tr key={member.userId} className="border-t border-neutral-100">
-                    <td className="px-4 py-3">{member.fullName ?? `${member.firstName ?? ""} ${member.lastName ?? ""}`.trim()}</td>
-                    <td className="px-4 py-3">{member.staffRole}</td>
-                    <td className="px-4 py-3">{member.phoneNumber ?? "—"}</td>
-                    <td className="px-4 py-3">{member.status ?? "ACTIVE"}</td>
-                    <td className="px-4 py-3 text-right space-x-3">
-                      <button type="button" onClick={() => void handleStatusToggle(member.userId, member.status)} className="text-[#0066ff] hover:underline text-xs font-semibold">
-                        {member.status === "SUSPENDED" ? "Activate" : "Suspend"}
-                      </button>
-                      <button type="button" onClick={() => void handleRemove(member.userId)} className="text-red-600 hover:underline text-xs font-semibold">
-                        Remove
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                filtered.map((member) => {
+                  const name =
+                    member.fullName ?? `${member.firstName ?? ""} ${member.lastName ?? ""}`.trim();
+                  return (
+                    <tr key={member.userId}>
+                      <td>
+                        <p className="font-semibold">{name || "—"}</p>
+                        <p className="text-[11px] text-[#929296]">{member.phoneNumber ?? "—"}</p>
+                      </td>
+                      <td>
+                        <span className={cn("pbi-status-pill", ROLE_CLASS[member.staffRole] ?? "bg-[#f3f2f1]")}>
+                          {member.staffRole}
+                        </span>
+                      </td>
+                      <td className="text-xs text-[#929296] max-w-[140px] truncate">
+                        {member.staffRole === "DOCTOR"
+                          ? member.specialization ?? "—"
+                          : "Front desk"}
+                      </td>
+                      <td>{member.status ?? "ACTIVE"}</td>
+                      <td className="text-right space-x-3">
+                        <button
+                          type="button"
+                          onClick={() => void handleStatusToggle(member.userId, member.status)}
+                          className="text-[#0066ff] hover:underline text-xs font-semibold"
+                        >
+                          {member.status === "SUSPENDED" ? "Activate" : "Suspend"}
+                        </button>
+                        {member.staffRole !== "CLINIC_ADMIN" && (
+                          <button
+                            type="button"
+                            onClick={() => void handleRemove(member.userId)}
+                            className="text-red-600 hover:underline text-xs font-semibold"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
-        </CardContent>
-      </Card>
+        </PanelCard>
+      </div>
     </div>
   );
 }

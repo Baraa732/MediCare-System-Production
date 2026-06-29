@@ -24,6 +24,11 @@ function shouldSkip(path, method, skipPaths) {
   return skip.has(path);
 }
 
+function isExpectedClientError(path, statusCode) {
+  if (statusCode === 401 && path === '/api/system-manager/platform/stream') return true;
+  return false;
+}
+
 function extractUserContext(req) {
   return {
     user_id: req.headers['x-user-id'] ? String(req.headers['x-user-id']) : undefined,
@@ -78,7 +83,7 @@ function createHttpLoggingMiddleware(serviceName, options = {}) {
 
         if (status_code >= 500) {
           logger.error('Request failed', payload);
-        } else if (status_code >= 400) {
+        } else if (status_code >= 400 && !isExpectedClientError(path, status_code)) {
           logger.warn('Request completed with client error', payload);
         } else if (duration_ms >= 2000) {
           logger.warn('Slow request completed', { ...payload, event: 'request_slow' });
@@ -144,4 +149,5 @@ module.exports = {
   createHttpLoggingInterceptor,
   shouldSkip,
   normalizePath,
+  isExpectedClientError,
 };

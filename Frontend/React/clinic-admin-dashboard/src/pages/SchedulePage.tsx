@@ -1,12 +1,18 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { addDays, format, startOfToday } from "date-fns";
+import { CalendarClock, Clock, Stethoscope, Store } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import * as scheduleApi from "@/lib/api/schedule";
 import { useClinicAdmin } from "@/context/ClinicAdminContext";
 import { normalizeCaughtError } from "@/lib/api/errors";
+import { AlertBanner } from "@/components/layout/PageState";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { PanelCard } from "@/components/layout/PanelCard";
+import { ScheduleDatePicker } from "@/features/schedule/ScheduleDatePicker";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -17,10 +23,19 @@ const DEFAULT_HOURS: scheduleApi.ClinicHoursDay[] = Array.from({ length: 7 }, (_
   isClosed: dayOfWeek === 5 || dayOfWeek === 6,
 }));
 
+function combineDateAndTime(date: Date, time: string): string {
+  const [h, m] = time.split(":").map(Number);
+  const d = new Date(date);
+  d.setHours(h ?? 0, m ?? 0, 0, 0);
+  return d.toISOString();
+}
+
 export function SchedulePage() {
   const token = useAuthStore((s) => s.accessToken)!;
   const clinicId = useAuthStore((s) => s.clinicId ?? s.tenantId)!;
   const { doctors } = useClinicAdmin();
+
+  const [selectedDate, setSelectedDate] = useState(() => startOfToday());
   const [hours, setHours] = useState<scheduleApi.ClinicHoursDay[]>(DEFAULT_HOURS);
   const [availability, setAvailability] = useState<scheduleApi.AvailabilitySlot[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,10 +51,27 @@ export function SchedulePage() {
 
   const [blockForm, setBlockForm] = useState({
     doctorId: "",
-    startsAt: "",
-    endsAt: "",
+    startTime: "09:00",
+    endTime: "17:00",
     reason: "",
   });
+
+  const selectedDayOfWeek = selectedDate.getDay();
+
+  const activeWeekdays = useMemo(
+    () => new Set(availability.map((s) => s.dayOfWeek)),
+    [availability],
+  );
+
+  const dayHours = useMemo(
+    () => hours.find((h) => h.dayOfWeek === selectedDayOfWeek),
+    [hours, selectedDayOfWeek],
+  );
+
+  const dayAvailability = useMemo(
+    () => availability.filter((s) => s.dayOfWeek === selectedDayOfWeek),
+    [availability, selectedDayOfWeek],
+  );
 
   const load = async () => {
     setLoading(true);
@@ -64,6 +96,10 @@ export function SchedulePage() {
   useEffect(() => {
     void load();
   }, [clinicId, token, doctors.length]);
+
+  useEffect(() => {
+    setAvailForm((f) => ({ ...f, dayOfWeek: selectedDayOfWeek }));
+  }, [selectedDayOfWeek]);
 
   const doctorName = (id: string) => {
     const d = doctors.find((x) => x.userId === id);
@@ -109,8 +145,8 @@ export function SchedulePage() {
   };
 
   const addBlock = async () => {
-    if (!blockForm.startsAt || !blockForm.endsAt) {
-      setMessage("Block start and end are required.");
+    if (!blockForm.startTime || !blockForm.endTime) {
+      setMessage("Block start and end times are required.");
       return;
     }
     try {
@@ -118,124 +154,334 @@ export function SchedulePage() {
         {
           clinicId,
           doctorId: blockForm.doctorId || undefined,
-          startsAt: new Date(blockForm.startsAt).toISOString(),
-          endsAt: new Date(blockForm.endsAt).toISOString(),
+          startsAt: combineDateAndTime(selectedDate, blockForm.startTime),
+          endsAt: combineDateAndTime(selectedDate, blockForm.endTime),
           reason: blockForm.reason || undefined,
         },
         token,
       );
-      setBlockForm({ doctorId: "", startsAt: "", endsAt: "", reason: "" });
-      setMessage("Schedule block created.");
+      setBlockForm({ doctorId: "", startTime: "09:00", endTime: "17:00", reason: "" });
+      setMessage(`Block created for ${format(selectedDate, "MMM d, yyyy")}.`);
     } catch (err) {
       setMessage(normalizeCaughtError(err, "Could not create block"));
     }
   };
 
+  const clinicOpenLabel = dayHours?.isClosed
+    ? "Closed"
+    : `${dayHours?.openTime ?? "—"} – ${dayHours?.closeTime ?? "—"}`;
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-neutral-900">Schedule</h1>
-        <p className="text-neutral-500 mt-1">Clinic hours, doctor availability, and blocked time</p>
-      </div>
-
-      {message && <p className="text-sm text-[#0066ff] bg-[#ecf3ff] px-4 py-2 rounded-xl">{message}</p>}
-
-      <Card className="ring-neutral-200">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Clinic hours</CardTitle>
-          <Button onClick={() => void saveHours()} disabled={saving} className="bg-[#0066ff] hover:bg-[#0052cc] rounded-xl">
-            {saving ? "Saving…" : "Save hours"}
+    <div className="pbi-canvas space-y-4">
+      <PageHeader
+        title="Schedule"
+        subtitle="Plan clinic hours, doctor availability, and blocked days"
+        actions={
+          <Button
+            onClick={() => void saveHours()}
+            disabled={saving || loading}
+            className="bg-[#0066ff] hover:bg-[#0052cc] rounded-sm h-8 text-xs font-semibold"
+          >
+            {saving ? "Saving…" : "Save weekly hours"}
           </Button>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {loading ? (
-            <p className="text-neutral-500">Loading…</p>
-          ) : (
-            hours.map((h) => (
-              <div key={h.dayOfWeek} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-center border border-neutral-100 rounded-xl p-3">
-                <span className="font-semibold text-sm">{DAY_NAMES[h.dayOfWeek]}</span>
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={!!h.isClosed} onChange={(e) => updateHour(h.dayOfWeek, { isClosed: e.target.checked })} />
-                  Closed
-                </label>
-                <Input type="time" value={h.openTime} disabled={h.isClosed} onChange={(e) => updateHour(h.dayOfWeek, { openTime: e.target.value })} />
-                <Input type="time" value={h.closeTime} disabled={h.isClosed} onChange={(e) => updateHour(h.dayOfWeek, { closeTime: e.target.value })} />
+        }
+      />
+
+      {message && <AlertBanner message={message} />}
+
+      <div className="grid grid-cols-1 xl:grid-cols-[300px_minmax(0,1fr)] gap-4 items-start">
+        <div className="xl:sticky xl:top-4 space-y-3">
+          <ScheduleDatePicker
+            selected={selectedDate}
+            onSelect={setSelectedDate}
+            activeWeekdays={activeWeekdays}
+          />
+
+          <div className="pbi-panel p-4 space-y-3">
+            <p className="text-[11px] font-bold uppercase tracking-wide text-[#929296]">
+              {format(selectedDate, "EEEE")}
+            </p>
+            <div className="flex items-start gap-2.5">
+              <div className="pbi-kpi-icon-wrap">
+                <Store className="w-4 h-4 text-[#0066ff]" />
               </div>
-            ))
-          )}
-        </CardContent>
-      </Card>
+              <div>
+                <p className="text-xs text-[#929296]">Clinic hours</p>
+                <p className={cn("text-sm font-semibold", dayHours?.isClosed && "text-red-600")}>
+                  {clinicOpenLabel}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-2.5">
+              <div className="pbi-kpi-icon-wrap">
+                <Stethoscope className="w-4 h-4 text-[#0066ff]" />
+              </div>
+              <div>
+                <p className="text-xs text-[#929296]">Doctors available</p>
+                <p className="text-sm font-semibold">{dayAvailability.length}</p>
+              </div>
+            </div>
+            <p className="text-[10px] text-[#929296] leading-relaxed">
+              Blue dots on the calendar mark weekdays with configured doctor slots.
+            </p>
+          </div>
+        </div>
 
-      <Card className="ring-neutral-200">
-        <CardHeader><CardTitle>Add doctor availability</CardTitle></CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <Label>Doctor</Label>
-            <select value={availForm.doctorId} onChange={(e) => setAvailForm((f) => ({ ...f, doctorId: e.target.value }))} className="h-8 w-full rounded-lg border border-input px-2.5 text-sm">
-              <option value="">Select</option>
-              {doctors.map((d) => <option key={d.userId} value={d.userId}>{doctorName(d.userId)}</option>)}
-            </select>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Day</Label>
-            <select value={availForm.dayOfWeek} onChange={(e) => setAvailForm((f) => ({ ...f, dayOfWeek: Number(e.target.value) }))} className="h-8 w-full rounded-lg border border-input px-2.5 text-sm">
-              {DAY_NAMES.map((name, i) => <option key={name} value={i}>{name}</option>)}
-            </select>
-          </div>
-          <div className="space-y-1.5"><Label>Start</Label><Input type="time" value={availForm.startTime} onChange={(e) => setAvailForm((f) => ({ ...f, startTime: e.target.value }))} /></div>
-          <div className="space-y-1.5"><Label>End</Label><Input type="time" value={availForm.endTime} onChange={(e) => setAvailForm((f) => ({ ...f, endTime: e.target.value }))} /></div>
-          <div className="md:col-span-2">
-            <Button onClick={() => void addAvailability()} className="bg-[#0066ff] hover:bg-[#0052cc] rounded-xl">Add slot</Button>
-          </div>
-        </CardContent>
-      </Card>
+        <div className="space-y-4 min-w-0">
+          <PanelCard
+            title={format(selectedDate, "EEEE, MMMM d")}
+            subtitle="Availability and operations for the selected day"
+          >
+            {loading ? (
+              <p className="text-sm text-[#929296]">Loading schedule…</p>
+            ) : dayHours?.isClosed ? (
+              <div className="flex items-center gap-3 py-6 text-sm text-[#929296]">
+                <CalendarClock className="w-5 h-5 shrink-0" />
+                Clinic is closed on {DAY_NAMES[selectedDayOfWeek]}.
+              </div>
+            ) : dayAvailability.length === 0 ? (
+              <div className="flex items-center gap-3 py-6 text-sm text-[#929296]">
+                <Clock className="w-5 h-5 shrink-0" />
+                No doctor slots for this weekday yet — add one below.
+              </div>
+            ) : (
+              <div className="grid gap-2 sm:grid-cols-2">
+                {dayAvailability.map((slot) => (
+                  <div
+                    key={slot.id}
+                    className="flex items-center justify-between gap-3 rounded-sm border border-[#edebe9] bg-[#faf9f8] px-3 py-2.5"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold truncate">{doctorName(slot.doctorId)}</p>
+                      <p className="text-xs text-[#929296]">Doctor slot</p>
+                    </div>
+                    <p className="text-sm font-medium tabular-nums shrink-0">
+                      {slot.startTime} – {slot.endTime}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </PanelCard>
 
-      <Card className="ring-neutral-200">
-        <CardHeader><CardTitle>Block time (holiday / closure)</CardTitle></CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <Label>Doctor (optional — leave empty for whole clinic)</Label>
-            <select value={blockForm.doctorId} onChange={(e) => setBlockForm((f) => ({ ...f, doctorId: e.target.value }))} className="h-8 w-full rounded-lg border border-input px-2.5 text-sm">
-              <option value="">All clinic</option>
-              {doctors.map((d) => <option key={d.userId} value={d.userId}>{doctorName(d.userId)}</option>)}
-            </select>
-          </div>
-          <div className="space-y-1.5"><Label>Reason</Label><Input value={blockForm.reason} onChange={(e) => setBlockForm((f) => ({ ...f, reason: e.target.value }))} /></div>
-          <div className="space-y-1.5"><Label>Starts</Label><Input type="datetime-local" value={blockForm.startsAt} onChange={(e) => setBlockForm((f) => ({ ...f, startsAt: e.target.value }))} /></div>
-          <div className="space-y-1.5"><Label>Ends</Label><Input type="datetime-local" value={blockForm.endsAt} onChange={(e) => setBlockForm((f) => ({ ...f, endsAt: e.target.value }))} /></div>
-          <div className="md:col-span-2">
-            <Button onClick={() => void addBlock()} variant="outline" className="rounded-xl">Create block</Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="ring-neutral-200 overflow-hidden">
-        <CardHeader><CardTitle>Doctor availability slots</CardTitle></CardHeader>
-        <CardContent className="p-0">
-          <table className="w-full text-sm">
-            <thead className="bg-neutral-50 text-neutral-500">
-              <tr>
-                <th className="px-4 py-3 text-left">Doctor</th>
-                <th className="px-4 py-3 text-left">Day</th>
-                <th className="px-4 py-3 text-left">Hours</th>
-              </tr>
-            </thead>
-            <tbody>
-              {availability.length === 0 ? (
-                <tr><td colSpan={3} className="px-4 py-8 text-center text-neutral-500">No availability slots</td></tr>
-              ) : (
-                availability.map((slot) => (
-                  <tr key={slot.id} className="border-t border-neutral-100">
-                    <td className="px-4 py-3">{doctorName(slot.doctorId)}</td>
-                    <td className="px-4 py-3">{DAY_NAMES[slot.dayOfWeek]}</td>
-                    <td className="px-4 py-3">{slot.startTime} – {slot.endTime}</td>
+          <PanelCard title="Weekly clinic hours" subtitle="Applies to every week">
+            <div className="overflow-x-auto">
+              <table className="pbi-data-table min-w-[520px]">
+                <thead>
+                  <tr>
+                    <th>Day</th>
+                    <th>Status</th>
+                    <th>Open</th>
+                    <th>Close</th>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </CardContent>
-      </Card>
+                </thead>
+                <tbody>
+                  {hours.map((h) => {
+                    const isSelected = h.dayOfWeek === selectedDayOfWeek;
+                    return (
+                      <tr
+                        key={h.dayOfWeek}
+                        className={cn(isSelected && "bg-[#ecf3ff]/40")}
+                      >
+                        <td>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const diff = h.dayOfWeek - selectedDate.getDay();
+                              setSelectedDate(addDays(selectedDate, diff));
+                            }}
+                            className={cn(
+                              "text-left font-medium hover:text-[#0066ff] transition-colors",
+                              isSelected && "text-[#0066ff]",
+                            )}
+                          >
+                            {DAY_NAMES[h.dayOfWeek]}
+                          </button>
+                        </td>
+                        <td>
+                          <label className="flex items-center gap-2 text-sm cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={!!h.isClosed}
+                              onChange={(e) => updateHour(h.dayOfWeek, { isClosed: e.target.checked })}
+                            />
+                            {h.isClosed ? "Closed" : "Open"}
+                          </label>
+                        </td>
+                        <td>
+                          <Input
+                            type="time"
+                            value={h.openTime}
+                            disabled={h.isClosed}
+                            onChange={(e) => updateHour(h.dayOfWeek, { openTime: e.target.value })}
+                            className="h-8 w-[120px]"
+                          />
+                        </td>
+                        <td>
+                          <Input
+                            type="time"
+                            value={h.closeTime}
+                            disabled={h.isClosed}
+                            onChange={(e) => updateHour(h.dayOfWeek, { closeTime: e.target.value })}
+                            className="h-8 w-[120px]"
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </PanelCard>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <PanelCard
+              title="Add doctor slot"
+              subtitle={`For ${DAY_NAMES[selectedDayOfWeek]}s`}
+            >
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label>Doctor</Label>
+                  <select
+                    value={availForm.doctorId}
+                    onChange={(e) => setAvailForm((f) => ({ ...f, doctorId: e.target.value }))}
+                    className="h-8 w-full rounded-sm border border-input px-2.5 text-sm"
+                  >
+                    <option value="">Select</option>
+                    {doctors.map((d) => (
+                      <option key={d.userId} value={d.userId}>
+                        {doctorName(d.userId)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>Start</Label>
+                    <Input
+                      type="time"
+                      value={availForm.startTime}
+                      onChange={(e) => setAvailForm((f) => ({ ...f, startTime: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>End</Label>
+                    <Input
+                      type="time"
+                      value={availForm.endTime}
+                      onChange={(e) => setAvailForm((f) => ({ ...f, endTime: e.target.value }))}
+                    />
+                  </div>
+                </div>
+                <Button
+                  onClick={() => void addAvailability()}
+                  className="w-full bg-[#0066ff] hover:bg-[#0052cc] rounded-sm h-9 text-xs font-semibold"
+                >
+                  Add recurring slot
+                </Button>
+              </div>
+            </PanelCard>
+
+            <PanelCard
+              title="Block time"
+              subtitle={`On ${format(selectedDate, "MMM d, yyyy")}`}
+            >
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label>Doctor (optional)</Label>
+                  <select
+                    value={blockForm.doctorId}
+                    onChange={(e) => setBlockForm((f) => ({ ...f, doctorId: e.target.value }))}
+                    className="h-8 w-full rounded-sm border border-input px-2.5 text-sm"
+                  >
+                    <option value="">Whole clinic</option>
+                    {doctors.map((d) => (
+                      <option key={d.userId} value={d.userId}>
+                        {doctorName(d.userId)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Reason</Label>
+                  <Input
+                    value={blockForm.reason}
+                    onChange={(e) => setBlockForm((f) => ({ ...f, reason: e.target.value }))}
+                    placeholder="Holiday, maintenance…"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>From</Label>
+                    <Input
+                      type="time"
+                      value={blockForm.startTime}
+                      onChange={(e) => setBlockForm((f) => ({ ...f, startTime: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Until</Label>
+                    <Input
+                      type="time"
+                      value={blockForm.endTime}
+                      onChange={(e) => setBlockForm((f) => ({ ...f, endTime: e.target.value }))}
+                    />
+                  </div>
+                </div>
+                <Button
+                  onClick={() => void addBlock()}
+                  variant="outline"
+                  className="w-full rounded-sm h-9 text-xs"
+                >
+                  Create block
+                </Button>
+              </div>
+            </PanelCard>
+          </div>
+
+          <PanelCard title="All recurring slots" noPadding>
+            <table className="pbi-data-table">
+              <thead>
+                <tr>
+                  <th>Doctor</th>
+                  <th>Day</th>
+                  <th>Hours</th>
+                </tr>
+              </thead>
+              <tbody>
+                {availability.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="text-center text-[#929296] py-10">
+                      No availability slots configured
+                    </td>
+                  </tr>
+                ) : (
+                  availability.map((slot) => (
+                    <tr key={slot.id}>
+                      <td>{doctorName(slot.doctorId)}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className="hover:text-[#0066ff] font-medium"
+                          onClick={() => {
+                            const diff = slot.dayOfWeek - selectedDate.getDay();
+                            setSelectedDate(addDays(selectedDate, diff));
+                          }}
+                        >
+                          {DAY_NAMES[slot.dayOfWeek]}
+                        </button>
+                      </td>
+                      <td className="tabular-nums">
+                        {slot.startTime} – {slot.endTime}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </PanelCard>
+        </div>
+      </div>
     </div>
   );
 }

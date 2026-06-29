@@ -63,7 +63,7 @@ export function parseLogLine(raw: string, service: string, nanoTs?: string): Par
   }
 
   const level = json
-    ? normalizeJsonLevel(String(json.level ?? json.severity ?? message))
+    ? resolveStructuredLogLevel(json, cleaned)
     : detectLevel(cleaned);
   const normalizedService = normalizeServiceLabel(String(json?.service ?? service));
 
@@ -95,8 +95,30 @@ function pickId(json: Record<string, unknown> | null, message: string, keys: str
   return match?.[1] ?? null;
 }
 
+function resolveStructuredLogLevel(json: Record<string, unknown>, cleaned: string): PlatformLogLevel {
+  const explicit = json.level ?? json.severity;
+  if (explicit != null && String(explicit).trim()) {
+    return normalizeJsonLevel(String(explicit));
+  }
+
+  const status = Number(json.status_code ?? json.statusCode);
+  if (Number.isFinite(status)) {
+    if (status >= 500) return 'ERROR';
+    if (status >= 400) return 'WARN';
+  }
+
+  return detectLevel(cleaned);
+}
+
 function normalizeJsonLevel(value: string): PlatformLogLevel {
-  const upper = value.toUpperCase();
+  const upper = value.trim().toUpperCase();
+  if (upper === 'CRITICAL' || upper === 'FATAL') return 'ERROR';
+  if (upper === 'ERROR' || upper === 'ERR') return 'ERROR';
+  if (upper === 'WARN' || upper === 'WARNING') return 'WARN';
+  if (upper === 'DEBUG') return 'DEBUG';
+  if (upper === 'TRACE') return 'TRACE';
+  if (upper === 'INFO' || upper === 'INFORMATION') return 'INFO';
+  // Fallback for non-standard labels only when explicit level string is present.
   if (upper.includes('ERROR') || upper.includes('FATAL')) return 'ERROR';
   if (upper.includes('WARN')) return 'WARN';
   if (upper.includes('DEBUG')) return 'DEBUG';
@@ -105,7 +127,8 @@ function normalizeJsonLevel(value: string): PlatformLogLevel {
 }
 
 function detectLevel(line: string): PlatformLogLevel {
-  if (/\bERROR\b/i.test(line) || /\bFATAL\b/i.test(line)) return 'ERROR';
+  if (/\bCRITICAL\b/i.test(line) || /\bFATAL\b/i.test(line)) return 'ERROR';
+  if (/\bERROR\b/i.test(line)) return 'ERROR';
   if (/\bWARN(?:ING)?\b/i.test(line)) return 'WARN';
   if (/\bDEBUG\b/i.test(line)) return 'DEBUG';
   if (/\bTRACE\b/i.test(line)) return 'TRACE';

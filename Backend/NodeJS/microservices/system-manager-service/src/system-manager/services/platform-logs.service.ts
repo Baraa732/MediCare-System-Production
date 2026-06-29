@@ -101,6 +101,24 @@ export class PlatformLogsService {
       });
       let entries = rows.map((row, index) => this.lokiTelemetryService.toPlatformLogEntry(row, index));
 
+      if (query.levels?.length) {
+        const allowed = new Set(query.levels);
+        entries = entries.filter((entry) => allowed.has(entry.level));
+      }
+
+      if (query.search?.trim()) {
+        const needle = query.search.trim().toLowerCase();
+        entries = entries.filter(
+          (entry) =>
+            entry.message.toLowerCase().includes(needle) ||
+            entry.service.toLowerCase().includes(needle) ||
+            entry.raw.toLowerCase().includes(needle),
+        );
+      }
+
+      const maxEntries = Math.min(query.limit ?? 1000, 2000);
+      entries = entries.slice(0, maxEntries);
+
       if (!entries.length) {
         const dockerResult = await this.fetchDockerLogs(query, rangeKey);
         if (dockerResult.entries.length) {

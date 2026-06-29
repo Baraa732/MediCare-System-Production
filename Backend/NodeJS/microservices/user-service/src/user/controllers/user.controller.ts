@@ -1,9 +1,11 @@
 import {
   Controller, Get, Post, Put, Patch, Delete,
-  Body, Param, Query, Request, UseGuards,
+  Body, Param, Query, Request, UseGuards, UseInterceptors, UploadedFile,
   ForbiddenException, HttpCode, HttpStatus,
-  UnauthorizedException, BadRequestException,
+  UnauthorizedException, BadRequestException, StreamableFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import * as crypto from 'crypto';
 import { InternalServiceGuard } from '../guards/internal-service.guard';
 import { UserService } from '../services/user.service';
@@ -84,6 +86,15 @@ export class UserController {
     };
   }
 
+  @Get('avatars/:userId')
+  async getAvatar(@Param('userId') userId: string) {
+    const { buffer, mime } = await this.userService.readAvatar(userId);
+    return new StreamableFile(buffer, {
+      type: mime,
+      disposition: 'inline',
+    });
+  }
+
   @Get(':id')
   async findOne(@Param('id') id: string, @Request() req) {
     if (req.user.userId !== id && !['SYSTEM_MANAGER', 'CLINIC_ADMIN'].includes(req.user.role)) {
@@ -129,6 +140,31 @@ export class UserController {
   async changePassword(@Param('id') id: string, @Body() changePasswordDto: ChangePasswordDto, @Request() req) {
     if (req.user.userId !== id) throw new ForbiddenException('Not authorized');
     return this.userService.changePassword(id, changePasswordDto);
+  }
+
+  @Post(':id/avatar')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 2 * 1024 * 1024 },
+    }),
+  )
+  async uploadAvatar(
+    @Param('id') id: string,
+    @UploadedFile() file: { buffer: Buffer; size: number; mimetype: string },
+    @Request() req,
+  ) {
+    if (req.user.userId !== id && !['SYSTEM_MANAGER', 'CLINIC_ADMIN'].includes(req.user.role)) {
+      throw new ForbiddenException('Not authorized');
+    }
+    const user = await this.userService.updateAvatar(id, file);
+    if (req.user.userId === id) {
+      return this.userService.toOwnProfileResponse(user);
+    }
+    return {
+      id: user.id,
+      avatarUrl: (user.profileData?.avatarUrl as string) || undefined,
+    };
   }
 
   @Delete(':id')

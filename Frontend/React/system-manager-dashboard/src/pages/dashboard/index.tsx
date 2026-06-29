@@ -1,17 +1,22 @@
-import { lazy, Suspense, useMemo, useState } from 'react'
+import { lazy, Suspense, useCallback, useMemo, useState } from 'react'
 import { Alert, Box, Grid, LinearProgress } from '@mui/material'
+import { LayoutDashboard } from 'lucide-react'
 import { AdvancedPageHeader, ObservabilityPage, PbiGrid } from '../../components/advanced/AdvancedPage'
 import LogsPreview from '../../components/dashboard/LogsPreview'
+import { useDashboardLive } from '../../hooks/useDashboardLive'
 import { useObservabilityData } from '../../hooks/useObservabilityData'
 import { usePlatformData } from '../../hooks/usePlatformData'
 import { usePlatformStats } from '../../hooks/usePlatformStats'
 import { useDashboardStore } from '../../store/dashboardStore'
+import { invalidateDashboardQueries } from '../../lib/queryClient'
 import KpiStrip from './components/KpiStrip'
 import type { KpiItem } from './components/KpiStrip'
 import AIOpsCommandCenter from './components/AIOpsCommandCenter'
 import ExecutiveSummaryCard from './components/ExecutiveSummaryCard'
 import AiInsightsPanel from './components/AiInsightsPanel'
 import IncidentCommandDrawer from './components/IncidentCommandDrawer'
+import DashboardLiveBar from './components/DashboardLiveBar'
+import LiveTelemetryRow from './components/LiveTelemetryRow'
 import {
   IncidentPanel,
   IntegrationPanel,
@@ -40,13 +45,25 @@ function ChartFallback() {
   return <LinearProgress sx={{ my: 2 }} />
 }
 
-/** Command Center — enterprise layout with sticky KPI strip. */
+/** Command Center — KPIs, telemetry charts, and operational panels. */
 export default function Dashboard() {
   const timeRange = useDashboardStore((s) => s.timeRange)
+  const [live, setLive] = useState(false)
   const [commandIncident, setCommandIncident] = useState<DashboardIncident | null>(null)
+
+  const { mode, lastSyncAt } = useDashboardLive(live)
   const { clinics, users, loading: platformLoading, error: platformError } = usePlatformData()
-  const { stats, loading: statsLoading, error: statsError } = usePlatformStats()
-  const { data, loading: observabilityLoading, error: observabilityError } = useObservabilityData(undefined, true)
+  const { stats, loading: statsLoading, fetching: statsFetching, error: statsError } = usePlatformStats(live)
+  const {
+    data,
+    loading: observabilityLoading,
+    fetching: observabilityFetching,
+    error: observabilityError,
+  } = useObservabilityData(undefined, live)
+
+  const handleRefresh = useCallback(async () => {
+    await invalidateDashboardQueries()
+  }, [])
 
   const services = data?.apm.services ?? []
   const monitors = data?.monitors.items ?? []
@@ -147,7 +164,8 @@ export default function Dashboard() {
   ]
 
   const slowTraceCount = traces.filter((t) => t.status === 'slow').length
-  const loading = platformLoading || observabilityLoading || statsLoading
+  const initialLoading = platformLoading || observabilityLoading || statsLoading
+  const backgroundFetching = observabilityFetching || statsFetching
   const hasGrowthData = clinics.some((c) => c.createdAt)
 
   return (
@@ -155,9 +173,10 @@ export default function Dashboard() {
       <AdvancedPageHeader
         title="MediCare Command Center"
         eyebrow="Platform Overview"
-        description="Unified operational view — business pulse, infrastructure health, and live incidents."
+        description="Operational intelligence for business pulse, infrastructure health, and incident response."
+        icon={LayoutDashboard}
         color={healthColor}
-        status={loading ? 'Syncing…' : platformStatus}
+        status={initialLoading ? 'Loading…' : platformStatus}
         compact
       />
 
@@ -167,68 +186,86 @@ export default function Dashboard() {
         </Alert>
       )}
 
+      <DashboardLiveBar
+        live={live}
+        onLiveChange={setLive}
+        mode={mode}
+        lastSyncAt={lastSyncAt}
+        timeRange={timeRange}
+        onRefresh={() => void handleRefresh()}
+        fetching={backgroundFetching}
+      />
+
       <KpiStrip items={kpiItems} />
 
-      <Grid container spacing={1.5} sx={{ mb: 0.5 }}>
-        <Grid size={{ xs: 12 }}>
+      <LiveTelemetryRow
+        services={services}
+        errors={errors}
+        healthScore={healthScore}
+        availability={availability}
+      />
+
+      <PbiGrid spacing={1.5}>
+        <Grid size={{ xs: 12, lg: 8 }}>
           <AIOpsCommandCenter snapshot={aiops} />
         </Grid>
         <Grid size={{ xs: 12, lg: 4 }}>
           <ExecutiveSummaryCard summary={aiops.executiveSummary} services={services} incidents={incidents} />
         </Grid>
-      </Grid>
 
-      <PbiGrid spacing={1.5}>
-        <Grid size={{ xs: 12, lg: 4 }}>
+        <Grid size={{ xs: 12, lg: 8 }}>
           <AiInsightsPanel insights={insights} />
         </Grid>
+        <Grid size={{ xs: 12, lg: 4 }}>
+          <Panel title="Operations Queue" caption="incidents · slow traces">
+            <OperationsQueue incidents={incidents} slowTraceCount={slowTraceCount} embedded />
+          </Panel>
+        </Grid>
 
-        <Grid size={{ xs: 12, xl: 4 }}>
-          <Panel title="Business Pulse" caption={`activation funnel · growth · ${timeRange} window`} fillHeight>
+        <Grid size={{ xs: 12, md: 6 }}>
+          <Panel title="Business Pulse" caption={`${timeRange} window`}>
             <SectionHeading title="Activation Funnel" caption="codes → signup → clinic → active" />
             <Suspense fallback={<ChartFallback />}>
               <ActivationFunnelChart stats={stats} />
             </Suspense>
-            <Box sx={{ mt: 1.5 }}>
-              <SectionHeading title="Growth Trend" caption="cumulative clinics by month" />
+            <Box sx={{ mt: 2 }}>
+              <SectionHeading title="Clinic Growth" caption="cumulative by month" />
               <Suspense fallback={<ChartFallback />}>
-                {hasGrowthData ? <ClinicGrowthChart clinics={clinics} /> : <TelemetryPlaceholder label="Clinic growth trend requires createdAt timestamps." />}
+                {hasGrowthData ? <ClinicGrowthChart clinics={clinics} /> : <TelemetryPlaceholder label="Growth chart needs clinic createdAt data." />}
               </Suspense>
             </Box>
           </Panel>
         </Grid>
 
-        <Grid size={{ xs: 12, xl: 4 }}>
-          <Panel title="Infrastructure Health" caption="service matrix · latency heatmap" fillHeight>
-            <ServiceHealthMatrix services={services} />
-            <Box sx={{ mt: 1.5 }}>
-              <SectionHeading title="Latency Heatmap" caption="p95 by service · recent buckets" />
+        <Grid size={{ xs: 12, md: 6 }}>
+          <Panel title="Infrastructure" caption="service matrix · latency">
+            <SectionHeading title="Service Health" caption="p95 · error rate · requests" />
+            <ServiceHealthMatrix services={services} embedded />
+            <Box sx={{ mt: 2 }}>
+              <SectionHeading title="Latency Heatmap" caption="p95 by service" />
               <Suspense fallback={<ChartFallback />}>
-                {services.length ? <LatencyHeatmapChart services={services} /> : <TelemetryPlaceholder label="No latency series available yet." />}
+                {services.length ? <LatencyHeatmapChart services={services} /> : <TelemetryPlaceholder label="No latency series yet." />}
               </Suspense>
             </Box>
           </Panel>
         </Grid>
 
-        <Grid size={{ xs: 12, lg: 6 }}>
+        <Grid size={{ xs: 12, lg: 7 }}>
           <IncidentPanel incidents={incidents} onSelectIncident={setCommandIncident} />
         </Grid>
-        <Grid size={{ xs: 12, lg: 6 }}>
-          <Panel title="Error Treemap" caption="click a node to open filtered logs">
+        <Grid size={{ xs: 12, lg: 5 }}>
+          <Panel title="Error Distribution" caption="click a node to filter logs">
             <Suspense fallback={<ChartFallback />}>
-              {errors.length ? <ErrorTreemapChart errors={errors} /> : <TelemetryPlaceholder label="No error groups in the current window." />}
+              {errors.length ? <ErrorTreemapChart errors={errors} /> : <TelemetryPlaceholder label="No errors in this window." />}
             </Suspense>
           </Panel>
         </Grid>
 
-        <Grid size={{ xs: 12, lg: 4 }}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <LogsPreview />
         </Grid>
-        <Grid size={{ xs: 12, lg: 4 }}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <IntegrationPanel integrations={integrations} />
-        </Grid>
-        <Grid size={{ xs: 12, lg: 4 }}>
-          <OperationsQueue incidents={incidents} slowTraceCount={slowTraceCount} />
         </Grid>
       </PbiGrid>
 

@@ -2,6 +2,12 @@ import { Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
 
 const WHATSAPP_TIMEOUT_MS = 10_000;
+const CONNECTION_POLL_MS = 2_000;
+const CONNECTION_WAIT_MS = Number(process.env.WHATSAPP_CONNECTION_WAIT_MS || 90_000);
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 @Injectable()
 export class WhatsAppService {
@@ -9,7 +15,6 @@ export class WhatsAppService {
   private readonly evolutionApiUrl = process.env.EVOLUTION_API_URL || 'http://evolution-api:8080';
   private readonly apiKey = process.env.EVOLUTION_API_KEY;
   private readonly instanceName = process.env.WHATSAPP_INSTANCE_NAME || 'clinic-management';
-  private initAttempted = false;
   private profileNameSynced = false;
 
   /** Display name shown to recipients in WhatsApp (chat list / profile). */
@@ -25,39 +30,89 @@ export class WhatsAppService {
     return Boolean(this.apiKey?.trim());
   }
 
-  /** Lazy init on first send — creates instance if missing, triggers connect for QR. */
-  private async ensureInstanceReady(): Promise<void> {
-    if (this.initAttempted) return;
-    this.initAttempted = true;
+  /** Ensures the Evolution instance record exists; creates it if missing. */
+  private async ensureInstanceRecord(): Promise<boolean> {
+    if (!this.isConfigured()) return false;
 
+    const exists = await this.instanceExists();
+    if (exists) return true;
+
+    await this.createInstance(this.instanceName);
+    this.logger.log(`WhatsApp instance '${this.instanceName}' created — scan QR to connect`);
+    return true;
+  }
+
+  /**
+   * Prepare instance for messaging — creates record if missing, restores session if possible.
+   * Never calls /instance/connect here; that endpoint is for manual QR pairing only.
+   */
+  private async ensureInstanceReady(): Promise<void> {
     if (!this.isConfigured()) {
       this.logger.warn('EVOLUTION_API_KEY is not set — WhatsApp OTP will not be sent');
       return;
     }
 
     try {
-      const exists = await this.instanceExists();
-      if (!exists) {
-        await this.createInstance(this.instanceName);
-        this.logger.log(`WhatsApp instance '${this.instanceName}' created — scan QR to connect`);
-        return;
-      }
+      if (!(await this.ensureInstanceRecord())) return;
 
-      const state = await this.getConnectionState(this.instanceName);
+      const state = await this.restorePersistedSession(this.instanceName);
       if (state === 'open') {
         await this.syncProfileDisplayName(this.instanceName);
         this.logger.log(`WhatsApp instance '${this.instanceName}' connected`);
         return;
       }
 
-      await this.connectInstance(this.instanceName);
-      this.logger.log(
+      this.logger.warn(
         `WhatsApp instance '${this.instanceName}' not connected (state=${state}). ` +
-          'Call GET /api/auth/dev/whatsapp-qr and scan with WhatsApp.',
+          'Pair manually: GET /api/auth/dev/whatsapp-qr then scan QR in WhatsApp.',
       );
     } catch (error: any) {
       this.logger.warn(`WhatsApp init: ${error.message}`);
     }
+  }
+
+  /** Poll until Evolution restores the session from DB/Redis/disk after startup. */
+  private async waitForConnection(instanceName: string, maxWaitMs = CONNECTION_WAIT_MS): Promise<string> {
+    const deadline = Date.now() + maxWaitMs;
+    let lastState = 'close';
+
+    while (Date.now() < deadline) {
+      lastState = await this.getConnectionState(instanceName);
+      if (lastState === 'open') return 'open';
+      if (lastState === 'connecting') {
+        await sleep(CONNECTION_POLL_MS);
+        continue;
+      }
+      await sleep(CONNECTION_POLL_MS);
+    }
+
+    return lastState;
+  }
+
+  /**
+   * Reconnect using saved credentials — does NOT log out or require a new QR scan.
+   * See Evolution API: PUT /instance/restart/{instance}
+   */
+  async restartInstance(instanceName: string): Promise<void> {
+    try {
+      await axios.put(
+        `${this.evolutionApiUrl}/instance/restart/${instanceName}`,
+        {},
+        { headers: this.headers(), timeout: WHATSAPP_TIMEOUT_MS },
+      );
+      this.logger.log(`WhatsApp instance '${instanceName}' restart requested (session preserved)`);
+    } catch (error: any) {
+      this.logger.warn(`WhatsApp restart failed for '${instanceName}': ${error.message}`);
+    }
+  }
+
+  private async restorePersistedSession(instanceName: string): Promise<string> {
+    let state = await this.waitForConnection(instanceName, 30_000);
+    if (state === 'open') return state;
+
+    await this.restartInstance(instanceName);
+    state = await this.waitForConnection(instanceName, CONNECTION_WAIT_MS);
+    return state;
   }
 
   private async instanceExists(): Promise<boolean> {
@@ -111,6 +166,7 @@ export class WhatsAppService {
     return response.data;
   }
 
+  /** Manual QR pairing only — never call this during automatic startup recovery. */
   async connectInstance(instanceName: string): Promise<any> {
     const response = await axios.get(
       `${this.evolutionApiUrl}/instance/connect/${instanceName}`,
@@ -160,7 +216,10 @@ export class WhatsAppService {
 
     await this.ensureInstanceReady();
 
-    const state = await this.getConnectionState(instanceName);
+    let state = await this.getConnectionState(instanceName);
+    if (state !== 'open') {
+      state = await this.restorePersistedSession(instanceName);
+    }
     if (state !== 'open') {
       throw new Error(
         `WhatsApp is not connected (state=${state}). ` +
@@ -184,17 +243,15 @@ export class WhatsAppService {
 
   async getQRCode(instanceName: string): Promise<string> {
     if (!this.isConfigured()) return '';
-    await this.ensureInstanceReady();
-    try {
-      const response = await axios.get(
-        `${this.evolutionApiUrl}/instance/connect/${instanceName}`,
-        { headers: { apikey: this.apiKey }, timeout: WHATSAPP_TIMEOUT_MS },
-      );
-      const raw: string = response.data?.base64 || response.data?.qrcode?.base64 || '';
-      return raw.replace(/^data:image\/png;base64,/, '');
-    } catch {
-      return '';
-    }
+
+    await this.ensureInstanceRecord();
+
+    const state = await this.getConnectionState(instanceName);
+    if (state === 'open') return '';
+
+    const response = await this.connectInstance(instanceName);
+    const raw: string = response?.base64 || response?.qrcode?.base64 || '';
+    return raw.replace(/^data:image\/png;base64,/, '');
   }
 
   async sendAppointmentReminder(

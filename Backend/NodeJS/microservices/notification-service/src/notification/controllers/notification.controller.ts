@@ -11,7 +11,6 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
-  NotFoundException,
 } from '@nestjs/common';
 import { NotificationService } from '../services/notification.service';
 import { StaffPushService } from '../services/staff-push.service';
@@ -37,9 +36,9 @@ export class NotificationController {
   getWebPushConfig() {
     const config = this.firebasePushService.getWebConfig();
     if (!config) {
-      throw new NotFoundException('Push notifications are not configured on this server.');
+      return { success: false, configured: false, config: null };
     }
-    return { success: true, config };
+    return { success: true, configured: true, config };
   }
 
   @Post('push/register')

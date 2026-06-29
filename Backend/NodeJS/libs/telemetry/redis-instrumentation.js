@@ -15,8 +15,13 @@ function instrumentRedisClient(client, serviceName, label = 'redis') {
     });
   });
 
-  client.on?.('reconnecting', () => {
-    logger.warn('Redis reconnecting', { event: 'redis_reconnect', module: label });
+  client.on?.('reconnecting', (delay) => {
+    logger.warn('Redis reconnecting', {
+      event: 'redis_reconnect',
+      module: label,
+      retryable: true,
+      metadata: { delay_ms: typeof delay === 'number' ? delay : undefined },
+    });
   });
 
   client.on?.('ready', () => {
@@ -46,6 +51,7 @@ function instrumentRedisClient(client, serviceName, label = 'redis') {
           duration_ms: Date.now() - started,
           err,
           error_code: err?.code,
+          retryable: true,
         });
         throw err;
       }
@@ -81,6 +87,7 @@ function wrapRedisCommand(client, serviceName, label = 'redis') {
         duration_ms: Date.now() - started,
         err,
         error_code: err?.code,
+        retryable: err?.code === 'ETIMEDOUT' || err?.code === 'ECONNRESET',
       });
       throw err;
     }
@@ -102,8 +109,13 @@ function instrumentIoredisClient(client, serviceName, label = 'redis') {
     });
   });
 
-  client.on('reconnecting', () => {
-    logger.warn('Redis reconnecting', { event: 'redis_reconnect', module: label });
+  client.on('reconnecting', (delay) => {
+    logger.warn('Redis reconnecting', {
+      event: 'redis_reconnect',
+      module: label,
+      retryable: true,
+      metadata: { delay_ms: typeof delay === 'number' ? delay : undefined },
+    });
   });
 
   client.on('connect', () => {

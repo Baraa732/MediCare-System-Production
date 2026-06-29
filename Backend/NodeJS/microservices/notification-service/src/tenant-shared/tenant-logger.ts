@@ -1,29 +1,44 @@
+import { createLogger, type StructuredLogger } from '@medicare/telemetry';
 import { Logger } from '@nestjs/common';
 import { TenantContextService } from './tenant-context.service';
 
-export function createTenantLogger(context: string, tenantContext: TenantContextService): Logger {
-  const base = new Logger(context);
+function resolveServiceName(fallback: string): string {
+  return process.env.SERVICE_NAME ?? process.env.OTEL_SERVICE_NAME ?? fallback;
+}
 
-  const wrap = (level: 'log' | 'warn' | 'error' | 'debug' | 'verbose', args: unknown[]) => {
-    const store = tenantContext.getStore();
-    const prefix = [
-      store?.tenantId ? `tenantId=${store.tenantId}` : null,
-      store?.service ? `service=${store.service}` : process.env.SERVICE_NAME ?? context,
-      store?.requestId ? `requestId=${store.requestId}` : null,
-      store?.userId ? `userId=${store.userId}` : null,
-    ]
-      .filter(Boolean)
-      .join(' ');
+function tenantFields(tenantContext: TenantContextService) {
+  const store = tenantContext.getStore();
+  return {
+    tenant_id: store?.tenantId,
+    user_id: store?.userId,
+    request_id: store?.requestId,
+  };
+}
 
-    const message = args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ');
-    base[level](prefix ? `[${prefix}] ${message}` : message);
+function wrapLevel(
+  logger: StructuredLogger,
+  level: 'debug' | 'info' | 'warn' | 'error' | 'critical',
+  context: string,
+  tenantContext: TenantContextService,
+  args: unknown[],
+) {
+  const message = args.map((item) => (typeof item === 'string' ? item : JSON.stringify(item))).join(' ');
+  const fields = {
+    module: context,
+    ...tenantFields(tenantContext),
   };
 
+  logger[level](message, fields);
+}
+
+export function createTenantLogger(context: string, tenantContext: TenantContextService): Logger {
+  const logger = createLogger(resolveServiceName(context));
+
   return {
-    log: (...args: unknown[]) => wrap('log', args),
-    warn: (...args: unknown[]) => wrap('warn', args),
-    error: (...args: unknown[]) => wrap('error', args),
-    debug: (...args: unknown[]) => wrap('debug', args),
-    verbose: (...args: unknown[]) => wrap('verbose', args),
+    log: (...args: unknown[]) => wrapLevel(logger, 'info', context, tenantContext, args),
+    warn: (...args: unknown[]) => wrapLevel(logger, 'warn', context, tenantContext, args),
+    error: (...args: unknown[]) => wrapLevel(logger, 'error', context, tenantContext, args),
+    debug: (...args: unknown[]) => wrapLevel(logger, 'debug', context, tenantContext, args),
+    verbose: (...args: unknown[]) => wrapLevel(logger, 'debug', context, tenantContext, args),
   } as Logger;
 }

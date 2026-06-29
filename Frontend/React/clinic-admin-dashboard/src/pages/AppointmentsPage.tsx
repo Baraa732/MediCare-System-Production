@@ -6,8 +6,10 @@ import { useAuthStore } from "@/stores/authStore";
 import * as appointmentApi from "@/lib/api/appointments";
 import { lookupPatientByPhone } from "@/lib/api/users";
 import { normalizeCaughtError } from "@/lib/api/errors";
+import { AlertBanner } from "@/components/layout/PageState";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { PanelCard } from "@/components/layout/PanelCard";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -104,19 +106,26 @@ export function AppointmentsPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold text-neutral-900">Appointments</h1>
-          <p className="text-neutral-500 mt-1">Last 30 days · clinic scope</p>
-        </div>
-        <Button onClick={() => setDialogOpen(true)} className="bg-[#0066ff] hover:bg-[#0052cc] rounded-xl h-10">
-          <Plus className="w-4 h-4 mr-2" /> New appointment
-        </Button>
-      </div>
+    <div className="pbi-canvas space-y-4">
+      <PageHeader
+        title="Appointments"
+        subtitle="Last 30 days · filter and manage bookings"
+        actions={
+          <Button
+            onClick={() => setDialogOpen(true)}
+            className="bg-[#0066ff] hover:bg-[#0052cc] rounded-sm h-9 text-xs font-semibold"
+          >
+            <Plus className="w-4 h-4 mr-1.5" /> New appointment
+          </Button>
+        }
+      />
 
-      <div className="flex gap-3 flex-wrap">
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-3 py-2 border border-neutral-200 rounded-xl bg-white text-sm">
+      <div className="flex gap-2 flex-wrap p-3 bg-white border border-[#e1dfdd] rounded-sm">
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="h-8 px-3 border border-[#e1dfdd] rounded-sm bg-white text-xs font-medium text-[#1a1b1e]"
+        >
           <option value="ALL">All statuses</option>
           <option value="REQUESTED">Requested</option>
           <option value="CONFIRMED">Confirmed</option>
@@ -124,7 +133,11 @@ export function AppointmentsPage() {
           <option value="CANCELLED">Cancelled</option>
           <option value="NO_SHOW">No show</option>
         </select>
-        <select value={doctorFilter} onChange={(e) => setDoctorFilter(e.target.value)} className="px-3 py-2 border border-neutral-200 rounded-xl bg-white text-sm">
+        <select
+          value={doctorFilter}
+          onChange={(e) => setDoctorFilter(e.target.value)}
+          className="h-8 px-3 border border-[#e1dfdd] rounded-sm bg-white text-xs font-medium text-[#1a1b1e]"
+        >
           <option value="ALL">All doctors</option>
           {doctors.some((d) => d.userId === userId) && (
             <option value={userId}>My appointments</option>
@@ -135,45 +148,45 @@ export function AppointmentsPage() {
         </select>
       </div>
 
-      {error && <p className="text-red-600">{error}</p>}
-      {message && <p className="text-sm text-[#0066ff] bg-[#ecf3ff] px-4 py-2 rounded-xl">{message}</p>}
+      {error && <AlertBanner message={error} tone="error" />}
+      {message && <AlertBanner message={message} />}
 
-      <Card className="ring-neutral-200 overflow-hidden">
-        <CardContent className="p-0 overflow-x-auto">
-          <table className="w-full text-sm min-w-[800px]">
-            <thead className="bg-neutral-50 text-left text-neutral-500">
+      <PanelCard title="Appointment list" subtitle={`${filtered.length} records`} noPadding>
+        <div className="overflow-x-auto">
+          <table className="pbi-data-table min-w-[800px]">
+            <thead>
               <tr>
-                <th className="px-4 py-3">Date</th>
-                <th className="px-4 py-3">Doctor</th>
-                <th className="px-4 py-3">Duration</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Reason</th>
-                <th className="px-4 py-3">Actions</th>
+                <th>Date</th>
+                <th>Doctor</th>
+                <th>Duration</th>
+                <th>Status</th>
+                <th>Reason</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={6} className="px-4 py-8 text-center text-neutral-500">Loading…</td></tr>
+                <tr><td colSpan={6} className="text-center text-[#929296] py-10">Loading…</td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-8 text-center text-neutral-500">No appointments found</td></tr>
+                <tr><td colSpan={6} className="text-center text-[#929296] py-10">No appointments found</td></tr>
               ) : (
                 filtered.map((a) => (
-                  <tr key={a.id} className="border-t border-neutral-100">
-                    <td className="px-4 py-3">{format(parseISO(a.scheduledAt), "MMM d, yyyy HH:mm")}</td>
-                    <td className="px-4 py-3">{doctorName(a.doctorId)}</td>
-                    <td className="px-4 py-3">{a.durationMinutes} min</td>
-                    <td className="px-4 py-3">
-                      <span className="inline-flex px-2 py-0.5 rounded-full bg-neutral-100 text-xs font-medium">{a.status}</span>
+                  <tr key={a.id}>
+                    <td className="tabular-nums">{format(parseISO(a.scheduledAt), "MMM d, yyyy HH:mm")}</td>
+                    <td>{doctorName(a.doctorId)}</td>
+                    <td>{a.durationMinutes} min</td>
+                    <td>
+                      <span className="pbi-status-pill bg-[#f3f2f1] text-[#1a1b1e]">{a.status}</span>
                     </td>
-                    <td className="px-4 py-3 max-w-[200px] truncate">{a.reason ?? "—"}</td>
-                    <td className="px-4 py-3">
+                    <td className="max-w-[200px] truncate text-[#929296]">{a.reason ?? "—"}</td>
+                    <td>
                       <div className="flex gap-2 flex-wrap">
                         {a.status === "REQUESTED" && (
                           <button type="button" onClick={() => void updateStatus(a.id, "CONFIRMED")} className="text-[#0066ff] hover:underline text-xs font-semibold">Confirm</button>
                         )}
                         {a.status === "CONFIRMED" && (
                           <>
-                            <button type="button" onClick={() => void updateStatus(a.id, "COMPLETED")} className="text-green-600 hover:underline text-xs font-semibold">Complete</button>
+                            <button type="button" onClick={() => void updateStatus(a.id, "COMPLETED")} className="text-emerald-600 hover:underline text-xs font-semibold">Complete</button>
                             <button type="button" onClick={() => void updateStatus(a.id, "NO_SHOW")} className="text-violet-600 hover:underline text-xs font-semibold">No-show</button>
                           </>
                         )}
@@ -187,8 +200,8 @@ export function AppointmentsPage() {
               )}
             </tbody>
           </table>
-        </CardContent>
-      </Card>
+        </div>
+      </PanelCard>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-md">

@@ -12,6 +12,39 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Prepare CI env defaults
+        run: |
+          cp .env.example .env
+          {
+            echo "POSTGRES_PASSWORD=ci_test_password"
+            echo "REDIS_PASSWORD=ci_test_password"
+            echo "MONGO_PASSWORD=ci_test_password"
+            echo "EVOLUTION_API_KEY=ci_test_key"
+            echo "OPENEMR_MYSQL_ROOT_PASSWORD=ci_test_password"
+            echo "OPENEMR_MYSQL_PASSWORD=ci_test_password"
+            echo "OPENEMR_ADMIN_PASSWORD=ci_test_password"
+          } >> .env
+
+          # docker-compose env_file paths are gitignored locally — create CI stubs
+          for path in \
+            Backend/NodeJS/microservices/auth-service/.env \
+            Backend/NodeJS/microservices/user-service/.env \
+            Backend/NodeJS/microservices/clinic-service/.env \
+            Backend/NodeJS/microservices/scheduling-service/.env \
+            Backend/NodeJS/microservices/appointment-service/.env \
+            Backend/NodeJS/microservices/notification-service/.env \
+            Backend/NodeJS/microservices/reminder-service/.env \
+            Backend/NodeJS/microservices/system-manager-service/.env \
+            Backend/NodeJS/api-gateway/.env \
+            Integrations/OpenEMR/emr-service/.env
+          do
+            dir="$(dirname "$path")"
+            if [ -f "$dir/.env.example" ]; then
+              cp "$dir/.env.example" "$path"
+            else
+              touch "$path"
+            fi
+          done
       - name: Check compose file syntax
         run: docker compose -f docker-compose.yml config --quiet
 
