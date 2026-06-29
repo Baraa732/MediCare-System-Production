@@ -28,6 +28,9 @@ RUN rm -rf ./node_modules/@medicare/telemetry && cp -a ./telemetry-pkg ./node_mo
 COPY --from=builder /build/Backend/NodeJS/microservices/user-service/dist ./dist
 COPY Messaging/Kafka/scripts/wait-for-kafka-broker.sh /usr/local/bin/wait-for-kafka-broker.sh
 RUN chmod +x /usr/local/bin/wait-for-kafka-broker.sh
+RUN mkdir -p /app/uploads/avatars && chown -R node:node /app/uploads
+
+USER node
 
 EXPOSE 3002
 

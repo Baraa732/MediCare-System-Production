@@ -50,7 +50,147 @@
   }
 
   body {
-    @apply font-inter bg-neutral-50 text-neutral-900 antialiased;
+    @apply font-inter bg-[#f3f2f1] text-[#1a1b1e] antialiased;
+  }
+}
+
+/* Power BI–inspired workspace chrome (brand colors unchanged) */
+@layer components {
+  .pbi-canvas {
+    @apply min-h-full;
+  }
+
+  .pbi-page-header {
+    @apply flex flex-wrap items-start justify-between gap-4 mb-5;
+  }
+
+  .pbi-eyebrow {
+    @apply text-[11px] font-semibold uppercase tracking-wider text-[#929296];
+  }
+
+  .pbi-page-title {
+    @apply text-[22px] font-semibold text-[#1a1b1e] leading-tight mt-0.5;
+  }
+
+  .pbi-page-subtitle {
+    @apply text-sm text-[#929296] mt-1;
+  }
+
+  .pbi-kpi-tile {
+    @apply relative bg-white border border-[#e1dfdd] rounded-sm shadow-sm overflow-hidden min-h-[88px];
+  }
+
+  .pbi-kpi-accent {
+    @apply absolute left-0 top-0 bottom-0 w-[3px];
+  }
+
+  .pbi-kpi-body {
+    @apply pl-4 pr-4 py-3.5;
+  }
+
+  .pbi-kpi-label {
+    @apply text-[11px] font-semibold uppercase tracking-wide text-[#929296];
+  }
+
+  .pbi-kpi-value {
+    @apply text-[28px] font-semibold text-[#1a1b1e] leading-none mt-1.5 tabular-nums;
+  }
+
+  .pbi-kpi-hint {
+    @apply text-xs text-[#929296] mt-1.5;
+  }
+
+  .pbi-kpi-icon-wrap {
+    @apply w-8 h-8 rounded-sm bg-[#ecf3ff] flex items-center justify-center shrink-0;
+  }
+
+  .pbi-visual,
+  .pbi-panel {
+    @apply bg-white border border-[#e1dfdd] rounded-sm shadow-sm overflow-hidden;
+  }
+
+  .pbi-visual-header,
+  .pbi-panel-header {
+    @apply px-4 py-3 border-b border-[#edebe9] flex items-start justify-between gap-3;
+  }
+
+  .pbi-visual-title,
+  .pbi-panel-title {
+    @apply text-sm font-semibold text-[#1a1b1e];
+  }
+
+  .pbi-visual-subtitle,
+  .pbi-panel-subtitle {
+    @apply text-xs text-[#929296] mt-0.5;
+  }
+
+  .pbi-visual-body {
+    @apply px-2 py-2;
+  }
+
+  .pbi-visual-footer {
+    @apply px-4 py-2 border-t border-[#edebe9] text-xs text-[#929296];
+  }
+
+  .pbi-panel-body {
+    @apply p-4;
+  }
+
+  .pbi-data-table {
+    @apply w-full text-sm;
+  }
+
+  .pbi-data-table thead {
+    @apply bg-[#faf9f8] text-left text-[#929296];
+  }
+
+  .pbi-data-table th {
+    @apply px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide border-b border-[#edebe9];
+  }
+
+  .pbi-data-table td {
+    @apply px-4 py-2.5 border-b border-[#f3f2f1] text-[#1a1b1e];
+  }
+
+  .pbi-data-table tbody tr:hover {
+    @apply bg-[#faf9f8];
+  }
+
+  .pbi-status-pill {
+    @apply inline-flex items-center rounded-sm px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide;
+  }
+
+  .pbi-state {
+    @apply flex flex-col items-center justify-center py-20 gap-3;
+  }
+
+  .pbi-state-error {
+    @apply bg-red-50 border border-red-100 rounded-sm px-6 py-8 max-w-md mx-auto;
+  }
+
+  .pbi-spinner {
+    @apply w-9 h-9 border-2 border-[#c7dcff] border-t-[#0066ff] rounded-full animate-spin;
+  }
+
+  .pbi-nav-section {
+    @apply px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-[#929296];
+  }
+
+  .pbi-nav-link {
+    @apply relative flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium text-[#1a1b1e] rounded-sm transition-colors;
+  }
+
+  .pbi-nav-link:hover {
+    @apply bg-[#f3f2f1];
+  }
+
+  .pbi-nav-link-active {
+    @apply bg-[#ecf3ff] text-[#0066ff] font-semibold;
+  }
+
+  .pbi-nav-link-active::before {
+    content: "";
+    @apply absolute left-0 top-1 bottom-1 w-[3px] rounded-r bg-[#0066ff];
   }
 }
 
@@ -96,6 +236,46 @@
   }
 }
 
+@keyframes pulse-subtle {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes profile-drawer-in {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes profile-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 @layer utilities {
   .auth-page-enter {
     animation: auth-fade-slide-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -116,6 +296,45 @@
     animation: auth-shimmer 2.5s ease-in-out infinite;
   }
 
+  .animate-in {
+    animation: slide-up 0.5s ease-out;
+  }
+
+  .fade-in {
+    animation: auth-fade-slide-in 0.6s ease-out;
+  }
+
+  .profile-drawer-panel {
+    animation: profile-drawer-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .profile-drawer-backdrop {
+    animation: profile-backdrop-in 0.2s ease-out both;
+  }
+
+  .sidebar-shell {
+    transition: width 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+    overflow: hidden;
+  }
+
+  .sidebar-label-fade {
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+
+  .sidebar-collapsed .sidebar-label-fade {
+    opacity: 0;
+    transform: translateX(-4px);
+    pointer-events: none;
+    position: absolute;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+  }
+
+  .staff-role-panel {
+    animation: auth-fade-slide-in 0.25s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
@@ -125,5 +344,15 @@
   }
   .project-drawer-transition {
     transition-property: width, opacity, border;
+  }
+
+  /* Modern card effects */
+  .card-hover {
+    @apply transition-all duration-300 hover:shadow-2xl hover:-translate-y-1;
+  }
+
+  /* Glass morphism effect */
+  .glass {
+    @apply bg-white/80 backdrop-blur-lg border border-white/20;
   }
 }

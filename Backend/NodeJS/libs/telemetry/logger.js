@@ -3,6 +3,9 @@
 const api = require('@opentelemetry/api');
 const { randomUUID } = require('crypto');
 const { getRequestContext } = require('./request-context');
+const { getRuntimeContext } = require('./runtime-context');
+const { parseStackTrace } = require('./stack-parser');
+const { classifyErrorClass, classifyBusinessImpact } = require('./log-error-classifier');
 
 const LEVELS = new Set(['DEBUG', 'INFO', 'WARN', 'ERROR', 'CRITICAL']);
 
@@ -18,6 +21,7 @@ function activeTraceContext() {
 function normalizeLevel(level) {
   const upper = String(level ?? 'INFO').toUpperCase();
   if (upper === 'FATAL') return 'CRITICAL';
+  if (upper === 'WARNING') return 'WARN';
   if (upper === 'LOG') return 'INFO';
   if (LEVELS.has(upper)) return upper;
   return 'INFO';
@@ -30,13 +34,61 @@ function sanitizeExtra(extra) {
     copy.error = copy.err.message;
     copy.stack = copy.err.stack;
     copy.error_name = copy.err.name;
+    if (!copy.error_code && copy.err.code) copy.error_code = copy.err.code;
     delete copy.err;
   }
   if (copy.error instanceof Error) {
-    copy.error = copy.error.message;
+    copy.error_name = copy.error.name;
     copy.stack = copy.stack ?? copy.error.stack;
+    copy.error = copy.error.message;
   }
   return copy;
+}
+
+function enrichErrorRecord(record, cleaned, normalized) {
+  const hasFailureContext = Boolean(
+    cleaned.error || cleaned.stack || cleaned.error_code || cleaned.status_code != null || cleaned.event,
+  );
+  const isErrorLike =
+    normalized === 'ERROR' ||
+    normalized === 'CRITICAL' ||
+    (normalized === 'WARN' && hasFailureContext);
+
+  if (!isErrorLike) return;
+
+  if (!cleaned.error_class) {
+    record.error_class = classifyErrorClass({
+      error_code: cleaned.error_code,
+      error_name: cleaned.error_name,
+      error: cleaned.error,
+      event: cleaned.event,
+      status_code: cleaned.status_code,
+      module: cleaned.module,
+    });
+  } else {
+    record.error_class = cleaned.error_class;
+  }
+
+  if (!cleaned.business_impact) {
+    record.business_impact = classifyBusinessImpact({
+      error_class: record.error_class,
+      event: cleaned.event,
+      module: cleaned.module,
+      status_code: cleaned.status_code,
+      level: normalized,
+    });
+  } else {
+    record.business_impact = cleaned.business_impact;
+  }
+
+  if (cleaned.stack) {
+    const parsed = parseStackTrace(cleaned.stack, cleaned.error);
+    record.stack_summary = parsed.stack_summary;
+    record.stack_frames = parsed.stack_frames;
+    if (process.env.LOG_INCLUDE_RAW_STACK === 'true') {
+      record.raw_stack = parsed.raw_stack;
+    }
+  }
 }
 
 function emit(serviceName, level, message, extra = {}) {
@@ -44,9 +96,12 @@ function emit(serviceName, level, message, extra = {}) {
   const reqCtx = getRequestContext();
   const normalized = normalizeLevel(level);
   const cleaned = sanitizeExtra(extra);
+  const runtime = getRuntimeContext(serviceName);
 
   const record = {
     timestamp: new Date().toISOString(),
+    environment: runtime.environment,
+    host: runtime.host,
     level: normalized,
     service: serviceName,
     message: String(message ?? ''),
@@ -54,6 +109,10 @@ function emit(serviceName, level, message, extra = {}) {
     span_id: cleaned.span_id ?? cleaned.spanId ?? reqCtx.span_id ?? ctx.span_id ?? null,
     request_id: cleaned.request_id ?? cleaned.requestId ?? cleaned.correlation_id ?? reqCtx.request_id ?? null,
   };
+
+  if (runtime.container_id) record.container_id = runtime.container_id;
+  if (runtime.pod_name) record.pod_name = runtime.pod_name;
+  if (runtime.instance_id) record.instance_id = runtime.instance_id;
 
   if (cleaned.event) record.event = cleaned.event;
   if (cleaned.module) record.module = cleaned.module;
@@ -66,25 +125,33 @@ function emit(serviceName, level, message, extra = {}) {
   if (cleaned.query_name) record.query_name = cleaned.query_name;
   if (cleaned.error_code) record.error_code = cleaned.error_code;
   if (cleaned.error ?? cleaned.error_name) record.error = cleaned.error ?? cleaned.error_name;
-  if (cleaned.stack) record.stack = cleaned.stack;
+
+  if (cleaned.retry_count != null) record.retry_count = cleaned.retry_count;
+  if (cleaned.max_retries != null) record.max_retries = cleaned.max_retries;
+  if (cleaned.retryable != null) record.retryable = cleaned.retryable;
+
+  enrichErrorRecord(record, cleaned, normalized);
 
   const metadata = cleaned.metadata ?? cleaned.meta;
   if (metadata && typeof metadata === 'object') {
     record.metadata = metadata;
   }
 
+  const reserved = new Set([
+    'traceId', 'spanId', 'requestId', 'correlation_id', 'meta', 'metadata',
+    'err', 'error_name', 'stack', 'error_class', 'business_impact',
+  ]);
+
   for (const [key, value] of Object.entries(cleaned)) {
     if (record[key] !== undefined) continue;
-    if (['traceId', 'spanId', 'requestId', 'correlation_id', 'meta'].includes(key)) continue;
+    if (reserved.has(key)) continue;
     if (value === undefined || value === null) continue;
     if (typeof value === 'object' && !Array.isArray(value)) continue;
     record[key] = value;
   }
 
   const line = JSON.stringify(record);
-  if (normalized === 'ERROR' || normalized === 'CRITICAL') {
-    process.stderr.write(`${line}\n`);
-  } else if (normalized === 'WARN') {
+  if (normalized === 'ERROR' || normalized === 'CRITICAL' || normalized === 'WARN') {
     process.stderr.write(`${line}\n`);
   } else {
     process.stdout.write(`${line}\n`);

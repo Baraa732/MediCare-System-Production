@@ -33,6 +33,7 @@ const SERVICE_NAME = 'system-manager-service';
 export class PlatformStatsService implements OnModuleDestroy {
   private readonly log = createLogger(SERVICE_NAME);
   private clinicPool: Pool | null = null;
+  private clinicPoolClose: Promise<void> | null = null;
 
   constructor(
     @InjectRepository(ClinicAdminActivation)
@@ -69,10 +70,10 @@ export class PlatformStatsService implements OnModuleDestroy {
     const started = Date.now();
     try {
       const totalResult = await pool.query<{ count: string }>(
-        'SELECT COUNT(*)::text AS count FROM clinics',
+        'SELECT COUNT(*)::text AS count FROM tenants',
       );
       const statusResult = await pool.query<{ status: string; count: string }>(
-        'SELECT status, COUNT(*)::text AS count FROM clinics GROUP BY status',
+        'SELECT status, COUNT(*)::text AS count FROM tenants GROUP BY status',
       );
 
       const byStatus: Record<string, number> = {};
@@ -93,7 +94,7 @@ export class PlatformStatsService implements OnModuleDestroy {
         duration_ms: Date.now() - started,
         err,
         error_code: (error as NodeJS.ErrnoException)?.code,
-        metadata: { table: 'clinics' },
+        metadata: { table: 'tenants' },
       });
       return { total: 0, byStatus: {} };
     }
@@ -142,9 +143,31 @@ export class PlatformStatsService implements OnModuleDestroy {
   }
 
   async onModuleDestroy(): Promise<void> {
-    if (this.clinicPool) {
-      await this.clinicPool.end();
-      this.clinicPool = null;
+    if (this.clinicPoolClose) {
+      await this.clinicPoolClose;
+      return;
     }
+
+    const pool = this.clinicPool;
+    this.clinicPool = null;
+    if (!pool) return;
+
+    this.clinicPoolClose = pool
+      .end()
+      .catch((error) => {
+        const err = error instanceof Error ? error : new Error(String(error));
+        if (!/called end on pool more than once/i.test(err.message)) {
+          this.log.warn('Clinic stats pool close failed', {
+            event: 'db_pool_close_failed',
+            module: 'PlatformStatsService',
+            err,
+          });
+        }
+      })
+      .finally(() => {
+        this.clinicPoolClose = null;
+      });
+
+    await this.clinicPoolClose;
   }
 }

@@ -26,7 +26,7 @@ export class PlatformStreamService implements OnModuleDestroy {
     this.stopBroadcast();
     for (const res of this.clients) {
       try {
-        res.end();
+        if (!res.writableEnded) res.end();
       } catch {
         /* ignore */
       }
@@ -53,7 +53,7 @@ export class PlatformStreamService implements OnModuleDestroy {
       this.clients.delete(res);
       if (this.clients.size === 0) this.stopBroadcast();
       try {
-        res.end();
+        if (!res.writableEnded) res.end();
       } catch {
         /* ignore */
       }

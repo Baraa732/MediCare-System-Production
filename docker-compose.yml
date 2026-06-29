@@ -489,39 +489,80 @@ services:
     image: evoapicloud/evolution-api:v2.3.7
     container_name: evolution_api
     environment:
-      SERVER_URL: "http://evolution-api:8080"
+      SERVER_URL: "http://localhost:8080"
+      SERVER_PORT: 8080
       LANGUAGE: en
       CONFIG_SESSION_PHONE_CLIENT: MediCare
       CONFIG_SESSION_PHONE_NAME: Chrome
       AUTHENTICATION_TYPE: "apikey"
       AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY}
       AUTHENTICATION_EXPOSE_IN_FETCH: true
+      AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES: true
+      CORS_ORIGIN: "*"
+      DEL_INSTANCE: "false"
       QRCODE_LIMIT: 30
       WEBHOOK_GLOBAL_ENABLED: false
       WEBHOOK_GLOBAL_URL: ""
       DATABASE_ENABLED: true
       DATABASE_PROVIDER: postgresql
       DATABASE_CONNECTION_URI: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres-evolution:5432/evolution_db?schema=public
+      DATABASE_CONNECTION_CLIENT_NAME: medicare_evolution
       DATABASE_SAVE_DATA_INSTANCE: true
-      DATABASE_SAVE_DATA_MESSAGE: true
-      DATABASE_SAVE_DATA_CONTACT: true
+      DATABASE_SAVE_DATA_NEW_MESSAGE: true
+      DATABASE_SAVE_MESSAGE_UPDATE: true
+      DATABASE_SAVE_DATA_CONTACTS: true
       DATABASE_SAVE_DATA_CHATS: true
-      CACHE_REDIS_ENABLED: false
+      DATABASE_SAVE_DATA_LABELS: true
+      DATABASE_SAVE_DATA_HISTORIC: true
+      DATABASE_SAVE_IS_ON_WHATSAPP: true
+      DATABASE_SAVE_IS_ON_WHATSAPP_DAYS: 7
+      CACHE_REDIS_ENABLED: true
+      CACHE_REDIS_URI: redis://:${REDIS_PASSWORD}@redis:6379/6
+      CACHE_REDIS_PREFIX_KEY: medicare_evolution
+      CACHE_REDIS_SAVE_INSTANCES: true
+      CACHE_LOCAL_ENABLED: false
     volumes:
-      - ./Integrations/WhatsApp/evolution-api/manager/index.html:/evolution/node_modules/evolution-manager/dist/index.html:ro
+      - evolution_instances:/evolution/instances
+      - ./Integrations/WhatsApp/evolution-api/manager/index.html:/evolution/manager/dist/index.html:ro
     ports:
       - "8080:8080"
     depends_on:
       postgres-evolution:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - clinic_network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/ || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 60s
     deploy:
       resources:
         limits:
           memory: 512m
           cpus: '0.5'
+
+  # One-shot: create default WhatsApp instance if Evolution DB has none
+  evolution-init:
+    image: node:20-alpine
+    container_name: evolution_init
+    depends_on:
+      evolution-api:
+        condition: service_healthy
+    environment:
+      EVOLUTION_API_URL: http://evolution-api:8080
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY}
+      WHATSAPP_INSTANCE_NAME: MedicareTEST
+    volumes:
+      - ./Integrations/WhatsApp/evolution-api/scripts/ensure-whatsapp-instance.js:/ensure-whatsapp-instance.js:ro
+    networks:
+      - clinic_network
+    restart: "no"
+    entrypoint: ["node", "/ensure-whatsapp-instance.js"]
 
   # ── Kafka cluster — single broker for development ─────────────────────
   # This simplified setup is tuned for local dev and lower memory usage.
@@ -694,8 +735,12 @@ services:
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
       DATABASE_USER: ${POSTGRES_USER}
       CLINIC_SERVICE_URL: http://clinic-service:3006
+      ALLOWED_ORIGINS: http://localhost:3000,http://localhost:3002,http://localhost:3003,http://localhost:5173,http://localhost:5174
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       OTEL_SERVICE_NAME: user-service
+      AVATAR_UPLOAD_DIR: /app/uploads/avatars
+    volumes:
+      - user_avatars:/app/uploads/avatars
     expose:
       - "3002"
     depends_on:
@@ -1228,6 +1273,27 @@ services:
           memory: 256m
           cpus: '0.5'
 
+  clinic-admin-dashboard:
+    build:
+      context: ./Frontend/React/clinic-admin-dashboard
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: /api
+    container_name: clinic_admin_dashboard
+    ports:
+      - "3003:80"
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    networks:
+      - clinic_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: '0.5'
+
 volumes:
   redis_data:
   postgres_auth_data:
@@ -1250,6 +1316,8 @@ volumes:
   prometheus_data:
   grafana_data:
   loki_data:
+  user_avatars:
+  evolution_instances:
 
 networks:
   clinic_network:

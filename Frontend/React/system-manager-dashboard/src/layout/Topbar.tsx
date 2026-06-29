@@ -37,7 +37,6 @@ export default function Topbar() {
   const navigate = useNavigate()
 
   const handleRefresh = useCallback(async () => {
-    useDashboardStore.getState().triggerRefresh()
     await invalidateDashboardQueries()
     notify.success('Dashboard metrics refreshed.')
   }, [])

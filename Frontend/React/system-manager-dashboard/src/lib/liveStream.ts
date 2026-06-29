@@ -87,8 +87,6 @@ export class LiveStreamClient {
     const interval = this.options.pollIntervalMs ?? 1_500
     this.pollTimer = setInterval(() => {
       this.emit({ type: 'observability', range: '1h' })
-      this.emit({ type: 'logs' })
-      this.emit({ type: 'alerts' })
     }, interval)
   }
 

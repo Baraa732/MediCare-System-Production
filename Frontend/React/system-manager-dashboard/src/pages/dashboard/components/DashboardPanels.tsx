@@ -58,27 +58,39 @@ function EmptyState({ icon, title, text }: { icon: ReactNode; title: string; tex
   )
 }
 
-export const ServiceHealthMatrix = memo(function ServiceHealthMatrix({ services }: { services: ApmService[] }) {
+export const ServiceHealthMatrix = memo(function ServiceHealthMatrix({ services, embedded = false }: { services: ApmService[]; embedded?: boolean }) {
   const theme = useTheme()
+  const content = (
+    <Box sx={{ display: 'grid', gap: 0.75 }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 62px 62px 54px', gap: 1, px: 1, pb: 0.5 }}>
+        <Typography variant="caption2" sx={{ color: 'text.secondary', fontWeight: 600 }}>Service</Typography>
+        <Typography variant="caption2" sx={{ color: 'text.secondary', fontWeight: 600, textAlign: 'right' }}>P95</Typography>
+        <Typography variant="caption2" sx={{ color: 'text.secondary', fontWeight: 600, textAlign: 'right' }}>Err</Typography>
+        <Typography variant="caption2" sx={{ color: 'text.secondary', fontWeight: 600, textAlign: 'right' }}>RPS</Typography>
+      </Box>
+      {services.slice(0, 10).map((service) => {
+        const color = service.status === 'healthy' ? '#10b981' : service.status === 'degraded' ? '#f59e0b' : '#ef4444'
+        return (
+          <Box key={service.name} sx={{ display: 'grid', gridTemplateColumns: '1fr 62px 62px 54px', gap: 1, alignItems: 'center', px: 1, height: 34, borderBottom: `1px solid ${theme.palette.divider}`, '&:hover': { bgcolor: 'background.hover' } }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+              <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: color }} />
+              <Typography variant="body2" sx={{ fontFamily: theme.typography.mono?.fontFamily, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{service.name}</Typography>
+            </Box>
+            <Typography variant="caption2" sx={{ color: 'text.secondary', textAlign: 'right' }}>{service.p95 ?? 0}ms</Typography>
+            <Typography variant="caption2" sx={{ color: service.errorRate > 0 ? '#ef4444' : 'text.secondary', textAlign: 'right' }}>{service.errorRate}%</Typography>
+            <Typography variant="caption2" sx={{ color: '#06b6d4', textAlign: 'right' }}>{service.reqRate}</Typography>
+          </Box>
+        )
+      })}
+      {services.length === 0 && <EmptyText>No service telemetry available yet.</EmptyText>}
+    </Box>
+  )
+
+  if (embedded) return content
+
   return (
     <Panel title="Service Health Matrix" caption="latency · error · traffic" fillHeight>
-      <Box sx={{ display: 'grid', gap: 0.75 }}>
-        {services.slice(0, 10).map((service) => {
-          const color = service.status === 'healthy' ? '#10b981' : service.status === 'degraded' ? '#f59e0b' : '#ef4444'
-          return (
-            <Box key={service.name} sx={{ display: 'grid', gridTemplateColumns: '1fr 62px 62px 54px', gap: 1, alignItems: 'center', px: 1, height: 34, borderBottom: `1px solid ${theme.palette.divider}`, '&:hover': { bgcolor: 'background.hover' } }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
-                <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: color }} />
-                <Typography variant="body2" sx={{ fontFamily: theme.typography.mono?.fontFamily, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{service.name}</Typography>
-              </Box>
-              <Typography variant="caption2" sx={{ color: 'text.secondary', textAlign: 'right' }}>{service.p95 ?? 0}ms</Typography>
-              <Typography variant="caption2" sx={{ color: service.errorRate > 0 ? '#ef4444' : 'text.secondary', textAlign: 'right' }}>{service.errorRate}%</Typography>
-              <Typography variant="caption2" sx={{ color: '#06b6d4', textAlign: 'right' }}>{service.reqRate}</Typography>
-            </Box>
-          )
-        })}
-        {services.length === 0 && <EmptyText>No service telemetry available yet.</EmptyText>}
-      </Box>
+      {content}
     </Panel>
   )
 })
@@ -243,23 +255,29 @@ export const IntegrationPanel = memo(function IntegrationPanel({ integrations }:
   )
 })
 
-export const OperationsQueue = memo(function OperationsQueue({ incidents, slowTraceCount }: { incidents: DashboardIncident[]; slowTraceCount: number }) {
+export const OperationsQueue = memo(function OperationsQueue({ incidents, slowTraceCount, embedded = false }: { incidents: DashboardIncident[]; slowTraceCount: number; embedded?: boolean }) {
   const items = [
     { label: 'Triage live incidents', value: incidents.length, color: incidents.length ? '#ef4444' : '#10b981', icon: <AlertTriangle size={15} /> },
     { label: 'Review slow operations', value: slowTraceCount, color: '#f59e0b', icon: <GitBranch size={15} /> },
     { label: 'Verify integrations', value: incidents.filter((incident) => incident.source === 'integration').length, color: '#06b6d4', icon: <Database size={15} /> },
   ]
+  const content = (
+    <Box sx={{ display: 'grid', gap: 1 }}>
+      {items.map((item) => (
+        <Box key={item.label} sx={{ display: 'grid', gridTemplateColumns: '24px 1fr auto', gap: 1, alignItems: 'center', p: 1, border: `1px solid ${alpha(item.color, 0.25)}`, bgcolor: alpha(item.color, 0.06), borderRadius: '4px' }}>
+          <Box sx={{ color: item.color }}>{item.icon}</Box>
+          <Typography variant="body2">{item.label}</Typography>
+          <Typography variant="metricSm" sx={{ color: item.color }}>{item.value}</Typography>
+        </Box>
+      ))}
+    </Box>
+  )
+
+  if (embedded) return content
+
   return (
     <Panel title="Operations Queue" caption="next best actions">
-      <Box sx={{ display: 'grid', gap: 1 }}>
-        {items.map((item) => (
-          <Box key={item.label} sx={{ display: 'grid', gridTemplateColumns: '24px 1fr auto', gap: 1, alignItems: 'center', p: 1, border: `1px solid ${alpha(item.color, 0.25)}`, bgcolor: alpha(item.color, 0.06), borderRadius: '4px' }}>
-            <Box sx={{ color: item.color }}>{item.icon}</Box>
-            <Typography variant="body2">{item.label}</Typography>
-            <Typography variant="metricSm" sx={{ color: item.color }}>{item.value}</Typography>
-          </Box>
-        ))}
-      </Box>
+      {content}
     </Panel>
   )
 })

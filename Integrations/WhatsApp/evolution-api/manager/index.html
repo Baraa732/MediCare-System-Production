@@ -1,32 +1,31 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-
-<head>
-  <link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin="anonymous">
-  <link rel="preload" as="style" onload="this.rel='stylesheet'" href="https://fonts.googleapis.com/css2?family=Roboto:wght@100;300;400;500;700;900&display=swap">
-  <link rel="preload" as="font" type="font/eot" href="/manager/assets/materialdesignicons-webfont-861aea05.eot" crossorigin="anonymous">
-  <link rel="preload" as="font" type="font/woff2" href="/manager/assets/materialdesignicons-webfont-e52d60f6.woff2" crossorigin="anonymous">
-  <link rel="preload" as="font" type="font/woff" href="/manager/assets/materialdesignicons-webfont-48d3eec6.woff" crossorigin="anonymous">
-  <link rel="preload" as="font" type="font/ttf" href="/manager/assets/materialdesignicons-webfont-bd725a7a.ttf" crossorigin="anonymous">
-
-  <meta charset="UTF-8" />
-  <link rel="icon" href="/manager/favicon.ico" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Evolution Manager</title>
-  <!-- MediCare: default manager UI to English (upstream defaults to pt) -->
-  <script>
-    localStorage.setItem('locale', 'en');
-    // Default server URL to current host so instances load without manual URL entry
-    if (!localStorage.getItem('apiUrl')) {
-      localStorage.setItem('apiUrl', window.location.origin);
-    }
-  </script>
-  <script type="module" crossorigin src="/manager/assets/index-3ea4d4db.js"></script>
-  <link rel="stylesheet" href="/manager/assets/index-6f8ae3e3.css">
-</head>
-
-<body>
-  <div id="app"></div>
-</body>
-
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="https://evolution-api.com/files/evo/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Evolution Manager</title>
+    <!-- MediCare: English UI + default API URL; asset hashes must match evoapicloud/evolution-api:v2.3.7 -->
+    <script>
+      localStorage.setItem('locale', 'en');
+      if (!localStorage.getItem('apiUrl')) {
+        localStorage.setItem('apiUrl', window.location.origin);
+      }
+      // Evolution Manager v2 credential keys (dev: set once after login)
+      var params = new URLSearchParams(window.location.search);
+      var devKey = params.get('apikey');
+      if (devKey) {
+        localStorage.setItem('globalApiKey', devKey);
+        localStorage.setItem('apikey', devKey);
+      }
+      if (window.location.pathname.includes('/instance/undefined')) {
+        window.location.replace('/manager/');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-CO3NSIFj.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-DsIrum0U.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
 </html>

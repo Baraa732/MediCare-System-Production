@@ -59,7 +59,7 @@ function KpiCard({ label, value, unit, color, trend, positive, series, burnRate,
       )}
       {hasSparkline && (
         <Box sx={{ height: 36, mt: 0.5 }}>
-          <ReactECharts option={sparkOption(series!, color)} style={{ height: 36 }} notMerge />
+          <ReactECharts option={sparkOption(series!, color)} style={{ height: 36 }} lazyUpdate />
         </Box>
       )}
     </Box>

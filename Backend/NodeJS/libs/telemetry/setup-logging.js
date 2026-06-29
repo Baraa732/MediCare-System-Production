@@ -3,6 +3,7 @@
 const { createLogger } = require('./logger');
 const { createNestLogger } = require('./nest-logger');
 const { createHttpLoggingMiddleware, createHttpLoggingInterceptor } = require('./http-logging');
+const { registerPrometheusRoute } = require('./prometheus-metrics');
 
 function overrideNestStaticLogger(nestLogger) {
   try {
@@ -35,8 +36,13 @@ function setupMedicareLogging(app, options) {
   overrideNestStaticLogger(nestLogger);
 
   const expressApp = app.getHttpAdapter?.().getInstance?.();
-  if (expressApp && options?.skipHttpMiddleware !== true) {
-    expressApp.use(createHttpLoggingMiddleware(serviceName, { skipPaths }));
+  if (expressApp) {
+    if (options?.enableMetrics !== false) {
+      registerPrometheusRoute(expressApp, serviceName);
+    }
+    if (options?.skipHttpMiddleware !== true) {
+      expressApp.use(createHttpLoggingMiddleware(serviceName, { skipPaths }));
+    }
   }
 
   if (options?.logStartup !== false) {
@@ -45,6 +51,7 @@ function setupMedicareLogging(app, options) {
       module: 'bootstrap',
       metadata: {
         node_env: process.env.NODE_ENV ?? 'development',
+        environment: require('./runtime-context').resolveEnvironment(),
         port: options?.port,
       },
     });

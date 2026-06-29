@@ -1,4 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import * as fs from 'fs';
+import * as path from 'path';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, In } from 'typeorm';
 import { ClientKafka } from '@nestjs/microservices';
@@ -26,6 +28,16 @@ import { createTenantLogger } from '../../tenant-shared/tenant-logger';
 const PASSWORD_HISTORY_LIMIT = 5;
 const STAFF_ACTIVATION_HOURS = 48;
 const TEMP_PASSWORD_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
+const AVATAR_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const AVATAR_DIR = process.env.AVATAR_UPLOAD_DIR || path.join(process.cwd(), 'uploads', 'avatars');
+
+type UploadedImageFile = {
+  buffer: Buffer;
+  size: number;
+  mimetype: string;
+  originalname?: string;
+};
 
 @Injectable()
 export class UserService {
@@ -374,6 +386,7 @@ export class UserService {
       clinicId: user.clinicId,
       specialization: user.specialization,
       licenseNumber: user.role === UserRole.DOCTOR ? user.licenseNumber : undefined,
+      avatarUrl: typeof profileData?.avatarUrl === 'string' ? profileData.avatarUrl : undefined,
       profileData,
       permissions: user.permissions,
       createdAt: user.createdAt,
@@ -809,5 +822,77 @@ export class UserService {
       KafkaTopics.USER_PASSWORD_CHANGED,
       tenantId ? withTenantEvent(tenantId, payload) : payload,
     );
+  }
+
+  private ensureAvatarDir(): void {
+    if (!fs.existsSync(AVATAR_DIR)) {
+      fs.mkdirSync(AVATAR_DIR, { recursive: true });
+    }
+  }
+
+  private avatarFilePath(userId: string, ext: string): string {
+    return path.join(AVATAR_DIR, `${userId}${ext}`);
+  }
+
+  private findExistingAvatarPath(userId: string): string | null {
+    for (const ext of ['.webp', '.jpg', '.jpeg', '.png']) {
+      const candidate = this.avatarFilePath(userId, ext);
+      if (fs.existsSync(candidate)) return candidate;
+    }
+    return null;
+  }
+
+  async updateAvatar(userId: string, file: UploadedImageFile): Promise<User> {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('Avatar file is required');
+    }
+    if (file.size > AVATAR_MAX_BYTES) {
+      throw new BadRequestException('Avatar must be 2 MB or smaller');
+    }
+    if (!AVATAR_MIME_TYPES.has(file.mimetype)) {
+      throw new BadRequestException('Avatar must be JPEG, PNG, or WebP');
+    }
+
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    this.ensureAvatarDir();
+
+    const ext =
+      file.mimetype === 'image/png'
+        ? '.png'
+        : file.mimetype === 'image/webp'
+          ? '.webp'
+          : '.jpg';
+
+    const existing = this.findExistingAvatarPath(userId);
+    if (existing && existing !== this.avatarFilePath(userId, ext)) {
+      fs.unlinkSync(existing);
+    }
+
+    const target = this.avatarFilePath(userId, ext);
+    fs.writeFileSync(target, file.buffer);
+
+    const version = Date.now();
+    user.profileData = {
+      ...(user.profileData || {}),
+      avatarUrl: `/api/users/avatars/${userId}?v=${version}`,
+    };
+
+    const updated = await this.userRepository.save(user);
+    this.logger.log(`Avatar updated for user ${userId}`);
+    return updated;
+  }
+
+  async readAvatar(userId: string): Promise<{ buffer: Buffer; mime: string }> {
+    const filePath = this.findExistingAvatarPath(userId);
+    if (!filePath) {
+      throw new NotFoundException('Avatar not found');
+    }
+    const ext = path.extname(filePath).toLowerCase();
+    const mime =
+      ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg';
+    return { buffer: fs.readFileSync(filePath), mime };
   }
 }

@@ -1,5 +1,12 @@
 import { ConfigService } from '@nestjs/config';
 import { KafkaOptions, Transport } from '@nestjs/microservices';
+import { Partitioners } from 'kafkajs';
+
+const IDEMPOTENT_PRODUCER_RETRY = {
+  initialRetryTime: 300,
+  retries: Number.MAX_SAFE_INTEGER,
+  maxRetryTime: 30_000,
+};
 
 export class KafkaOptionsFactory {
   /**
@@ -37,12 +44,13 @@ export class KafkaOptionsFactory {
         consumer: {
           groupId,
           allowAutoTopicCreation: false,
-          retry: { retries: 3 },
+          retry: { retries: 8 },
         },
-        // Producer configuration for request-reply pattern (NestJS ProducerConfig subset)
         producer: {
           idempotent: true,
           maxInFlightRequestsPerConnection: 5,
+          createPartitioner: Partitioners.LegacyPartitioner,
+          retry: IDEMPOTENT_PRODUCER_RETRY,
         } as Record<string, unknown>,
       },
     };

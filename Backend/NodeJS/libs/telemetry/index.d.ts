@@ -57,6 +57,52 @@ export function logStructuredException(
   },
 ): Record<string, unknown>;
 
+export function logKafkaEventIssue(
+  level: 'warn' | 'error',
+  context: string,
+  message: string,
+  extra?: Record<string, unknown>,
+): void;
+
+export const ERROR_CLASSES: Record<string, string>;
+export const BUSINESS_IMPACT: Record<string, string>;
+
+export function classifyErrorClass(input?: {
+  error_code?: string;
+  error_name?: string;
+  error?: string;
+  event?: string;
+  status_code?: number;
+  module?: string;
+}): string;
+
+export function classifyBusinessImpact(input?: {
+  error_class?: string;
+  event?: string;
+  module?: string;
+  status_code?: number;
+  level?: string;
+}): string;
+
+export function parseStackTrace(
+  stack?: string | null,
+  errorMessage?: string,
+): {
+  stack_summary: string | null;
+  stack_frames: string[];
+  raw_stack: string | null;
+};
+
+export function getRuntimeContext(serviceName?: string): {
+  environment: string;
+  host: string;
+  container_id?: string;
+  pod_name?: string;
+  instance_id?: string;
+};
+
+export function resolveEnvironment(): string;
+
 export function createTypeOrmLogger(serviceName: string): TypeOrmLogger;
 
 export function medicareTypeOrmExtras(serviceName: string): {

@@ -116,5 +116,8 @@ export interface UserProfile {
   status: string;
   clinicId?: string;
   specialization?: string;
+  licenseNumber?: string;
+  avatarUrl?: string;
+  profileData?: Record<string, unknown>;
   createdAt?: string;
 }

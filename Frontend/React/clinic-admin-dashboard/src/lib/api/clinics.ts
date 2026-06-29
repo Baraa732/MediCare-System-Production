@@ -19,7 +19,13 @@ export function getClinicProfile(id: string, token: string) {
   return apiRequest<{
     success: boolean;
     clinic: ClinicPublic;
-    stats?: Record<string, number>;
+    doctors?: ClinicDoctor[];
+    hours?: Array<{
+      dayOfWeek: number;
+      openTime: string;
+      closeTime: string;
+      isClosed?: boolean;
+    }>;
   }>(`/clinics/${id}/profile`, { token });
 }
 

@@ -2,6 +2,13 @@ import { DynamicModule, Module, OnApplicationShutdown, Inject } from '@nestjs/co
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ClientsModule, Transport, ClientProxy } from '@nestjs/microservices';
 import { Logger } from '@nestjs/common';
+import { Partitioners } from 'kafkajs';
+
+const IDEMPOTENT_PRODUCER_RETRY = {
+  initialRetryTime: 300,
+  retries: Number.MAX_SAFE_INTEGER,
+  maxRetryTime: 30_000,
+};
 
 export interface KafkaClientModuleOptions {
   clientId: string;
@@ -48,32 +55,16 @@ export class KafkaClientModule implements OnApplicationShutdown {
                 consumer: {
                   groupId: options.consumerGroupId,
                   allowAutoTopicCreation: false,
-                  // MEDIUM FIX: Enable read_committed isolation for exactly-once semantics
                   isolationLevel: 'read_committed',
-                  // Retry failed messages up to 3 times before routing to DLT
-                  retry: { retries: 3 },
+                  retry: { retries: 8 },
                 },
                 producer: {
                   allowAutoTopicCreation: false,
-                  // MEDIUM FIX: Enable transactional producer for exactly-once semantics
-                  // transactional: true,
-                  // transactionalId: `${options.clientId}-tx`,
-                  // idempotent:true + acks:-1 = exactly-once delivery at the producer level.
-                  // All in-sync replicas must acknowledge before the producer considers
-                  // the message sent. With replicationFactor=3 + min.insync.replicas=2
-                  // this means at least 2 brokers confirm — no silent message loss.
-                  //
-                  // maxInFlightRequests:5 (not 1) — KafkaJS with idempotence enabled
-                  // preserves per-partition ordering even with multiple in-flight requests
-                  // because the broker deduplicates using producer sequence numbers.
-                  // Setting this to 1 serialises ALL producer requests and becomes a
-                  // throughput bottleneck under load. Use 1 only if your business logic
-                  // requires strict cross-partition ordering (rare — most cases don't).
-                  // Benchmark: compare p95 publish latency and Kafka lag at maxInFlight=1
-                  // vs 5 under your actual load before changing this value.
                   idempotent: true,
                   acks: -1,
                   maxInFlightRequests: 5,
+                  createPartitioner: Partitioners.LegacyPartitioner,
+                  retry: IDEMPOTENT_PRODUCER_RETRY,
                 },
               },
             }),

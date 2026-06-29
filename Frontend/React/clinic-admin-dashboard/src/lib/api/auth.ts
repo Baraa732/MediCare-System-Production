@@ -135,9 +135,19 @@ export function createClinicStaff(
     firstName: string;
     lastName: string;
     email?: string;
-    role: "SECRETARY" | "DOCTOR" | "CLINIC_ADMIN";
-    specialization?: string;
+    role: "SECRETARY" | "DOCTOR";
     clinicId?: string;
+    username?: string;
+    specialization?: string;
+    licenseNumber?: string;
+    yearsOfExperience?: number;
+    governorate?: string;
+    state?: string;
+    streetInfo?: string;
+    gender?: "MALE" | "FEMALE" | "OTHER";
+    birthDate?: string;
+    middleName?: string;
+    nationalId?: string;
   },
   token: string,
 ) {

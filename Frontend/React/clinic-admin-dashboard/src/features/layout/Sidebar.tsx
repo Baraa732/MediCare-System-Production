@@ -1,8 +1,9 @@
 import { NavLink } from "react-router";
 import {
-  BarChart3,
   Building2,
   CalendarDays,
+  ChevronLeft,
+  ChevronRight,
   Clock3,
   LayoutDashboard,
   UserSearch,
@@ -13,14 +14,28 @@ import { useClinicAdmin } from "@/context/ClinicAdminContext";
 import { useSidebarStore } from "@/stores/sidebarStore";
 import { SidebarQuickStats } from "./SidebarQuickStats";
 
-const navItems = [
-  { to: "/dashboard", label: "Overview", icon: LayoutDashboard, end: true },
-  { to: "/dashboard/staff", label: "Staff", icon: Users },
-  { to: "/dashboard/appointments", label: "Appointments", icon: CalendarDays },
-  { to: "/dashboard/schedule", label: "Schedule", icon: Clock3 },
-  { to: "/dashboard/patients", label: "Patients", icon: UserSearch },
-  { to: "/dashboard/settings", label: "Clinic settings", icon: Building2 },
-  { to: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },
+const navSections = [
+  {
+    label: "Workspace",
+    items: [
+      { to: "/dashboard", label: "Overview", icon: LayoutDashboard, end: true },
+    ],
+  },
+  {
+    label: "Operations",
+    items: [
+      { to: "/dashboard/appointments", label: "Appointments", icon: CalendarDays, end: false },
+      { to: "/dashboard/schedule", label: "Schedule", icon: Clock3, end: false },
+      { to: "/dashboard/patients", label: "Patients", icon: UserSearch, end: false },
+      { to: "/dashboard/staff", label: "Staff", icon: Users, end: false },
+    ],
+  },
+  {
+    label: "Clinic",
+    items: [
+      { to: "/dashboard/settings", label: "Settings", icon: Building2, end: false },
+    ],
+  },
 ];
 
 function clinicInitial(name: string): string {
@@ -29,64 +44,98 @@ function clinicInitial(name: string): string {
 }
 
 export function Sidebar() {
-  const isOpen = useSidebarStore((s) => s.isSidebarOpen);
+  const mode = useSidebarStore((s) => s.mode);
+  const toggleSidebar = useSidebarStore((s) => s.toggleSidebar);
+  const isCollapsed = mode === "collapsed";
   const { clinic, loading } = useClinicAdmin();
-  const displayName = clinic?.name?.trim() || (loading ? "Loading clinic…" : "Your clinic");
+  const displayName = clinic?.name?.trim() || (loading ? "Loading…" : "Your clinic");
 
   return (
     <aside
       className={cn(
-        "h-full border-r border-neutral-200 bg-white flex flex-col shrink-0 z-20 relative",
-        "transition-all duration-300 ease-in-out project-drawer-transition",
-        isOpen
-          ? "w-[19.2%] min-w-[240px] max-w-[320px] opacity-100 overflow-hidden"
-          : "w-0 opacity-0 pointer-events-none border-r-0 overflow-hidden",
+        "h-full bg-white border-r border-[#e1dfdd] flex flex-col shrink-0 z-20 sidebar-shell",
+        isCollapsed ? "sidebar-collapsed w-[64px]" : "sidebar-expanded w-[248px]",
       )}
     >
-      <div className="h-16 px-5 border-b border-neutral-100 flex items-center">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-7 h-7 shrink-0 rounded-lg bg-[#0066ff] text-white flex items-center justify-center font-black text-base">
+      <div
+        className={cn(
+          "h-14 border-b border-[#edebe9] flex items-center shrink-0 transition-all",
+          isCollapsed ? "px-2 justify-center" : "px-3 justify-between gap-2",
+        )}
+      >
+        <div className={cn("flex items-center gap-2.5 min-w-0", isCollapsed && "justify-center")}>
+          <div className="w-8 h-8 shrink-0 rounded-sm bg-[#0066ff] text-white flex items-center justify-center font-bold text-sm shadow-sm">
             {clinicInitial(displayName)}
           </div>
-          <div className="flex flex-col min-w-0">
-            <span
-              className="text-sm font-bold tracking-tight text-neutral-900 leading-none truncate"
-              title={displayName}
-            >
-              {displayName}
-            </span>
-            <span className="text-[11px] text-neutral-400 font-medium mt-0.5">
-              Clinic admin dashboard
-            </span>
-          </div>
+          {!isCollapsed && (
+            <div className="min-w-0 flex-1 sidebar-label-fade">
+              <p className="text-[13px] font-semibold text-[#1a1b1e] truncate" title={displayName}>
+                {displayName}
+              </p>
+              <p className="text-[10px] text-[#929296] font-medium">Clinic admin</p>
+            </div>
+          )}
         </div>
+        {!isCollapsed && (
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            className="p-1.5 rounded-sm text-[#929296] hover:text-[#0066ff] hover:bg-[#ecf3ff] transition-colors sidebar-label-fade"
+            title="Collapse sidebar"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
-      <nav className="p-3 space-y-1 border-b border-neutral-100">
-        {navItems.map(({ to, label, icon: Icon, end }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={end}
-            className={({ isActive }) =>
-              cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors",
-                isActive
-                  ? "bg-[#ecf3ff] text-[#0066ff]"
-                  : "text-neutral-700 hover:bg-neutral-50",
-              )
-            }
-          >
-            <Icon className="w-4 h-4 shrink-0" />
-            {label}
-          </NavLink>
+      {isCollapsed && (
+        <button
+          type="button"
+          onClick={toggleSidebar}
+          className="mx-auto mt-2 p-1.5 rounded-sm text-[#929296] hover:text-[#0066ff] hover:bg-[#ecf3ff] transition-colors"
+          title="Expand sidebar"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      )}
+
+      <nav className="flex-1 overflow-y-auto no-scrollbar py-2">
+        {navSections.map((section) => (
+          <div key={section.label} className="mb-1">
+            {!isCollapsed && <p className="pbi-nav-section sidebar-label-fade">{section.label}</p>}
+            <div className={cn("space-y-0.5", isCollapsed ? "px-1.5" : "px-2")}>
+              {section.items.map(({ to, label, icon: Icon, end }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  end={end}
+                  title={isCollapsed ? label : undefined}
+                  className={({ isActive }) =>
+                    cn(
+                      "pbi-nav-link",
+                      isCollapsed && "justify-center px-2",
+                      isActive && "pbi-nav-link-active",
+                    )
+                  }
+                >
+                  <Icon className="w-4 h-4 shrink-0 opacity-80" strokeWidth={2} />
+                  {!isCollapsed && <span className="truncate sidebar-label-fade">{label}</span>}
+                </NavLink>
+              ))}
+            </div>
+          </div>
         ))}
       </nav>
 
-      <SidebarQuickStats />
+      {!isCollapsed && <SidebarQuickStats />}
 
-      <div className="mt-auto p-4 border-t border-neutral-100 text-xs text-neutral-400">
-        Clinic operations & analytics
+      <div
+        className={cn(
+          "shrink-0 border-t border-[#edebe9] text-[10px] text-[#929296]",
+          isCollapsed ? "py-3 text-center" : "px-4 py-3",
+        )}
+      >
+        {isCollapsed ? "MC" : "MediCare clinic workspace"}
       </div>
     </aside>
   );
