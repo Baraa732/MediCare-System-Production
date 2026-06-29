@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  compose-config:
+    name: Validate Docker Compose
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check compose file syntax
+        run: docker compose -f docker-compose.yml config --quiet
+
+  frontend-build:
+    name: Build dashboards
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app:
+          - secretary-dashboard
+          - clinic-admin-dashboard
+          - system-manager-dashboard
+    defaults:
+      run:
+        working-directory: Frontend/React/${{ matrix.app }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: Frontend/React/${{ matrix.app }}/package-lock.json
+      - run: npm ci
+      - run: npm run build

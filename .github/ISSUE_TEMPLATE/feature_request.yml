@@ -1,0 +1,29 @@
+---
+name: Feature request
+about: Suggest an improvement or new capability
+title: ""
+labels: enhancement
+assignees: ""
+---
+
+## Problem
+
+<!-- What pain point does this solve? -->
+
+## Proposed change
+
+<!-- Keep it concrete — API, UI, or workflow -->
+
+## Affected area
+
+- [ ] API Gateway
+- [ ] Auth / Users
+- [ ] Clinics / Scheduling / Appointments
+- [ ] Notifications / WhatsApp
+- [ ] Frontend (secretary / clinic admin / system manager)
+- [ ] Integrations (OpenEMR / AI)
+- [ ] Infrastructure / Docker
+
+## Extra context
+
+<!-- Diagrams, mockups, links — optional -->
