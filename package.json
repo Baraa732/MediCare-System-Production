@@ -1,0 +1,13 @@
+{
+  "name": "clinic-management-seed",
+  "version": "1.0.0",
+  "description": "Seed script for clinic management system",
+  "main": "seed-admin.js",
+  "scripts": {
+    "seed": "node seed-admin.js"
+  },
+  "dependencies": {
+    "pg": "^8.11.3",
+    "bcrypt": "^5.1.1"
+  }
+}

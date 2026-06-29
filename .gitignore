@@ -1,0 +1,42 @@
+# Secrets — NEVER commit
+.env
+.env.*
+!.env.example
+**/.env
+!**/.env.example
+.env.local
+.env.development
+.env.production
+.env.staging
+
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build output
+dist/
+**/dist/
+build/
+**/build/
+*.tsbuildinfo
+compose-check.txt
+
+# Logs
+*.log
+logs/
+**/logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# Docker volumes (local)
+docker/volumes/
