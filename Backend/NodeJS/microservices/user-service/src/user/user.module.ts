@@ -22,6 +22,7 @@ import { InternalServiceGuard } from './guards/internal-service.guard';
 import { OutboxPublisherService } from './services/outbox-publisher.service';
 import { AlertingService } from './services/alerting.service';
 import { ClinicHttpClient } from './services/clinic-http.client';
+import { PhiAuditPublisherService } from '../phi-audit-shared/phi-audit.publisher';
 
 @Module({
   imports: [
@@ -59,7 +60,7 @@ import { ClinicHttpClient } from './services/clinic-http.client';
   // - controllers[]: so NestJS binds @MessagePattern/@EventPattern to the microservice transport
   // - providers[]: so its dependencies (UserService, AccountLinkingService) are injected via DI
   controllers: [UserController, PublicDoctorController, InternalUserController, AccountLinkingController, KafkaConsumerService],
-  providers: [UserService, AccountLinkingService, KafkaConsumerService, IdempotencyService, SchemaValidationService, JwtAuthGuard, RolesGuard, InternalServiceGuard, OutboxPublisherService, AlertingService, ClinicHttpClient],
+  providers: [UserService, AccountLinkingService, KafkaConsumerService, IdempotencyService, SchemaValidationService, JwtAuthGuard, RolesGuard, InternalServiceGuard, OutboxPublisherService, AlertingService, ClinicHttpClient, PhiAuditPublisherService],
   exports: [UserService, AccountLinkingService, OutboxPublisherService, IdempotencyService, SchemaValidationService, KafkaClientModule],
 })
 export class UserModule {}

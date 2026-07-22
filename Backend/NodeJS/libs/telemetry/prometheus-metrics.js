@@ -3,6 +3,16 @@
 const client = require('prom-client');
 
 const registries = new Map();
+const httpResponseCounters = new Map();
+
+function statusClass(statusCode) {
+  const code = Number(statusCode) || 0;
+  if (code >= 500) return '5xx';
+  if (code >= 400) return '4xx';
+  if (code >= 300) return '3xx';
+  if (code >= 200) return '2xx';
+  return 'other';
+}
 
 function getRegistry(serviceName) {
   if (!registries.has(serviceName)) {
@@ -12,6 +22,28 @@ function getRegistry(serviceName) {
     registries.set(serviceName, registry);
   }
   return registries.get(serviceName);
+}
+
+function getHttpResponseCounter(serviceName) {
+  if (!httpResponseCounters.has(serviceName)) {
+    const registry = getRegistry(serviceName);
+    const counter = new client.Counter({
+      name: 'medicare_http_responses_total',
+      help: 'HTTP responses by status class',
+      labelNames: ['service', 'status_class'],
+      registers: [registry],
+    });
+    httpResponseCounters.set(serviceName, counter);
+  }
+  return httpResponseCounters.get(serviceName);
+}
+
+function recordHttpResponse(serviceName, statusCode) {
+  if (!serviceName) return;
+  getHttpResponseCounter(serviceName).inc({
+    service: serviceName,
+    status_class: statusClass(statusCode),
+  });
 }
 
 function registerPrometheusRoute(expressApp, serviceName) {
@@ -24,4 +56,4 @@ function registerPrometheusRoute(expressApp, serviceName) {
   });
 }
 
-module.exports = { registerPrometheusRoute, getRegistry };
+module.exports = { registerPrometheusRoute, getRegistry, recordHttpResponse };

@@ -43,17 +43,28 @@ export class AuthMiddleware implements NestMiddleware {
 
       // Cache miss - validate with auth service
       const authServiceUrl = this.configService.get('AUTH_SERVICE_URL') || 'http://localhost:3001';
-      const internalToken = this.configService.get<string>('INTERNAL_SERVICE_TOKEN');
-      
-      const response = await firstValueFrom(
-        this.httpService.get(`${authServiceUrl}/v1/auth/validate-token`, {
-          headers: {
-            'Authorization': authHeader,
-            ...(internalToken && { 'x-service-token': internalToken }),
-          },
-          timeout: 10000,
-        })
-      );
+    const signingSecret = this.configService.get<string>('INTERNAL_AUTH_SECRET');
+    if (!signingSecret) {
+      throw new HttpException('Gateway internal auth is not configured', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+    const { createInternalAuthHeadersForUrl } = require('../internal-auth/internal-http.signer');
+    const validateUrl = `${authServiceUrl}/v1/auth/validate-token`;
+    const internalHeaders = createInternalAuthHeadersForUrl(
+      'api-gateway',
+      signingSecret,
+      'GET',
+      '/v1/auth/validate-token',
+    );
+
+    const response = await firstValueFrom(
+      this.httpService.get(validateUrl, {
+        headers: {
+          Authorization: authHeader,
+          ...internalHeaders,
+        },
+        timeout: 10000,
+      })
+    );
 
       if (response.status === 200) {
         // Add user info to request for downstream services

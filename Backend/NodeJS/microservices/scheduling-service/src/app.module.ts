@@ -22,6 +22,7 @@ import { medicareTypeOrmExtras } from '@medicare/telemetry';
         database: c.get('DATABASE_NAME') || 'scheduling_db',
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
         synchronize: c.get('NODE_ENV') !== 'production',
+        extra: { max: 20, min: 5, idleTimeoutMillis: 30000, connectionTimeoutMillis: 2000 },
         ...medicareTypeOrmExtras('scheduling-service'),
       }),
       inject: [ConfigService],

@@ -7,7 +7,7 @@ import { Link, useLocation, useNavigate } from "react-router";
 import { cn } from "@/lib/utils";
 import { isMfaRequired, login } from "@/lib/api/auth";
 import { toLoginErrorMessage } from "@/lib/api/errors";
-import { fetchOnboardingStatus } from "@/lib/onboarding";
+import { fetchOnboardingStatus, clearActivationProgress } from "@/lib/onboarding";
 import { normalizeSyrianPhone } from "@/lib/phone";
 import { AuthEntryLinks } from "@/components/auth/AuthEntryLinks";
 import { Button } from "@/components/ui/button";
@@ -28,17 +28,18 @@ export function LoginPage() {
   const setSession = useAuthStore((s) => s.setSession);
   const setPendingMfa = useAuthStore((s) => s.setPendingMfa);
   const activatedPhone = useOnboardingStore((s) => s.activatedPhone);
-  const dashboardActivated = useOnboardingStore((s) => s.dashboardActivated);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(flash ?? null);
   const [loading, setLoading] = useState(false);
   const [pendingRegistration, setPendingRegistration] = useState(false);
+  const [accountReady, setAccountReady] = useState(false);
 
   const {
     register,
     handleSubmit,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -47,42 +48,74 @@ export function LoginPage() {
 
   const watchedPhone = watch("phoneNumber");
 
+  // Browser autofill fills the DOM but skips react-hook-form — sync on load.
   useEffect(() => {
-    if (!dashboardActivated || !activatedPhone) return;
+    const syncAutofill = () => {
+      const phoneEl = document.getElementById("phoneNumber") as HTMLInputElement | null;
+      const passwordEl = document.getElementById("password") as HTMLInputElement | null;
+      if (phoneEl?.value) setValue("phoneNumber", phoneEl.value, { shouldValidate: true });
+      if (passwordEl?.value) setValue("password", passwordEl.value, { shouldValidate: true });
+    };
+    syncAutofill();
+    const t1 = window.setTimeout(syncAutofill, 100);
+    const t2 = window.setTimeout(syncAutofill, 500);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
+  }, [setValue]);
+
+  useEffect(() => {
+    if (!activatedPhone) return;
     let cancelled = false;
     (async () => {
       try {
         const status = await fetchOnboardingStatus(activatedPhone);
-        if (!cancelled && status.canRegister) {
-          setPendingRegistration(true);
+        if (cancelled) return;
+        setPendingRegistration(status.canRegister);
+        setAccountReady(status.canLogin);
+        if (status.canLogin) {
+          clearActivationProgress();
         }
       } catch {
-        // ignore — links still available
+        // ignore — typed phone check may still run
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [dashboardActivated, activatedPhone]);
+  }, [activatedPhone]);
 
   useEffect(() => {
     const digits = watchedPhone.replace(/\D/g, "");
-    if (digits.length < 9) {
-      setPendingRegistration(false);
-      return;
-    }
     let cancelled = false;
     const timer = setTimeout(() => {
       (async () => {
         try {
-          const status = await fetchOnboardingStatus(watchedPhone);
-          if (!cancelled) {
-            setPendingRegistration(status.canRegister);
-            if (status.canRegister) {
-              setInfo(
-                "This phone is activated but your admin account isn’t complete yet. Finish registration or sign in after you’re done.",
-              );
+          const phoneToCheck =
+            digits.length >= 9 ? watchedPhone : activatedPhone;
+          if (!phoneToCheck) {
+            if (!cancelled) {
+              setPendingRegistration(false);
+              setAccountReady(false);
             }
+            return;
+          }
+
+          const status = await fetchOnboardingStatus(phoneToCheck);
+          if (cancelled) return;
+
+          setPendingRegistration(status.canRegister);
+          setAccountReady(status.canLogin);
+          if (status.canRegister && digits.length >= 9) {
+            setInfo(
+              "This phone is activated but your admin account isn’t complete yet. Finish registration or sign in after you’re done.",
+            );
+          } else if (status.canLogin) {
+            clearActivationProgress();
+            setInfo(null);
+          } else {
+            setAccountReady(false);
           }
         } catch {
           if (!cancelled) setPendingRegistration(false);
@@ -93,9 +126,9 @@ export function LoginPage() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [watchedPhone]);
+  }, [watchedPhone, activatedPhone]);
 
-  const onSubmit = handleSubmit(async (data) => {
+  const submitLogin = handleSubmit(async (data) => {
     setLoading(true);
     setError(null);
     setInfo(null);
@@ -141,38 +174,57 @@ export function LoginPage() {
     }
   });
 
+  const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const phoneEl = document.getElementById("phoneNumber") as HTMLInputElement | null;
+    const passwordEl = document.getElementById("password") as HTMLInputElement | null;
+    if (phoneEl?.value) {
+      setValue("phoneNumber", phoneEl.value, { shouldValidate: true });
+    }
+    if (passwordEl?.value) {
+      setValue("password", passwordEl.value, { shouldValidate: true });
+    }
+    void submitLogin();
+  };
+
   return (
-    <div className="p-7">
-      <div className="mb-8">
-        <h1 className="font-semibold text-3xl text-[#1A1B1E]">Sign in</h1>
-        <p className="text-[#929296] mt-1.5">
+    <div className="px-6 pb-5 pt-1 sm:px-8 sm:pb-6">
+      <div className="mb-5">
+        <h1 className="font-semibold text-2xl text-[#1A1B1E]">Sign in</h1>
+        <p className="text-[#929296] mt-1 text-sm">
           Welcome back — manage your clinic staff, schedule, and operations.
         </p>
       </div>
 
-      {info && (
-        <p className="mb-4 text-sm text-[#0066ff] bg-[#ecf3ff] border border-[#0066ff]/20 rounded-xl px-3 py-2.5">
+      {accountReady && (
+        <p className="mb-3 text-sm text-green-800 bg-green-50 border border-green-200 rounded-xl px-3 py-2">
+          Your clinic admin account is ready — sign in with your phone and password.
+        </p>
+      )}
+
+      {info && !pendingRegistration && !accountReady && (
+        <p className="mb-3 text-sm text-[#0066ff] bg-[#ecf3ff] border border-[#0066ff]/20 rounded-xl px-3 py-2">
           {info}
         </p>
       )}
 
       {pendingRegistration && (
-        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-900">
           <p className="font-medium">Finish setting up your account</p>
-          <p className="text-xs mt-1 text-amber-800/90">
+          <p className="text-xs mt-0.5 text-amber-800/90">
             Your clinic is activated — complete your admin profile to sign in.
           </p>
           <Button
             asChild
             size="sm"
-            className="mt-3 h-9 rounded-lg bg-[#0066ff] hover:bg-[#0052cc] text-white"
+            className="mt-2 h-8 rounded-lg bg-[#0066ff] hover:bg-[#0052cc] text-white"
           >
             <Link to="/auth/register">Continue registration</Link>
           </Button>
         </div>
       )}
 
-      <form onSubmit={onSubmit} className="space-y-5">
+      <form onSubmit={onSubmit} className="space-y-4">
         <div className="space-y-2">
           <label htmlFor="phoneNumber" className="text-sm text-[#929296]">
             Phone number
@@ -181,10 +233,12 @@ export function LoginPage() {
             {...register("phoneNumber")}
             id="phoneNumber"
             type="tel"
-            placeholder="+963912345680"
+            inputMode="tel"
+            autoComplete="tel"
+            placeholder="Phone number"
             disabled={loading}
             className={cn(
-              "w-full px-4 py-3 border rounded-lg outline-none focus:ring-4 transition-all",
+              "w-full px-4 py-2.5 border rounded-lg outline-none focus:ring-4 transition-all",
               errors.phoneNumber || error
                 ? "border-red-500 focus:ring-red-100"
                 : "border-neutral-200 focus:border-[#0066ff] focus:ring-blue-100",
@@ -204,10 +258,11 @@ export function LoginPage() {
               {...register("password")}
               id="password"
               type={showPassword ? "text" : "password"}
-              placeholder="Your password"
+              autoComplete="current-password"
+              placeholder="Password"
               disabled={loading}
               className={cn(
-                "w-full pl-4 pr-11 py-3 border rounded-lg outline-none focus:ring-4 transition-all",
+                "w-full pl-4 pr-11 py-2.5 border rounded-lg outline-none focus:ring-4 transition-all",
                 errors.password || error
                   ? "border-red-500 focus:ring-red-100"
                   : "border-neutral-200 focus:border-[#0066ff] focus:ring-blue-100",
@@ -235,7 +290,7 @@ export function LoginPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full py-3 rounded-lg bg-[#0066ff] hover:bg-[#0052cc] text-white font-medium disabled:opacity-60"
+          className="w-full py-2.5 rounded-lg bg-[#0066ff] hover:bg-[#0052cc] text-white font-medium disabled:opacity-60"
         >
           {loading ? "Signing in…" : "Sign in"}
         </button>
@@ -243,7 +298,7 @@ export function LoginPage() {
 
       <AuthEntryLinks
         registerHint={
-          pendingRegistration || dashboardActivated
+          pendingRegistration
             ? "Your clinic is ready — complete your administrator profile to start signing in."
             : undefined
         }

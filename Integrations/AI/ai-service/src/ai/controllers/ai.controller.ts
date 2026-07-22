@@ -23,6 +23,10 @@ import { AiService, AiCallContext } from '../services/ai.service';
 import { AiRateLimitService } from '../services/ai-rate-limit.service';
 import { AiMetricsService } from '../services/ai-metrics.service';
 import { TenantContextService } from '../../tenant-shared/tenant-context.service';
+import { TenantGuard } from '../../tenant-shared/tenant.guard';
+import { TenantAuthorizationGuard } from '../../tenant-shared/tenant-authorization.guard';
+import { SkipTenantAuthorization } from '../../tenant-shared/tenant.decorators';
+import { PLATFORM_TENANT_SCOPE } from '../../tenant-shared/tenant.constants';
 import { DeepSeekService } from '../services/deepseek.service';
 import { GeminiService } from '../services/gemini.service';
 import {
@@ -50,7 +54,7 @@ interface AuthUser {
 @ApiTags('AI')
 @ApiBearerAuth()
 @Controller('v1/ai')
-@UseGuards(JwtAuthGuard, AiEnabledGuard)
+@UseGuards(JwtAuthGuard, TenantGuard, TenantAuthorizationGuard, AiEnabledGuard)
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
 export class AiController {
   constructor(
@@ -69,7 +73,10 @@ export class AiController {
   }
 
   private async enforceRateLimit(userId: string): Promise<void> {
-    await this.rateLimitService.check(userId, this.tenantContext.getTenantId());
+    await this.rateLimitService.check(
+      userId,
+      this.tenantContext.getTenantId() ?? PLATFORM_TENANT_SCOPE,
+    );
   }
 
   @Get('status')
@@ -185,6 +192,7 @@ export class AiController {
   }
 
   @Post('patient-booking-session')
+  @SkipTenantAuthorization()
   @UseGuards(RolesGuard)
   @UseInterceptors(BookingRedactionInterceptor)
   @Roles('PATIENT', 'SYSTEM_MANAGER')
@@ -198,6 +206,7 @@ export class AiController {
   }
 
   @Post('patient-booking-assistant')
+  @SkipTenantAuthorization()
   @UseGuards(RolesGuard)
   @UseInterceptors(BookingRedactionInterceptor)
   @Roles('PATIENT', 'SYSTEM_MANAGER')

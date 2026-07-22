@@ -1,8 +1,12 @@
 import { lazy, Suspense, useCallback, useMemo, useState } from 'react'
-import { Alert, Box, Grid, LinearProgress } from '@mui/material'
+import { useLocation } from 'react-router-dom'
+import { Alert, Box, LinearProgress } from '@mui/material'
 import { LayoutDashboard } from 'lucide-react'
 import { AdvancedPageHeader, ObservabilityPage, PbiGrid } from '../../components/advanced/AdvancedPage'
 import LogsPreview from '../../components/dashboard/LogsPreview'
+import { AnimatedGridItem } from '../../components/motion/AnimatedGridItem'
+import { DashboardEntrance, DASHBOARD_MOTION } from '../../components/motion/DashboardEntrance'
+import { PageMotion } from '../../components/motion/PageMotion'
 import { useDashboardLive } from '../../hooks/useDashboardLive'
 import { useObservabilityData } from '../../hooks/useObservabilityData'
 import { usePlatformData } from '../../hooks/usePlatformData'
@@ -47,6 +51,7 @@ function ChartFallback() {
 
 /** Command Center — KPIs, telemetry charts, and operational panels. */
 export default function Dashboard() {
+  const location = useLocation()
   const timeRange = useDashboardStore((s) => s.timeRange)
   const [live, setLive] = useState(false)
   const [commandIncident, setCommandIncident] = useState<DashboardIncident | null>(null)
@@ -170,59 +175,68 @@ export default function Dashboard() {
 
   return (
     <ObservabilityPage>
-      <AdvancedPageHeader
-        title="MediCare Command Center"
-        eyebrow="Platform Overview"
-        description="Operational intelligence for business pulse, infrastructure health, and incident response."
-        icon={LayoutDashboard}
-        color={healthColor}
-        status={initialLoading ? 'Loading…' : platformStatus}
-        compact
-      />
+      <PageMotion motionKey={location.key}>
+      <DashboardEntrance delay={DASHBOARD_MOTION.headerDelayMs} variant="slideRight">
+        <AdvancedPageHeader
+          title="MediCare Command Center"
+          eyebrow="Platform Overview"
+          description="Operational intelligence for business pulse, infrastructure health, and incident response."
+          icon={LayoutDashboard}
+          color={healthColor}
+          status={initialLoading ? 'Loading…' : platformStatus}
+          compact
+        />
+      </DashboardEntrance>
 
       {(platformError || observabilityError || statsError) && (
-        <Alert severity="warning" sx={{ flexShrink: 0 }}>
-          {platformError || observabilityError || statsError}
-        </Alert>
+        <DashboardEntrance delay={60} variant="fadeUp">
+          <Alert severity="warning" sx={{ flexShrink: 0 }}>
+            {platformError || observabilityError || statsError}
+          </Alert>
+        </DashboardEntrance>
       )}
 
-      <DashboardLiveBar
-        live={live}
-        onLiveChange={setLive}
-        mode={mode}
-        lastSyncAt={lastSyncAt}
-        timeRange={timeRange}
-        onRefresh={() => void handleRefresh()}
-        fetching={backgroundFetching}
-      />
+      <DashboardEntrance delay={DASHBOARD_MOTION.toolbarDelayMs} variant="fadeUp">
+        <DashboardLiveBar
+          live={live}
+          onLiveChange={setLive}
+          mode={mode}
+          lastSyncAt={lastSyncAt}
+          timeRange={timeRange}
+          onRefresh={() => void handleRefresh()}
+          fetching={backgroundFetching}
+        />
+      </DashboardEntrance>
 
       <KpiStrip items={kpiItems} />
 
-      <LiveTelemetryRow
-        services={services}
-        errors={errors}
-        healthScore={healthScore}
-        availability={availability}
-      />
+      <DashboardEntrance delay={DASHBOARD_MOTION.telemetryDelayMs} variant="fadeUp">
+        <LiveTelemetryRow
+          services={services}
+          errors={errors}
+          healthScore={healthScore}
+          availability={availability}
+        />
+      </DashboardEntrance>
 
       <PbiGrid spacing={1.5}>
-        <Grid size={{ xs: 12, lg: 8 }}>
+        <AnimatedGridItem index={0} baseDelay={DASHBOARD_MOTION.gridBaseDelayMs} size={{ xs: 12, lg: 8 }}>
           <AIOpsCommandCenter snapshot={aiops} />
-        </Grid>
-        <Grid size={{ xs: 12, lg: 4 }}>
+        </AnimatedGridItem>
+        <AnimatedGridItem index={1} baseDelay={DASHBOARD_MOTION.gridBaseDelayMs} size={{ xs: 12, lg: 4 }}>
           <ExecutiveSummaryCard summary={aiops.executiveSummary} services={services} incidents={incidents} />
-        </Grid>
+        </AnimatedGridItem>
 
-        <Grid size={{ xs: 12, lg: 8 }}>
+        <AnimatedGridItem index={2} baseDelay={DASHBOARD_MOTION.gridBaseDelayMs} size={{ xs: 12, lg: 8 }}>
           <AiInsightsPanel insights={insights} />
-        </Grid>
-        <Grid size={{ xs: 12, lg: 4 }}>
+        </AnimatedGridItem>
+        <AnimatedGridItem index={3} baseDelay={DASHBOARD_MOTION.gridBaseDelayMs} size={{ xs: 12, lg: 4 }}>
           <Panel title="Operations Queue" caption="incidents · slow traces">
             <OperationsQueue incidents={incidents} slowTraceCount={slowTraceCount} embedded />
           </Panel>
-        </Grid>
+        </AnimatedGridItem>
 
-        <Grid size={{ xs: 12, md: 6 }}>
+        <AnimatedGridItem index={4} baseDelay={DASHBOARD_MOTION.gridBaseDelayMs} size={{ xs: 12, md: 6 }}>
           <Panel title="Business Pulse" caption={`${timeRange} window`}>
             <SectionHeading title="Activation Funnel" caption="codes → signup → clinic → active" />
             <Suspense fallback={<ChartFallback />}>
@@ -235,9 +249,9 @@ export default function Dashboard() {
               </Suspense>
             </Box>
           </Panel>
-        </Grid>
+        </AnimatedGridItem>
 
-        <Grid size={{ xs: 12, md: 6 }}>
+        <AnimatedGridItem index={5} baseDelay={DASHBOARD_MOTION.gridBaseDelayMs} size={{ xs: 12, md: 6 }}>
           <Panel title="Infrastructure" caption="service matrix · latency">
             <SectionHeading title="Service Health" caption="p95 · error rate · requests" />
             <ServiceHealthMatrix services={services} embedded />
@@ -248,25 +262,25 @@ export default function Dashboard() {
               </Suspense>
             </Box>
           </Panel>
-        </Grid>
+        </AnimatedGridItem>
 
-        <Grid size={{ xs: 12, lg: 7 }}>
+        <AnimatedGridItem index={6} baseDelay={DASHBOARD_MOTION.gridBaseDelayMs} size={{ xs: 12, lg: 7 }}>
           <IncidentPanel incidents={incidents} onSelectIncident={setCommandIncident} />
-        </Grid>
-        <Grid size={{ xs: 12, lg: 5 }}>
+        </AnimatedGridItem>
+        <AnimatedGridItem index={7} baseDelay={DASHBOARD_MOTION.gridBaseDelayMs} size={{ xs: 12, lg: 5 }}>
           <Panel title="Error Distribution" caption="click a node to filter logs">
             <Suspense fallback={<ChartFallback />}>
               {errors.length ? <ErrorTreemapChart errors={errors} /> : <TelemetryPlaceholder label="No errors in this window." />}
             </Suspense>
           </Panel>
-        </Grid>
+        </AnimatedGridItem>
 
-        <Grid size={{ xs: 12, md: 6 }}>
+        <AnimatedGridItem index={8} baseDelay={DASHBOARD_MOTION.gridBaseDelayMs} size={{ xs: 12, md: 6 }}>
           <LogsPreview />
-        </Grid>
-        <Grid size={{ xs: 12, md: 6 }}>
+        </AnimatedGridItem>
+        <AnimatedGridItem index={9} baseDelay={DASHBOARD_MOTION.gridBaseDelayMs} size={{ xs: 12, md: 6 }}>
           <IntegrationPanel integrations={integrations} />
-        </Grid>
+        </AnimatedGridItem>
       </PbiGrid>
 
       <IncidentCommandDrawer
@@ -276,6 +290,7 @@ export default function Dashboard() {
         open={Boolean(commandIncident)}
         onClose={() => setCommandIncident(null)}
       />
+      </PageMotion>
     </ObservabilityPage>
   )
 }

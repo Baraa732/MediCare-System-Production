@@ -52,6 +52,9 @@ export class Tenant {
   @Column({ length: 200, nullable: true })
   email: string;
 
+  @Column({ name: 'logo_url', length: 500, nullable: true })
+  logoUrl: string;
+
   @Column({ length: 64, default: 'Asia/Damascus' })
   timezone: string;
 

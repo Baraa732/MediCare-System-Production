@@ -18,6 +18,7 @@ import { FirebasePushService } from '../services/firebase-push.service';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { RolesGuard } from '../guards/roles.guard';
 import { TenantGuard } from '../../tenant-shared/tenant.guard';
+import { TenantAuthorizationGuard } from '../../tenant-shared/tenant-authorization.guard';
 import { SkipTenantGuard } from '../../tenant-shared/tenant.decorators';
 import { Roles } from '../decorators/roles.decorator';
 import { RegisterPushDeviceDto, UnregisterPushDeviceDto } from '../dto/notification.dto';
@@ -42,7 +43,7 @@ export class NotificationController {
   }
 
   @Post('push/register')
-  @UseGuards(JwtAuthGuard, RolesGuard, TenantGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, TenantGuard, TenantAuthorizationGuard)
   @Roles('SECRETARY', 'CLINIC_ADMIN', 'SYSTEM_MANAGER')
   @HttpCode(HttpStatus.OK)
   async registerPushDevice(
@@ -59,7 +60,7 @@ export class NotificationController {
   }
 
   @Delete('push/register')
-  @UseGuards(JwtAuthGuard, RolesGuard, TenantGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, TenantGuard, TenantAuthorizationGuard)
   @Roles('SECRETARY', 'CLINIC_ADMIN', 'SYSTEM_MANAGER')
   @HttpCode(HttpStatus.OK)
   async unregisterPushDevice(
@@ -71,7 +72,7 @@ export class NotificationController {
   }
 
   @Get('staff/inbox')
-  @UseGuards(JwtAuthGuard, RolesGuard, TenantGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, TenantGuard, TenantAuthorizationGuard)
   @Roles('SECRETARY', 'CLINIC_ADMIN', 'SYSTEM_MANAGER')
   async getStaffInbox(
     @Request() req: { user: { userId: string } },
@@ -87,7 +88,7 @@ export class NotificationController {
   }
 
   @Patch('staff/inbox/:id/read')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, TenantGuard, TenantAuthorizationGuard)
   @Roles('SECRETARY', 'CLINIC_ADMIN', 'SYSTEM_MANAGER')
   @HttpCode(HttpStatus.OK)
   async markStaffInboxRead(
@@ -99,7 +100,7 @@ export class NotificationController {
   }
 
   @Patch('staff/inbox/read-all')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, TenantGuard, TenantAuthorizationGuard)
   @Roles('SECRETARY', 'CLINIC_ADMIN', 'SYSTEM_MANAGER')
   @HttpCode(HttpStatus.OK)
   async markAllStaffInboxRead(@Request() req: { user: { userId: string } }) {

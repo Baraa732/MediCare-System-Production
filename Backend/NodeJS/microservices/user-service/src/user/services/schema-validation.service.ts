@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { IsString, IsNotEmpty, IsOptional, IsEmail, IsBoolean } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsEmail } from 'class-validator';
 import { validate } from 'class-validator';
 import { plainToClass } from 'class-transformer';
 
@@ -92,16 +92,8 @@ export class UserLoginRequestSchema {
   phoneNumber!: string;
 
   @IsString()
-  @IsOptional()
-  password?: string;
-
-  @IsBoolean()
-  @IsOptional()
-  skipPasswordCheck?: boolean;
-
-  @IsString()
-  @IsOptional()
-  userId?: string;
+  @IsNotEmpty()
+  password!: string;
 }
 
 export class UserVerifyOtpSchema {

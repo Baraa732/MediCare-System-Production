@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import * as crypto from 'crypto';
 import axios from 'axios';
+import { createInternalAuthHeadersForUrl } from '../../internal-auth-shared/internal-http.signer';
 
 export interface UserProfile {
   id: string;
@@ -13,32 +13,28 @@ export interface UserProfile {
 export class UserHttpClient {
   private readonly logger = new Logger(UserHttpClient.name);
   private readonly baseUrl: string;
-  private readonly internalToken: string;
+  private readonly serviceName = 'reminder-service';
+  private readonly signingSecret: string;
 
   constructor() {
     this.baseUrl = process.env.USER_SERVICE_URL || 'http://user-service:3002';
-    this.internalToken = process.env.INTERNAL_SERVICE_TOKEN || '';
-  }
-
-  private headers(subject: string): Record<string, string> {
-    const timestamp = Date.now().toString();
-    const hmac = crypto
-      .createHmac('sha256', this.internalToken)
-      .update(`${subject}:${timestamp}`)
-      .digest('hex');
-    return {
-      'x-service-token': this.internalToken,
-      'x-internal-timestamp': timestamp,
-      'x-internal-hmac': hmac,
-    };
+    this.signingSecret = process.env.INTERNAL_AUTH_SECRET || '';
+    if (!this.signingSecret) {
+      throw new Error('INTERNAL_AUTH_SECRET env var is not set');
+    }
   }
 
   async getUserById(userId: string): Promise<UserProfile | null> {
-    if (!this.internalToken) return null;
     try {
-      const res = await axios.get(`${this.baseUrl}/users/internal/by-id/${userId}`, {
+      const path = `/users/internal/by-id/${userId}`;
+      const res = await axios.get(`${this.baseUrl}${path}`, {
         timeout: 5000,
-        headers: this.headers(userId),
+        headers: createInternalAuthHeadersForUrl(
+          this.serviceName,
+          this.signingSecret,
+          'GET',
+          path,
+        ),
       });
       if (!res.data?.success || !res.data?.user) return null;
       const user = res.data.user;

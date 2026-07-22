@@ -11,3 +11,6 @@ export * from './tenant-logger';
 export * from './tenant-storage';
 export * from './tenant-kafka';
 export * from './tenant-queue-throttle';
+export * from './tenant-access-checker';
+export * from './tenant-authorization.guard';
+export * from './doctor-patient-access.guard';

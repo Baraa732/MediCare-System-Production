@@ -1,4 +1,6 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { ClinicType } from '../enums/clinic-activation.enums';
+import type { ActivationDocumentsMap } from '../types/activation-documents.types';
 
 export enum ActivationCodeStatus {
   PENDING = 'pending',
@@ -41,10 +43,49 @@ export class ClinicAdminActivation {
   revokedAt: Date;
 
   @Column({ nullable: true })
-  generatedBy: string; // System Manager ID who generated the code
+  generatedBy: string;
 
   @Column()
   clinicLocation: string;
+
+  @Column({ type: 'enum', enum: ClinicType, enumName: 'clinic_type_enum', default: ClinicType.PRIVATE_CLINIC })
+  clinicType: ClinicType;
+
+  @Column({ default: '' })
+  registrationLicenseNumber: string;
+
+  @Column({ type: 'date', nullable: true })
+  establishmentDate: Date | null;
+
+  @Column({ type: 'simple-array', nullable: true })
+  specialties: string[];
+
+  @Column({ default: '' })
+  whatsappNumber: string;
+
+  @Column({ nullable: true })
+  email: string | null;
+
+  @Column({ type: 'date', nullable: true })
+  dateOfBirth: Date | null;
+
+  @Column({ type: 'int', nullable: true })
+  yearsOfExperience: number | null;
+
+  @Column({ type: 'jsonb', nullable: true })
+  documents: ActivationDocumentsMap | null;
+
+  @Column({ type: 'double precision', nullable: true })
+  latitude: number | null;
+
+  @Column({ type: 'double precision', nullable: true })
+  longitude: number | null;
+
+  @Column({ type: 'text', nullable: true })
+  address: string | null;
+
+  @Column({ type: 'int', default: 5 })
+  serviceRadiusKm: number;
 
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   price: number;
@@ -60,7 +101,7 @@ export class ClinicAdminActivation {
   };
 
   @Column({ default: 0 })
-  attemptCount: number; // Track failed validation attempts
+  attemptCount: number;
 
   @CreateDateColumn()
   createdAt: Date;
@@ -69,5 +110,5 @@ export class ClinicAdminActivation {
   updatedAt: Date;
 
   @Column({ type: 'timestamp', nullable: true })
-  activatedAt: Date; // When the clinic admin dashboard was activated
+  activatedAt: Date;
 }

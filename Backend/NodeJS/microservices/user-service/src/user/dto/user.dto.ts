@@ -1,4 +1,4 @@
-import { IsString, IsEmail, IsEnum, IsOptional, MinLength, IsArray, Matches, IsObject, IsIn, IsDateString, IsInt, Min } from 'class-validator';
+import { IsString, IsEmail, IsEnum, IsOptional, MinLength, IsArray, Matches, IsObject, IsIn, IsDateString, IsInt, Min, IsNotEmpty } from 'class-validator';
 import { UserRole, UserStatus } from '../entities/user.enums';
 
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{8,}$/;
@@ -138,6 +138,17 @@ export class ChangePasswordDto {
   @IsString()
   @Matches(PASSWORD_REGEX, { message: PASSWORD_MESSAGE })
   newPassword: string;
+}
+
+/** Internal credential check — auth-service only (HMAC + service token). */
+export class ValidateLoginDto {
+  @IsString()
+  @IsNotEmpty()
+  phoneNumber: string;
+
+  @IsString()
+  @IsNotEmpty()
+  password: string;
 }
 
 export class UpdateUserStatusDto {

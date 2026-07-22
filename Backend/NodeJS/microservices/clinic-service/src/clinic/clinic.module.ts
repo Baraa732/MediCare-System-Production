@@ -7,6 +7,7 @@ import { KafkaClientModule } from '../kafka-shared/kafka-client.module';
 import { ClinicController } from './controllers/clinic.controller';
 import { InternalClinicController } from './controllers/internal-clinic.controller';
 import { ClinicService } from './services/clinic.service';
+import { clinicTenantAccessProvider } from './services/clinic-local-tenant-access.checker';
 import { UserHttpClient } from './services/user-http.client';
 import { SchedulingHttpClient } from './services/scheduling-http.client';
 import { SystemManagerHttpClient } from './services/system-manager-http.client';
@@ -40,7 +41,7 @@ import { RolesGuard } from './guards/roles.guard';
     }),
   ],
   controllers: [ClinicController, InternalClinicController],
-  providers: [ClinicService, UserHttpClient, SchedulingHttpClient, SystemManagerHttpClient, JwtAuthGuard, InternalServiceGuard, RolesGuard],
+  providers: [ClinicService, UserHttpClient, SchedulingHttpClient, SystemManagerHttpClient, JwtAuthGuard, InternalServiceGuard, RolesGuard, clinicTenantAccessProvider],
   exports: [ClinicService],
 })
 export class ClinicModule {}

@@ -22,16 +22,18 @@ import {
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { RolesGuard } from '../guards/roles.guard';
 import { TenantGuard } from '../../tenant-shared/tenant.guard';
-import { SkipTenantGuard } from '../../tenant-shared/tenant.decorators';
+import { SkipTenantGuard, SkipTenantAuthorization } from '../../tenant-shared/tenant.decorators';
+import { TenantAuthorizationGuard } from '../../tenant-shared/tenant-authorization.guard';
 import { Roles } from '../decorators/roles.decorator';
 
 @Controller('v1/appointments')
-@UseGuards(JwtAuthGuard, TenantGuard)
+@UseGuards(JwtAuthGuard, TenantGuard, TenantAuthorizationGuard)
 export class AppointmentController {
   constructor(private readonly appointmentService: AppointmentService) {}
 
   @Post()
   @SkipTenantGuard()
+  @SkipTenantAuthorization()
   @UseGuards(RolesGuard)
   @Roles('PATIENT', 'SECRETARY', 'CLINIC_ADMIN', 'SYSTEM_MANAGER')
   async create(@Body() dto: CreateAppointmentDto, @Request() req) {
@@ -44,6 +46,7 @@ export class AppointmentController {
 
   @Get('me')
   @SkipTenantGuard()
+  @SkipTenantAuthorization()
   @UseGuards(RolesGuard)
   @Roles('PATIENT')
   async findMine(@Query() query: PatientAppointmentQueryDto, @Request() req) {
@@ -67,6 +70,7 @@ export class AppointmentController {
 
   @Get(':id')
   @SkipTenantGuard()
+  @SkipTenantAuthorization()
   @UseGuards(RolesGuard)
   @Roles('PATIENT', 'SECRETARY', 'CLINIC_ADMIN', 'SYSTEM_MANAGER')
   async findOne(@Param('id', ParseUUIDPipe) id: string, @Request() req) {
@@ -79,6 +83,7 @@ export class AppointmentController {
 
   @Put(':id')
   @SkipTenantGuard()
+  @SkipTenantAuthorization()
   @UseGuards(RolesGuard)
   @Roles('PATIENT', 'SECRETARY', 'CLINIC_ADMIN', 'SYSTEM_MANAGER')
   async update(
@@ -95,6 +100,7 @@ export class AppointmentController {
 
   @Patch(':id/status')
   @SkipTenantGuard()
+  @SkipTenantAuthorization()
   @UseGuards(RolesGuard)
   @Roles('PATIENT', 'SECRETARY', 'CLINIC_ADMIN', 'DOCTOR', 'SYSTEM_MANAGER')
   async updateStatus(

@@ -71,10 +71,14 @@ export function StaffPage() {
     setMessage(null);
     try {
       const result = await createClinicStaff(staffFormToPayload(form, clinicId), token);
+      const devPwd =
+        result.devTemporaryPassword != null
+          ? ` Temporary password (dev): ${result.devTemporaryPassword}`
+          : "";
       const hint = result.whatsappSent
         ? "Credentials sent via WhatsApp."
-        : result.whatsappHint ?? "Share credentials manually.";
-      setMessage(`${result.message} ${hint}`);
+        : result.whatsappHint ?? "Share credentials manually if WhatsApp is unavailable.";
+      setMessage(`${result.message} ${hint}${devPwd}`);
       setForm(emptyStaffForm());
       await reload();
     } catch (err) {

@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { completeStaffActivation } from "@/lib/api/auth";
 import { normalizeCaughtError } from "@/lib/api/errors";
+import { authInputNoAutofill } from "@/lib/authInput";
 import { useAuthStore } from "@/stores/authStore";
 
 const schema = z
@@ -65,15 +66,19 @@ export function SetPasswordPage() {
       <p className="text-[#929296] mt-1 mb-6">
         Choose a secure password for your clinic admin account.
       </p>
-      <form onSubmit={onSubmit} className="space-y-4">
+      <form onSubmit={onSubmit} className="space-y-4" autoComplete="off">
         <input
           {...form.register("newPassword")}
+          {...authInputNoAutofill}
+          name="clinic-new-password"
           type="password"
-          placeholder="New password"
+          placeholder="Password"
           className="w-full px-4 py-3 border border-neutral-200 rounded-lg outline-none focus:border-[#0066ff] focus:ring-4 focus:ring-blue-100"
         />
         <input
           {...form.register("confirmPassword")}
+          {...authInputNoAutofill}
+          name="clinic-confirm-password"
           type="password"
           placeholder="Confirm password"
           className="w-full px-4 py-3 border border-neutral-200 rounded-lg outline-none focus:border-[#0066ff] focus:ring-4 focus:ring-blue-100"

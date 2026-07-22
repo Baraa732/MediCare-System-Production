@@ -1,4 +1,4 @@
-import { apiRequest } from './client'
+import { apiRequest, apiRequestFormData } from './client'
 import type {
   ActivationCodeStatus,
   AuthSession,
@@ -22,22 +22,86 @@ export function login(username: string, password: string) {
   })
 }
 
-export function generateActivationCode(
+export function createActivationCode(
   token: string,
   body: {
     idNumber: string
     phoneNumber: string
     fullName: string
-    clinicLocation: string
+    whatsappNumber: string
+    email?: string
+    dateOfBirth: string
+    clinicName: string
+    clinicType: string
+    registrationLicenseNumber: string
+    establishmentDate?: string
+    specialties: string[]
+    latitude: number
+    longitude: number
+    address?: string
+    serviceRadiusKm?: number
+    yearsOfExperience?: number
     price: number
     isCashPaymentDone: boolean
     notes?: string
   },
 ) {
-  return apiRequest<{ code: string; expiresAt: string; message: string }>(
-    '/system-manager/activation-code/generate',
-    { method: 'POST', body, token },
-  )
+  return apiRequest<{
+    code: string
+    expiresAt: string
+    message: string
+    latitude: number
+    longitude: number
+    address: string | null
+    serviceRadiusKm: number
+    clinicType: string
+    registrationLicenseNumber: string
+    specialties: string[]
+    whatsappNumber: string
+    email: string | null
+    dateOfBirth: string | null
+    yearsOfExperience: number | null
+    documents: Record<string, unknown>
+  }>('/system-manager/activation-codes', { method: 'POST', body, token })
+}
+
+export function provisionActivationCode(
+  token: string,
+  payload: Parameters<typeof createActivationCode>[1],
+  documents: Record<string, File | null>,
+) {
+  const formData = new FormData()
+  formData.append('payload', JSON.stringify(payload))
+
+  for (const [field, file] of Object.entries(documents)) {
+    if (file) formData.append(field, file)
+  }
+
+  return apiRequestFormData<{
+    code: string
+    expiresAt: string
+    message: string
+    latitude: number
+    longitude: number
+    address: string | null
+    serviceRadiusKm: number
+    clinicType: string
+    registrationLicenseNumber: string
+    specialties: string[]
+    whatsappNumber: string
+    email: string | null
+    dateOfBirth: string | null
+    yearsOfExperience: number | null
+    documents: Record<string, unknown>
+  }>('/system-manager/activation-codes/provision', formData, token)
+}
+
+/** @deprecated Use createActivationCode */
+export function generateActivationCode(
+  token: string,
+  body: Parameters<typeof createActivationCode>[1],
+) {
+  return createActivationCode(token, body)
 }
 
 export function revokeActivationCode(token: string, body: { code: string; reason?: string }) {
@@ -73,7 +137,7 @@ export function createSystemManager(
 }
 
 export function listClinics(token: string) {
-  return apiRequest<{ success: boolean; clinics: Clinic[] }>('/clinics', { token })
+  return apiRequest<{ success: boolean; clinics: Clinic[] }>('/system-manager/platform/clinics', { token })
 }
 
 export function createClinic(
@@ -87,7 +151,7 @@ export function createClinic(
     email?: string
   },
 ) {
-  return apiRequest<{ success: boolean; clinic: Clinic }>('/clinics', {
+  return apiRequest<{ success: boolean; clinic: Clinic }>('/system-manager/platform/clinics', {
     method: 'POST',
     body,
     token,
@@ -95,7 +159,7 @@ export function createClinic(
 }
 
 export function listUsers(token: string, page = 1, limit = 20) {
-  return apiRequest<PlatformUser[]>(`/users?page=${page}&limit=${limit}`, { token })
+  return apiRequest<PlatformUser[]>(`/system-manager/platform/users?page=${page}&limit=${limit}`, { token })
 }
 
 /** Paginate until all platform users are loaded (for staff name lookup). */
@@ -118,7 +182,7 @@ export async function listAllUsers(token: string, pageSize = 100) {
 
 export function getClinicStaff(token: string, clinicId: string) {
   return apiRequest<{ success: boolean; staff: ClinicStaffAssignment[] }>(
-    `/clinics/${clinicId}/staff`,
+    `/system-manager/platform/clinics/${clinicId}/staff`,
     { token },
   )
 }

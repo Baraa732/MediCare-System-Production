@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware'
 import { login as apiLogin } from '../api/systemManager'
 import { toLoginErrorMessage } from '../api/errors'
 import { isTokenExpired, userFromToken } from '../lib/auth'
+import { getCookieToken, registerStoreTokenReader, resolveSessionToken } from '../lib/sessionToken'
 import { ApiError, type SystemManagerUser } from '../api/types'
 export interface SessionUser extends SystemManagerUser {
   name: string
@@ -118,12 +119,16 @@ export const useAuthStore = create<AuthState>()(
       },
 
       validateSession: () => {
-        const { token, isAuthenticated } = get()
+        const { isAuthenticated } = get()
         if (!isAuthenticated) return false
-        if (isTokenExpired(token)) {
+        const token = resolveSessionToken(get().token)
+        if (!token || isTokenExpired(token)) {
           clearCookie()
           set({ user: null, token: null, isAuthenticated: false })
           return false
+        }
+        if (token !== get().token) {
+          set({ token })
         }
         return true
       },
@@ -143,11 +148,22 @@ export const useAuthStore = create<AuthState>()(
         isAuthenticated: s.isAuthenticated,
       }),
       onRehydrateStorage: () => (state) => {
-        // Drop any persisted-but-expired token on startup.
-        if (state?.token && isTokenExpired(state.token)) {
-          state.user = null
-          state.token = null
-          state.isAuthenticated = false
+        if (state) {
+          if (state.token && isTokenExpired(state.token)) {
+            state.user = null
+            state.token = null
+            state.isAuthenticated = false
+          } else if (!state.token) {
+            const cookieToken = getCookieToken()
+            if (cookieToken && !isTokenExpired(cookieToken)) {
+              state.token = cookieToken
+              state.isAuthenticated = true
+              if (!state.user) {
+                const baseUser = userFromToken(cookieToken)
+                if (baseUser) state.user = buildSessionUser(baseUser)
+              }
+            }
+          }
         }
         useAuthStore.setState({ _hasHydrated: true })
       },
@@ -159,3 +175,5 @@ export const useAuthStore = create<AuthState>()(
 useAuthStore.persist.onFinishHydration(() => {
   useAuthStore.setState({ _hasHydrated: true })
 })
+
+registerStoreTokenReader(() => useAuthStore.getState().token)

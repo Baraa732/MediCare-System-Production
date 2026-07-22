@@ -9,10 +9,15 @@ import {
   Query,
   Request,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
+  StreamableFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { ClinicService } from '../services/clinic.service';
 import { CreateClinicDto, UpdateClinicDto, AssignStaffDto, ClinicSearchQueryDto } from '../dto/clinic.dto';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
@@ -21,16 +26,18 @@ import { Roles } from '../decorators/roles.decorator';
 import { ClinicStatus } from '../entities/clinic.entity';
 import { StaffRole } from '../entities/clinic-staff-assignment.entity';
 import { TenantGuard } from '../../tenant-shared/tenant.guard';
-import { SkipTenantGuard } from '../../tenant-shared/tenant.decorators';
+import { SkipTenantGuard, SkipTenantAuthorization } from '../../tenant-shared/tenant.decorators';
+import { TenantAuthorizationGuard } from '../../tenant-shared/tenant-authorization.guard';
 
 @Controller('v1/clinics')
-@UseGuards(JwtAuthGuard, TenantGuard)
+@UseGuards(JwtAuthGuard, TenantGuard, TenantAuthorizationGuard)
 export class ClinicController {
   constructor(private readonly clinicService: ClinicService) {}
 
   /** Manual creation — system manager only. Clinic admins get a clinic via activation code. */
   @Post()
   @SkipTenantGuard()
+  @SkipTenantAuthorization()
   @UseGuards(RolesGuard)
   @Roles('SYSTEM_MANAGER')
   async create(@Body() dto: CreateClinicDto, @Request() req) {
@@ -40,6 +47,7 @@ export class ClinicController {
 
   @Get()
   @SkipTenantGuard()
+  @SkipTenantAuthorization()
   async findAll(@Request() req, @Query('status') status?: ClinicStatus) {
     const clinics = await this.clinicService.findAll(req.user, status);
     return {
@@ -49,6 +57,7 @@ export class ClinicController {
   }
 
   @Get('search')
+  @SkipTenantAuthorization()
   async search(@Request() req, @Query() query: ClinicSearchQueryDto) {
     const page = Math.max(parseInt(String(query['page'] || '1'), 10) || 1, 1);
     const limit = Math.min(parseInt(String(query['limit'] || '20'), 10) || 20, 100);
@@ -88,6 +97,7 @@ export class ClinicController {
   /** Current user's clinic assignments (secretary / clinic admin dashboards). */
   @Get('me')
   @SkipTenantGuard()
+  @SkipTenantAuthorization()
   async getMyClinics(@Request() req, @Query('staffRole') staffRole?: StaffRole) {
     const clinics = await this.clinicService.listClinicsForUser(
       req.user.userId,
@@ -97,13 +107,26 @@ export class ClinicController {
     return { success: true, clinics };
   }
 
+  @Get('logos/:id')
+  @SkipTenantGuard()
+  @SkipTenantAuthorization()
+  async getLogo(@Param('id', ParseUUIDPipe) id: string) {
+    const { buffer, mime } = await this.clinicService.readLogo(id);
+    return new StreamableFile(buffer, {
+      type: mime,
+      disposition: 'inline',
+    });
+  }
+
   @Get(':id/profile')
+  @SkipTenantAuthorization()
   async getProfile(@Param('id', ParseUUIDPipe) id: string, @Request() req) {
     const profile = await this.clinicService.getClinicProfile(id, req.user);
     return { success: true, ...profile };
   }
 
   @Get(':id')
+  @SkipTenantAuthorization()
   async findOne(@Param('id', ParseUUIDPipe) id: string, @Request() req) {
     const clinic = await this.clinicService.findOne(id, req.user);
     return { success: true, clinic: this.clinicService.toPublicClinic(clinic) };
@@ -118,6 +141,24 @@ export class ClinicController {
     @Request() req,
   ) {
     const clinic = await this.clinicService.update(id, dto, req.user);
+    return { success: true, clinic: this.clinicService.toPublicClinic(clinic) };
+  }
+
+  @Post(':id/logo')
+  @UseGuards(RolesGuard)
+  @Roles('SYSTEM_MANAGER', 'CLINIC_ADMIN')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 2 * 1024 * 1024 },
+    }),
+  )
+  async uploadLogo(
+    @Param('id', ParseUUIDPipe) id: string,
+    @UploadedFile() file: { buffer: Buffer; size: number; mimetype: string },
+    @Request() req,
+  ) {
+    const clinic = await this.clinicService.updateLogo(id, file, req.user);
     return { success: true, clinic: this.clinicService.toPublicClinic(clinic) };
   }
 
@@ -141,6 +182,7 @@ export class ClinicController {
   }
 
   @Get(':id/doctors')
+  @SkipTenantAuthorization()
   async listDoctors(@Param('id', ParseUUIDPipe) id: string, @Request() req) {
     const doctors = await this.clinicService.listDoctors(id, req.user);
     return { success: true, doctors };

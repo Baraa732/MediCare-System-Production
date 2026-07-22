@@ -1,10 +1,13 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { EmrSyncStatus } from '../entities/patient-emr-link.entity';
 import { PatientEmrChart } from '../types/patient-emr.types';
 import { OpenEmrChartService } from './openemr-chart.service';
 import { PatientSyncService } from './patient-sync.service';
 import { EmrTenantGuardService } from './emr-tenant-guard.service';
 import { TenantContextService } from '../../tenant-shared/tenant-context.service';
+import { HttpTenantAccessChecker } from '../../tenant-shared/tenant-access-checker';
+import { PhiAuditPublisherService } from '../../phi-audit-shared/phi-audit.publisher';
+import { PhiAuditAction, PhiAuditResourceType } from '../../phi-audit-shared/types';
 
 export interface PatientSyncStatusResponse {
   medicareUserId: string;
@@ -15,6 +18,11 @@ export interface PatientSyncStatusResponse {
   updatedAt: string;
 }
 
+interface AuthUser {
+  userId: string;
+  role: string;
+}
+
 @Injectable()
 export class EmrRecordService {
   constructor(
@@ -22,14 +30,37 @@ export class EmrRecordService {
     private chartService: OpenEmrChartService,
     private readonly tenantGuard: EmrTenantGuardService,
     private readonly tenantContext: TenantContextService,
+    private readonly tenantAccess: HttpTenantAccessChecker,
+    private readonly phiAudit: PhiAuditPublisherService,
   ) {}
 
   private requireTenantId(): string {
     return this.tenantGuard.requireTenantId(this.tenantContext.getTenantId());
   }
 
-  async getSyncStatus(userId: string): Promise<PatientSyncStatusResponse> {
+  private async assertActorAccess(actor: AuthUser, tenantId: string, patientUserId: string): Promise<void> {
+    if (actor.role === 'SYSTEM_MANAGER') return;
+    if (actor.role === 'PATIENT') {
+      if (actor.userId !== patientUserId) {
+        throw new NotFoundException('EMR record not found');
+      }
+      await this.tenantAccess.assertPatientAccess(tenantId, actor.userId);
+      return;
+    }
+    if (actor.role === 'CLINIC_ADMIN') {
+      await this.tenantAccess.assertStaffAccess(tenantId, actor.userId, actor.role);
+      await this.tenantAccess.assertPatientAccess(tenantId, patientUserId);
+      return;
+    }
+    if (actor.role === 'DOCTOR') {
+      await this.tenantAccess.assertStaffAccess(tenantId, actor.userId, actor.role);
+      await this.tenantAccess.assertDoctorPatientAccess(tenantId, actor.userId, patientUserId);
+    }
+  }
+
+  async getSyncStatus(userId: string, actor: AuthUser): Promise<PatientSyncStatusResponse> {
     const tenantId = this.requireTenantId();
+    await this.assertActorAccess(actor, tenantId, userId);
     const link = await this.patientSyncService.getLinkByUserId(userId, tenantId);
     if (!link) {
       return {
@@ -52,34 +83,62 @@ export class EmrRecordService {
     };
   }
 
-  async getPatientEmr(userId: string): Promise<PatientEmrChart> {
+  async getPatientEmr(userId: string, actor: AuthUser): Promise<PatientEmrChart> {
     const tenantId = this.requireTenantId();
-    const link = await this.patientSyncService.getLinkByUserId(userId, tenantId);
-    if (!link) {
-      throw new NotFoundException({
-        message: 'No EMR record linked to this user yet',
-        medicareUserId: userId,
-        syncStatus: EmrSyncStatus.PENDING,
-      });
-    }
+    try {
+      await this.assertActorAccess(actor, tenantId, userId);
+      const link = await this.patientSyncService.getLinkByUserId(userId, tenantId);
+      if (!link) {
+        throw new NotFoundException({
+          message: 'No EMR record linked to this user yet',
+          medicareUserId: userId,
+          syncStatus: EmrSyncStatus.PENDING,
+        });
+      }
 
-    await this.tenantGuard.assertLinkBelongsToTenant(link, tenantId);
+      await this.tenantGuard.assertLinkBelongsToTenant(link, tenantId);
 
-    if (link.syncStatus !== EmrSyncStatus.SYNCED || !link.openemrPatientId) {
-      throw new NotFoundException({
-        message: 'EMR record is not available yet',
-        medicareUserId: userId,
+      if (link.syncStatus !== EmrSyncStatus.SYNCED || !link.openemrPatientId) {
+        throw new NotFoundException({
+          message: 'EMR record is not available yet',
+          medicareUserId: userId,
+          syncStatus: link.syncStatus,
+          lastError: link.lastError,
+        });
+      }
+
+      const chart = await this.chartService.getPatientChart({
+        tenantId,
+        openemrPatientId: link.openemrPatientId,
+        medicareUserId: link.userId,
         syncStatus: link.syncStatus,
-        lastError: link.lastError,
+        lastSyncAt: link.updatedAt.toISOString(),
       });
-    }
 
-    return this.chartService.getPatientChart({
-      tenantId,
-      openemrPatientId: link.openemrPatientId,
-      medicareUserId: link.userId,
-      syncStatus: link.syncStatus,
-      lastSyncAt: link.updatedAt.toISOString(),
-    });
+      this.phiAudit.emit({
+        action: PhiAuditAction.EMR_CHART_READ,
+        actorId: actor.userId,
+        actorRole: actor.role,
+        tenantId,
+        resourceType: PhiAuditResourceType.EMR_CHART,
+        resourceId: userId,
+        success: true,
+        classification: 'phi',
+      });
+
+      return chart;
+    } catch (error) {
+      this.phiAudit.emit({
+        action: PhiAuditAction.EMR_CHART_READ,
+        actorId: actor.userId,
+        actorRole: actor.role,
+        tenantId,
+        resourceType: PhiAuditResourceType.EMR_CHART,
+        resourceId: userId,
+        success: false,
+        classification: 'phi',
+      });
+      throw error;
+    }
   }
 }

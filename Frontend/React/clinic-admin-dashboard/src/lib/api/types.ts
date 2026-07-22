@@ -64,6 +64,7 @@ export interface ClinicPublic {
   status?: string;
   timezone?: string;
   description?: string;
+  logoUrl?: string;
 }
 
 export interface StaffMember {

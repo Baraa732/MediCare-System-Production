@@ -11,14 +11,18 @@ import { UserHttpClient } from './services/user-http.client';
 import { ClinicHttpClient } from './services/clinic-http.client';
 import { SchedulingHttpClient } from './services/scheduling-http.client';
 import { Appointment } from './entities/appointment.entity';
+import { PatientClinicRelation } from './entities/patient-clinic-relation.entity';
+import { DoctorPatientAssignment } from './entities/doctor-patient-assignment.entity';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { InternalServiceGuard } from './guards/internal-service.guard';
+import { PhiAuditPublisherService } from '../phi-audit-shared/phi-audit.publisher';
+import { SignedKafkaPublisher } from '../kafka-security-shared/signed-kafka.publisher';
 
 @Module({
   imports: [
     ConfigModule,
-    TypeOrmModule.forFeature([Appointment]),
+    TypeOrmModule.forFeature([Appointment, PatientClinicRelation, DoctorPatientAssignment]),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -42,6 +46,8 @@ import { InternalServiceGuard } from './guards/internal-service.guard';
     JwtAuthGuard,
     RolesGuard,
     InternalServiceGuard,
+    PhiAuditPublisherService,
+    SignedKafkaPublisher,
   ],
 })
 export class AppointmentModule {}

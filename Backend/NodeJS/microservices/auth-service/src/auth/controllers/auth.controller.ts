@@ -232,6 +232,15 @@ export class AuthController {
     return this.authService.devGetLatestOtp(phoneNumber);
   }
 
+  @Post('dev/clear-rate-limits')
+  @HttpCode(HttpStatus.OK)
+  async devClearRateLimits(@Query('phoneNumber') phoneNumber: string, @Request() req) {
+    if (process.env.NODE_ENV !== 'development') {
+      return { message: 'Only available in development' };
+    }
+    return this.authService.devClearRateLimits(phoneNumber, req.ip);
+  }
+
   // MFA verification after login returns { requiresMfa: true, mfaToken }
   @Post('verify-mfa')
   @HttpCode(HttpStatus.OK)

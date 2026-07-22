@@ -271,9 +271,56 @@ services:
       retries: 5
 
   # ── Database Backup Service ─────────────────────────────────────────────────────
-  # Fix 8: Performs automated backups using pgBackRest instead of pg_dump
-  # Retains backups for 30 days (full backups) and 7 days (differential backups)
-  # Note: pgbackrest image not available - using alternative approach or comment out for now
+  postgres-backup:
+    image: postgres:15-alpine
+    container_name: postgres_backup
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      BACKUP_ROOT: /backups
+      BACKUP_RETENTION_DAYS: 14
+    volumes:
+      - postgres_backups:/backups
+      - ./DevOps/Scripts/backup-all-databases.sh:/scripts/backup-all-databases.sh:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "postgres-backup sidecar started — daily pg_dump, 14-day retention"
+        while true; do
+          sh /scripts/backup-all-databases.sh || echo "Backup run failed at $$(date -u)"
+          sleep 86400
+        done
+    networks:
+      - clinic_network
+    restart: unless-stopped
+    depends_on:
+      postgres-auth:
+        condition: service_healthy
+      postgres-user:
+        condition: service_healthy
+      postgres-system:
+        condition: service_healthy
+      postgres-clinic:
+        condition: service_healthy
+      postgres-scheduling:
+        condition: service_healthy
+      postgres-notification:
+        condition: service_healthy
+      postgres-reminder:
+        condition: service_healthy
+      postgres-evolution:
+        condition: service_healthy
+      postgres-appointment:
+        condition: service_healthy
+      postgres-emr:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: '0.25'
+
+  # Legacy pgBackRest config retained for reference only — not used.
   # pgbackrest:
   #   image: pgbackrest/pgbackrest:stable-release
   #   container_name: pgbackrest
@@ -394,9 +441,9 @@ services:
   openemr:
     image: openemr/openemr:latest
     container_name: openemr
-    ports:
-      - "8081:80"
-      - "8443:443"
+    expose:
+      - "80"
+      - "443"
     volumes:
       - openemr_logs:/var/log
       - openemr_sites:/var/www/localhost/htdocs/openemr/sites
@@ -524,8 +571,8 @@ services:
     volumes:
       - evolution_instances:/evolution/instances
       - ./Integrations/WhatsApp/evolution-api/manager/index.html:/evolution/manager/dist/index.html:ro
-    ports:
-      - "8080:8080"
+    expose:
+      - "8080"
     depends_on:
       postgres-evolution:
         condition: service_healthy
@@ -683,7 +730,7 @@ services:
     env_file:
       - ./Backend/NodeJS/microservices/auth-service/.env
     environment:
-      NODE_ENV: development
+      NODE_ENV: ${MEDICARE_ENV:-development}
       KAFKA_BROKERS: kafka-1:9092
       KAFKA_RETRY_COUNT: 12
       KAFKA_CONNECTION_TIMEOUT: 15000
@@ -728,7 +775,7 @@ services:
     env_file:
       - ./Backend/NodeJS/microservices/user-service/.env
     environment:
-      NODE_ENV: development
+      NODE_ENV: ${MEDICARE_ENV:-development}
       KAFKA_BROKERS: kafka-1:9092
       KAFKA_RETRY_COUNT: 12
       KAFKA_CONNECTION_TIMEOUT: 15000
@@ -773,7 +820,7 @@ services:
     env_file:
       - ./Integrations/OpenEMR/emr-service/.env
     environment:
-      NODE_ENV: development
+      NODE_ENV: ${MEDICARE_ENV:-development}
       KAFKA_BROKERS: kafka-1:9092
       KAFKA_RETRY_COUNT: 12
       KAFKA_CONNECTION_TIMEOUT: 15000
@@ -821,7 +868,7 @@ services:
     env_file:
       - ./Backend/NodeJS/microservices/clinic-service/.env
     environment:
-      NODE_ENV: development
+      NODE_ENV: ${MEDICARE_ENV:-development}
       KAFKA_BROKERS: kafka-1:9092
       KAFKA_RETRY_COUNT: 12
       KAFKA_CONNECTION_TIMEOUT: 15000
@@ -863,7 +910,7 @@ services:
     env_file:
       - ./Backend/NodeJS/microservices/scheduling-service/.env
     environment:
-      NODE_ENV: development
+      NODE_ENV: ${MEDICARE_ENV:-development}
       KAFKA_BROKERS: kafka-1:9092
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
       DATABASE_USER: ${POSTGRES_USER}
@@ -898,7 +945,7 @@ services:
     env_file:
       - ./Backend/NodeJS/microservices/appointment-service/.env
     environment:
-      NODE_ENV: development
+      NODE_ENV: ${MEDICARE_ENV:-development}
       KAFKA_BROKERS: kafka-1:9092
       KAFKA_RETRY_COUNT: 12
       KAFKA_CONNECTION_TIMEOUT: 15000
@@ -943,7 +990,7 @@ services:
     env_file:
       - ./Backend/NodeJS/microservices/notification-service/.env
     environment:
-      NODE_ENV: development
+      NODE_ENV: ${MEDICARE_ENV:-development}
       KAFKA_BROKERS: kafka-1:9092
       KAFKA_RETRY_COUNT: 12
       KAFKA_CONNECTION_TIMEOUT: 15000
@@ -953,7 +1000,7 @@ services:
       CLINIC_SERVICE_URL: http://clinic-service:3006
       EVOLUTION_API_URL: http://evolution-api:8080
       EVOLUTION_API_KEY: ${EVOLUTION_API_KEY}
-      JWT_SECRET: ${JWT_SECRET:-MediCareJwtSecretMin32CharsForDevOnly!!}
+      JWT_SECRET: ${JWT_SECRET}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       OTEL_SERVICE_NAME: notification-service
     expose:
@@ -988,7 +1035,7 @@ services:
     env_file:
       - ./Backend/NodeJS/microservices/reminder-service/.env
     environment:
-      NODE_ENV: development
+      NODE_ENV: ${MEDICARE_ENV:-development}
       KAFKA_BROKERS: kafka-1:9092
       KAFKA_RETRY_COUNT: 12
       KAFKA_CONNECTION_TIMEOUT: 15000
@@ -1033,7 +1080,7 @@ services:
     env_file:
       - ./Backend/NodeJS/microservices/system-manager-service/.env
     environment:
-      NODE_ENV: development
+      NODE_ENV: ${MEDICARE_ENV:-development}
       KAFKA_BROKERS: kafka-1:9092
       KAFKA_RETRY_COUNT: 12
       KAFKA_CONNECTION_TIMEOUT: 15000
@@ -1052,6 +1099,11 @@ services:
       CLINIC_STATS_DATABASE_USER: ${POSTGRES_USER}
       CLINIC_STATS_DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
       CLINIC_STATS_DATABASE_NAME: clinic_db
+      USER_STATS_DATABASE_HOST: postgres-user
+      USER_STATS_DATABASE_PORT: 5432
+      USER_STATS_DATABASE_USER: ${POSTGRES_USER}
+      USER_STATS_DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+      USER_STATS_DATABASE_NAME: user_db
       ALLOWED_ORIGINS: http://localhost:3000,http://localhost:3002
       PLATFORM_LOGS_ENABLED: "true"
       DOCKER_SOCKET: /var/run/docker.sock
@@ -1063,12 +1115,15 @@ services:
       OTEL_SERVICE_NAME: system-manager-service
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - system_manager_activation_docs:/app/uploads/activation-documents
     expose:
       - "3003"
     depends_on:
       postgres-system:
         condition: service_healthy
       postgres-clinic:
+        condition: service_healthy
+      postgres-user:
         condition: service_healthy
       clinic-service:
         condition: service_healthy
@@ -1100,6 +1155,8 @@ services:
     env_file:
       - ./Backend/NodeJS/api-gateway/.env
     environment:
+      NODE_ENV: ${MEDICARE_ENV:-development}
+      MEDICARE_DEPLOY_PROFILE: ${MEDICARE_DEPLOY_PROFILE:-dev}
       REDIS_HOST: redis
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       EMR_SERVICE_URL: http://emr-service:3004
@@ -1152,13 +1209,16 @@ services:
       - '--web.enable-lifecycle'
     volumes:
       - ./DevOps/Docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./DevOps/Docker/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
       - prometheus_data:/prometheus
-    ports:
-      - "9090:9090"
+    expose:
+      - "9090"
     networks:
       - clinic_network
     restart: unless-stopped
     depends_on:
+      alertmanager:
+        condition: service_started
       api-gateway:
         condition: service_healthy
     deploy:
@@ -1166,6 +1226,26 @@ services:
         limits:
           memory: 512m
           cpus: '0.5'
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    volumes:
+      - ./DevOps/Docker/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    expose:
+      - "9093"
+    networks:
+      - clinic_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+          cpus: '0.25'
 
   grafana:
     image: grafana/grafana:10.4.0
@@ -1180,8 +1260,8 @@ services:
       - ./DevOps/Docker/grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
       - ./DevOps/Docker/grafana/dashboards:/etc/grafana/dashboards:ro
       - grafana_data:/var/lib/grafana
-    ports:
-      - "3001:3000"
+    expose:
+      - "3000"
     networks:
       - clinic_network
     restart: unless-stopped
@@ -1201,8 +1281,8 @@ services:
     volumes:
       - ./DevOps/Docker/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
       - loki_data:/loki
-    ports:
-      - "3100:3100"
+    expose:
+      - "3100"
     networks:
       - clinic_network
     restart: unless-stopped
@@ -1225,10 +1305,10 @@ services:
     container_name: jaeger
     environment:
       COLLECTOR_OTLP_ENABLED: "true"
-    ports:
-      - "16686:16686"
-      - "4317:4317"
-      - "4318:4318"
+    expose:
+      - "16686"
+      - "4317"
+      - "4318"
     networks:
       - clinic_network
     restart: unless-stopped
@@ -1241,9 +1321,9 @@ services:
       - ./DevOps/Docker/otel/otel-collector-config.yml:/etc/otel-collector-config.yml:ro
     depends_on:
       - jaeger
-    ports:
-      - "4319:4317"
-      - "4320:4318"
+    expose:
+      - "4317"
+      - "4318"
     networks:
       - clinic_network
     restart: unless-stopped
@@ -1257,8 +1337,8 @@ services:
         VITE_GRAFANA_URL: ${VITE_GRAFANA_URL:-http://localhost:3001}
         VITE_GRAFANA_DASHBOARD_UID: medicare-platform
     container_name: system_manager_dashboard
-    ports:
-      - "3002:80"
+    expose:
+      - "80"
     depends_on:
       api-gateway:
         condition: service_healthy
@@ -1280,8 +1360,8 @@ services:
       args:
         VITE_API_BASE_URL: /api
     container_name: clinic_admin_dashboard
-    ports:
-      - "3003:80"
+    expose:
+      - "80"
     depends_on:
       api-gateway:
         condition: service_healthy
@@ -1306,6 +1386,7 @@ volumes:
   postgres_notification_data:
   postgres_reminder_data:
   postgres_evolution_data:
+  postgres_backups:
   mariadb_openemr_data:
   openemr_logs:
   openemr_sites:
@@ -1314,10 +1395,12 @@ volumes:
   zookeeper_1_log:
   kafka_1_data:
   prometheus_data:
+  alertmanager_data:
   grafana_data:
   loki_data:
   user_avatars:
   evolution_instances:
+  system_manager_activation_docs:
 
 networks:
   clinic_network:

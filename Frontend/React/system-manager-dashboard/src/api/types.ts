@@ -38,6 +38,30 @@ export interface ActivationCodeStatus {
   usedAt?: string
   revokedAt?: string
   attemptCount?: number
+  code?: string
+  clinicLocation?: string
+  clinicType?: string
+  registrationLicenseNumber?: string
+  establishmentDate?: string | null
+  specialties?: string[]
+  fullName?: string
+  phoneNumber?: string
+  whatsappNumber?: string
+  email?: string | null
+  dateOfBirth?: string | null
+  yearsOfExperience?: number | null
+  hasMapLocation?: boolean
+  latitude?: number | null
+  longitude?: number | null
+  address?: string | null
+  serviceRadiusKm?: number
+  documents?: Record<string, {
+    fileName: string
+    mimeType: string
+    storageKey: string
+    sizeBytes: number
+    uploadedAt: string
+  }>
 }
 
 export interface Clinic {

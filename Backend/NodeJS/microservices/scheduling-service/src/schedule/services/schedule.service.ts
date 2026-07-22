@@ -53,7 +53,8 @@ export class ScheduleService {
     return saved;
   }
 
-  async getClinicHours(clinicId: string) {
+  async getClinicHours(clinicId: string, actor: AuthUser) {
+    await this.assertCanViewClinicSchedule(clinicId, actor);
     const tenantId = clinicId;
     const hours = await this.hoursRepo.find({ where: { tenantId }, order: { dayOfWeek: 'ASC' } });
     if (hours.length > 0) return hours;
@@ -85,7 +86,14 @@ export class ScheduleService {
     return saved;
   }
 
-  async listAvailability(clinicId: string, doctorId?: string) {
+  async listAvailability(clinicId: string, doctorId: string | undefined, actor: AuthUser) {
+    await this.assertCanViewClinicSchedule(clinicId, actor);
+    if (actor.role === 'DOCTOR') {
+      if (doctorId && doctorId !== actor.userId) {
+        throw new ForbiddenException('You can only view your own availability');
+      }
+      doctorId = actor.userId;
+    }
     const tenantId = clinicId;
     const where: Record<string, string> = { tenantId };
     if (doctorId) where.doctorId = doctorId;
@@ -262,10 +270,18 @@ export class ScheduleService {
     this.emitScheduleUpdated(clinicId, 'doctor_availability', doctorId);
   }
 
+  private async assertCanViewClinicSchedule(clinicId: string, actor: AuthUser) {
+    if (actor.role === 'SYSTEM_MANAGER' || actor.role === 'PATIENT') return;
+    const ok = await this.clinicHttp.checkClinicAccess(clinicId, actor.userId, actor.role);
+    if (!ok) {
+      throw new ForbiddenException('You do not have access to this clinic schedule');
+    }
+  }
+
   private async assertCanManageClinic(clinicId: string, actor: AuthUser) {
     if (actor.role === 'SYSTEM_MANAGER') return;
     if (['CLINIC_ADMIN', 'SECRETARY'].includes(actor.role)) {
-      const ok = await this.clinicHttp.checkClinicAccess(clinicId, actor.userId);
+      const ok = await this.clinicHttp.checkClinicAccess(clinicId, actor.userId, actor.role);
       if (ok) return;
     }
     throw new ForbiddenException('You cannot manage schedule for this clinic');

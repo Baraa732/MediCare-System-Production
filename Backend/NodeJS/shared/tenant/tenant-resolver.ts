@@ -8,6 +8,8 @@ export interface TenantResolutionInput {
   hostname?: string;
   query?: Record<string, unknown>;
   body?: Record<string, unknown>;
+  /** When PATIENT, header/JWT tenant claims are ignored — only body/query clinicId is trusted. */
+  role?: string;
 }
 
 function headerValue(
@@ -40,28 +42,41 @@ export function resolveTenantFromSubdomain(hostname?: string): string | null {
   return slug;
 }
 
+function resolveRole(input: TenantResolutionInput): string | undefined {
+  return input.role ?? (typeof input.jwtPayload?.role === 'string' ? input.jwtPayload.role : undefined);
+}
+
 /**
- * Priority: JWT tenantId → X-Tenant-ID → X-Clinic-ID → query/body clinicId → subdomain.
+ * Priority (staff / default):
+ *   JWT tenantId → JWT clinicId → X-Tenant-ID → X-Clinic-ID → query/body clinicId → subdomain
+ *
+ * Priority (PATIENT):
+ *   query/body clinicId only — patients must not drive tenant via raw X-Tenant-ID or JWT tenantId.
  */
 export function resolveTenantId(input: TenantResolutionInput): string | null {
-  const jwtTenant = input.jwtPayload?.[TENANT_ID_CLAIM];
-  if (typeof jwtTenant === 'string' && jwtTenant.length > 0) {
-    return jwtTenant;
-  }
+  const role = resolveRole(input);
+  const isPatient = role === 'PATIENT';
 
-  const jwtClinic = input.jwtPayload?.clinicId;
-  if (typeof jwtClinic === 'string' && jwtClinic.length > 0) {
-    return jwtClinic;
-  }
+  if (!isPatient) {
+    const jwtTenant = input.jwtPayload?.[TENANT_ID_CLAIM];
+    if (typeof jwtTenant === 'string' && jwtTenant.length > 0) {
+      return jwtTenant;
+    }
 
-  const headerTenant = headerValue(input.headers, TENANT_HEADER);
-  if (headerTenant) {
-    return headerTenant;
-  }
+    const jwtClinic = input.jwtPayload?.clinicId;
+    if (typeof jwtClinic === 'string' && jwtClinic.length > 0) {
+      return jwtClinic;
+    }
 
-  const headerClinic = headerValue(input.headers, CLINIC_ID_HEADER);
-  if (headerClinic) {
-    return headerClinic;
+    const headerTenant = headerValue(input.headers, TENANT_HEADER);
+    if (headerTenant) {
+      return headerTenant;
+    }
+
+    const headerClinic = headerValue(input.headers, CLINIC_ID_HEADER);
+    if (headerClinic) {
+      return headerClinic;
+    }
   }
 
   const queryTenant =
@@ -76,6 +91,10 @@ export function resolveTenantId(input: TenantResolutionInput): string | null {
     paramValue(input.body, 'clinicId');
   if (bodyTenant) {
     return bodyTenant;
+  }
+
+  if (isPatient) {
+    return null;
   }
 
   return resolveTenantFromSubdomain(input.hostname);

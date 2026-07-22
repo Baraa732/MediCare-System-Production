@@ -4,15 +4,6 @@ import { getLiveStreamClient } from '../lib/liveStream'
 import { resolveSessionToken } from '../lib/sessionToken'
 import { useAuthStore } from '../store/authStore'
 
-function getCookieToken() {
-  if (typeof document === 'undefined') return null
-  const value = document.cookie
-    .split('; ')
-    .find((row) => row.startsWith('sm-auth='))
-    ?.split('=')[1]
-  return value ? decodeURIComponent(value) : null
-}
-
 /** Subscribes to platform SSE stream and softly invalidates cached queries (no remount). */
 export function useDashboardLive(enabled = false) {
   const storeToken = useAuthStore((s) => s.token)
@@ -26,7 +17,7 @@ export function useDashboardLive(enabled = false) {
       return undefined
     }
 
-    const token = resolveSessionToken(storeToken) ?? getCookieToken()
+    const token = resolveSessionToken(storeToken)
     const client = getLiveStreamClient({
       getToken: () => token,
       pollIntervalMs: 30_000,

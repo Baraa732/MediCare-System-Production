@@ -18,12 +18,34 @@ function isPublicOrInternal(req: Request): boolean {
   return INTERNAL_PATH_MARKERS.some((m) => path.includes(m));
 }
 
+function resolveActorRole(req: Request, user?: Record<string, unknown>): string | undefined {
+  return (
+    (user?.role as string | undefined) ??
+    (req.headers['x-user-role'] as string | undefined) ??
+    (user ? undefined : (() => {
+      const auth = req.headers.authorization;
+      if (!auth?.startsWith('Bearer ')) return undefined;
+      try {
+        const segment = auth.slice(7).split('.')[1];
+        if (!segment) return undefined;
+        const payload = JSON.parse(
+          Buffer.from(segment.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'),
+        ) as { role?: string };
+        return payload.role;
+      } catch {
+        return undefined;
+      }
+    })())
+  );
+}
+
 @Injectable()
 export class TenantMiddleware implements NestMiddleware {
   constructor(private readonly tenantContext: TenantContextService) {}
 
   use(req: Request, res: Response, next: NextFunction): void {
     const user = (req as Request & { user?: Record<string, unknown> }).user;
+    const role = resolveActorRole(req, user);
     const jwtPayload = user
       ? {
           tenantId: user.tenantId,
@@ -39,6 +61,7 @@ export class TenantMiddleware implements NestMiddleware {
       hostname: req.hostname,
       query: req.query as Record<string, unknown>,
       body: req.body as Record<string, unknown> | undefined,
+      role,
     });
 
     const userId =
@@ -47,6 +70,19 @@ export class TenantMiddleware implements NestMiddleware {
       (req.headers['x-user-id'] as string | undefined);
 
     const requestId = (req.headers['x-request-id'] as string | undefined) ?? undefined;
+
+    if (role === 'SYSTEM_MANAGER') {
+      this.tenantContext.run(
+        {
+          tenantId: null,
+          userId,
+          requestId,
+          service: process.env.INTERNAL_AUTH_SERVICE_NAME || process.env.SERVICE_NAME,
+        },
+        () => next(),
+      );
+      return;
+    }
 
     if (!tenantId && !isPublicOrInternal(req)) {
       throw new ForbiddenException('Tenant context is required');

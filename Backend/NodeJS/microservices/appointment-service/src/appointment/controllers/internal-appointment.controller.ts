@@ -8,10 +8,29 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { IsDateString, IsUUID } from 'class-validator';
+import { IsDateString, IsOptional, IsString, IsUUID } from 'class-validator';
 import { AppointmentService } from '../services/appointment.service';
 import { InternalServiceGuard } from '../guards/internal-service.guard';
 import { VerifyOwnershipDto } from '../dto/internal.dto';
+
+class CheckDoctorPatientDto {
+  @IsUUID()
+  clinicId: string;
+
+  @IsUUID()
+  doctorId: string;
+
+  @IsUUID()
+  patientId: string;
+}
+
+class CheckPatientClinicDto {
+  @IsUUID()
+  patientId: string;
+
+  @IsUUID()
+  clinicId: string;
+}
 
 class BookedRangesDto {
   @IsUUID()
@@ -24,9 +43,52 @@ class BookedRangesDto {
   date: string;
 }
 
+class VerifyAppointmentEventDto {
+  @IsUUID()
+  appointmentId: string;
+
+  @IsUUID()
+  tenantId: string;
+
+  @IsOptional()
+  @IsUUID()
+  patientId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  doctorId?: string;
+
+  @IsOptional()
+  @IsString()
+  status?: string;
+}
+
 @Controller('v1/appointments/internal')
 export class InternalAppointmentController {
   constructor(private readonly appointmentService: AppointmentService) {}
+
+  @Post('check-doctor-patient')
+  @UseGuards(InternalServiceGuard)
+  @HttpCode(HttpStatus.OK)
+  async checkDoctorPatient(@Body() dto: CheckDoctorPatientDto) {
+    const allowed = await this.appointmentService.hasDoctorPatientAccess(
+      dto.clinicId,
+      dto.doctorId,
+      dto.patientId,
+    );
+    return { allowed };
+  }
+
+  @Post('check-patient-clinic')
+  @UseGuards(InternalServiceGuard)
+  @HttpCode(HttpStatus.OK)
+  async checkPatientClinic(@Body() dto: CheckPatientClinicDto) {
+    const allowed = await this.appointmentService.hasPatientClinicAccess(
+      dto.patientId,
+      dto.clinicId,
+    );
+    return { allowed };
+  }
 
   @Post('booked-ranges')
   @UseGuards(InternalServiceGuard)
@@ -63,5 +125,13 @@ export class InternalAppointmentController {
     }
     const owned = await this.appointmentService.verifyOwnership(patientId, dto.appointmentId);
     return { success: true, owned };
+  }
+
+  @Post('verify-event')
+  @UseGuards(InternalServiceGuard)
+  @HttpCode(HttpStatus.OK)
+  async verifyEvent(@Body() dto: VerifyAppointmentEventDto) {
+    const valid = await this.appointmentService.verifyKafkaEvent(dto);
+    return { valid };
   }
 }

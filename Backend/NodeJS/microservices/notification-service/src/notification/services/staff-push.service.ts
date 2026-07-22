@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, IsNull } from 'typeorm';
 import { PushDeviceToken } from '../entities/push-device-token.entity';
@@ -96,15 +96,22 @@ export class StaffPushService {
 
   async markRead(userId: string, notificationId: string): Promise<void> {
     const ctxTenant = this.tenantContext.getTenantId();
-    const where: Record<string, unknown> = { id: notificationId, userId };
-    if (ctxTenant) where.tenantId = ctxTenant;
-    await this.inboxRepo.update(where as never, { readAt: new Date() });
+    if (!ctxTenant) {
+      throw new ForbiddenException('Tenant context is required');
+    }
+    const where: Record<string, unknown> = { id: notificationId, userId, tenantId: ctxTenant };
+    const result = await this.inboxRepo.update(where as never, { readAt: new Date() });
+    if (!result.affected) {
+      throw new NotFoundException('Notification not found');
+    }
   }
 
   async markAllRead(userId: string): Promise<void> {
     const ctxTenant = this.tenantContext.getTenantId();
-    const where: Record<string, unknown> = { userId, readAt: IsNull() };
-    if (ctxTenant) where.tenantId = ctxTenant;
+    if (!ctxTenant) {
+      throw new ForbiddenException('Tenant context is required');
+    }
+    const where: Record<string, unknown> = { userId, readAt: IsNull(), tenantId: ctxTenant };
     await this.inboxRepo.update(where as never, { readAt: new Date() });
   }
 
@@ -202,10 +209,22 @@ export class StaffPushService {
       data: Record<string, unknown>;
     },
   ): Promise<void> {
+    const tenantId =
+      input.clinicId ??
+      (input.data.tenantId as string | undefined) ??
+      (input.data.clinicId as string | undefined) ??
+      this.tenantContext.getTenantId() ??
+      undefined;
+
+    if (!tenantId) {
+      this.logger.warn(`Skipping staff inbox notification — missing tenantId for user ${userId}`);
+      return;
+    }
+
     const inbox = await this.inboxRepo.save(
       this.inboxRepo.create({
         userId,
-        tenantId: input.clinicId,
+        tenantId,
         category: input.category,
         title: input.title,
         body: input.body,

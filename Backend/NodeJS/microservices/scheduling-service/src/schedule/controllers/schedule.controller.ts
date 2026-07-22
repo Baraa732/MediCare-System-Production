@@ -9,27 +9,31 @@ import {
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { RolesGuard } from '../guards/roles.guard';
 import { TenantGuard } from '../../tenant-shared/tenant.guard';
-import { SkipTenantGuard } from '../../tenant-shared/tenant.decorators';
+import { SkipTenantGuard, SkipTenantAuthorization } from '../../tenant-shared/tenant.decorators';
+import { TenantAuthorizationGuard } from '../../tenant-shared/tenant-authorization.guard';
 import { Roles } from '../decorators/roles.decorator';
 
 @Controller('v1/schedule')
-@UseGuards(JwtAuthGuard, TenantGuard)
+@UseGuards(JwtAuthGuard, TenantGuard, TenantAuthorizationGuard)
 export class ScheduleController {
   constructor(private readonly scheduleService: ScheduleService) {}
 
   @Get('slots')
   @SkipTenantGuard()
+  @SkipTenantAuthorization()
   async getSlots(@Query() query: SlotsQueryDto) {
     const result = await this.scheduleService.getSlots(query);
     return { success: true, ...result };
   }
 
   @Get('availability')
+  @SkipTenantAuthorization()
   async listAvailability(
     @Query('clinicId', ParseUUIDPipe) clinicId: string,
-    @Query('doctorId') doctorId?: string,
+    @Query('doctorId') doctorId: string | undefined,
+    @Request() req,
   ) {
-    const availability = await this.scheduleService.listAvailability(clinicId, doctorId);
+    const availability = await this.scheduleService.listAvailability(clinicId, doctorId, req.user);
     return { success: true, availability };
   }
 
@@ -50,8 +54,9 @@ export class ScheduleController {
   }
 
   @Get('clinics/:clinicId/hours')
-  async getClinicHours(@Param('clinicId', ParseUUIDPipe) clinicId: string) {
-    const hours = await this.scheduleService.getClinicHours(clinicId);
+  @SkipTenantAuthorization()
+  async getClinicHours(@Param('clinicId', ParseUUIDPipe) clinicId: string, @Request() req) {
+    const hours = await this.scheduleService.getClinicHours(clinicId, req.user);
     return { success: true, hours };
   }
 

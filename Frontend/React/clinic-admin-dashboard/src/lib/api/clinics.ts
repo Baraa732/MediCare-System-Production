@@ -1,4 +1,4 @@
-import { apiRequest } from "./client";
+import { apiRequest, apiUpload } from "./client";
 import type { ClinicDoctor, ClinicPublic, StaffMember } from "./types";
 
 export function getMyClinics(token: string) {
@@ -71,5 +71,15 @@ export function removeStaff(clinicId: string, userId: string, token: string) {
   return apiRequest<{ success: boolean }>(
     `/clinics/${clinicId}/staff/${userId}`,
     { method: "DELETE", token },
+  );
+}
+
+export function uploadClinicLogo(clinicId: string, file: File, token: string) {
+  const formData = new FormData();
+  formData.append("file", file);
+  return apiUpload<{ success: boolean; clinic: ClinicPublic }>(
+    `/clinics/${clinicId}/logo`,
+    formData,
+    token,
   );
 }

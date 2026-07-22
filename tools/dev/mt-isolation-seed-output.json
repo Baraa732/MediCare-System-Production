@@ -1,0 +1,99 @@
+{
+  "apiBase": "http://localhost:3000/api",
+  "password": "Mt@Test1",
+  "phonePrefix": "+963999008",
+  "clinicA": {
+    "clinicId": "aa200002-0002-4002-8002-000000000002",
+    "name": "MT Isolation Clinic A",
+    "appointmentId": "aa300001-0001-4001-8001-000000000001",
+    "users": {
+      "clinicAdmin": {
+        "userId": "aa210001-0001-4001-8001-000000000001",
+        "phone": "+963999008001",
+        "role": "CLINIC_ADMIN"
+      },
+      "doctor": {
+        "userId": "aa210010-0010-4010-8010-000000000010",
+        "phone": "+963999008010",
+        "role": "DOCTOR"
+      },
+      "secretary": {
+        "userId": "aa210003-0003-4003-8003-000000000003",
+        "phone": "+963999008002",
+        "role": "SECRETARY"
+      },
+      "patient1": {
+        "userId": "aa210101-0101-4101-8101-000000000101",
+        "phone": "+963999008101",
+        "role": "PATIENT"
+      }
+    }
+  },
+  "clinicB": {
+    "clinicId": "bb200002-0002-4002-8002-000000000002",
+    "name": "MT Isolation Clinic B",
+    "appointmentId": "bb300001-0001-4001-8001-000000000001",
+    "users": {
+      "clinicAdmin": {
+        "userId": "bb210001-0001-4001-8001-000000000001",
+        "phone": "+963999008011",
+        "role": "CLINIC_ADMIN"
+      },
+      "doctor": {
+        "userId": "bb210010-0010-4010-8010-000000000010",
+        "phone": "+963999008020",
+        "role": "DOCTOR"
+      },
+      "secretary": {
+        "userId": "bb210003-0003-4003-8003-000000000003",
+        "phone": "+963999008012",
+        "role": "SECRETARY"
+      },
+      "patient1": {
+        "userId": "bb210111-0111-4111-8111-000000000111",
+        "phone": "+963999008111",
+        "role": "PATIENT"
+      }
+    }
+  },
+  "sharedPatient": {
+    "userId": "cc210200-0200-4200-8200-000000000200",
+    "phone": "+963999008200",
+    "role": "PATIENT",
+    "linkedClinicIds": [
+      "aa200002-0002-4002-8002-000000000002",
+      "bb200002-0002-4002-8002-000000000002"
+    ]
+  },
+  "insertedRows": {
+    "system_db": {
+      "clinic_admin_activation_codes": 2
+    },
+    "clinic_db": {
+      "tenants": 2,
+      "tenant_staff_assignments": 6
+    },
+    "user_db": {
+      "users": 9,
+      "outbox_events": 4
+    },
+    "appointment_db": {
+      "patient_clinic_relations": 4,
+      "doctor_patient_assignments": 4,
+      "appointments": 2
+    },
+    "scheduling_db": {
+      "clinic_hours": 14,
+      "doctor_availability": 14
+    },
+    "emr_db": {
+      "patient_emr_links": 4
+    }
+  },
+  "emrSync": {
+    "patientA1/clinicA": "SYNCED",
+    "patientB1/clinicB": "SYNCED",
+    "shared/clinicA": "SYNCED",
+    "shared/clinicB": "SYNCED"
+  }
+}

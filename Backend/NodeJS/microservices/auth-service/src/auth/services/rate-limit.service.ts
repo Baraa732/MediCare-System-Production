@@ -164,45 +164,68 @@ export class RateLimitService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Fix 11: Combined IP+phone rate limit — prevents IP rotation bypass.
-   * Key: rl:combined:{ip}:{phone} — 3 attempts per 5 minutes, block 30 minutes.
-   * After 3 failures, returns requiresCaptcha: true.
+   * Combined IP+phone block check — read-only; increments happen on failed login only.
    */
   async checkCombinedRateLimit(
     ip: string,
     phone: string,
-  ): Promise<{ allowed: boolean; requiresCaptcha?: boolean; retryAfter?: number }> {
-    const COMBINED_MAX = 3;
-    const COMBINED_WINDOW = 300;   // 5 minutes
-    const COMBINED_BLOCK = 1800;   // 30 minutes
-
-    const combinedKey = `rl:combined:${ip}:${phone}`;
-    const blockKey    = `rl:combined:block:${ip}:${phone}`;
+  ): Promise<{ allowed: boolean; retryAfter?: number }> {
+    const blockKey = `rl:combined:block:${ip}:${phone}`;
 
     try {
       const blockedTtl = await this.redis.ttl(blockKey);
       if (blockedTtl > 0) {
-        return { allowed: false, requiresCaptcha: true, retryAfter: blockedTtl };
+        return { allowed: false, retryAfter: blockedTtl };
       }
-
-      const count = await this.redis.eval(
-        INCR_WITH_TTL_SCRIPT,
-        1,
-        combinedKey,
-        String(COMBINED_WINDOW),
-      ) as number;
-
-      if (count > COMBINED_MAX) {
-        await this.redis.set(blockKey, '1', 'EX', COMBINED_BLOCK);
-        await this.redis.del(combinedKey);
-        this.logger.warn(`Combined rate limit exceeded: ip=${ip} phone=${phone}`);
-        return { allowed: false, requiresCaptcha: true, retryAfter: COMBINED_BLOCK };
-      }
-
       return { allowed: true };
     } catch (err: any) {
       this.logger.error(`checkCombinedRateLimit Redis error (fail-open): ${err.message}`);
       return { allowed: true };
     }
+  }
+
+  /** Count failed logins per IP+phone pair — blocks after repeated bad passwords. */
+  async recordCombinedFailedAttempt(ip: string, phone: string): Promise<void> {
+    const COMBINED_MAX = 5;
+    const COMBINED_WINDOW = 300;
+    const COMBINED_BLOCK = 900;
+
+    const combinedKey = `rl:combined:${ip}:${phone}`;
+    const blockKey = `rl:combined:block:${ip}:${phone}`;
+
+    try {
+      const count = (await this.redis.eval(
+        INCR_WITH_TTL_SCRIPT,
+        1,
+        combinedKey,
+        String(COMBINED_WINDOW),
+      )) as number;
+
+      if (count > COMBINED_MAX) {
+        await this.redis.set(blockKey, '1', 'EX', COMBINED_BLOCK);
+        await this.redis.del(combinedKey);
+        this.logger.warn(`Combined rate limit exceeded: ip=${ip} phone=${phone}`);
+      }
+    } catch (err: any) {
+      this.logger.error(`recordCombinedFailedAttempt Redis error: ${err.message}`);
+    }
+  }
+
+  async resetCombinedRateLimit(ip: string, phone: string): Promise<void> {
+    const combinedKey = `rl:combined:${ip}:${phone}`;
+    const blockKey = `rl:combined:block:${ip}:${phone}`;
+    try {
+      await this.redis.del(combinedKey, blockKey);
+    } catch (err: any) {
+      this.logger.error(`resetCombinedRateLimit Redis error: ${err.message}`);
+    }
+  }
+
+  async resetLoginRateLimits(ip: string, phone: string): Promise<void> {
+    await Promise.all([
+      this.resetRateLimit(phone, RateLimitType.LOGIN),
+      this.resetRateLimit(`ip:${ip}`, RateLimitType.LOGIN),
+      this.resetCombinedRateLimit(ip, phone),
+    ]);
   }
 }

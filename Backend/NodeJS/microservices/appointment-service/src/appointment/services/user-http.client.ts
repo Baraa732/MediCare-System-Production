@@ -1,6 +1,6 @@
 import { Injectable, Logger, BadRequestException, ServiceUnavailableException } from '@nestjs/common';
-import * as crypto from 'crypto';
 import axios, { AxiosError } from 'axios';
+import { createInternalAuthHeadersForUrl } from '../../internal-auth-shared/internal-http.signer';
 
 export interface PublicDoctorProfile {
   id: string;
@@ -14,32 +14,33 @@ export interface PublicDoctorProfile {
 export class UserHttpClient {
   private readonly logger = new Logger(UserHttpClient.name);
   private readonly baseUrl: string;
-  private readonly internalToken: string;
+  private readonly serviceName = 'appointment-service';
+  private readonly signingSecret: string;
 
   constructor() {
     this.baseUrl = process.env.USER_SERVICE_URL || 'http://user-service:3002';
-    this.internalToken = process.env.INTERNAL_SERVICE_TOKEN || '';
+    this.signingSecret = process.env.INTERNAL_AUTH_SECRET || '';
+    if (!this.signingSecret) {
+      throw new Error('INTERNAL_AUTH_SECRET env var is not set');
+    }
   }
 
-  private headers(subject: string): Record<string, string> {
-    const timestamp = Date.now().toString();
-    const hmac = crypto
-      .createHmac('sha256', this.internalToken)
-      .update(`${subject}:${timestamp}`)
-      .digest('hex');
-    return {
-      'x-service-token': this.internalToken,
-      'x-internal-timestamp': timestamp,
-      'x-internal-hmac': hmac,
-    };
+  private headers(method: string, path: string, body?: unknown): Record<string, string> {
+    return createInternalAuthHeadersForUrl(
+      this.serviceName,
+      this.signingSecret,
+      method,
+      path,
+      body,
+    );
   }
 
   async getUserById(userId: string): Promise<{ id: string; role: string }> {
-    if (!this.internalToken) throw new ServiceUnavailableException('User service unavailable');
     try {
-      const res = await axios.get(`${this.baseUrl}/users/internal/by-id/${userId}`, {
+      const path = `/users/internal/by-id/${userId}`;
+      const res = await axios.get(`${this.baseUrl}${path}`, {
         timeout: 5000,
-        headers: this.headers(userId),
+        headers: this.headers('GET', path),
       });
       if (!res.data?.success || !res.data?.user) {
         throw new BadRequestException('User not found');
@@ -53,13 +54,14 @@ export class UserHttpClient {
   }
 
   async getPublicDoctors(userIds: string[]): Promise<PublicDoctorProfile[]> {
-    if (!this.internalToken || !userIds.length) return [];
+    if (!userIds.length) return [];
     try {
-      const res = await axios.post(
-        `${this.baseUrl}/users/internal/public-doctors`,
-        { userIds },
-        { timeout: 8000, headers: { 'x-service-token': this.internalToken } },
-      );
+      const path = '/users/internal/public-doctors';
+      const body = { userIds };
+      const res = await axios.post(`${this.baseUrl}${path}`, body, {
+        timeout: 8000,
+        headers: this.headers('POST', path, body),
+      });
       return res.data?.doctors || [];
     } catch (error) {
       this.logger.error(`getPublicDoctors failed: ${error}`);

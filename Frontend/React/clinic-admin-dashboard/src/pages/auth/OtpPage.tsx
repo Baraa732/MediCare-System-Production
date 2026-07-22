@@ -12,6 +12,7 @@ import {
   type OtpDeliveryResult,
 } from "@/lib/api/auth";
 import { normalizeCaughtError } from "@/lib/api/errors";
+import { uploadPendingRegistrationImages } from "@/lib/registrationImages";
 import { useOtpResendCooldown } from "@/hooks/useOtpResendCooldown";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -134,6 +135,7 @@ export function OtpPage() {
         }
         if (isAuthSession(res)) {
           setSession(res);
+          await uploadPendingRegistrationImages(res);
           navigate("/dashboard", { replace: true });
         }
         return;
@@ -148,6 +150,7 @@ export function OtpPage() {
         }
         if (isAuthSession(res)) {
           setSession(res);
+          await uploadPendingRegistrationImages(res);
           navigate("/dashboard", { replace: true });
           return;
         }

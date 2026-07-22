@@ -5,6 +5,8 @@ import axios, { AxiosInstance } from 'axios';
 import { Repository } from 'typeorm';
 import { OpenEmrOAuthConfig } from '../entities/openemr-oauth-config.entity';
 import { TenantContextService } from '../../tenant-shared/tenant-context.service';
+import { PhiAuditPublisherService } from '../../phi-audit-shared/phi-audit.publisher';
+import { PhiAuditAction, PhiAuditResourceType } from '../../phi-audit-shared/types';
 
 interface TokenCache {
   accessToken: string;
@@ -55,6 +57,7 @@ export class OpenEmrClient implements OnModuleInit {
     @InjectRepository(OpenEmrOAuthConfig)
     private oauthConfigRepository: Repository<OpenEmrOAuthConfig>,
     private readonly tenantContext: TenantContextService,
+    private readonly phiAudit: PhiAuditPublisherService,
   ) {
     this.http = axios.create({
       timeout: 30_000,
@@ -133,6 +136,10 @@ export class OpenEmrClient implements OnModuleInit {
     await this.registerOAuthClient();
   }
 
+  private formatOpenEmrError(operation: string, status: number): string {
+    return `${operation} failed (HTTP ${status})`;
+  }
+
   private async registerOAuthClient(): Promise<void> {
     const payload = {
       application_type: 'private',
@@ -148,7 +155,7 @@ export class OpenEmrClient implements OnModuleInit {
     });
 
     if (response.status < 200 || response.status >= 300) {
-      throw new Error(`OpenEMR client registration failed (${response.status}): ${JSON.stringify(response.data)}`);
+      throw new Error(this.formatOpenEmrError('OpenEMR client registration', response.status));
     }
 
     this.clientId = response.data.client_id;
@@ -218,7 +225,7 @@ export class OpenEmrClient implements OnModuleInit {
     });
 
     if (response.status < 200 || response.status >= 300 || !response.data?.access_token) {
-      throw new Error(`OpenEMR token request failed (${response.status}): ${JSON.stringify(response.data)}`);
+      throw new Error(this.formatOpenEmrError('OpenEMR token request', response.status));
     }
 
     const expiresIn = Number(response.data.expires_in || 300);
@@ -231,50 +238,76 @@ export class OpenEmrClient implements OnModuleInit {
   }
 
   async createPatient(input: OpenEmrPatientInput): Promise<string> {
-    const token = await this.getAccessToken();
+    try {
+      const token = await this.getAccessToken();
 
-    const fhirPatient = {
-      resourceType: 'Patient',
-      identifier: [
-        { system: 'urn:medicare:user-id', value: input.userId },
-        { system: 'urn:medicare:phone', value: input.phoneNumber },
-        { system: 'urn:medicare:tenant-id', value: input.tenantId },
-      ],
-      name: [{
-        use: 'official',
-        family: input.lastName || 'Patient',
-        given: [input.firstName || 'MediCare'],
-      }],
-      telecom: [{ system: 'phone', value: input.phoneNumber, use: 'mobile' }],
-      gender: this.mapGender(input.gender),
-      birthDate: input.birthDate || '1990-01-01',
-    };
+      const fhirPatient = {
+        resourceType: 'Patient',
+        identifier: [
+          { system: 'urn:medicare:user-id', value: input.userId },
+          { system: 'urn:medicare:phone', value: input.phoneNumber },
+          { system: 'urn:medicare:tenant-id', value: input.tenantId },
+        ],
+        name: [{
+          use: 'official',
+          family: input.lastName || 'Patient',
+          given: [input.firstName || 'MediCare'],
+        }],
+        telecom: [{ system: 'phone', value: input.phoneNumber, use: 'mobile' }],
+        gender: this.mapGender(input.gender),
+        birthDate: input.birthDate || '1990-01-01',
+      };
 
-    const response = await this.http.post(this.apiUrl('/fhir/Patient'), fhirPatient, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/fhir+json',
-        Accept: 'application/fhir+json',
-      },
-      httpsAgent: new (require('https').Agent)({ rejectUnauthorized: false }),
-    });
+      const response = await this.http.post(this.apiUrl('/fhir/Patient'), fhirPatient, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/fhir+json',
+          Accept: 'application/fhir+json',
+        },
+        httpsAgent: new (require('https').Agent)({ rejectUnauthorized: false }),
+      });
 
-    if (response.status < 200 || response.status >= 300) {
-      throw new Error(`OpenEMR patient create failed (${response.status}): ${JSON.stringify(response.data)}`);
+      if (response.status < 200 || response.status >= 300) {
+        throw new Error(this.formatOpenEmrError('OpenEMR patient create', response.status));
+      }
+
+      const openemrId =
+        response.data?.id ||
+        response.data?.pid?.toString() ||
+        response.data?.uuid ||
+        response.headers?.location?.split('/').pop();
+
+      if (!openemrId) {
+        throw new Error('OpenEMR returned success but no patient id');
+      }
+
+      this.logger.log(`Created OpenEMR patient ${openemrId} for MediCare user ${input.userId}`);
+
+      this.phiAudit.emit({
+        action: PhiAuditAction.EMR_CHART_WRITE,
+        actorRole: 'SYSTEM',
+        tenantId: input.tenantId,
+        resourceType: PhiAuditResourceType.EMR_CHART,
+        resourceId: input.userId,
+        success: true,
+        classification: 'phi',
+        internalCall: true,
+      });
+
+      return String(openemrId);
+    } catch (error) {
+      this.phiAudit.emit({
+        action: PhiAuditAction.EMR_CHART_WRITE,
+        actorRole: 'SYSTEM',
+        tenantId: input.tenantId,
+        resourceType: PhiAuditResourceType.EMR_CHART,
+        resourceId: input.userId,
+        success: false,
+        classification: 'phi',
+        internalCall: true,
+      });
+      throw error;
     }
-
-    const openemrId =
-      response.data?.id ||
-      response.data?.pid?.toString() ||
-      response.data?.uuid ||
-      response.headers?.location?.split('/').pop();
-
-    if (!openemrId) {
-      throw new Error(`OpenEMR returned success but no patient id: ${JSON.stringify(response.data)}`);
-    }
-
-    this.logger.log(`Created OpenEMR patient ${openemrId} for MediCare user ${input.userId}`);
-    return String(openemrId);
   }
 
   private mapGender(gender?: string): 'male' | 'female' | 'other' {
@@ -297,7 +330,7 @@ export class OpenEmrClient implements OnModuleInit {
 
     if (response.status === 404) return null;
     if (response.status < 200 || response.status >= 300) {
-      throw new Error(`OpenEMR FHIR read failed (${response.status}): ${JSON.stringify(response.data)}`);
+      throw new Error(this.formatOpenEmrError('OpenEMR FHIR read', response.status));
     }
 
     return response.data as T;
@@ -318,7 +351,7 @@ export class OpenEmrClient implements OnModuleInit {
       return { resourceType: 'Bundle', type: 'searchset', entry: [] };
     }
     if (response.status < 200 || response.status >= 300) {
-      throw new Error(`OpenEMR FHIR search failed (${resourceType}) (${response.status}): ${JSON.stringify(response.data)}`);
+      throw new Error(this.formatOpenEmrError(`OpenEMR FHIR search (${resourceType})`, response.status));
     }
 
     return response.data;

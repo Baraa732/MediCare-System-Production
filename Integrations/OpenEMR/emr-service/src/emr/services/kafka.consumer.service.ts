@@ -4,10 +4,11 @@ import { EventPattern, Payload } from '@nestjs/microservices';
 import { PatientSyncService, UserCreatedEvent } from './patient-sync.service';
 import { InternalServiceGuard } from '../guards/internal-service.guard';
 import { TenantContextService } from '../../tenant-shared/tenant-context.service';
-import { withValidatedTenantEvent } from '../../tenant-shared/tenant-kafka';
 import { createTenantLogger } from '../../tenant-shared/tenant-logger';
 import { TenantQueueThrottle } from '../../tenant-shared/tenant-queue-throttle';
 import { EmrObservabilityService } from './emr-observability.service';
+import { withSecuredKafkaEvent } from '../../kafka-security-shared/secured-kafka.consumer';
+import { UserKafkaCorroborator } from './user-kafka-corroborator.service';
 
 @Controller()
 @Injectable()
@@ -20,6 +21,7 @@ export class KafkaConsumerService {
     private readonly tenantContext: TenantContextService,
     configService: ConfigService,
     private readonly observability: EmrObservabilityService,
+    private readonly corroborator: UserKafkaCorroborator,
   ) {
     this.logger = createTenantLogger(KafkaConsumerService.name, tenantContext);
     const intervalMs = parseInt(
@@ -32,12 +34,18 @@ export class KafkaConsumerService {
   @EventPattern('user.created')
   async handleUserCreated(@Payload() event: unknown): Promise<void> {
     const receivedAt = Date.now();
-    await withValidatedTenantEvent(
+    await withSecuredKafkaEvent(
       event,
       'user.created',
       this.tenantContext,
       this.logger,
-      async ({ payload, tenantId }) => {
+      { corroborator: this.corroborator },
+      async (payload, meta) => {
+        const tenantId = meta.tenantId;
+        if (!tenantId) {
+          this.logger.error('user.created missing corroborated tenantId');
+          return;
+        }
         await this.queueThrottle.throttle(tenantId, 'user.created');
         const lagMs = Date.now() - receivedAt;
         if (lagMs > 5000) {
@@ -48,6 +56,8 @@ export class KafkaConsumerService {
           this.logger.error('user.created missing userId or phoneNumber');
           return;
         }
+        data.tenantId = tenantId;
+        data.clinicId = tenantId;
         this.logger.log(`Syncing patient to OpenEMR for user ${data.userId}`);
         await this.patientSyncService.syncPatientFromUserCreated(data);
       },
@@ -56,7 +66,10 @@ export class KafkaConsumerService {
 
   @EventPattern('user.created.dlt')
   async handleUserCreatedDlt(@Payload() data: unknown): Promise<void> {
-    this.logger.error(`[DLT] user.created failed — manual intervention required: ${JSON.stringify(data)}`);
+    const payload = data as { userId?: string };
+    this.logger.error(
+      `[DLT] user.created failed — manual intervention required for userId=${payload?.userId ?? 'unknown'}`,
+    );
   }
 }
 

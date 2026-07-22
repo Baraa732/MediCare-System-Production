@@ -6,8 +6,11 @@ import {
   VerifyStaffDto,
   CheckClinicAccessDto,
   EnsureStaffAssignmentDto,
+  AssignStaffInternalDto,
   ResolveStaffClinicDto,
   ListStaffInternalDto,
+  CreateClinicDto,
+  ActivatePendingMembershipsDto,
 } from '../dto/clinic.dto';
 import { InternalServiceGuard } from '../guards/internal-service.guard';
 
@@ -15,6 +18,17 @@ import { InternalServiceGuard } from '../guards/internal-service.guard';
 @Controller('v1/clinics/internal')
 export class InternalClinicController {
   constructor(private readonly clinicService: ClinicService) {}
+
+  @Post('create-platform')
+  @UseGuards(InternalServiceGuard)
+  @HttpCode(HttpStatus.OK)
+  async createPlatform(@Body() dto: CreateClinicDto) {
+    const clinic = await this.clinicService.create(dto, {
+      userId: 'system-manager-service',
+      role: 'SYSTEM_MANAGER',
+    });
+    return { success: true, clinic: this.clinicService.toPublicClinic(clinic) };
+  }
 
   @Post('provision-from-activation')
   @UseGuards(InternalServiceGuard)
@@ -47,7 +61,7 @@ export class InternalClinicController {
   @UseGuards(InternalServiceGuard)
   @HttpCode(HttpStatus.OK)
   async checkAccess(@Body() dto: CheckClinicAccessDto) {
-    return this.clinicService.checkClinicAccess(dto.clinicId, dto.userId);
+    return this.clinicService.checkClinicAccess(dto.clinicId, dto.userId, dto.role);
   }
 
   @Post('ensure-staff-assignment')
@@ -57,7 +71,16 @@ export class InternalClinicController {
     const result = await this.clinicService.ensureStaffAssignmentForUser(
       dto.userId,
       dto.assignedBy,
+      { clinicId: dto.clinicId, staffRole: dto.staffRole },
     );
+    return { success: result.assigned, ...result };
+  }
+
+  @Post('assign-staff')
+  @UseGuards(InternalServiceGuard)
+  @HttpCode(HttpStatus.OK)
+  async assignStaff(@Body() dto: AssignStaffInternalDto) {
+    const result = await this.clinicService.assignStaffInternal(dto);
     return { success: result.assigned, ...result };
   }
 
@@ -72,6 +95,14 @@ export class InternalClinicController {
       clinicId: result.clinicId ?? result.tenantId,
       source: result.source,
     };
+  }
+
+  @Post('activate-pending-memberships')
+  @UseGuards(InternalServiceGuard)
+  @HttpCode(HttpStatus.OK)
+  async activatePendingMemberships(@Body() dto: ActivatePendingMembershipsDto) {
+    const result = await this.clinicService.activatePendingMembershipsForUser(dto.userId);
+    return { success: true, ...result };
   }
 
   @Post('get-by-id/:id')

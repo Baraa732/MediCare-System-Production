@@ -1,0 +1,123 @@
+# Production overlay — use with explicit -f flags (override must NOT be merged).
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Sets NODE_ENV=production, blocks dev gateway routes, and keeps sensitive services
+# off the host network. Only api-gateway is published to the host.
+
+x-production-env: &production-env
+  NODE_ENV: production
+  MEDICARE_ENV: production
+  MEDICARE_DEPLOY_PROFILE: production
+
+services:
+  auth-service:
+    environment:
+      <<: *production-env
+
+  user-service:
+    environment:
+      <<: *production-env
+
+  emr-service:
+    environment:
+      <<: *production-env
+
+  clinic-service:
+    environment:
+      <<: *production-env
+
+  scheduling-service:
+    environment:
+      <<: *production-env
+
+  appointment-service:
+    environment:
+      <<: *production-env
+
+  notification-service:
+    environment:
+      <<: *production-env
+
+  reminder-service:
+    environment:
+      <<: *production-env
+
+  system-manager-service:
+    environment:
+      <<: *production-env
+
+  api-gateway:
+    environment:
+      <<: *production-env
+    ports:
+      - "${API_GATEWAY_HOST_PORT:-3000}:3000"
+
+  grafana:
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_SECURITY_ALLOW_EMBEDDING: "false"
+    ports: []
+
+  prometheus:
+    ports: []
+
+  loki:
+    ports: []
+
+  jaeger:
+    ports: []
+
+  otel-collector:
+    ports: []
+
+  openemr:
+    ports: []
+
+  evolution-api:
+    ports: []
+
+  system-manager-dashboard:
+    ports: []
+
+  clinic-admin-dashboard:
+    ports: []
+
+  redis:
+    ports: []
+
+  mongodb:
+    ports: []
+
+  mariadb-openemr:
+    ports: []
+
+  postgres-auth:
+    ports: []
+
+  postgres-user:
+    ports: []
+
+  postgres-system:
+    ports: []
+
+  postgres-clinic:
+    ports: []
+
+  postgres-scheduling:
+    ports: []
+
+  postgres-notification:
+    ports: []
+
+  postgres-reminder:
+    ports: []
+
+  postgres-appointment:
+    ports: []
+
+  postgres-evolution:
+    ports: []
+
+  postgres-emr:
+    ports: []

@@ -19,7 +19,8 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
         userId: payload.sub,
         phoneNumber: payload.phoneNumber,
         role: payload.role,
-        clinicId: payload.clinicId,
+        tenantId: payload.tenantId ?? payload.clinicId,
+        clinicId: payload.tenantId ?? payload.clinicId,
         permissions: payload.permissions || [],
         sessionId: payload.sessionId,
       };

@@ -25,6 +25,7 @@ import {
 import { LanguageDetectionService } from './language-detection.service';
 import { SummarizationService } from './summarization.service';
 import { TenantContextService } from '../../tenant-shared/tenant-context.service';
+import { PLATFORM_TENANT_SCOPE } from '../../tenant-shared/tenant.constants';
 
 export interface AppendMessageInput {
   role: ConversationMessageRole;
@@ -75,8 +76,12 @@ export class ConversationService {
     private readonly summarization?: SummarizationService,
   ) {}
 
-  private resolveTenantId(): string | undefined {
-    return this.tenantContext.getTenantId() ?? undefined;
+  private requireScopedTenantId(): string {
+    return this.tenantContext.getTenantId() ?? PLATFORM_TENANT_SCOPE;
+  }
+
+  private resolveTenantId(): string {
+    return this.requireScopedTenantId();
   }
 
   isStorageEnabled(): boolean {
@@ -88,8 +93,7 @@ export class ConversationService {
     channel: ConversationChannel,
   ): Promise<AiConversationThread> {
     const tenantId = this.resolveTenantId();
-    const where: Record<string, unknown> = { patientId, channel, status: 'active' };
-    if (tenantId) where.tenantId = tenantId;
+    const where: Record<string, unknown> = { patientId, channel, status: 'active', tenantId };
 
     const existing = await this.threadRepo.findOne({ where });
     if (existing) {
@@ -167,8 +171,7 @@ export class ConversationService {
   ): Promise<DecryptedMessage[]> {
     const thread = await this.requireThreadForPatient(patientId, threadId);
     const tenantId = this.resolveTenantId();
-    const where: Record<string, unknown> = { patientId, threadId: thread.id };
-    if (tenantId) where.tenantId = tenantId;
+    const where: Record<string, unknown> = { patientId, threadId: thread.id, tenantId };
     const messages = await this.messageRepo.find({
       where,
       order: { seq: 'ASC' },
@@ -183,8 +186,7 @@ export class ConversationService {
     messageId: string,
   ): Promise<DecryptedMessage> {
     const tenantId = this.resolveTenantId();
-    const where: Record<string, unknown> = { id: messageId, patientId };
-    if (tenantId) where.tenantId = tenantId;
+    const where: Record<string, unknown> = { id: messageId, patientId, tenantId };
     const message = await this.messageRepo.findOne({ where });
     if (!message) {
       throw new NotFoundException('Message not found');
@@ -244,8 +246,7 @@ export class ConversationService {
     summaryId: string,
   ): Promise<{ plaintext: string; summary: AiConversationSummary }> {
     const tenantId = this.resolveTenantId();
-    const where: Record<string, unknown> = { id: summaryId, patientId };
-    if (tenantId) where.tenantId = tenantId;
+    const where: Record<string, unknown> = { id: summaryId, patientId, tenantId };
     const summary = await this.summaryRepo.findOne({ where });
     if (!summary) {
       throw new NotFoundException('Summary not found');
@@ -308,8 +309,7 @@ export class ConversationService {
     threadId: string,
   ): Promise<AiConversationThread> {
     const tenantId = this.resolveTenantId();
-    const where: Record<string, unknown> = { id: threadId, patientId };
-    if (tenantId) where.tenantId = tenantId;
+    const where: Record<string, unknown> = { id: threadId, patientId, tenantId };
 
     const thread = await this.threadRepo.findOne({ where });
     if (!thread) {

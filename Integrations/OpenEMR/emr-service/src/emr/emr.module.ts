@@ -19,6 +19,8 @@ import { EmrTenantGuardService } from './services/emr-tenant-guard.service';
 import { EmrSyncConcurrencyService } from './services/emr-sync-concurrency.service';
 import { EmrObservabilityService } from './services/emr-observability.service';
 import { EmrInternalController, KafkaConsumerService } from './services/kafka.consumer.service';
+import { UserKafkaCorroborator } from './services/user-kafka-corroborator.service';
+import { PhiAuditPublisherService } from '../phi-audit-shared/phi-audit.publisher';
 
 @Module({
   imports: [
@@ -49,9 +51,11 @@ import { EmrInternalController, KafkaConsumerService } from './services/kafka.co
     EmrSyncConcurrencyService,
     EmrObservabilityService,
     KafkaConsumerService,
+    UserKafkaCorroborator,
     JwtAuthGuard,
     RolesGuard,
     InternalServiceGuard,
+    PhiAuditPublisherService,
   ],
   exports: [OpenEmrClient, PatientSyncService, EmrRecordService, OpenEmrChartService],
 })

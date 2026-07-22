@@ -256,6 +256,17 @@
   }
 }
 
+@keyframes dash-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
 @keyframes profile-drawer-in {
   from {
     opacity: 0;
@@ -333,6 +344,27 @@
 
   .staff-role-panel {
     animation: auth-fade-slide-in 0.25s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .dashboard-enter-fade {
+    animation: slide-up 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: var(--dash-delay, 0ms);
+    will-change: opacity, transform;
+  }
+
+  .dashboard-enter-scale {
+    animation: dash-scale-in 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: var(--dash-delay, 0ms);
+    will-change: opacity, transform;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .dashboard-enter-fade,
+    .dashboard-enter-scale {
+      animation: none;
+      opacity: 1;
+      transform: none;
+    }
   }
 
   .no-scrollbar::-webkit-scrollbar {

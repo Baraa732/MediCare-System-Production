@@ -21,16 +21,26 @@ import {
 import { ClinicHttpClient } from './clinic-http.client';
 import { KafkaTopics } from '../../kafka-shared/topics/topics.config';
 import { TenantContextService } from '../../tenant-shared/tenant-context.service';
+import { HttpTenantAccessChecker } from '../../tenant-shared/tenant-access-checker';
 import { tenantFindWhere } from '../../tenant-shared/tenant-query.util';
-import { withTenantEvent } from '../../tenant-shared/tenant.constants';
+import { withTenantEvent, GLOBAL_PATIENT_STORAGE_SCOPE, tenantUploadPrefix } from '../../tenant-shared/tenant.constants';
 import { createTenantLogger } from '../../tenant-shared/tenant-logger';
 
 const PASSWORD_HISTORY_LIMIT = 5;
 const STAFF_ACTIVATION_HOURS = 48;
+
+function maskPhoneNumber(phoneNumber: string): string {
+  const digits = phoneNumber.replace(/\D/g, '');
+  if (digits.length <= 4) return '****';
+  return '*'.repeat(digits.length - 4) + digits.slice(-4);
+}
 const TEMP_PASSWORD_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
 const AVATAR_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const AVATAR_DIR = process.env.AVATAR_UPLOAD_DIR || path.join(process.cwd(), 'uploads', 'avatars');
+const LEGACY_AVATAR_DIR = AVATAR_DIR;
+const STAFF_ROLES = new Set<string>(['CLINIC_ADMIN', 'SECRETARY', 'DOCTOR']);
+const AVATAR_NOT_FOUND = 'Avatar not found';
 
 type UploadedImageFile = {
   buffer: Buffer;
@@ -55,6 +65,7 @@ export class UserService {
     private dataSource: DataSource,
     private readonly clinicHttpClient: ClinicHttpClient,
     private readonly tenantContext: TenantContextService,
+    private readonly tenantAccess: HttpTenantAccessChecker,
   ) {
     this.logger = createTenantLogger(UserService.name, tenantContext);
   }
@@ -143,7 +154,7 @@ export class UserService {
         }
       }
 
-      this.logger.log(`User created: ${phoneNumber} (${role})`);
+      this.logger.log(`User created: ${maskPhoneNumber(phoneNumber)} (${role})`);
       return savedUser;
     } catch (error) {
       rethrowIfRegistrationError(error);
@@ -173,7 +184,9 @@ export class UserService {
     return pwd;
   }
 
-  async createByAdmin(dto: CreateUserByAdminDto): Promise<{ user: User; temporaryPassword: string }> {
+  async createByAdmin(
+    dto: CreateUserByAdminDto,
+  ): Promise<{ user: User; temporaryPassword: string | null; membershipOnly?: boolean }> {
     const {
       phoneNumber, username, email, firstName, middleName, lastName, nationalId,
       motherName, motherLastName, gender, birthDate, birthPlace, maritalStatus,
@@ -189,7 +202,47 @@ export class UserService {
       throw new BadRequestException('clinicId is required when creating clinic staff');
     }
 
-    await this.assertRegistrationUniques(phoneNumber, email);
+    const existingPhone = await this.userRepository.findOne({ where: { phoneNumber } });
+    if (existingPhone) {
+      if (
+        existingPhone.status === UserStatus.PENDING_ACTIVATION &&
+        existingPhone.clinicId === clinicId &&
+        existingPhone.role === role
+      ) {
+        return this.refreshPendingStaffInvite(existingPhone, dto);
+      }
+
+      if (
+        existingPhone.role === role &&
+        [UserRole.DOCTOR, UserRole.SECRETARY].includes(role)
+      ) {
+        const isOtherClinic = existingPhone.clinicId !== clinicId;
+        const isActiveAtSameClinic =
+          existingPhone.status === UserStatus.ACTIVE && existingPhone.clinicId === clinicId;
+        if (isOtherClinic || isActiveAtSameClinic) {
+          return { user: existingPhone, temporaryPassword: null, membershipOnly: true };
+        }
+      }
+
+      if (existingPhone.status === UserStatus.PENDING_ACTIVATION) {
+        throw new BadRequestException({
+          code: 'PHONE_PENDING_STAFF_INVITE',
+          message: 'This phone number already has a pending staff invite.',
+          field: 'phoneNumber',
+          suggestion:
+            'Ask the staff member to sign in with their temporary password, or use a different phone number.',
+        });
+      }
+      throw phoneAlreadyRegistered();
+    }
+
+    const normalizedEmail = email?.trim();
+    if (normalizedEmail) {
+      const existingEmail = await this.userRepository.findOne({ where: { email: normalizedEmail } });
+      if (existingEmail) {
+        throw emailAlreadyRegistered();
+      }
+    }
 
     if (username) {
       const existingUsername = await this.userRepository.findOne({ where: { username } });
@@ -258,11 +311,53 @@ export class UserService {
         return saved;
       });
 
-      this.logger.log(`Staff created by admin: ${phoneNumber} (${role}) — pending activation`);
+      this.logger.log(`Staff created by admin: ${maskPhoneNumber(phoneNumber)} (${role}) — pending activation`);
       return { user: savedUser, temporaryPassword };
     } catch (error) {
       rethrowIfRegistrationError(error);
     }
+  }
+
+  /** Idempotent retry when clinic admin re-submits after a timeout (user row already exists). */
+  private async refreshPendingStaffInvite(
+    user: User,
+    dto: CreateUserByAdminDto,
+  ): Promise<{ user: User; temporaryPassword: string; membershipOnly?: boolean }> {
+    const normalizedEmail = dto.email?.trim();
+    if (normalizedEmail && normalizedEmail !== user.email) {
+      const existingEmail = await this.userRepository.findOne({ where: { email: normalizedEmail } });
+      if (existingEmail && existingEmail.id !== user.id) {
+        throw emailAlreadyRegistered();
+      }
+    }
+
+    if (dto.username && dto.username !== user.username) {
+      const existingUsername = await this.userRepository.findOne({ where: { username: dto.username } });
+      if (existingUsername && existingUsername.id !== user.id) {
+        throw usernameAlreadyTaken();
+      }
+    }
+
+    const temporaryPassword = this.generateTemporaryPassword();
+    const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+    const activationExpiresAt = new Date();
+    activationExpiresAt.setHours(activationExpiresAt.getHours() + STAFF_ACTIVATION_HOURS);
+
+    user.firstName = dto.firstName;
+    user.lastName = dto.lastName;
+    user.email = normalizedEmail || user.email;
+    user.username = dto.username || user.username;
+    user.password = hashedPassword;
+    user.mustChangePassword = true;
+    user.activationExpiresAt = activationExpiresAt;
+    user.specialization = dto.specialization ?? user.specialization;
+    user.licenseNumber = dto.licenseNumber ?? user.licenseNumber;
+
+    const updated = await this.userRepository.save(user);
+    this.logger.log(
+      `Staff invite refreshed for ${maskPhoneNumber(user.phoneNumber)} (${user.role}) — pending activation`,
+    );
+    return { user: updated, temporaryPassword };
   }
 
   async completeStaffActivation(userId: string, newPassword: string): Promise<User> {
@@ -305,7 +400,7 @@ export class UserService {
       updatedAt: new Date().toISOString(),
     });
 
-    this.logger.log(`Staff activation completed: ${user.phoneNumber}`);
+    this.logger.log(`Staff activation completed: ${maskPhoneNumber(user.phoneNumber)}`);
     return updated;
   }
 
@@ -338,14 +433,35 @@ export class UserService {
     return queryBuilder.getMany();
   }
 
-  async findOne(id: string): Promise<User> {
+  async findOne(
+    id: string,
+    options?: { forSelf?: boolean; actorRole?: string },
+  ): Promise<User> {
     const ctxTenant = this.tenantContext.getTenantId();
-    const where = ctxTenant ? tenantFindWhere(ctxTenant, { id }) : { id };
-    const user = await this.userRepository.findOne({ where });
-    if (!user) {
-      throw new NotFoundException('User not found');
+    if (options?.forSelf || !ctxTenant || options?.actorRole === UserRole.SYSTEM_MANAGER) {
+      const user = await this.userRepository.findOne({ where: { id } });
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+      return user;
     }
-    return user;
+
+    const tenantScoped = await this.userRepository.findOne({
+      where: tenantFindWhere(ctxTenant, { id }),
+    });
+    if (tenantScoped) {
+      return tenantScoped;
+    }
+
+    const candidate = await this.userRepository.findOne({ where: { id } });
+    if (candidate?.role === UserRole.PATIENT) {
+      const related = await this.tenantAccess.hasPatientClinicRelation(ctxTenant, id);
+      if (related) {
+        return candidate;
+      }
+    }
+
+    throw new NotFoundException('User not found');
   }
 
   /** Safe doctor card for patients — no phone, email, or password. */
@@ -495,8 +611,8 @@ export class UserService {
     return sanitized;
   }
 
-  async update(id: string, updateUserDto: UpdateUserDto): Promise<User> {
-    const user = await this.findOne(id);
+  async update(id: string, updateUserDto: UpdateUserDto, options?: { forSelf?: boolean }): Promise<User> {
+    const user = await this.findOne(id, options);
     const { profileData, ...scalarFields } = updateUserDto;
 
     if (user.role === UserRole.PATIENT) {
@@ -524,7 +640,7 @@ export class UserService {
       updatedAt: new Date().toISOString(),
     });
 
-    this.logger.log(`User updated: ${user.phoneNumber}`);
+    this.logger.log(`User updated: ${maskPhoneNumber(user.phoneNumber)}`);
     return updatedUser;
   }
 
@@ -541,12 +657,16 @@ export class UserService {
       updatedAt: new Date().toISOString(),
     });
 
-    this.logger.log(`User status updated: ${user.phoneNumber} -> ${updateStatusDto.status}`);
+    this.logger.log(`User status updated: ${maskPhoneNumber(user.phoneNumber)} -> ${updateStatusDto.status}`);
     return updatedUser;
   }
 
-  async changePassword(id: string, changePasswordDto: ChangePasswordDto): Promise<{ message: string }> {
-    const user = await this.findOne(id);
+  async changePassword(
+    id: string,
+    changePasswordDto: ChangePasswordDto,
+    options?: { forSelf?: boolean },
+  ): Promise<{ message: string }> {
+    const user = await this.findOne(id, options);
 
     // Verify current password
     const isPasswordValid = await bcrypt.compare(changePasswordDto.currentPassword, user.password);
@@ -570,7 +690,7 @@ export class UserService {
 
     this.emitPasswordChanged(user);
 
-    this.logger.log(`Password changed for user: ${user.phoneNumber}`);
+    this.logger.log(`Password changed for user: ${maskPhoneNumber(user.phoneNumber)}`);
     return { message: 'Password changed successfully' };
   }
 
@@ -590,7 +710,7 @@ export class UserService {
       deletedAt: new Date().toISOString(),
     });
 
-    this.logger.log(`User deleted: ${user.phoneNumber}`);
+    this.logger.log(`User deleted: ${maskPhoneNumber(user.phoneNumber)}`);
     return { message: 'User deleted successfully' };
   }
 
@@ -611,7 +731,7 @@ export class UserService {
       verifiedAt: new Date().toISOString(),
     });
 
-    this.logger.log(`Phone verified for user: ${phoneNumber}`);
+    this.logger.log(`Phone verified for user: ${maskPhoneNumber(phoneNumber)}`);
     return { message: 'Phone verified successfully' };
   }
 
@@ -627,7 +747,7 @@ export class UserService {
       verifiedAt: new Date().toISOString(),
     });
 
-    this.logger.log(`Email verified for user: ${user.phoneNumber}`);
+    this.logger.log(`Email verified for user: ${maskPhoneNumber(user.phoneNumber)}`);
     return { message: 'Email verified successfully' };
   }
 
@@ -644,43 +764,44 @@ export class UserService {
       updatedAt: new Date().toISOString(),
     });
 
-    this.logger.log(`Dashboard activation updated for user: ${user.phoneNumber} -> ${isActivated}`);
+    this.logger.log(`Dashboard activation updated for user: ${maskPhoneNumber(user.phoneNumber)} -> ${isActivated}`);
     return { message: 'Dashboard activation updated successfully' };
   }
 
-  async validateLogin(phoneNumber: string, password: string, skipPasswordCheck = false): Promise<{ success: boolean; user?: any }> {
+  async validateLogin(phoneNumber: string, password: string): Promise<{ success: boolean; user?: any }> {
     try {
+      if (!phoneNumber?.trim() || !password) {
+        this.logger.warn('Login validation rejected: missing phoneNumber or password');
+        return { success: false };
+      }
+
       const user = await this.findByPhoneNumber(phoneNumber);
 
       const allowedStatuses = [UserStatus.ACTIVE, UserStatus.PENDING_ACTIVATION];
       if (!allowedStatuses.includes(user.status)) {
-        this.logger.warn(`Login attempt for inactive user: ${phoneNumber} (${user.status})`);
+        this.logger.warn(`Login attempt for inactive user: ${maskPhoneNumber(phoneNumber)} (${user.status})`);
         return { success: false };
       }
 
       if (user.status === UserStatus.PENDING_ACTIVATION) {
         if (user.activationExpiresAt && user.activationExpiresAt < new Date()) {
-          this.logger.warn(`Login attempt after activation expired: ${phoneNumber}`);
+          this.logger.warn(`Login attempt after activation expired: ${maskPhoneNumber(phoneNumber)}`);
           return { success: false };
         }
       }
 
-      if (!skipPasswordCheck) {
-        // Verify password
-        const isPasswordValid = await bcrypt.compare(password, user.password);
-        if (!isPasswordValid) {
-          this.logger.warn(`Invalid password for user: ${phoneNumber}`);
-          return { success: false };
-        }
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+      if (!isPasswordValid) {
+        this.logger.warn(`Invalid password for user: ${maskPhoneNumber(phoneNumber)}`);
+        return { success: false };
       }
 
-      // Return user info without password
       const { password: _, ...userWithoutPassword } = user;
 
-      this.logger.log(`Login validated for user: ${phoneNumber} (${user.role})`);
+      this.logger.log(`Login validated for user: ${maskPhoneNumber(phoneNumber)} (${user.role})`);
       return { success: true, user: userWithoutPassword };
     } catch (error: any) {
-      this.logger.error(`Login validation error for ${phoneNumber}: ${error.message}`);
+      this.logger.error(`Login validation error for ${maskPhoneNumber(phoneNumber)}: ${error.message}`);
       return { success: false };
     }
   }
@@ -701,7 +822,7 @@ export class UserService {
     user.password = hashedPassword;
     await this.userRepository.save(user);
     this.emitPasswordChanged(user);
-    this.logger.log(`Password reset (internal) for user: ${user.phoneNumber}`);
+    this.logger.log(`Password reset (internal) for user: ${maskPhoneNumber(user.phoneNumber)}`);
     return { message: 'Password reset successfully' };
   }
 
@@ -824,20 +945,38 @@ export class UserService {
     );
   }
 
-  private ensureAvatarDir(): void {
-    if (!fs.existsSync(AVATAR_DIR)) {
-      fs.mkdirSync(AVATAR_DIR, { recursive: true });
+  private avatarStorageScope(user: User): string {
+    if (user.role === UserRole.PATIENT) {
+      return GLOBAL_PATIENT_STORAGE_SCOPE;
+    }
+    return user.tenantId ?? user.clinicId ?? this.tenantContext.getTenantId() ?? GLOBAL_PATIENT_STORAGE_SCOPE;
+  }
+
+  private avatarDirForScope(scope: string): string {
+    return path.join(process.cwd(), tenantUploadPrefix(scope), 'avatars');
+  }
+
+  private ensureAvatarDirForScope(scope: string): void {
+    const dir = this.avatarDirForScope(scope);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
     }
   }
 
-  private avatarFilePath(userId: string, ext: string): string {
-    return path.join(AVATAR_DIR, `${userId}${ext}`);
+  private avatarFilePathForUser(user: User, ext: string): string {
+    return path.join(this.avatarDirForScope(this.avatarStorageScope(user)), `${user.id}${ext}`);
   }
 
-  private findExistingAvatarPath(userId: string): string | null {
+  private legacyAvatarFilePath(userId: string, ext: string): string {
+    return path.join(LEGACY_AVATAR_DIR, `${userId}${ext}`);
+  }
+
+  private findExistingAvatarPath(user: User): string | null {
     for (const ext of ['.webp', '.jpg', '.jpeg', '.png']) {
-      const candidate = this.avatarFilePath(userId, ext);
-      if (fs.existsSync(candidate)) return candidate;
+      const scoped = this.avatarFilePathForUser(user, ext);
+      if (fs.existsSync(scoped)) return scoped;
+      const legacy = this.legacyAvatarFilePath(user.id, ext);
+      if (fs.existsSync(legacy)) return legacy;
     }
     return null;
   }
@@ -857,7 +996,7 @@ export class UserService {
     if (!user) {
       throw new NotFoundException('User not found');
     }
-    this.ensureAvatarDir();
+    this.ensureAvatarDirForScope(this.avatarStorageScope(user));
 
     const ext =
       file.mimetype === 'image/png'
@@ -866,12 +1005,12 @@ export class UserService {
           ? '.webp'
           : '.jpg';
 
-    const existing = this.findExistingAvatarPath(userId);
-    if (existing && existing !== this.avatarFilePath(userId, ext)) {
+    const existing = this.findExistingAvatarPath(user);
+    const target = this.avatarFilePathForUser(user, ext);
+    if (existing && existing !== target) {
       fs.unlinkSync(existing);
     }
 
-    const target = this.avatarFilePath(userId, ext);
     fs.writeFileSync(target, file.buffer);
 
     const version = Date.now();
@@ -885,10 +1024,69 @@ export class UserService {
     return updated;
   }
 
-  async readAvatar(userId: string): Promise<{ buffer: Buffer; mime: string }> {
-    const filePath = this.findExistingAvatarPath(userId);
+  private async assertAvatarAccess(
+    targetUserId: string,
+    actor: { userId: string; role: string },
+  ): Promise<User> {
+    if (actor.userId === targetUserId) {
+      const self = await this.userRepository.findOne({ where: { id: targetUserId } });
+      if (!self) {
+        throw new NotFoundException(AVATAR_NOT_FOUND);
+      }
+      return self;
+    }
+
+    if (actor.role === UserRole.SYSTEM_MANAGER) {
+      const user = await this.userRepository.findOne({ where: { id: targetUserId } });
+      if (!user) {
+        throw new NotFoundException(AVATAR_NOT_FOUND);
+      }
+      return user;
+    }
+
+    if (actor.role === UserRole.PATIENT) {
+      throw new NotFoundException(AVATAR_NOT_FOUND);
+    }
+
+    if (!STAFF_ROLES.has(actor.role)) {
+      throw new NotFoundException(AVATAR_NOT_FOUND);
+    }
+
+    const tenantId = this.tenantContext.getTenantId();
+    if (!tenantId) {
+      throw new NotFoundException(AVATAR_NOT_FOUND);
+    }
+
+    const target = await this.userRepository.findOne({ where: { id: targetUserId } });
+    if (!target) {
+      throw new NotFoundException(AVATAR_NOT_FOUND);
+    }
+
+    if (target.role === UserRole.PATIENT) {
+      const related = await this.tenantAccess.hasPatientClinicRelation(tenantId, targetUserId);
+      if (!related) {
+        throw new NotFoundException(AVATAR_NOT_FOUND);
+      }
+      return target;
+    }
+
+    const sameTenantStaff = await this.userRepository.findOne({
+      where: tenantFindWhere(tenantId, { id: targetUserId }),
+    });
+    if (!sameTenantStaff) {
+      throw new NotFoundException(AVATAR_NOT_FOUND);
+    }
+    return sameTenantStaff;
+  }
+
+  async readAvatar(
+    userId: string,
+    actor: { userId: string; role: string },
+  ): Promise<{ buffer: Buffer; mime: string }> {
+    const user = await this.assertAvatarAccess(userId, actor);
+    const filePath = this.findExistingAvatarPath(user);
     if (!filePath) {
-      throw new NotFoundException('Avatar not found');
+      throw new NotFoundException(AVATAR_NOT_FOUND);
     }
     const ext = path.extname(filePath).toLowerCase();
     const mime =

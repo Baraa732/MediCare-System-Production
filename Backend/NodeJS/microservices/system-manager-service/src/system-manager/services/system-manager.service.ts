@@ -14,9 +14,33 @@ import {
   SystemManagerLoginDto, CreateSystemManagerDto, CreateClinicAdminDto,
 } from '../dto/system-manager.dto';
 import {
-  GenerateActivationCodeDto, ValidateActivationCodeDto, RevokeActivationCodeDto,
+  ValidateActivationCodeDto, RevokeActivationCodeDto, CreateActivationCodeDto,
 } from '../dto/clinic-admin-activation.dto';
 import { ClinicHttpClient } from './clinic-http.client';
+import { ActivationDocumentService } from './activation-document.service';
+import type { ActivationUploadedFiles } from '../types/activation-documents.types';
+import { ClinicType } from '../enums/clinic-activation.enums';
+
+function formatDateOnly(value: Date | string | null | undefined): string | undefined {
+  if (value == null) return undefined;
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  const text = String(value).trim();
+  if (!text) return undefined;
+  return text.slice(0, 10);
+}
+
+function activationAdminProfile(activation: ClinicAdminActivation) {
+  return {
+    adminFullName: activation.fullName,
+    clinicLocation: activation.clinicLocation,
+    idNumber: activation.idNumber,
+    dateOfBirth: formatDateOnly(activation.dateOfBirth),
+    email: activation.email ?? undefined,
+    registrationLicenseNumber: activation.registrationLicenseNumber || undefined,
+    address: activation.address ?? undefined,
+    phoneNumber: activation.phoneNumber,
+  };
+}
 
 class PhoneUtils {
   static validateSyrianPhone(phoneNumber: string): string {
@@ -42,13 +66,15 @@ export class SystemManagerService {
     @Inject('KAFKA_CLIENT')
     private kafkaClient: ClientKafka,
     private readonly clinicHttpClient: ClinicHttpClient,
+    private readonly activationDocumentService: ActivationDocumentService,
   ) {}
 
   async login(loginDto: SystemManagerLoginDto) {
     const { username, password } = loginDto;
+    const identifier = username.trim();
 
     const systemManager = await this.systemManagerRepository.findOne({
-      where: { username },
+      where: [{ username: identifier }, { email: identifier }],
       select: ['id', 'username', 'password', 'firstName', 'lastName', 'email', 'isActive'],
     });
 
@@ -191,38 +217,111 @@ export class SystemManagerService {
     this.logger.log(`LinkedUserIds updated: systemManager=${systemManagerId} action=${action} user=${userId}`);
   }
 
-  async generateActivationCode(generateDto: GenerateActivationCodeDto, systemManagerId: string) {
-    const { idNumber, phoneNumber, fullName, clinicLocation, price, isCashPaymentDone, notes } = generateDto;
-    const formattedPhoneNumber = PhoneUtils.validateSyrianPhone(phoneNumber);
+  async createActivationCode(
+    dto: CreateActivationCodeDto,
+    systemManagerId: string,
+    files?: ActivationUploadedFiles,
+  ) {
+    return this.generateActivationCode(dto, systemManagerId, files);
+  }
 
-    const existingPending = await this.clinicAdminActivationRepository.findOne({
-      where: [
-        { phoneNumber: formattedPhoneNumber, status: ActivationCodeStatus.PENDING },
-        { idNumber, status: ActivationCodeStatus.PENDING },
-      ],
-    });
+  async generateActivationCode(
+    generateDto: CreateActivationCodeDto,
+    systemManagerId: string,
+    files?: ActivationUploadedFiles,
+  ) {
+    const {
+      idNumber,
+      phoneNumber,
+      fullName,
+      whatsappNumber,
+      email,
+      dateOfBirth,
+      clinicName,
+      clinicType,
+      registrationLicenseNumber,
+      establishmentDate,
+      specialties,
+      latitude,
+      longitude,
+      address,
+      serviceRadiusKm,
+      yearsOfExperience,
+      price,
+      isCashPaymentDone,
+      notes,
+    } = generateDto;
 
-    if (existingPending) {
-      existingPending.status = ActivationCodeStatus.REVOKED;
-      existingPending.revokedAt = new Date();
-      await this.clinicAdminActivationRepository.save(existingPending);
-      this.logger.log(`Revoked existing pending activation code for phone: ${formattedPhoneNumber}`);
+    if (latitude == null || longitude == null) {
+      throw new BadRequestException(
+        'Clinic location is required before activation code generation.',
+      );
     }
 
-    const code = this.generateNumericCode(6);
-    const expiresAt = new Date();
-    expiresAt.setHours(expiresAt.getHours() + 24);
+    this.activationDocumentService.validateRequiredFiles(files);
 
-    const activation = this.clinicAdminActivationRepository.create({
-      code, idNumber, phoneNumber: formattedPhoneNumber, fullName,
-      clinicLocation, price, isCashPaymentDone,
-      status: ActivationCodeStatus.PENDING, expiresAt,
-      generatedBy: systemManagerId, metadata: { notes },
-    });
+    const radiusKm = serviceRadiusKm != null && serviceRadiusKm > 0 ? serviceRadiusKm : 5;
+    const formattedPhoneNumber = PhoneUtils.validateSyrianPhone(phoneNumber);
+    const formattedWhatsapp = PhoneUtils.validateSyrianPhone(whatsappNumber);
 
-    const saved = await this.clinicAdminActivationRepository.save(activation);
+    const saved = await this.clinicAdminActivationRepository.manager.transaction(
+      async (manager) => {
+        const repo = manager.getRepository(ClinicAdminActivation);
 
-    // No user is created here — clinic admin registers themselves after activating the code.
+        const existingPending = await repo.findOne({
+          where: [
+            { phoneNumber: formattedPhoneNumber, status: ActivationCodeStatus.PENDING },
+            { idNumber, status: ActivationCodeStatus.PENDING },
+          ],
+        });
+
+        if (existingPending) {
+          existingPending.status = ActivationCodeStatus.REVOKED;
+          existingPending.revokedAt = new Date();
+          await repo.save(existingPending);
+          this.logger.log(`Revoked existing pending activation code for phone: ${formattedPhoneNumber}`);
+        }
+
+        const code = this.generateNumericCode(6);
+        const expiresAt = new Date();
+        expiresAt.setHours(expiresAt.getHours() + 24);
+
+        const activation = repo.create({
+          code,
+          idNumber,
+          phoneNumber: formattedPhoneNumber,
+          fullName,
+          whatsappNumber: formattedWhatsapp,
+          email: email?.trim() || null,
+          dateOfBirth: new Date(dateOfBirth),
+          clinicLocation: clinicName,
+          clinicType: clinicType ?? ClinicType.PRIVATE_CLINIC,
+          registrationLicenseNumber: registrationLicenseNumber.trim(),
+          establishmentDate: establishmentDate ? new Date(establishmentDate) : null,
+          specialties: specialties ?? [],
+          latitude,
+          longitude,
+          address: address?.trim() || null,
+          serviceRadiusKm: radiusKm,
+          yearsOfExperience: yearsOfExperience ?? null,
+          price,
+          isCashPaymentDone,
+          status: ActivationCodeStatus.PENDING,
+          expiresAt,
+          generatedBy: systemManagerId,
+          metadata: { notes },
+        });
+
+        const persisted = await repo.save(activation);
+
+        const documents = await this.activationDocumentService.persistDocuments(
+          persisted.id,
+          files!,
+        );
+        persisted.documents = documents;
+        return repo.save(persisted);
+      },
+    );
 
     this.kafkaClient.emit('audit.log', {
       action: 'ACTIVATION_CODE_GENERATED',
@@ -230,10 +329,21 @@ export class SystemManagerService {
       resourceId: saved.id,
       performedBy: systemManagerId,
       details: {
-        phoneNumber: formattedPhoneNumber, idNumber, fullName,
-        clinicLocation, price, isCashPaymentDone,
-        code: code.substring(0, 4) + '****',
-        expiresAt: expiresAt.toISOString(),
+        phoneNumber: formattedPhoneNumber,
+        idNumber,
+        fullName,
+        clinicName,
+        clinicType,
+        registrationLicenseNumber,
+        specialties,
+        latitude,
+        longitude,
+        serviceRadiusKm: radiusKm,
+        price,
+        isCashPaymentDone,
+        documentsUploaded: Object.keys(saved.documents ?? {}),
+        code: saved.code.substring(0, 2) + '****',
+        expiresAt: saved.expiresAt.toISOString(),
       },
       timestamp: new Date().toISOString(),
     });
@@ -241,9 +351,68 @@ export class SystemManagerService {
     this.logger.log(`Activation code generated for ${fullName} (${formattedPhoneNumber}) by ${systemManagerId}`);
 
     return {
-      code,
-      expiresAt: expiresAt.toISOString(),
+      code: saved.code,
+      expiresAt: saved.expiresAt.toISOString(),
       message: 'Activation code generated successfully. Share this code with the clinic admin.',
+      latitude: Number(saved.latitude),
+      longitude: Number(saved.longitude),
+      address: saved.address,
+      serviceRadiusKm: saved.serviceRadiusKm,
+      clinicType: saved.clinicType,
+      registrationLicenseNumber: saved.registrationLicenseNumber,
+      specialties: saved.specialties ?? [],
+      whatsappNumber: saved.whatsappNumber,
+      email: saved.email,
+      dateOfBirth: formatDateOnly(saved.dateOfBirth) ?? null,
+      yearsOfExperience: saved.yearsOfExperience,
+      documents: saved.documents ?? {},
+    };
+  }
+
+  async getActivationDocument(
+    code: string,
+    documentField: string,
+  ): Promise<{ buffer: Buffer; mimeType: string; fileName: string }> {
+    const activation = await this.clinicAdminActivationRepository.findOne({ where: { code } });
+    if (!activation) throw new BadRequestException('Invalid activation code');
+
+    const documents = activation.documents ?? {};
+    const ref = documents[documentField as keyof typeof documents];
+    if (!ref) throw new NotFoundException('Document not found for this activation code');
+
+    const buffer = await this.activationDocumentService.readDocument(
+      activation.id,
+      ref.storageKey,
+    );
+
+    return { buffer, mimeType: ref.mimeType, fileName: ref.fileName };
+  }
+
+  private toActivationStatusResponse(activation: ClinicAdminActivation) {
+    return {
+      status: activation.status,
+      expiresAt: activation.expiresAt,
+      usedAt: activation.usedAt,
+      revokedAt: activation.revokedAt,
+      attemptCount: activation.attemptCount,
+      code: activation.code,
+      clinicLocation: activation.clinicLocation,
+      clinicType: activation.clinicType,
+      registrationLicenseNumber: activation.registrationLicenseNumber,
+      establishmentDate: formatDateOnly(activation.establishmentDate) ?? null,
+      specialties: activation.specialties ?? [],
+      fullName: activation.fullName,
+      phoneNumber: activation.phoneNumber,
+      whatsappNumber: activation.whatsappNumber,
+      email: activation.email,
+      dateOfBirth: formatDateOnly(activation.dateOfBirth) ?? null,
+      yearsOfExperience: activation.yearsOfExperience,
+      hasMapLocation: activation.latitude != null && activation.longitude != null,
+      latitude: activation.latitude != null ? Number(activation.latitude) : null,
+      longitude: activation.longitude != null ? Number(activation.longitude) : null,
+      address: activation.address ?? null,
+      serviceRadiusKm: activation.serviceRadiusKm ?? 5,
+      documents: activation.documents ?? {},
     };
   }
 
@@ -278,6 +447,12 @@ export class SystemManagerService {
 
     if (activation.status === ActivationCodeStatus.REVOKED) {
       throw new BadRequestException('Activation code has been revoked');
+    }
+
+    if (activation.latitude == null || activation.longitude == null) {
+      throw new BadRequestException(
+        'Clinic location is not set yet. A system manager must pin the clinic on the map before this code can be activated.',
+      );
     }
 
     // Provision the clinic BEFORE consuming the code — if this fails, code stays PENDING.
@@ -336,8 +511,7 @@ export class SystemManagerService {
     return {
       message: 'Dashboard activated successfully. Your clinic is ready — register with your phone number.',
       phoneNumber: formattedPhoneNumber,
-      adminFullName: activation.fullName,
-      clinicLocation: activation.clinicLocation,
+      ...activationAdminProfile(activation),
     };
   }
 
@@ -369,8 +543,7 @@ export class SystemManagerService {
       found: true,
       activationCodeId: activation.id,
       adminPhoneNumber: activation.phoneNumber,
-      clinicLocation: activation.clinicLocation,
-      adminFullName: activation.fullName,
+      ...activationAdminProfile(activation),
       generatedBy: activation.generatedBy,
     };
   }
@@ -402,13 +575,7 @@ export class SystemManagerService {
   async getActivationCodeStatus(code: string) {
     const activation = await this.clinicAdminActivationRepository.findOne({ where: { code } });
     if (!activation) throw new BadRequestException('Invalid activation code');
-    return {
-      status: activation.status,
-      expiresAt: activation.expiresAt,
-      usedAt: activation.usedAt,
-      revokedAt: activation.revokedAt,
-      attemptCount: activation.attemptCount,
-    };
+    return this.toActivationStatusResponse(activation);
   }
 
   private generateNumericCode(length: number): string {

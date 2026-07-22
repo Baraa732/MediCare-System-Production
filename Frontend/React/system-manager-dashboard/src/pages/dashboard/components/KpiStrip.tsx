@@ -3,6 +3,7 @@ import { alpha } from '@mui/material/styles'
 import { Box, Grid, Typography } from '@mui/material'
 import ReactECharts from 'echarts-for-react'
 import { ArrowDown, ArrowUp, Flame } from 'lucide-react'
+import { DashboardEntrance, DASHBOARD_MOTION, dashboardStaggerDelay } from '../../../components/motion/DashboardEntrance'
 import { sparkOption } from '../dashboardUtils'
 
 export interface KpiItem {
@@ -20,11 +21,16 @@ export interface KpiItem {
   state?: 'healthy' | 'warning' | 'critical'
 }
 
-function KpiCard({ label, value, unit, color, trend, positive, series, burnRate, exhaustionLabel, state }: KpiItem) {
+function KpiCard({ label, value, unit, color, trend, positive, series, burnRate, exhaustionLabel, state, index }: KpiItem & { index: number }) {
   const hasSparkline = series && series.length > 1
   const borderAccent = state === 'critical' ? '#ef4444' : state === 'warning' ? '#f59e0b' : color
 
   return (
+    <DashboardEntrance
+      delay={dashboardStaggerDelay(DASHBOARD_MOTION.kpiBaseDelayMs, index, 55)}
+      variant="scaleIn"
+      sx={{ height: '100%' }}
+    >
     <Box sx={{
       background: alpha(color, 0.06),
       border: `1px solid ${alpha(borderAccent, state ? 0.45 : 0.2)}`,
@@ -63,6 +69,7 @@ function KpiCard({ label, value, unit, color, trend, positive, series, burnRate,
         </Box>
       )}
     </Box>
+    </DashboardEntrance>
   )
 }
 
@@ -80,9 +87,9 @@ function KpiStrip({ items }: { items: KpiItem[] }) {
       }}
     >
       <Grid container spacing={1.5}>
-        {items.map((item) => (
+        {items.map((item, index) => (
           <Grid size={{ xs: 12, sm: 6, md: 4, xl: 2.4 }} key={item.label}>
-            <KpiCard {...item} />
+            <KpiCard {...item} index={index} />
           </Grid>
         ))}
       </Grid>

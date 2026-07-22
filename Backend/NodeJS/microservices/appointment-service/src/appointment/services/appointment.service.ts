@@ -7,9 +7,14 @@ import {
   Inject,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, Between, MoreThanOrEqual } from 'typeorm';
+import { DataSource, EntityManager, Repository, In, Between, MoreThanOrEqual } from 'typeorm';
 import { ClientProxy } from '@nestjs/microservices';
 import { Appointment, AppointmentStatus } from '../entities/appointment.entity';
+import { PatientClinicRelation } from '../entities/patient-clinic-relation.entity';
+import {
+  DoctorPatientAssignment,
+  DoctorPatientAssignmentStatus,
+} from '../entities/doctor-patient-assignment.entity';
 import {
   CreateAppointmentDto,
   UpdateAppointmentDto,
@@ -22,9 +27,11 @@ import { UserHttpClient } from './user-http.client';
 import { ClinicHttpClient } from './clinic-http.client';
 import { SchedulingHttpClient } from './scheduling-http.client';
 import { KafkaTopics } from '../../kafka-shared/topics/topics.config';
-import { withTenantEvent } from '../../tenant-shared/tenant.constants';
 import { TenantContextService } from '../../tenant-shared/tenant-context.service';
 import { tenantFindWhere } from '../../tenant-shared/tenant-query.util';
+import { SignedKafkaPublisher } from '../../kafka-security-shared/signed-kafka.publisher';
+import { PhiAuditPublisherService } from '../../phi-audit-shared/phi-audit.publisher';
+import { PhiAuditAction, PhiAuditResourceType } from '../../phi-audit-shared/types';
 
 export interface AuthUser {
   userId: string;
@@ -39,13 +46,41 @@ export class AppointmentService {
   constructor(
     @InjectRepository(Appointment)
     private readonly appointmentRepo: Repository<Appointment>,
+    @InjectRepository(PatientClinicRelation)
+    private readonly patientClinicRepo: Repository<PatientClinicRelation>,
+    @InjectRepository(DoctorPatientAssignment)
+    private readonly doctorPatientRepo: Repository<DoctorPatientAssignment>,
     @Inject('KAFKA_CLIENT')
     private readonly kafkaClient: ClientProxy,
+    private readonly signedKafka: SignedKafkaPublisher,
     private readonly userHttpClient: UserHttpClient,
     private readonly clinicHttpClient: ClinicHttpClient,
     private readonly schedulingHttpClient: SchedulingHttpClient,
     private readonly tenantContext: TenantContextService,
+    private readonly phiAudit: PhiAuditPublisherService,
+    private readonly dataSource: DataSource,
   ) {}
+
+  private auditAppointment(
+    action: PhiAuditAction,
+    actor: AuthUser,
+    resourceId: string | undefined,
+    tenantId: string | undefined,
+    success: boolean,
+    internalCall = false,
+  ): void {
+    this.phiAudit.emit({
+      action,
+      actorId: actor?.userId,
+      actorRole: actor?.role,
+      tenantId: tenantId ?? this.tenantContext.getTenantId() ?? undefined,
+      resourceType: PhiAuditResourceType.APPOINTMENT,
+      resourceId,
+      success,
+      classification: 'phi',
+      internalCall,
+    });
+  }
 
   async create(dto: CreateAppointmentDto, actor: AuthUser): Promise<Appointment> {
     const patientId = this.resolvePatientId(dto, actor);
@@ -78,10 +113,8 @@ export class AppointmentService {
       scheduledAt.toISOString(),
       durationMinutes,
     );
-    await this.assertNoConflict(dto.clinicId, dto.doctorId, scheduledAt, durationMinutes);
-
     const appointment = this.appointmentRepo.create({
-      clinicId: dto.clinicId,
+      tenantId: dto.clinicId,
       doctorId: dto.doctorId,
       patientId,
       scheduledAt,
@@ -90,11 +123,109 @@ export class AppointmentService {
       status: AppointmentStatus.CONFIRMED,
       createdBy: actor.userId,
     });
-    const saved = await this.appointmentRepo.save(appointment);
+    const saved = await this.saveAppointmentAtomic(
+      appointment,
+      dto.clinicId,
+      dto.doctorId,
+      scheduledAt,
+      durationMinutes,
+    );
+    await this.ensurePatientClinicRelation(patientId, dto.clinicId);
+    await this.ensureDoctorPatientAssignment(
+      dto.clinicId,
+      dto.doctorId,
+      patientId,
+      actor.userId,
+    );
 
-    this.kafkaClient.emit(KafkaTopics.APPOINTMENT_CREATED, this.toEventPayload(saved));
+    this.signedKafka.emit(KafkaTopics.APPOINTMENT_CREATED, this.toEventPayload(saved));
+
+    this.auditAppointment(
+      PhiAuditAction.APPOINTMENT_CREATE,
+      actor,
+      saved.id,
+      saved.tenantId,
+      true,
+    );
 
     return saved;
+  }
+
+  async hasPatientClinicAccess(patientId: string, clinicId: string): Promise<boolean> {
+    const relation = await this.patientClinicRepo.findOne({
+      where: { patientId, tenantId: clinicId },
+    });
+    if (relation) return true;
+
+    const appointment = await this.appointmentRepo.findOne({
+      where: { patientId, tenantId: clinicId },
+    });
+    return Boolean(appointment);
+  }
+
+  async hasDoctorPatientAccess(
+    tenantId: string,
+    doctorId: string,
+    patientId: string,
+  ): Promise<boolean> {
+    const assignment = await this.doctorPatientRepo.findOne({
+      where: {
+        tenantId,
+        doctorId,
+        patientId,
+        status: DoctorPatientAssignmentStatus.ACTIVE,
+      },
+    });
+    if (assignment) return true;
+
+    const appointment = await this.appointmentRepo.findOne({
+      where: { tenantId, doctorId, patientId },
+    });
+    return Boolean(appointment);
+  }
+
+  async ensureDoctorPatientAssignment(
+    tenantId: string,
+    doctorId: string,
+    patientId: string,
+    assignedBy: string,
+  ): Promise<void> {
+    const existing = await this.doctorPatientRepo.findOne({
+      where: { tenantId, doctorId, patientId },
+    });
+
+    if (existing) {
+      existing.status = DoctorPatientAssignmentStatus.ACTIVE;
+      existing.assignedBy = assignedBy;
+      existing.updatedAt = new Date();
+      await this.doctorPatientRepo.save(existing);
+      return;
+    }
+
+    await this.doctorPatientRepo.save(
+      this.doctorPatientRepo.create({
+        tenantId,
+        doctorId,
+        patientId,
+        assignedBy,
+        status: DoctorPatientAssignmentStatus.ACTIVE,
+      }),
+    );
+  }
+
+  async ensurePatientClinicRelation(patientId: string, clinicId: string): Promise<void> {
+    const existing = await this.patientClinicRepo.findOne({
+      where: { patientId, tenantId: clinicId },
+    });
+    if (existing) {
+      existing.lastSeenAt = new Date();
+      await this.patientClinicRepo.save(existing);
+      return;
+    }
+
+    await this.patientClinicRepo.save(
+      this.patientClinicRepo.create({ patientId, tenantId: clinicId }),
+    );
   }
 
   /** Clinic schedule view — clinic staff (admin, secretary, doctor) and system manager. */
@@ -107,7 +238,7 @@ export class AppointmentService {
     const qb = this.appointmentRepo.createQueryBuilder('a').orderBy('a.scheduledAt', 'ASC');
 
     if (actor.role !== 'SYSTEM_MANAGER') {
-      const allowed = await this.clinicHttpClient.checkClinicAccess(query.clinicId, actor.userId);
+      const allowed = await this.clinicHttpClient.checkClinicAccess(query.clinicId, actor.userId, actor.role);
       if (!allowed) throw new ForbiddenException('You do not have access to this clinic');
     }
 
@@ -117,6 +248,16 @@ export class AppointmentService {
       }
       if (!query.doctorId) {
         query.doctorId = actor.userId;
+      }
+      if (query.patientId) {
+        const assigned = await this.hasDoctorPatientAccess(
+          query.clinicId,
+          actor.userId,
+          query.patientId,
+        );
+        if (!assigned) {
+          throw new ForbiddenException('You are not assigned to this patient in this clinic');
+        }
       }
     }
 
@@ -136,7 +277,15 @@ export class AppointmentService {
       qb.andWhere('a.scheduledAt <= :to', { to: new Date(query.to) });
     }
 
-    return qb.getMany();
+    const results = await qb.getMany();
+    this.auditAppointment(
+      PhiAuditAction.APPOINTMENT_READ,
+      actor,
+      query.clinicId,
+      query.clinicId,
+      true,
+    );
+    return results;
   }
 
   async findMine(actor: AuthUser, query: PatientAppointmentQueryDto): Promise<Appointment[]> {
@@ -178,7 +327,15 @@ export class AppointmentService {
       }
     }
 
-    return qb.getMany();
+    const results = await qb.getMany();
+    this.auditAppointment(
+      PhiAuditAction.APPOINTMENT_READ,
+      actor,
+      actor.userId,
+      this.tenantContext.getTenantId() ?? undefined,
+      true,
+    );
+    return results;
   }
 
   async findOne(id: string, actor: AuthUser): Promise<Appointment> {
@@ -189,6 +346,13 @@ export class AppointmentService {
     const appointment = await this.appointmentRepo.findOne({ where });
     if (!appointment) throw new NotFoundException('Appointment not found');
     await this.assertCanView(appointment, actor);
+    this.auditAppointment(
+      PhiAuditAction.APPOINTMENT_READ,
+      actor,
+      appointment.id,
+      appointment.tenantId,
+      true,
+    );
     return appointment;
   }
 
@@ -201,7 +365,8 @@ export class AppointmentService {
     }
 
     const targetDoctorId = dto.doctorId ?? appointment.doctorId;
-    if (dto.doctorId && dto.doctorId !== appointment.doctorId) {
+    const doctorReassigned = Boolean(dto.doctorId && dto.doctorId !== appointment.doctorId);
+    if (doctorReassigned) {
       const doctor = await this.userHttpClient.getUserById(dto.doctorId);
       if (doctor.role !== 'DOCTOR') {
         throw new BadRequestException('Selected user is not a doctor');
@@ -219,7 +384,8 @@ export class AppointmentService {
     const scheduledAt = dto.scheduledAt ? new Date(dto.scheduledAt) : appointment.scheduledAt;
     const duration = dto.durationMinutes ?? appointment.durationMinutes;
 
-    if (dto.scheduledAt || dto.durationMinutes !== undefined || dto.doctorId) {
+    const needsConflictCheck = !!(dto.scheduledAt || dto.durationMinutes !== undefined || dto.doctorId);
+    if (needsConflictCheck) {
       if (scheduledAt <= new Date()) {
         throw new BadRequestException('Appointment must be scheduled in the future');
       }
@@ -228,13 +394,6 @@ export class AppointmentService {
         targetDoctorId,
         scheduledAt.toISOString(),
         duration,
-      );
-      await this.assertNoConflict(
-        appointment.clinicId,
-        targetDoctorId,
-        scheduledAt,
-        duration,
-        appointment.id,
       );
       if (dto.scheduledAt) {
         appointment.scheduledAt = scheduledAt;
@@ -245,8 +404,32 @@ export class AppointmentService {
     if (dto.reason !== undefined) appointment.reason = dto.reason;
     if (dto.notes !== undefined) appointment.notes = dto.notes;
 
-    const saved = await this.appointmentRepo.save(appointment);
-    this.kafkaClient.emit(KafkaTopics.APPOINTMENT_UPDATED, this.toEventPayload(saved));
+    const saved = needsConflictCheck
+      ? await this.saveAppointmentAtomic(
+          appointment,
+          appointment.clinicId,
+          targetDoctorId,
+          scheduledAt,
+          duration,
+          appointment.id,
+        )
+      : await this.appointmentRepo.save(appointment);
+    if (doctorReassigned) {
+      await this.ensureDoctorPatientAssignment(
+        saved.clinicId,
+        saved.doctorId,
+        saved.patientId,
+        actor.userId,
+      );
+    }
+    this.signedKafka.emit(KafkaTopics.APPOINTMENT_UPDATED, this.toEventPayload(saved));
+    this.auditAppointment(
+      PhiAuditAction.APPOINTMENT_UPDATE,
+      actor,
+      saved.id,
+      saved.tenantId,
+      true,
+    );
     return saved;
   }
 
@@ -274,7 +457,18 @@ export class AppointmentService {
           ? KafkaTopics.APPOINTMENT_COMPLETED
           : KafkaTopics.APPOINTMENT_UPDATED;
 
-    this.kafkaClient.emit(topic, this.toEventPayload(saved));
+    this.signedKafka.emit(topic, this.toEventPayload(saved));
+
+    this.auditAppointment(
+      dto.status === AppointmentStatus.CANCELLED
+        ? PhiAuditAction.APPOINTMENT_DELETE
+        : PhiAuditAction.APPOINTMENT_UPDATE,
+      actor,
+      saved.id,
+      saved.tenantId,
+      true,
+    );
+
     return saved;
   }
 
@@ -381,13 +575,26 @@ export class AppointmentService {
     });
 
     const enriched = await this.toPublicEnrichedMany(appointments);
-    return enriched.map((a) => ({
+    const summary = enriched.map((a) => ({
       appointmentId: a.id,
       clinicName: a.clinicName,
       doctorName: a.doctorName,
       scheduledAt: a.scheduledAt,
       status: a.status,
     }));
+
+    this.phiAudit.emit({
+      action: PhiAuditAction.INTERNAL_PHI_ACCESS,
+      actorRole: 'internal-service',
+      tenantId: this.tenantContext.getTenantId() ?? undefined,
+      resourceType: PhiAuditResourceType.APPOINTMENT,
+      resourceId: patientId,
+      success: true,
+      classification: 'phi',
+      internalCall: true,
+    });
+
+    return summary;
   }
 
   async verifyOwnership(patientId: string, appointmentId: string): Promise<boolean> {
@@ -395,9 +602,24 @@ export class AppointmentService {
     const where: Record<string, unknown> = { id: appointmentId, patientId };
     if (tenantId) where.tenantId = tenantId;
     const appointment = await this.appointmentRepo.findOne({ where });
-    if (!appointment) return false;
-    if (tenantId && appointment.tenantId !== tenantId) return false;
-    return appointment.patientId === patientId;
+    const owned = Boolean(
+      appointment &&
+      (!tenantId || appointment.tenantId === tenantId) &&
+      appointment.patientId === patientId,
+    );
+
+    this.phiAudit.emit({
+      action: PhiAuditAction.INTERNAL_PHI_ACCESS,
+      actorRole: 'internal-service',
+      tenantId: tenantId ?? undefined,
+      resourceType: PhiAuditResourceType.APPOINTMENT,
+      resourceId: appointmentId,
+      success: owned,
+      classification: 'phi',
+      internalCall: true,
+    });
+
+    return owned;
   }
 
   private resolveQueryTenantId(actor: AuthUser): string | null {
@@ -414,7 +636,7 @@ export class AppointmentService {
   private async assertCanCreate(dto: CreateAppointmentDto, actor: AuthUser, patientId: string) {
     if (actor.role === 'PATIENT') return;
     if (['SECRETARY', 'CLINIC_ADMIN'].includes(actor.role)) {
-      const allowed = await this.clinicHttpClient.checkClinicAccess(dto.clinicId, actor.userId);
+      const allowed = await this.clinicHttpClient.checkClinicAccess(dto.clinicId, actor.userId, actor.role);
       if (!allowed) throw new ForbiddenException('You do not have access to this clinic');
       return;
     }
@@ -425,9 +647,22 @@ export class AppointmentService {
   private async assertCanView(appointment: Appointment, actor: AuthUser) {
     if (actor.role === 'SYSTEM_MANAGER') return;
     if (actor.role === 'PATIENT' && actor.userId === appointment.patientId) return;
-    if (actor.role === 'DOCTOR' && actor.userId === appointment.doctorId) return;
+    if (actor.role === 'DOCTOR') {
+      if (actor.userId !== appointment.doctorId) {
+        throw new ForbiddenException('You do not have access to this appointment');
+      }
+      const assigned = await this.hasDoctorPatientAccess(
+        appointment.tenantId,
+        actor.userId,
+        appointment.patientId,
+      );
+      if (!assigned) {
+        throw new ForbiddenException('You are not assigned to this patient in this clinic');
+      }
+      return;
+    }
     if (['SECRETARY', 'CLINIC_ADMIN'].includes(actor.role)) {
-      const allowed = await this.clinicHttpClient.checkClinicAccess(appointment.clinicId, actor.userId);
+      const allowed = await this.clinicHttpClient.checkClinicAccess(appointment.clinicId, actor.userId, actor.role);
       if (allowed) return;
     }
     throw new ForbiddenException('You do not have access to this appointment');
@@ -446,7 +681,7 @@ export class AppointmentService {
     }
 
     if (['SECRETARY', 'CLINIC_ADMIN'].includes(actor.role)) {
-      const allowed = await this.clinicHttpClient.checkClinicAccess(appointment.clinicId, actor.userId);
+      const allowed = await this.clinicHttpClient.checkClinicAccess(appointment.clinicId, actor.userId, actor.role);
       if (allowed) return;
     }
 
@@ -465,7 +700,7 @@ export class AppointmentService {
     if (actor.role === 'SYSTEM_MANAGER') return;
     if (actor.userId === appointment.patientId) return;
     if (['CLINIC_ADMIN', 'SECRETARY'].includes(actor.role)) {
-      const allowed = await this.clinicHttpClient.checkClinicAccess(appointment.clinicId, actor.userId);
+      const allowed = await this.clinicHttpClient.checkClinicAccess(appointment.clinicId, actor.userId, actor.role);
       if (allowed) return;
     }
     throw new ForbiddenException('You cannot modify this appointment');
@@ -505,17 +740,46 @@ export class AppointmentService {
     }
   }
 
-  private async assertNoConflict(
+  private isOverlapViolation(error: unknown): boolean {
+    return (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      (error as { code: string }).code === '23P01'
+    );
+  }
+
+  private rethrowIfOverlapViolation(error: unknown): never {
+    if (this.isOverlapViolation(error)) {
+      throw new ConflictException('Doctor already has an appointment at this time');
+    }
+    throw error;
+  }
+
+  private async acquireDoctorSlotLock(
+    manager: EntityManager,
+    clinicId: string,
+    doctorId: string,
+  ): Promise<void> {
+    await manager.query(`SELECT pg_advisory_xact_lock(hashtext($1::text || ':' || $2::text))`, [
+      clinicId,
+      doctorId,
+    ]);
+  }
+
+  private async assertNoConflictWithManager(
+    manager: EntityManager,
     clinicId: string,
     doctorId: string,
     scheduledAt: Date,
     durationMinutes: number,
     excludeId?: string,
-  ) {
+  ): Promise<void> {
     const start = scheduledAt.getTime();
     const end = start + durationMinutes * 60_000;
 
-    const qb = this.appointmentRepo
+    const qb = manager
+      .getRepository(Appointment)
       .createQueryBuilder('a')
       .where('a.tenant_id = :tenantId', { tenantId: clinicId })
       .andWhere('a.doctorId = :doctorId', { doctorId })
@@ -534,6 +798,49 @@ export class AppointmentService {
     }
   }
 
+  private async saveAppointmentAtomic(
+    appointment: Appointment,
+    clinicId: string,
+    doctorId: string,
+    scheduledAt: Date,
+    durationMinutes: number,
+    excludeId?: string,
+  ): Promise<Appointment> {
+    return this.dataSource.transaction(async (manager) => {
+      await this.acquireDoctorSlotLock(manager, clinicId, doctorId);
+      await this.assertNoConflictWithManager(
+        manager,
+        clinicId,
+        doctorId,
+        scheduledAt,
+        durationMinutes,
+        excludeId,
+      );
+      try {
+        return await manager.save(Appointment, appointment);
+      } catch (error) {
+        this.rethrowIfOverlapViolation(error);
+      }
+    });
+  }
+
+  async verifyKafkaEvent(input: {
+    appointmentId: string;
+    tenantId: string;
+    patientId?: string;
+    doctorId?: string;
+    status?: string;
+  }): Promise<boolean> {
+    const appointment = await this.appointmentRepo.findOne({
+      where: { id: input.appointmentId, tenantId: input.tenantId },
+    });
+    if (!appointment) return false;
+    if (input.patientId && appointment.patientId !== input.patientId) return false;
+    if (input.doctorId && appointment.doctorId !== input.doctorId) return false;
+    if (input.status && appointment.status !== input.status) return false;
+    return true;
+  }
+
   private toEventPayload(appointment: Appointment) {
     const payload = {
       appointmentId: appointment.id,
@@ -545,6 +852,6 @@ export class AppointmentService {
       durationMinutes: appointment.durationMinutes,
       status: appointment.status,
     };
-    return withTenantEvent(appointment.tenantId, payload);
+    return payload;
   }
 }

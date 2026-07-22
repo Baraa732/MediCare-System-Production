@@ -2,10 +2,12 @@ import { useEffect } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 import { msUntilExpiry } from '../../lib/auth'
+import { resolveSessionToken } from '../../lib/sessionToken'
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
-  const token = useAuthStore((s) => s.token)
+  const storeToken = useAuthStore((s) => s.token)
+  const token = resolveSessionToken(storeToken)
   const validateSession = useAuthStore((s) => s.validateSession)
   const logout = useAuthStore((s) => s.logout)
   const location = useLocation()

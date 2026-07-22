@@ -1,25 +1,28 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
   Eye,
   EyeOff,
+  ImageIcon,
   MapPin,
   Shield,
   User,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { registerClinicAdmin } from "@/lib/api/auth";
 import { normalizeCaughtError } from "@/lib/api/errors";
-import { fetchOnboardingStatus } from "@/lib/onboarding";
-import { formatPhoneDisplay } from "@/lib/phone";
+import { applyActivationProfileToForm, activationContextFromStatus, activationFieldLocks } from "@/lib/activationProfile";
+import { fetchOnboardingStatus, clearActivationProgress } from "@/lib/onboarding";
 import { useAuthStore } from "@/stores/authStore";
 import { useOnboardingStore } from "@/stores/onboardingStore";
+import { useRegistrationImagesStore } from "@/stores/registrationImagesStore";
 import { RegisterSubSteps } from "@/components/auth/AuthStepProgress";
 import { ResumeRegistrationPanel } from "@/components/auth/ResumeRegistrationPanel";
+import { ImageUploadZone } from "@/components/auth/ImageUploadZone";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,21 +44,14 @@ const schema = z
     gender: z.enum(["MALE", "FEMALE", "OTHER"], {
       message: "Select your gender",
     }),
-    birthDate: z.string().min(1, "Date of birth is required"),
     birthPlace: z.string().min(2, "Birth place is required"),
-    nationalId: z.string().optional(),
-    maritalStatus: z
-      .enum(["SINGLE", "MARRIED", "DIVORCED", "WIDOWED"])
-      .optional(),
-    motherName: z.string().optional(),
-    motherLastName: z.string().optional(),
     phoneNumber: z.string().min(8, "Phone number is required"),
     email: z
       .string()
       .email("Enter a valid email")
       .optional()
       .or(z.literal("")),
-    governorate: z.string().min(2, "Governorate is required"),
+    governorate: z.string().optional().or(z.literal("")),
     state: z.string().optional(),
     streetInfo: z.string().optional(),
     licenseNumber: z.string().optional(),
@@ -70,24 +66,20 @@ const schema = z
 type FormValues = z.infer<typeof schema>;
 
 const STEP_FIELDS: (keyof FormValues)[][] = [
-  [
-    "firstName",
-    "middleName",
-    "lastName",
-    "gender",
-    "birthDate",
-    "birthPlace",
-    "nationalId",
-    "maritalStatus",
-    "motherName",
-    "motherLastName",
-  ],
-  ["phoneNumber", "email", "governorate", "state", "streetInfo", "licenseNumber"],
+  ["firstName", "middleName", "lastName", "gender", "birthPlace"],
+  [],
   ["password", "confirmPassword"],
 ];
 
+const IMAGES_STEP = 1;
+
 const selectClass =
-  "h-11 w-full rounded-lg border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
+  "h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm outline-none transition-colors focus-visible:border-[#0066ff] focus-visible:ring-2 focus-visible:ring-[#0066ff]/15";
+
+const lockedInputClass =
+  "h-10 rounded-xl bg-[#f7f9fc] border border-neutral-200 text-[#1A1B1E] cursor-not-allowed text-sm";
+
+const fieldClass = "h-10 rounded-xl border-neutral-200";
 
 export function RegisterPage() {
   const navigate = useNavigate();
@@ -97,14 +89,28 @@ export function RegisterPage() {
   const activationContext = sessionContext ?? persistedContext;
   const activatedPhone = useOnboardingStore((s) => s.activatedPhone);
   const setPendingRegistration = useAuthStore((s) => s.setPendingRegistration);
-  const [gatePhase, setGatePhase] = useState<"loading" | "resume" | "form">(
-    "loading",
+  const lockedFields = useMemo(
+    () => ({
+      ...activationFieldLocks(activationContext),
+      phone: Boolean(
+        activationContext?.phoneNumber ?? phoneFromActivation ?? activatedPhone,
+      ),
+    }),
+    [activationContext, phoneFromActivation, activatedPhone],
   );
+  const [gatePhase, setGatePhase] = useState<
+    "loading" | "resume" | "form" | "already-registered"
+  >("loading");
   const [step, setStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const profileImage = useRegistrationImagesStore((s) => s.profileImage);
+  const clinicImage = useRegistrationImagesStore((s) => s.clinicImage);
+  const setProfileImage = useRegistrationImagesStore((s) => s.setProfileImage);
+  const setClinicImage = useRegistrationImagesStore((s) => s.setClinicImage);
+  const clearRegistrationImages = useRegistrationImagesStore((s) => s.clear);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -113,13 +119,8 @@ export function RegisterPage() {
       middleName: "",
       lastName: "",
       gender: undefined,
-      birthDate: "",
       birthPlace: "",
-      nationalId: "",
-      maritalStatus: undefined,
-      motherName: "",
-      motherLastName: "",
-      phoneNumber: phoneFromActivation ?? "",
+      phoneNumber: "",
       email: "",
       governorate: "",
       state: "",
@@ -146,13 +147,8 @@ export function RegisterPage() {
         if (cancelled) return;
 
         if (status.canLogin) {
-          navigate("/auth/login", {
-            replace: true,
-            state: {
-              flash:
-                "You already registered. Sign in with your phone and password.",
-            },
-          });
+          clearActivationProgress();
+          if (!cancelled) setGatePhase("already-registered");
           return;
         }
 
@@ -168,6 +164,15 @@ export function RegisterPage() {
         }
 
         form.setValue("phoneNumber", status.phoneNumber);
+        applyActivationProfileToForm(
+          {
+            setValue: (name, value, options) =>
+              form.setValue(name as keyof FormValues, value as FormValues[keyof FormValues], options),
+            getValues: (name) => form.getValues(name as keyof FormValues),
+          },
+          activationContextFromStatus(status) ?? null,
+          status.phoneNumber,
+        );
         setGatePhase("form");
       } catch {
         if (!cancelled) setGatePhase("resume");
@@ -181,26 +186,40 @@ export function RegisterPage() {
   }, [phoneFromActivation, activatedPhone, navigate, form]);
 
   useEffect(() => {
-    if (!activationContext?.adminFullName) return;
-    const parts = activationContext.adminFullName.trim().split(/\s+/);
-    if (parts.length >= 1 && !form.getValues("firstName")) {
-      form.setValue("firstName", parts[0]);
-    }
-    if (parts.length >= 2 && !form.getValues("lastName")) {
-      form.setValue("lastName", parts.slice(1).join(" "));
-    }
-  }, [activationContext, form]);
+    const phone = phoneFromActivation ?? activatedPhone ?? undefined;
+    applyActivationProfileToForm(
+      {
+        setValue: (name, value, options) =>
+          form.setValue(name as keyof FormValues, value as FormValues[keyof FormValues], options),
+        getValues: (name) => form.getValues(name as keyof FormValues),
+      },
+      activationContext,
+      phone,
+    );
+  }, [activationContext, form, phoneFromActivation, activatedPhone]);
 
   const goNext = async () => {
     setError(null);
-    const valid = await form.trigger(STEP_FIELDS[step]);
-    if (!valid) return;
+    if (step === IMAGES_STEP) {
+      if (!profileImage || !clinicImage) {
+        setError("Please upload both your profile photo and clinic image.");
+        return;
+      }
+      setStep((s) => Math.min(s + 1, STEP_FIELDS.length - 1));
+      return;
+    }
+    const valid = await form.trigger(STEP_FIELDS[step], { shouldFocus: true });
+    if (!valid) {
+      setError("Please complete the required fields below to continue.");
+      return;
+    }
     setStep((s) => Math.min(s + 1, STEP_FIELDS.length - 1));
   };
 
   const goBack = () => {
     setError(null);
     if (step === 0) {
+      clearRegistrationImages();
       navigate("/auth/activate-code");
       return;
     }
@@ -219,13 +238,10 @@ export function RegisterPage() {
         password: data.password,
         email: data.email || undefined,
         gender: data.gender,
-        birthDate: data.birthDate,
+        birthDate: activationContext?.dateOfBirth || undefined,
         birthPlace: data.birthPlace,
-        nationalId: data.nationalId || undefined,
-        maritalStatus: data.maritalStatus,
-        motherName: data.motherName || undefined,
-        motherLastName: data.motherLastName || undefined,
-        governorate: data.governorate,
+        nationalId: activationContext?.idNumber || undefined,
+        governorate: data.governorate || undefined,
         state: data.state || undefined,
         streetInfo: data.streetInfo || undefined,
         licenseNumber: data.licenseNumber || undefined,
@@ -251,34 +267,49 @@ export function RegisterPage() {
 
   const stepTitles = [
     { icon: User, title: "Personal information", desc: "Your identity as clinic administrator" },
-    { icon: MapPin, title: "Contact & location", desc: "How patients and staff reach you" },
+    { icon: ImageIcon, title: "Clinic branding", desc: "Upload your profile photo and clinic image" },
     { icon: Shield, title: "Secure your account", desc: "Create a strong password" },
   ];
   const StepIcon = stepTitles[step].icon;
 
   if (gatePhase === "loading") {
     return (
-      <div className="p-7 py-16 text-center text-[#929296] text-sm">
+      <div className="px-5 py-10 text-center text-[#929296] text-sm">
         Checking your clinic status…
+      </div>
+    );
+  }
+
+  if (gatePhase === "already-registered") {
+    return (
+      <div className="px-5 pb-5 pt-2 sm:px-6 text-center space-y-3">
+        <h1 className="font-semibold text-xl text-[#1A1B1E]">Account already exists</h1>
+        <p className="text-sm text-[#929296] leading-relaxed">
+          This phone number already has a clinic admin account. Sign in with your
+          phone and password to open the dashboard.
+        </p>
+        <Button
+          asChild
+          className="w-full h-11 rounded-xl bg-[#0066ff] hover:bg-[#0052cc] text-white font-medium"
+        >
+          <Link to="/auth/login">Go to sign in</Link>
+        </Button>
       </div>
     );
   }
 
   if (gatePhase === "resume") {
     return (
-      <div className="p-7 pt-4">
-        <div className="mb-5">
-          <h1 className="font-semibold text-2xl text-[#1A1B1E]">
+      <div className="px-5 py-3 sm:px-6">
+        <div className="mb-4">
+          <h1 className="font-semibold text-xl text-[#1A1B1E]">
             Complete your profile
           </h1>
           <p className="text-[#929296] mt-1 text-sm">
             Resume registration for your activated clinic dashboard.
           </p>
         </div>
-        <ResumeRegistrationPanel
-          initialPhone={activatedPhone ?? ""}
-          onReady={() => setGatePhase("form")}
-        />
+        <ResumeRegistrationPanel onReady={() => setGatePhase("form")} />
         <div className="mt-6 text-center">
           <Link
             to="/auth/login"
@@ -292,22 +323,25 @@ export function RegisterPage() {
   }
 
   return (
-    <div className="p-7 pt-4">
+    <div>
       <div className="mb-4">
-        <div className="inline-flex items-center gap-2 rounded-full bg-[#ecf3ff] px-3 py-1 text-xs font-medium text-[#0066ff] mb-3">
+        <div className="inline-flex items-center gap-1.5 rounded-full bg-[#ecf3ff] px-3 py-1 text-[11px] font-semibold text-[#0066ff] mb-2">
           <StepIcon className="h-3.5 w-3.5" />
           Step 2 — {stepTitles[step].title}
         </div>
-        <h1 className="font-semibold text-2xl text-[#1A1B1E]">
+        <h1 className="font-semibold text-lg text-[#1A1B1E] tracking-tight">
           Complete your profile
         </h1>
-        <p className="text-[#929296] mt-1 text-sm">{stepTitles[step].desc}</p>
+        <p className="text-[#929296] mt-0.5 text-sm">{stepTitles[step].desc}</p>
       </div>
 
       {activationContext?.clinicLocation && (
-        <div className="mb-4 rounded-xl border border-[#0066ff]/20 bg-[#ecf3ff]/60 px-4 py-3 text-sm text-[#1A1B1E] auth-page-enter">
-          <span className="font-medium text-[#0066ff]">Clinic location: </span>
-          {activationContext.clinicLocation}
+        <div className="mb-3 flex items-center gap-2 rounded-xl border border-[#0066ff]/15 bg-[#ecf3ff]/50 px-3 py-2 text-xs text-[#1A1B1E]">
+          <MapPin className="h-3.5 w-3.5 shrink-0 text-[#0066ff]" />
+          <span>
+            <span className="font-semibold text-[#0066ff]">Clinic: </span>
+            {activationContext.clinicLocation}
+          </span>
         </div>
       )}
 
@@ -322,16 +356,18 @@ export function RegisterPage() {
           }
           void onSubmit(e);
         }}
-        className="space-y-4"
+        className="space-y-3"
       >
         {step === 0 && (
           <div className="space-y-4 auth-page-enter">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1.5">
-                <Label>First name *</Label>
+                <Label className="text-xs font-medium text-[#1A1B1E]">First name *</Label>
                 <Input
                   {...form.register("firstName")}
-                  className="h-11"
+                  placeholder="First name"
+                  className={cn(fieldClass, lockedFields.name && lockedInputClass)}
+                  readOnly={lockedFields.name}
                   disabled={loading}
                 />
                 {form.formState.errors.firstName && (
@@ -341,18 +377,21 @@ export function RegisterPage() {
                 )}
               </div>
               <div className="space-y-1.5">
-                <Label>Middle name</Label>
+                <Label className="text-xs font-medium text-[#1A1B1E]">Middle name</Label>
                 <Input
                   {...form.register("middleName")}
-                  className="h-11"
+                  placeholder="Optional"
+                  className={fieldClass}
                   disabled={loading}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>Last name *</Label>
+                <Label className="text-xs font-medium text-[#1A1B1E]">Last name *</Label>
                 <Input
                   {...form.register("lastName")}
-                  className="h-11"
+                  placeholder="Last name"
+                  className={cn(fieldClass, lockedFields.name && lockedInputClass)}
+                  readOnly={lockedFields.name}
                   disabled={loading}
                 />
                 {form.formState.errors.lastName && (
@@ -365,20 +404,26 @@ export function RegisterPage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Gender *</Label>
-                <select
-                  {...form.register("gender")}
-                  className={selectClass}
-                  disabled={loading}
-                  defaultValue=""
-                >
-                  <option value="" disabled>
-                    Select gender
-                  </option>
-                  <option value="MALE">Male</option>
-                  <option value="FEMALE">Female</option>
-                  <option value="OTHER">Other</option>
-                </select>
+                <Label className="text-xs font-medium text-[#1A1B1E]">Gender *</Label>
+                <Controller
+                  name="gender"
+                  control={form.control}
+                  render={({ field }) => (
+                    <select
+                      {...field}
+                      value={field.value ?? ""}
+                      className={selectClass}
+                      disabled={loading}
+                    >
+                      <option value="" disabled>
+                        Select gender
+                      </option>
+                      <option value="MALE">Male</option>
+                      <option value="FEMALE">Female</option>
+                      <option value="OTHER">Other</option>
+                    </select>
+                  )}
+                />
                 {form.formState.errors.gender && (
                   <p className="text-xs text-red-500">
                     {form.formState.errors.gender.message}
@@ -386,28 +431,11 @@ export function RegisterPage() {
                 )}
               </div>
               <div className="space-y-1.5">
-                <Label>Date of birth *</Label>
-                <Input
-                  type="date"
-                  {...form.register("birthDate")}
-                  className="h-11"
-                  disabled={loading}
-                />
-                {form.formState.errors.birthDate && (
-                  <p className="text-xs text-red-500">
-                    {form.formState.errors.birthDate.message}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Birth place *</Label>
+                <Label className="text-xs font-medium text-[#1A1B1E]">Birth place *</Label>
                 <Input
                   {...form.register("birthPlace")}
-                  placeholder="City, governorate"
-                  className="h-11"
+                  placeholder="City or town where you were born"
+                  className={fieldClass}
                   disabled={loading}
                 />
                 {form.formState.errors.birthPlace && (
@@ -416,119 +444,28 @@ export function RegisterPage() {
                   </p>
                 )}
               </div>
-              <div className="space-y-1.5">
-                <Label>National ID</Label>
-                <Input
-                  {...form.register("nationalId")}
-                  className="h-11"
-                  disabled={loading}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="space-y-1.5">
-                <Label>Marital status</Label>
-                <select
-                  {...form.register("maritalStatus")}
-                  className={selectClass}
-                  disabled={loading}
-                  defaultValue=""
-                >
-                  <option value="">Not specified</option>
-                  <option value="SINGLE">Single</option>
-                  <option value="MARRIED">Married</option>
-                  <option value="DIVORCED">Divorced</option>
-                  <option value="WIDOWED">Widowed</option>
-                </select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Mother&apos;s first name</Label>
-                <Input
-                  {...form.register("motherName")}
-                  className="h-11"
-                  disabled={loading}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Mother&apos;s last name</Label>
-                <Input
-                  {...form.register("motherLastName")}
-                  className="h-11"
-                  disabled={loading}
-                />
-              </div>
             </div>
           </div>
         )}
 
-        {step === 1 && (
+        {step === IMAGES_STEP && (
           <div className="space-y-4 auth-page-enter">
-            <div className="space-y-1.5">
-              <Label>Phone number</Label>
-              <Input
-                readOnly
-                className="h-11 bg-neutral-50 text-[#929296]"
-                value={formatPhoneDisplay(
-                  phoneFromActivation ?? activatedPhone ?? "",
-                )}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Work email</Label>
-              <Input
-                type="email"
-                {...form.register("email")}
-                placeholder="admin@yourclinic.com"
-                className="h-11"
-                disabled={loading}
-              />
-              {form.formState.errors.email && (
-                <p className="text-xs text-red-500">
-                  {form.formState.errors.email.message}
-                </p>
-              )}
-            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Governorate *</Label>
-                <Input
-                  {...form.register("governorate")}
-                  placeholder="e.g. Damascus"
-                  className="h-11"
-                  disabled={loading}
-                />
-                {form.formState.errors.governorate && (
-                  <p className="text-xs text-red-500">
-                    {form.formState.errors.governorate.message}
-                  </p>
-                )}
-              </div>
-              <div className="space-y-1.5">
-                <Label>City / area</Label>
-                <Input
-                  {...form.register("state")}
-                  className="h-11"
-                  disabled={loading}
-                />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Street address</Label>
-              <Input
-                {...form.register("streetInfo")}
-                placeholder="Building, street, landmark"
-                className="h-11"
+              <ImageUploadZone
+                label="Profile image"
+                helper="Your photo as clinic administrator"
+                value={profileImage}
+                onChange={setProfileImage}
                 disabled={loading}
+                variant="circle"
               />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Professional license (optional)</Label>
-              <Input
-                {...form.register("licenseNumber")}
-                placeholder="Medical admin or practice license"
-                className="h-11"
+              <ImageUploadZone
+                label="Clinic image"
+                helper="Logo or photo representing your clinic"
+                value={clinicImage}
+                onChange={setClinicImage}
                 disabled={loading}
+                variant="square"
               />
             </div>
           </div>
@@ -536,15 +473,21 @@ export function RegisterPage() {
 
         {step === 2 && (
           <div className="space-y-4 auth-page-enter">
-            <div className="space-y-1.5">
-              <Label>Password *</Label>
-              <div className="relative">
-                <Input
-                  {...form.register("password")}
-                  type={showPassword ? "text" : "password"}
-                  className="h-11 pr-11"
-                  disabled={loading}
-                />
+            <div className="rounded-xl border border-neutral-100 bg-[#fafcff] p-3.5 space-y-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-[#929296]">
+                Account security
+              </p>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-[#1A1B1E]">Password *</Label>
+                <div className="relative">
+                  <Input
+                    {...form.register("password")}
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Create a strong password"
+                    autoComplete="off"
+                    className={cn(fieldClass, "pr-11")}
+                    disabled={loading}
+                  />
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
@@ -566,15 +509,17 @@ export function RegisterPage() {
                 8+ characters with uppercase, lowercase, number, and special character
               </p>
             </div>
-            <div className="space-y-1.5">
-              <Label>Confirm password *</Label>
-              <div className="relative">
-                <Input
-                  {...form.register("confirmPassword")}
-                  type={showConfirm ? "text" : "password"}
-                  className="h-11 pr-11"
-                  disabled={loading}
-                />
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-[#1A1B1E]">Confirm password *</Label>
+                <div className="relative">
+                  <Input
+                    {...form.register("confirmPassword")}
+                    type={showConfirm ? "text" : "password"}
+                    placeholder="Repeat your password"
+                    autoComplete="off"
+                    className={cn(fieldClass, "pr-11")}
+                    disabled={loading}
+                  />
                 <button
                   type="button"
                   onClick={() => setShowConfirm((v) => !v)}
@@ -593,6 +538,7 @@ export function RegisterPage() {
                 </p>
               )}
             </div>
+            </div>
           </div>
         )}
 
@@ -608,7 +554,7 @@ export function RegisterPage() {
             variant="outline"
             onClick={goBack}
             disabled={loading}
-            className="h-11 rounded-xl flex-1"
+            className="h-10 rounded-xl flex-1 border-neutral-200"
           >
             <ArrowLeft className="h-4 w-4 mr-1" />
             Back
@@ -616,9 +562,7 @@ export function RegisterPage() {
           <Button
             type="submit"
             disabled={loading}
-            className={cn(
-              "h-11 rounded-xl flex-1 bg-[#0066ff] hover:bg-[#0052cc] text-white",
-            )}
+            className="h-10 rounded-xl flex-1 bg-[#0066ff] hover:bg-[#0052cc] text-white shadow-sm shadow-blue-200"
           >
             {loading ? (
               "Creating account…"
@@ -634,7 +578,7 @@ export function RegisterPage() {
         </div>
       </form>
 
-      <div className="mt-5 text-center">
+      <div className="mt-3 text-center">
         <Link
           to="/auth/login"
           className="text-[#0066ff] text-sm hover:underline"

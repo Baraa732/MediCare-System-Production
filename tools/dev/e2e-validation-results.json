@@ -1,0 +1,51 @@
+{
+  "passed": [
+    {
+      "flow": "FLOW 1 — Clinic Admin login → MFA → dashboard",
+      "detail": "MFA OK, GET /clinics → 1 clinic(s)"
+    },
+    {
+      "flow": "FLOW 2 — Doctor login → MFA → trusted device → appointments",
+      "detail": "trusted device bypass=true, GET /appointments → 200"
+    },
+    {
+      "flow": "FLOW 3 — Secretary login → MFA → appointments",
+      "detail": "MFA required OK, GET /appointments → 200"
+    },
+    {
+      "flow": "FLOW 4 — Patient book appointment → Kafka downstream",
+      "detail": "appointment d821cf16-2cf6-4c40-a3f8-a42160eadf44, processed_kafka_messages notif+1 rem+1"
+    },
+    {
+      "flow": "FLOW 5 — Doctor EMR access → phi_audit_logs",
+      "detail": "EMR 200, phi_audit_logs +1"
+    },
+    {
+      "flow": "FLOW 6 — Negative security tests",
+      "detail": "revoked JWT=status 400, forged internal HMAC=status 401, invalid tenant header=status 200 (gateway strips forged x-tenant-id), no JWT=status 401"
+    }
+  ],
+  "failed": [],
+  "negatives": [
+    {
+      "test": "revoked JWT",
+      "status": "PASS",
+      "detail": "status 400"
+    },
+    {
+      "test": "forged internal HMAC",
+      "status": "PASS",
+      "detail": "status 401"
+    },
+    {
+      "test": "invalid tenant header",
+      "status": "PASS",
+      "detail": "status 200 (gateway strips forged x-tenant-id)"
+    },
+    {
+      "test": "no JWT",
+      "status": "PASS",
+      "detail": "status 401"
+    }
+  ]
+}

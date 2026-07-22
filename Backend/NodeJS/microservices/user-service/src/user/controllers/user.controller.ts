@@ -2,14 +2,14 @@ import {
   Controller, Get, Post, Put, Patch, Delete,
   Body, Param, Query, Request, UseGuards, UseInterceptors, UploadedFile,
   ForbiddenException, HttpCode, HttpStatus,
-  UnauthorizedException, BadRequestException, StreamableFile,
+  UnauthorizedException, BadRequestException, NotFoundException, StreamableFile,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
-import * as crypto from 'crypto';
 import { InternalServiceGuard } from '../guards/internal-service.guard';
+import { InternalRouteAllow } from '../../internal-auth-shared/internal-route-allow.decorator';
 import { UserService } from '../services/user.service';
-import { CreateUserDto, UpdateUserDto, ChangePasswordDto, UpdateUserStatusDto } from '../dto/user.dto';
+import { CreateUserDto, UpdateUserDto, ChangePasswordDto, UpdateUserStatusDto, ValidateLoginDto } from '../dto/user.dto';
 import { CreateUserByAdminDto } from '../dto/create-user-by-admin.dto';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { RolesGuard } from '../guards/roles.guard';
@@ -18,6 +18,14 @@ import { User } from '../entities/user.entity';
 import { rethrowIfRegistrationError } from '../../common/errors/registration.errors';
 import { TenantGuard } from '../../tenant-shared/tenant.guard';
 import { SkipTenantGuard } from '../../tenant-shared/tenant.decorators';
+import { PhiAuditPublisherService } from '../../phi-audit-shared/phi-audit.publisher';
+import { buildPhiAuditContextFromRequest } from '../../phi-audit-shared/phi-audit-context';
+import {
+  PhiAuditAction,
+  PhiAuditResourceType,
+} from '../../phi-audit-shared/types';
+import { TenantContextService } from '../../tenant-shared/tenant-context.service';
+import { HttpTenantAccessChecker } from '../../tenant-shared/tenant-access-checker';
 
 // Internal endpoints (validate-login, reset-password-internal) are defined in
 // InternalUserController below — they must NOT inherit the class-level JwtAuthGuard.
@@ -25,7 +33,12 @@ import { SkipTenantGuard } from '../../tenant-shared/tenant.decorators';
 @Controller('v1/users')
 @UseGuards(JwtAuthGuard, TenantGuard)
 export class UserController {
-  constructor(private readonly userService: UserService) {}
+  constructor(
+    private readonly userService: UserService,
+    private readonly phiAudit: PhiAuditPublisherService,
+    private readonly tenantContext: TenantContextService,
+    private readonly tenantAccess: HttpTenantAccessChecker,
+  ) {}
 
   // Internal-only: create user — restricted to SYSTEM_MANAGER and CLINIC_ADMIN
   @Post()
@@ -59,8 +72,16 @@ export class UserController {
   @Get('phone/:phoneNumber')
   @UseGuards(RolesGuard)
   @Roles('SYSTEM_MANAGER', 'CLINIC_ADMIN')
-  async findByPhoneNumber(@Param('phoneNumber') phoneNumber: string) {
+  async findByPhoneNumber(@Param('phoneNumber') phoneNumber: string, @Request() req) {
     const user = await this.userService.findByPhoneNumber(phoneNumber);
+    this.phiAudit.emit({
+      ...buildPhiAuditContextFromRequest(req, this.tenantContext),
+      action: PhiAuditAction.PATIENT_LOOKUP_PHONE,
+      resourceType: PhiAuditResourceType.PATIENT,
+      resourceId: user.id,
+      success: true,
+      classification: 'phi',
+    });
     return {
       id: user.id, phoneNumber: user.phoneNumber, firstName: user.firstName,
       lastName: user.lastName, role: user.role, status: user.status,
@@ -71,11 +92,71 @@ export class UserController {
   @Get('lookup/patient/:phoneNumber')
   @UseGuards(RolesGuard)
   @Roles('SECRETARY', 'CLINIC_ADMIN', 'SYSTEM_MANAGER')
-  async lookupPatient(@Param('phoneNumber') phoneNumber: string) {
-    const user = await this.userService.findByPhoneNumber(phoneNumber);
-    if (user.role !== 'PATIENT') {
-      throw new BadRequestException('No patient account found for this phone number');
+  async lookupPatient(@Param('phoneNumber') phoneNumber: string, @Request() req) {
+    const notFoundMessage = 'No patient account found for this phone number';
+
+    let user: User;
+    try {
+      user = await this.userService.findByPhoneNumber(phoneNumber);
+    } catch {
+      this.phiAudit.emit({
+        ...buildPhiAuditContextFromRequest(req, this.tenantContext),
+        action: PhiAuditAction.PATIENT_LOOKUP_PHONE,
+        resourceType: PhiAuditResourceType.PATIENT,
+        success: false,
+        classification: 'phi',
+      });
+      throw new NotFoundException(notFoundMessage);
     }
+
+    if (user.role !== 'PATIENT') {
+      this.phiAudit.emit({
+        ...buildPhiAuditContextFromRequest(req, this.tenantContext),
+        action: PhiAuditAction.PATIENT_LOOKUP_PHONE,
+        resourceType: PhiAuditResourceType.PATIENT,
+        success: false,
+        classification: 'phi',
+      });
+      throw new NotFoundException(notFoundMessage);
+    }
+
+    if (req.user.role !== 'SYSTEM_MANAGER') {
+      const clinicId =
+        this.tenantContext.getTenantId() ?? req.user.tenantId ?? req.user.clinicId;
+      if (!clinicId) {
+        this.phiAudit.emit({
+          ...buildPhiAuditContextFromRequest(req, this.tenantContext),
+          action: PhiAuditAction.PATIENT_LOOKUP_PHONE,
+          resourceType: PhiAuditResourceType.PATIENT,
+          resourceId: user.id,
+          success: false,
+          classification: 'phi',
+        });
+        throw new NotFoundException(notFoundMessage);
+      }
+
+      const related = await this.tenantAccess.hasPatientClinicRelation(clinicId, user.id);
+      if (!related) {
+        this.phiAudit.emit({
+          ...buildPhiAuditContextFromRequest(req, this.tenantContext),
+          action: PhiAuditAction.PATIENT_LOOKUP_PHONE,
+          resourceType: PhiAuditResourceType.PATIENT,
+          resourceId: user.id,
+          success: false,
+          classification: 'phi',
+        });
+        throw new NotFoundException(notFoundMessage);
+      }
+    }
+
+    this.phiAudit.emit({
+      ...buildPhiAuditContextFromRequest(req, this.tenantContext),
+      action: PhiAuditAction.PATIENT_LOOKUP_PHONE,
+      resourceType: PhiAuditResourceType.PATIENT,
+      resourceId: user.id,
+      success: true,
+      classification: 'phi',
+    });
     return {
       id: user.id,
       phoneNumber: user.phoneNumber,
@@ -87,8 +168,11 @@ export class UserController {
   }
 
   @Get('avatars/:userId')
-  async getAvatar(@Param('userId') userId: string) {
-    const { buffer, mime } = await this.userService.readAvatar(userId);
+  async getAvatar(@Param('userId') userId: string, @Request() req) {
+    const { buffer, mime } = await this.userService.readAvatar(userId, {
+      userId: req.user.userId,
+      role: req.user.role,
+    });
     return new StreamableFile(buffer, {
       type: mime,
       disposition: 'inline',
@@ -96,12 +180,22 @@ export class UserController {
   }
 
   @Get(':id')
+  @SkipTenantGuard()
   async findOne(@Param('id') id: string, @Request() req) {
     if (req.user.userId !== id && !['SYSTEM_MANAGER', 'CLINIC_ADMIN'].includes(req.user.role)) {
       throw new ForbiddenException('Not authorized');
     }
-    const user = await this.userService.findOne(id);
-    if (req.user.userId === id) {
+    const forSelf = req.user.userId === id;
+    const user = await this.userService.findOne(id, { forSelf, actorRole: req.user.role });
+    this.phiAudit.emit({
+      ...buildPhiAuditContextFromRequest(req, this.tenantContext),
+      action: PhiAuditAction.PATIENT_PROFILE_READ,
+      resourceType: PhiAuditResourceType.PATIENT,
+      resourceId: user.id,
+      success: true,
+      classification: 'phi',
+    });
+    if (forSelf) {
       return this.userService.toOwnProfileResponse(user);
     }
     return {
@@ -115,12 +209,14 @@ export class UserController {
   }
 
   @Put(':id')
+  @SkipTenantGuard()
   async update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto, @Request() req) {
     if (req.user.userId !== id && !['SYSTEM_MANAGER', 'CLINIC_ADMIN'].includes(req.user.role)) {
       throw new ForbiddenException('Not authorized');
     }
-    const user = await this.userService.update(id, updateUserDto);
-    if (req.user.userId === id) {
+    const forSelf = req.user.userId === id;
+    const user = await this.userService.update(id, updateUserDto, { forSelf });
+    if (forSelf) {
       return this.userService.toOwnProfileResponse(user);
     }
     return {
@@ -137,12 +233,14 @@ export class UserController {
   }
 
   @Post(':id/change-password')
+  @SkipTenantGuard()
   async changePassword(@Param('id') id: string, @Body() changePasswordDto: ChangePasswordDto, @Request() req) {
     if (req.user.userId !== id) throw new ForbiddenException('Not authorized');
-    return this.userService.changePassword(id, changePasswordDto);
+    return this.userService.changePassword(id, changePasswordDto, { forSelf: true });
   }
 
   @Post(':id/avatar')
+  @SkipTenantGuard()
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
@@ -180,28 +278,11 @@ export class UserController {
 // auth-service calls them before a JWT exists (login) or with a service token only.
 @Controller('users')
 export class InternalUserController {
-  constructor(private readonly userService: UserService) {}
-
-  private verifyHmac(req: { headers: Record<string, unknown> }, subject: string): void {
-    const internalToken = process.env.INTERNAL_SERVICE_TOKEN;
-    const timestamp = req.headers['x-internal-timestamp'] as string;
-    const receivedHmac = req.headers['x-internal-hmac'] as string;
-
-    if (!internalToken || !timestamp || !receivedHmac) {
-      throw new UnauthorizedException('Missing internal request signature');
-    }
-    const age = Date.now() - parseInt(timestamp, 10);
-    if (age > 30_000 || age < -30000) {
-      throw new UnauthorizedException('Request timestamp expired');
-    }
-    const expectedHmac = crypto
-      .createHmac('sha256', internalToken)
-      .update(`${subject}:${timestamp}`)
-      .digest('hex');
-    if (receivedHmac !== expectedHmac) {
-      throw new UnauthorizedException('Invalid request signature');
-    }
-  }
+  constructor(
+    private readonly userService: UserService,
+    private readonly phiAudit: PhiAuditPublisherService,
+    private readonly tenantContext: TenantContextService,
+  ) {}
 
   private toPublicUser(user: User): Record<string, unknown> {
     const { password: _, ...rest } = user;
@@ -211,11 +292,27 @@ export class InternalUserController {
   @Get('internal/exists')
   @UseGuards(InternalServiceGuard)
   async checkExists(@Query('phoneNumber') phoneNumber: string, @Request() req) {
-    this.verifyHmac(req, phoneNumber);
     try {
-      await this.userService.findByPhoneNumber(phoneNumber);
+      const user = await this.userService.findByPhoneNumber(phoneNumber);
+      this.phiAudit.emit({
+        ...buildPhiAuditContextFromRequest(req, this.tenantContext),
+        action: PhiAuditAction.INTERNAL_PHI_ACCESS,
+        resourceType: PhiAuditResourceType.PATIENT,
+        resourceId: user.id,
+        success: true,
+        classification: 'phi',
+        internalCall: true,
+      });
       return { exists: true };
     } catch {
+      this.phiAudit.emit({
+        ...buildPhiAuditContextFromRequest(req, this.tenantContext),
+        action: PhiAuditAction.INTERNAL_PHI_ACCESS,
+        resourceType: PhiAuditResourceType.PATIENT,
+        success: false,
+        classification: 'phi',
+        internalCall: true,
+      });
       return { exists: false };
     }
   }
@@ -223,8 +320,16 @@ export class InternalUserController {
   @Get('internal/by-id/:id')
   @UseGuards(InternalServiceGuard)
   async getById(@Param('id') id: string, @Request() req) {
-    this.verifyHmac(req, id);
     const user = await this.userService.findOne(id);
+    this.phiAudit.emit({
+      ...buildPhiAuditContextFromRequest(req, this.tenantContext),
+      action: PhiAuditAction.INTERNAL_PHI_ACCESS,
+      resourceType: PhiAuditResourceType.PATIENT,
+      resourceId: user.id,
+      success: true,
+      classification: 'phi',
+      internalCall: true,
+    });
     return { success: true, user: this.toPublicUser(user) };
   }
 
@@ -248,8 +353,16 @@ export class InternalUserController {
   @UseGuards(InternalServiceGuard)
   async getByPhone(@Param('phoneNumber') phoneNumber: string, @Request() req) {
     const decoded = decodeURIComponent(phoneNumber);
-    this.verifyHmac(req, decoded);
     const user = await this.userService.findByPhoneNumber(decoded);
+    this.phiAudit.emit({
+      ...buildPhiAuditContextFromRequest(req, this.tenantContext),
+      action: PhiAuditAction.INTERNAL_PHI_ACCESS,
+      resourceType: PhiAuditResourceType.PATIENT,
+      resourceId: user.id,
+      success: true,
+      classification: 'phi',
+      internalCall: true,
+    });
     return { success: true, user: this.toPublicUser(user) };
   }
 
@@ -277,8 +390,7 @@ export class InternalUserController {
   @Post('internal/create')
   @UseGuards(InternalServiceGuard)
   @HttpCode(HttpStatus.OK)
-  async createInternal(@Body() body: CreateUserDto, @Request() req) {
-    this.verifyHmac(req, body.phoneNumber);
+  async createInternal(@Body() body: CreateUserDto) {
     try {
       const existing = await this.userService.findByPhoneNumber(body.phoneNumber);
       return { success: true, userId: existing.id };
@@ -296,15 +408,17 @@ export class InternalUserController {
   @Post('internal/create-by-admin')
   @UseGuards(InternalServiceGuard)
   @HttpCode(HttpStatus.OK)
-  async createByAdminInternal(@Body() body: CreateUserByAdminDto, @Request() req) {
-    this.verifyHmac(req, body.phoneNumber);
+  async createByAdminInternal(@Body() body: CreateUserByAdminDto) {
     try {
-      const { user, temporaryPassword } = await this.userService.createByAdmin(body);
+      const { user, temporaryPassword, membershipOnly } = await this.userService.createByAdmin(body);
       return {
         success: true,
-        message: 'User created successfully',
+        message: membershipOnly
+          ? 'Staff membership created for existing user'
+          : 'User created successfully',
         userId: user.id,
-        temporaryPassword,
+        temporaryPassword: temporaryPassword ?? undefined,
+        membershipOnly: membershipOnly ?? false,
         activationExpiresAt: user.activationExpiresAt?.toISOString(),
         status: user.status,
       };
@@ -319,9 +433,7 @@ export class InternalUserController {
   @HttpCode(HttpStatus.OK)
   async completeStaffActivationInternal(
     @Body() body: { userId: string; newPassword: string },
-    @Request() req,
   ) {
-    this.verifyHmac(req, body.userId);
     const user = await this.userService.completeStaffActivation(body.userId, body.newPassword);
     return { success: true, user: this.toPublicUser(user) };
   }
@@ -329,8 +441,7 @@ export class InternalUserController {
   @Post('internal/verify-phone')
   @UseGuards(InternalServiceGuard)
   @HttpCode(HttpStatus.OK)
-  async verifyPhoneInternal(@Body() body: { phoneNumber: string }, @Request() req) {
-    this.verifyHmac(req, body.phoneNumber);
+  async verifyPhoneInternal(@Body() body: { phoneNumber: string }) {
     return this.userService.verifyPhone(body.phoneNumber);
   }
 
@@ -338,12 +449,12 @@ export class InternalUserController {
   @Post('validate-login')
   @UseGuards(InternalServiceGuard)
   @HttpCode(HttpStatus.OK)
-  async validateLogin(@Body() body: any, @Request() req) {
-    this.verifyHmac(req, body.phoneNumber);
-    return this.userService.validateLogin(body.phoneNumber, body.password, body.skipPasswordCheck);
+  async validateLogin(@Body() body: ValidateLoginDto) {
+    return this.userService.validateLogin(body.phoneNumber, body.password);
   }
 
   @Post(':id/reset-password-internal')
+  @InternalRouteAllow('auth-service')
   @UseGuards(InternalServiceGuard)
   @HttpCode(HttpStatus.OK)
   async resetPasswordInternal(@Param('id') id: string, @Body() body: { newPassword: string }) {

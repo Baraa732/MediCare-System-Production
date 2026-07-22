@@ -6,6 +6,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { KafkaClientModule } from '../kafka-shared/kafka-client.module';
 import { SystemManagerController } from './controllers/system-manager.controller';
 import { SystemManagerService } from './services/system-manager.service';
+import { SystemManagerBootstrapService } from './services/system-manager-bootstrap.service';
 import { ClinicHttpClient } from './services/clinic-http.client';
 import { KafkaConsumerService } from './services/kafka.consumer.service';
 import { PlatformHealthService } from './services/platform-health.service';
@@ -17,6 +18,8 @@ import { LokiTelemetryService } from './services/loki-telemetry.service';
 import { OtelTopologyService } from './services/otel-topology.service';
 import { PlatformStreamService } from './services/platform-stream.service';
 import { PlatformIncidentsService } from './services/platform-incidents.service';
+import { PlatformDataService } from './services/platform-data.service';
+import { ActivationDocumentService } from './services/activation-document.service';
 import { UserHttpClient } from './services/user-http.client';
 import { SystemManager } from './entities/system-manager.entity';
 import { ClinicAdminActivation } from './entities/clinic-admin-activation.entity';
@@ -53,6 +56,7 @@ import { InternalServiceGuard } from './guards/internal-service.guard';
   controllers: [SystemManagerController, KafkaConsumerService],
   providers: [
     SystemManagerService,
+    SystemManagerBootstrapService,
     KafkaConsumerService,
     ClinicHttpClient,
     PlatformHealthService,
@@ -64,7 +68,9 @@ import { InternalServiceGuard } from './guards/internal-service.guard';
     OtelTopologyService,
     PlatformStreamService,
     PlatformIncidentsService,
+    PlatformDataService,
     UserHttpClient,
+    ActivationDocumentService,
     JwtAuthGuard,
     InternalServiceGuard,
   ],

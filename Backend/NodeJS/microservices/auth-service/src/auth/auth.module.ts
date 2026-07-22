@@ -13,6 +13,8 @@ import { ClinicHttpClient } from './services/clinic-http.client';
 import { WhatsAppService } from './services/whatsapp.service';
 import { SessionService } from './services/session.service';
 import { AuditLogService } from './services/audit-log.service';
+import { PhiAuditLogService } from './services/phi-audit-log.service';
+import { PhiAuditConsumerService } from './services/phi-audit-consumer.service';
 import { RateLimitService } from './services/rate-limit.service';
 import { AccountLockService } from './services/account-lock.service';
 import { SessionAnomalyService } from './services/session-anomaly.service';
@@ -20,6 +22,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { Otp } from './entities/otp.entity';
 import { Session } from './entities/session.entity';
 import { AuditLog } from './entities/audit-log.entity';
+import { PhiAuditLog } from './entities/phi-audit-log.entity';
 import { IdempotencyKey } from './entities/idempotency-key.entity';
 import { AccountLock } from './entities/account-lock.entity';
 import { JwtBlocklistEntry } from './entities/jwt-blocklist.entity';
@@ -38,6 +41,7 @@ import { CleanupTasks } from './tasks/cleanup.tasks';
 import { TenantModule } from '../tenant-shared/tenant.module';
 import { TenantMiddleware } from '../tenant-shared/tenant.middleware';
 import { medicareTypeOrmExtras } from '@medicare/telemetry';
+import { PhiAuditPublisherService } from '../phi-audit-shared/phi-audit.publisher';
 
 @Module({
   imports: [
@@ -57,7 +61,9 @@ import { medicareTypeOrmExtras } from '@medicare/telemetry';
         password: configService.get('DATABASE_PASSWORD') || 'postgres',
         database: configService.get('DATABASE_NAME') || 'auth_db',
         // Fix 4, 5: Register new entities for DB fallback
-        entities: [Otp, Session, AuditLog, IdempotencyKey, AccountLock, JwtBlocklistEntry, TrustedDevice],
+        entities: [Otp, Session, AuditLog, PhiAuditLog, IdempotencyKey, AccountLock, JwtBlocklistEntry, TrustedDevice],
+        migrations: [__dirname + '/auth/migrations/*{.ts,.js}'],
+        migrationsTableName: 'auth_migrations',
         synchronize: configService.get('NODE_ENV') !== 'production',
         // HIGH FIX: Configure connection pools for production load
         poolSize: 50,
@@ -72,7 +78,7 @@ import { medicareTypeOrmExtras } from '@medicare/telemetry';
       inject: [ConfigService],
     }),
     TypeOrmModule.forFeature(
-      [Otp, Session, AuditLog, IdempotencyKey, AccountLock, JwtBlocklistEntry, TrustedDevice],
+      [Otp, Session, AuditLog, PhiAuditLog, IdempotencyKey, AccountLock, JwtBlocklistEntry, TrustedDevice],
       'authConnection',
     ),
     PassportModule.register({ defaultStrategy: 'jwt' }),
@@ -106,12 +112,13 @@ import { medicareTypeOrmExtras } from '@medicare/telemetry';
     }),
     KafkaClientModule.register({
       clientId: 'auth-service',
-      consumerGroupId: 'auth-service-producer',
+      consumerGroupId: 'auth-service-consumer',
     }),
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, PhiAuditConsumerService],
   providers: [
     AuthService, UserHttpClient, ClinicHttpClient, WhatsAppService, SessionService, AuditLogService,
+    PhiAuditLogService, PhiAuditConsumerService, PhiAuditPublisherService,
     RateLimitService, AccountLockService, SessionAnomalyService,
     IdempotencyService, JwtBlocklistService, TrustedDeviceService, RedisCircuitBreakerService, JwtStrategy, RateLimitGuard,
     IdempotencyGuard, IdempotencyInterceptor, CsrfGuard, InternalServiceGuard,

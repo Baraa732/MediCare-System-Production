@@ -24,9 +24,9 @@ import { medicareTypeOrmExtras } from '@medicare/telemetry';
         migrations: [__dirname + '/clinic/migrations/*{.ts,.js}'],
         migrationsRun: true,
         migrationsTableName: 'clinic_migrations',
-        synchronize: configService.get('DATABASE_SYNCHRONIZE') === 'true',
+        synchronize: configService.get('NODE_ENV') !== 'production',
         extra: {
-          max: 20,
+          max: 25,
           min: 5,
           idleTimeoutMillis: 30000,
           connectionTimeoutMillis: 10000,

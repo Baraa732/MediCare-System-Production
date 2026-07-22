@@ -2,6 +2,20 @@
 
 const { createLogger } = require('./logger');
 
+function isProductionLogging() {
+  return process.env.NODE_ENV === 'production' || process.env.MEDICARE_ENV === 'production';
+}
+
+function redactDbParameters(parameters) {
+  if (!isProductionLogging()) {
+    return parameters;
+  }
+  if (!Array.isArray(parameters)) {
+    return '[redacted]';
+  }
+  return parameters.map(() => '[redacted]');
+}
+
 function createTypeOrmLogger(serviceName) {
   const logger = createLogger(serviceName);
 
@@ -11,7 +25,7 @@ function createTypeOrmLogger(serviceName) {
         logger.debug('Database query', {
           event: 'db_query',
           module: 'typeorm',
-          metadata: { query, parameters },
+          metadata: { query, parameters: redactDbParameters(parameters) },
         });
       }
     },
@@ -22,7 +36,7 @@ function createTypeOrmLogger(serviceName) {
         query_name: query?.slice(0, 80),
         err: error instanceof Error ? error : new Error(String(error)),
         error_code: error?.code,
-        metadata: { query, parameters },
+        metadata: { query, parameters: redactDbParameters(parameters) },
       });
     },
     logQuerySlow(time, query, parameters) {
@@ -31,7 +45,7 @@ function createTypeOrmLogger(serviceName) {
         module: 'typeorm',
         duration_ms: time,
         query_name: query?.slice(0, 80),
-        metadata: { query, parameters },
+        metadata: { query, parameters: redactDbParameters(parameters) },
       });
     },
     logSchemaBuild(message) {

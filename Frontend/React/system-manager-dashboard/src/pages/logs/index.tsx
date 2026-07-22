@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Alert, Box, Chip, Grid, Typography } from '@mui/material'
+import { Alert, Box, Chip, Typography } from '@mui/material'
 import { alpha } from '@mui/material/styles'
 import { AlertTriangle, FileText, ScrollText, Siren, Zap } from 'lucide-react'
 import { AdvancedPageHeader, AdvancedPanel, CommandMetric, ObservabilityPage, PbiGrid, StatusDot } from '../../components/advanced/AdvancedPage'
+import { MotionHeader, MotionMetricGridItem, MotionPanel, MotionToolbar } from '../../components/motion/AnimatedSections'
+import { PageMotion } from '../../components/motion/PageMotion'
 import { usePlatformLogs } from '../../hooks/usePlatformLogs'
 import { notify } from '../../lib/toast'
 import { parseLogsSearchParams, useLogsFilterStore } from '../../store/logsFilterStore'
@@ -202,6 +204,8 @@ export default function LogsPage() {
 
   return (
     <ObservabilityPage>
+      <PageMotion motionKey="logs">
+      <MotionHeader>
       <AdvancedPageHeader
         title="Log Explorer"
         eyebrow="Observability / Logs"
@@ -212,19 +216,23 @@ export default function LogsPage() {
         compact
       >
         <PbiGrid spacing={1}>
-          <Grid size={{ xs: 6, sm: 4, md: 2.4 }}><CommandMetric label="Total Events" value={metrics.total.toLocaleString()} helper={`Window: ${range}`} color="#06b6d4" icon={ScrollText} /></Grid>
-          <Grid size={{ xs: 6, sm: 4, md: 2.4 }}><CommandMetric label="Errors" value={metrics.errors.toLocaleString()} helper={metrics.errors ? 'ERROR level only' : 'Clear'} color="#ef4444" icon={Siren} /></Grid>
-          <Grid size={{ xs: 6, sm: 4, md: 2.4 }}><CommandMetric label="Warnings" value={metrics.warns.toLocaleString()} helper="WARN level" color="#f59e0b" icon={AlertTriangle} /></Grid>
-          <Grid size={{ xs: 6, sm: 4, md: 2.4 }}><CommandMetric label="Error Rate" value={`${metrics.errorRate}%`} helper={`${metrics.errorServices} services`} color="#f97316" icon={Zap} /></Grid>
-          <Grid size={{ xs: 6, sm: 4, md: 2.4 }}><CommandMetric label="Peak Bucket" value={metrics.peakBucket.toLocaleString()} helper="Max / interval" color="#8b5cf6" icon={FileText} /></Grid>
+          <MotionMetricGridItem index={0} size={{ xs: 6, sm: 4, md: 2.4 }}><CommandMetric label="Total Events" value={metrics.total.toLocaleString()} helper={`Window: ${range}`} color="#06b6d4" icon={ScrollText} /></MotionMetricGridItem>
+          <MotionMetricGridItem index={1} size={{ xs: 6, sm: 4, md: 2.4 }}><CommandMetric label="Errors" value={metrics.errors.toLocaleString()} helper={metrics.errors ? 'ERROR level only' : 'Clear'} color="#ef4444" icon={Siren} /></MotionMetricGridItem>
+          <MotionMetricGridItem index={2} size={{ xs: 6, sm: 4, md: 2.4 }}><CommandMetric label="Warnings" value={metrics.warns.toLocaleString()} helper="WARN level" color="#f59e0b" icon={AlertTriangle} /></MotionMetricGridItem>
+          <MotionMetricGridItem index={3} size={{ xs: 6, sm: 4, md: 2.4 }}><CommandMetric label="Error Rate" value={`${metrics.errorRate}%`} helper={`${metrics.errorServices} services`} color="#f97316" icon={Zap} /></MotionMetricGridItem>
+          <MotionMetricGridItem index={4} size={{ xs: 6, sm: 4, md: 2.4 }}><CommandMetric label="Peak Bucket" value={metrics.peakBucket.toLocaleString()} helper="Max / interval" color="#8b5cf6" icon={FileText} /></MotionMetricGridItem>
         </PbiGrid>
       </AdvancedPageHeader>
+      </MotionHeader>
 
       {error && <Alert severity="error" sx={{ flexShrink: 0 }}>{error}</Alert>}
       {data?.warning && <Alert severity="warning" sx={{ flexShrink: 0 }}>{data.warning}</Alert>}
 
+      <MotionPanel index={0}>
       <LogsChartsRow histogram={chartHistogram} levels={levelCounts} />
+      </MotionPanel>
 
+      <MotionPanel index={1}>
       <AdvancedPanel
         title="Log Stream"
         caption={`${visibleEntries.length.toLocaleString()} events · ${data?.source ?? 'unknown'} source · filtered by log level`}
@@ -249,6 +257,7 @@ export default function LogsPage() {
         }
       >
         <Box sx={{ px: 1.5, pt: 1, flexShrink: 0 }}>
+          <MotionToolbar>
           <LogsToolbar
             search={search}
             range={range}
@@ -268,6 +277,7 @@ export default function LogsPage() {
             onRefresh={handleRefresh}
             onDownload={handleDownload}
           />
+          </MotionToolbar>
         </Box>
 
         <LogsFilterHeader
@@ -345,6 +355,8 @@ export default function LogsPage() {
           <LogDetailPanel entry={selectedEntry} onClose={handleCloseEntry} />
         </Box>
       </AdvancedPanel>
+      </MotionPanel>
+      </PageMotion>
     </ObservabilityPage>
   )
 }

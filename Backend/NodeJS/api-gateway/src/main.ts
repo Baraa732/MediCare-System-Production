@@ -17,6 +17,11 @@ import {
   instrumentRedisClient,
   wrapRedisCommand,
 } from '@medicare/telemetry';
+import { requireInternalAuthConfig } from './internal-auth/internal-auth.config';
+import { createInternalAuthHeaders } from './internal-auth/internal-http.signer';
+import { verifyInternalRequest } from './internal-auth/internal-auth.crypto';
+import { INTERNAL_AUTH_HEADERS } from './internal-auth/types';
+import { parseTrustedSecrets } from './internal-auth/internal-auth.config';
 
 const gatewayLogger = createLogger('api-gateway');
 
@@ -35,30 +40,6 @@ const gatewayLogger = createLogger('api-gateway');
 interface ServiceRoute {
   prefix: string;
   target: string;
-}
-
-function requireInternalServiceToken(serviceName: string): string {
-  const token = process.env.INTERNAL_SERVICE_TOKEN?.trim();
-
-  if (!token) {
-    throw new Error(`[${serviceName}] INTERNAL_SERVICE_TOKEN is required and cannot be empty`);
-  }
-
-  if (token.length < 24) {
-    throw new Error(`[${serviceName}] INTERNAL_SERVICE_TOKEN must be at least 24 characters long`);
-  }
-
-  const normalized = token.toLowerCase();
-  const weakPatterns = ['changeme', 'replace-me', 'example', 'default', 'test', 'dummy'];
-  if (weakPatterns.some((pattern) => normalized.includes(pattern))) {
-    throw new Error(`[${serviceName}] INTERNAL_SERVICE_TOKEN appears to be a placeholder value`);
-  }
-
-  if (/\s/.test(token)) {
-    throw new Error(`[${serviceName}] INTERNAL_SERVICE_TOKEN must not contain whitespace`);
-  }
-
-  return token;
 }
 
 function loadServiceRoutes(): ServiceRoute[] {
@@ -100,7 +81,7 @@ function loadServiceRoutes(): ServiceRoute[] {
 }
 
 // ─── Public routes — skip JWT validation ─────────────────────────────────────
-const PUBLIC_PATHS = new Set([
+const PRODUCTION_PUBLIC_PATHS = new Set([
   '/api/auth/register',
   '/api/auth/send-otp',
   '/api/auth/verify-otp',
@@ -117,17 +98,37 @@ const PUBLIC_PATHS = new Set([
   '/api/auth/clinic-admin/activate',
   '/api/auth/clinic-admin/onboarding-status',
   '/api/system-manager/login',
-  '/api/system-manager/dev/seed-default',
-  '/api/system-manager/dev/seed',
-  '/api/auth/dev/whatsapp-qr',
-  '/api/auth/dev/whatsapp-status',
-  '/api/auth/dev/latest-otp',
   '/api/notifications/push/web-config',
   '/health',
   '/health/live',
   '/health/ready',
   '/metrics',
 ]);
+
+const DEV_ONLY_PUBLIC_PATHS = new Set([
+  '/api/system-manager/dev/seed-default',
+  '/api/system-manager/dev/seed',
+  '/api/auth/dev/whatsapp-qr',
+  '/api/auth/dev/whatsapp-status',
+  '/api/auth/dev/latest-otp',
+  '/api/auth/dev/clear-rate-limits',
+]);
+
+const DEV_ONLY_PUBLIC_PATH_PREFIXES = ['/api/auth/dev/', '/api/system-manager/dev/'];
+
+function isDevGatewayEnvironment(): boolean {
+  return process.env.NODE_ENV === 'development';
+}
+
+function isDevOnlyGatewayRoute(path: string): boolean {
+  if (DEV_ONLY_PUBLIC_PATHS.has(path)) return true;
+  return DEV_ONLY_PUBLIC_PATH_PREFIXES.some((prefix) => path.startsWith(prefix));
+}
+
+function getPublicGatewayPaths(): Set<string> {
+  if (!isDevGatewayEnvironment()) return PRODUCTION_PUBLIC_PATHS;
+  return new Set([...PRODUCTION_PUBLIC_PATHS, ...DEV_ONLY_PUBLIC_PATHS]);
+}
 
 function normalizeGatewayPath(req: express.Request): string {
   const raw = (req.originalUrl || req.url || req.path || '').split('?')[0];
@@ -136,7 +137,11 @@ function normalizeGatewayPath(req: express.Request): string {
 }
 
 function isPublicGatewayRoute(path: string, method: string): boolean {
-  if (PUBLIC_PATHS.has(path)) return true;
+  if (isDevOnlyGatewayRoute(path) && !isDevGatewayEnvironment()) {
+    return false;
+  }
+
+  if (getPublicGatewayPaths().has(path)) return true;
 
   if (method !== 'POST') return false;
 
@@ -150,7 +155,15 @@ function isPublicGatewayRoute(path: string, method: string): boolean {
 
 // ─── Internal headers that clients must never be able to spoof ───────────────
 // These are stripped from every incoming request before we inject our own values.
-const INTERNAL_HEADERS = ['x-service-token', 'x-request-id', 'x-forwarded-for', 'x-tenant-id'];
+const INTERNAL_HEADERS = [
+  'x-service-token',
+  INTERNAL_AUTH_HEADERS.SERVICE_NAME,
+  INTERNAL_AUTH_HEADERS.SIGNATURE,
+  INTERNAL_AUTH_HEADERS.TIMESTAMP,
+  'x-request-id',
+  'x-forwarded-for',
+  'x-tenant-id',
+];
 
 // ─── Request ID sanitisation ──────────────────────────────────────────────────
 // Accepts a client-supplied x-request-id for tracing continuity (e.g. mobile
@@ -274,6 +287,19 @@ async function bootstrap() {
     }
   };
 
+  const peekRoleFromToken = (token: string): string | undefined => {
+    try {
+      const segment = token.split('.')[1];
+      if (!segment) return undefined;
+      const payload = JSON.parse(
+        Buffer.from(segment.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'),
+      ) as { role?: string };
+      return payload.role;
+    } catch {
+      return undefined;
+    }
+  };
+
   const getCachedValidation = async (token: string): Promise<any | null> => {
     if (!redisClient) return null;
     try {
@@ -361,60 +387,42 @@ async function bootstrap() {
   });
 
   const expressApp = app.getHttpAdapter().getInstance();
-  const internalToken = requireInternalServiceToken('api-gateway');
+  const internalAuth = requireInternalAuthConfig('api-gateway');
+  const trustedSecrets = parseTrustedSecrets(process.env.INTERNAL_AUTH_TRUSTED_SECRETS, 'api-gateway');
 
-  // ── Additional Security Headers ───────────────────────────────────────────────
-  // These are in addition to helmet() which is already applied
-  expressApp.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
-    // Fix 19: HSTS in ALL environments (not just production)
-    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
-
-    // Fix 19: Remove 'unsafe-inline' and 'unsafe-eval' from CSP; add frame-ancestors 'none'
-    res.setHeader('Content-Security-Policy',
-      "default-src 'self'; " +
-      "script-src 'self'; " +
-      "style-src 'self' 'unsafe-inline'; " +
-      "img-src 'self' data: https:; " +
-      "font-src 'self' data:; " +
-      "connect-src 'self'; " +
-      "frame-ancestors 'none'; " +
-      "form-action 'self'; " +
-      "base-uri 'self';"
-    );
-
-    // Fix 19: X-Frame-Options DENY (stronger than SAMEORIGIN)
-    res.setHeader('X-Frame-Options', 'DENY');
-
-    // X-Content-Type-Options - Prevent MIME sniffing
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-
-    // Referrer Policy - Control referrer information
-    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-
-    // Permissions Policy - Restrict browser features
-    res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
-
-    // Fix 27: Cache CORS preflight responses for 24 hours
-    if (req.method === 'OPTIONS') {
-      res.setHeader('Access-Control-Max-Age', '86400');
-    }
-
-    next();
-  });
-
-  // ── Strip internal headers from ALL incoming requests ────────────────────────
-  // This must run before correlation ID assignment and before auth validation.
-  // A client that sends x-service-token: <anything> would otherwise bypass
-  // InternalServiceGuard on downstream services.
   expressApp.post('/internal/cache/auth/invalidate', async (req: express.Request, res: express.Response) => {
-    const serviceToken = req.headers['x-service-token'];
-    const providedToken = Array.isArray(serviceToken) ? serviceToken[0] : serviceToken;
-    if (!providedToken || providedToken !== internalToken) {
+    const callerName = req.headers[INTERNAL_AUTH_HEADERS.SERVICE_NAME] as string | undefined;
+    const signature = req.headers[INTERNAL_AUTH_HEADERS.SIGNATURE] as string | undefined;
+    const timestamp = req.headers[INTERNAL_AUTH_HEADERS.TIMESTAMP] as string | undefined;
+
+    if (!callerName || !signature || !timestamp) {
       res.status(401).json({ message: 'Unauthorized internal cache invalidation request' });
       return;
     }
 
+    const callerSecret = trustedSecrets[callerName];
+    if (
+      !callerSecret ||
+      !verifyInternalRequest(
+        callerSecret,
+        'POST',
+        '/internal/cache/auth/invalidate',
+        req.body,
+        timestamp,
+        signature,
+      )
+    ) {
+      res.status(401).json({ message: 'Unauthorized internal cache invalidation request' });
+      return;
+    }
+
+    if (callerName !== 'auth-service') {
+      res.status(403).json({ message: 'Forbidden internal cache invalidation caller' });
+      return;
+    }
+
     const sessionId = typeof req.body?.sessionId === 'string' ? req.body.sessionId : undefined;
+
     const userId = typeof req.body?.userId === 'string' ? req.body.userId : undefined;
     const tenantId = typeof req.body?.tenantId === 'string' ? req.body.tenantId : undefined;
 
@@ -440,6 +448,20 @@ async function bootstrap() {
     res.json({ ok: true, ...result });
   });
 
+  expressApp.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'self';");
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+    if (req.method === 'OPTIONS') {
+      res.setHeader('Access-Control-Max-Age', '86400');
+    }
+    next();
+  });
+
+  // ── Strip internal headers from ALL incoming requests ────────────────────────
   expressApp.use((req: express.Request, _res: express.Response, next: express.NextFunction) => {
     for (const header of INTERNAL_HEADERS) {
       delete req.headers[header];
@@ -470,6 +492,10 @@ async function bootstrap() {
 
   const validateTokenUrl = (path: string, token: string): string => {
     if (path.startsWith('/api/system-manager/')) {
+      const role = peekRoleFromToken(token);
+      if (role && role !== 'SYSTEM_MANAGER') {
+        return `${authServiceUrl}/v1/auth/validate-token`;
+      }
       return `${systemManagerServiceUrl}/v1/system-manager/validate-token`;
     }
 
@@ -495,6 +521,11 @@ async function bootstrap() {
   expressApp.use(async (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const requestPath = normalizeGatewayPath(req);
 
+    if (isDevOnlyGatewayRoute(requestPath) && !isDevGatewayEnvironment()) {
+      res.status(404).json({ message: 'Not found' });
+      return;
+    }
+
     if (isPublicGatewayRoute(requestPath, req.method) || req.method === 'OPTIONS') return next();
 
     const authHeader = req.headers['authorization'];
@@ -512,7 +543,7 @@ async function bootstrap() {
       if (cached) {
         req.headers['x-user-id'] = cached.userId;
         req.headers['x-user-role'] = cached.role;
-        if (cached.tenantId) {
+        if (cached.tenantId && cached.role !== 'PATIENT') {
           req.headers['x-tenant-id'] = cached.tenantId;
         }
         if (cached.sessionId) {
@@ -523,14 +554,18 @@ async function bootstrap() {
 
       // Cache miss — auth-service for users; system-manager-service for platform admin JWT
       const axios = require('axios');
-      const response = await axios.get(validateTokenUrl(req.path, token), {
-        headers: {
-          authorization: authHeader,
-          // x-service-token is injected here — it was already stripped from the
-          // client request above, so this value is always gateway-controlled
-          'x-service-token': internalToken,
-          'x-request-id': req.headers['x-request-id'],
-        },
+      const validateUrl = validateTokenUrl(req.path, token);
+      const validatePath = new URL(validateUrl).pathname;
+      const validateHeaders = createInternalAuthHeaders(
+        internalAuth.serviceName,
+        internalAuth.signingSecret,
+        'GET',
+        validatePath,
+        '',
+        { authorization: authHeader, 'x-request-id': req.headers['x-request-id'] as string },
+      );
+      const response = await axios.get(validateUrl, {
+        headers: validateHeaders,
         timeout: 5000,
       });
 
@@ -560,7 +595,7 @@ async function bootstrap() {
         if (sessionId) {
           req.headers['x-session-id'] = sessionId;
         }
-        if (tenantId) {
+        if (tenantId && response.data.user.role !== 'PATIENT') {
           req.headers['x-tenant-id'] = tenantId;
         }
       }
@@ -590,9 +625,21 @@ async function bootstrap() {
       pathRewrite: (path: string) => `${route.prefix.replace('/api', '/v1')}${path}`,
       on: {
         proxyReq: (proxyReq, req) => {
-          // Inject gateway-controlled headers — client values were already stripped
-          proxyReq.setHeader('x-service-token', internalToken);
-          proxyReq.setHeader('x-request-id', (req as express.Request).headers['x-request-id'] || '');
+          const expressReq = req as express.Request;
+          const method = (expressReq.method || 'GET').toUpperCase();
+          const relativePath = (expressReq.url || '').split('?')[0];
+          const upstreamPath = `${route.prefix.replace('/api', '/v1')}${relativePath}`;
+          const authHeaders = createInternalAuthHeaders(
+            internalAuth.serviceName,
+            internalAuth.signingSecret,
+            method,
+            upstreamPath,
+            '',
+          );
+          for (const [key, value] of Object.entries(authHeaders)) {
+            proxyReq.setHeader(key, value);
+          }
+          proxyReq.setHeader('x-request-id', expressReq.headers['x-request-id'] || '');
           // Inject real client IP for downstream rate limiting and audit logs
           const clientIp = (req as express.Request).socket.remoteAddress || '';
           proxyReq.setHeader('x-forwarded-for', clientIp);
@@ -601,7 +648,10 @@ async function bootstrap() {
           if (tenantHeader) {
             proxyReq.setHeader('x-tenant-id', tenantHeader);
           }
-          fixRequestBody(proxyReq, req as express.Request);
+          const contentType = (req as express.Request).headers['content-type'] ?? '';
+          if (!contentType.includes('multipart/form-data')) {
+            fixRequestBody(proxyReq, req as express.Request);
+          }
         },
         error: (_err, _req, res) => {
           (res as express.Response)

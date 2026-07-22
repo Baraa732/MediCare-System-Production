@@ -18,8 +18,10 @@ export enum StaffRole {
 }
 
 export enum AssignmentStatus {
+  PENDING = 'PENDING',
   ACTIVE = 'ACTIVE',
-  INACTIVE = 'INACTIVE',
+  SUSPENDED = 'SUSPENDED',
+  ENDED = 'ENDED',
 }
 
 @Entity('tenant_staff_assignments')
@@ -46,6 +48,18 @@ export class TenantStaffAssignment {
 
   @Column({ type: 'varchar', length: 20, default: AssignmentStatus.ACTIVE })
   status: AssignmentStatus;
+
+  @Column({ type: 'boolean', name: 'is_primary', default: false })
+  isPrimary: boolean;
+
+  @Column({ type: 'timestamptz', name: 'started_at', nullable: true })
+  startedAt: Date | null;
+
+  @Column({ type: 'timestamptz', name: 'ended_at', nullable: true })
+  endedAt: Date | null;
+
+  @Column('uuid', { nullable: true, name: 'invitation_id' })
+  invitationId: string | null;
 
   @Column('uuid', { nullable: true, name: 'assigned_by' })
   assignedBy: string;

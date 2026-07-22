@@ -62,6 +62,10 @@ export class User {
   @Column({ nullable: true })
   linkedSystemManagerId: string; // Reference to system manager if this user is linked to one
 
+  /**
+   * @deprecated Not authoritative for clinic membership — use tenant_staff_assignments
+   * in clinic-service. Kept for backward-compatible JWT and legacy reads only.
+   */
   @Column({ nullable: true, name: 'tenant_id' })
   tenantId: string;
 

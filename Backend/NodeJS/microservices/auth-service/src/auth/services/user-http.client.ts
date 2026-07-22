@@ -1,7 +1,7 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
-import * as crypto from 'crypto';
 import axios, { AxiosError } from 'axios';
 import { CreateUserByAdminDto } from '../dto/auth.dto';
+import { createInternalAuthHeadersForUrl } from '../../internal-auth-shared/internal-http.signer';
 
 export interface AuthUserProfile {
   id: string;
@@ -20,31 +20,26 @@ export type UserLookupResult = { success: boolean; user?: AuthUserProfile };
 export class UserHttpClient {
   private readonly logger = new Logger(UserHttpClient.name);
   private readonly baseUrl: string;
-  private readonly internalToken: string;
+  private readonly serviceName = 'auth-service';
+  private readonly signingSecret: string;
 
   constructor() {
     this.baseUrl = process.env.USER_SERVICE_URL || 'http://user-service:3002';
-    this.internalToken = process.env.INTERNAL_SERVICE_TOKEN || '';
-  }
-
-  private ensureToken(): void {
-    if (!this.internalToken) {
-      throw new Error('INTERNAL_SERVICE_TOKEN env var is not set');
+    this.signingSecret = process.env.INTERNAL_AUTH_SECRET || '';
+    if (!this.signingSecret) {
+      throw new Error('INTERNAL_AUTH_SECRET env var is not set');
     }
   }
 
-  private hmac(subject: string, timestamp: string): string {
-    return crypto.createHmac('sha256', this.internalToken).update(`${subject}:${timestamp}`).digest('hex');
-  }
-
-  private headers(subject: string, requestId?: string): Record<string, string> {
-    const timestamp = Date.now().toString();
-    return {
-      'x-service-token': this.internalToken,
-      'x-internal-timestamp': timestamp,
-      'x-internal-hmac': this.hmac(subject, timestamp),
-      ...(requestId ? { 'x-request-id': requestId } : {}),
-    };
+  private headers(method: string, url: string, body?: unknown, requestId?: string): Record<string, string> {
+    return createInternalAuthHeadersForUrl(
+      this.serviceName,
+      this.signingSecret,
+      method,
+      url,
+      body,
+      requestId ? { 'x-request-id': requestId } : undefined,
+    );
   }
 
   private handleError(context: string, error: unknown): never {
@@ -54,13 +49,11 @@ export class UserHttpClient {
   }
 
   async checkExists(phoneNumber: string): Promise<boolean> {
-    this.ensureToken();
     try {
-      const subject = phoneNumber;
-      const res = await axios.get(`${this.baseUrl}/users/internal/exists`, {
-        params: { phoneNumber },
+      const url = `${this.baseUrl}/users/internal/exists?phoneNumber=${encodeURIComponent(phoneNumber)}`;
+      const res = await axios.get(url, {
         timeout: 5000,
-        headers: this.headers(subject),
+        headers: this.headers('GET', `/users/internal/exists?phoneNumber=${encodeURIComponent(phoneNumber)}`),
       });
       return res.data?.exists === true;
     } catch (error) {
@@ -69,11 +62,11 @@ export class UserHttpClient {
   }
 
   async getUserById(userId: string): Promise<UserLookupResult> {
-    this.ensureToken();
     try {
-      const res = await axios.get(`${this.baseUrl}/users/internal/by-id/${userId}`, {
+      const url = `${this.baseUrl}/users/internal/by-id/${userId}`;
+      const res = await axios.get(url, {
         timeout: 5000,
-        headers: this.headers(userId),
+        headers: this.headers('GET', `/users/internal/by-id/${userId}`),
       });
       return res.data;
     } catch (error) {
@@ -82,12 +75,12 @@ export class UserHttpClient {
   }
 
   async getUserByPhone(phoneNumber: string): Promise<UserLookupResult> {
-    this.ensureToken();
     const encoded = encodeURIComponent(phoneNumber);
     try {
-      const res = await axios.get(`${this.baseUrl}/users/internal/by-phone/${encoded}`, {
+      const url = `${this.baseUrl}/users/internal/by-phone/${encoded}`;
+      const res = await axios.get(url, {
         timeout: 5000,
-        headers: this.headers(phoneNumber),
+        headers: this.headers('GET', `/users/internal/by-phone/${encoded}`),
       });
       return res.data;
     } catch (error) {
@@ -101,13 +94,13 @@ export class UserHttpClient {
     deviceInfo?: Record<string, unknown>,
     requestId?: string,
   ): Promise<UserLookupResult> {
-    this.ensureToken();
     try {
-      const res = await axios.post(
-        `${this.baseUrl}/users/validate-login`,
-        { phoneNumber, password, deviceInfo },
-        { timeout: 5000, headers: this.headers(phoneNumber, requestId) },
-      );
+      const url = `${this.baseUrl}/users/validate-login`;
+      const body = { phoneNumber, password };
+      const res = await axios.post(url, body, {
+        timeout: 5000,
+        headers: this.headers('POST', '/users/validate-login', body, requestId),
+      });
       return res.data;
     } catch (error) {
       this.handleError('validateLogin', error);
@@ -115,12 +108,11 @@ export class UserHttpClient {
   }
 
   async createUser(body: Record<string, unknown>): Promise<{ success: boolean; userId?: string }> {
-    this.ensureToken();
-    const phone = String(body.phoneNumber);
     try {
-      const res = await axios.post(`${this.baseUrl}/users/internal/create`, body, {
+      const url = `${this.baseUrl}/users/internal/create`;
+      const res = await axios.post(url, body, {
         timeout: 10000,
-        headers: this.headers(phone),
+        headers: this.headers('POST', '/users/internal/create', body),
       });
       return res.data;
     } catch (error) {
@@ -139,12 +131,11 @@ export class UserHttpClient {
     activationExpiresAt?: string;
     status?: string;
   }> {
-    this.ensureToken();
-    const phone = String(body.phoneNumber);
     try {
-      const res = await axios.post(`${this.baseUrl}/users/internal/create-by-admin`, body, {
+      const url = `${this.baseUrl}/users/internal/create-by-admin`;
+      const res = await axios.post(url, body, {
         timeout: 10000,
-        headers: this.headers(phone),
+        headers: this.headers('POST', '/users/internal/create-by-admin', body),
       });
       return res.data;
     } catch (error) {
@@ -156,26 +147,26 @@ export class UserHttpClient {
   }
 
   async verifyPhone(phoneNumber: string): Promise<void> {
-    this.ensureToken();
     try {
-      await axios.post(
-        `${this.baseUrl}/users/internal/verify-phone`,
-        { phoneNumber },
-        { timeout: 5000, headers: this.headers(phoneNumber) },
-      );
+      const url = `${this.baseUrl}/users/internal/verify-phone`;
+      const body = { phoneNumber };
+      await axios.post(url, body, {
+        timeout: 5000,
+        headers: this.headers('POST', '/users/internal/verify-phone', body),
+      });
     } catch (error) {
       this.handleError('verifyPhone', error);
     }
   }
 
   async completeStaffActivation(userId: string, newPassword: string): Promise<UserLookupResult> {
-    this.ensureToken();
     try {
-      const res = await axios.post(
-        `${this.baseUrl}/users/internal/complete-staff-activation`,
-        { userId, newPassword },
-        { timeout: 10000, headers: this.headers(userId) },
-      );
+      const url = `${this.baseUrl}/users/internal/complete-staff-activation`;
+      const body = { userId, newPassword };
+      const res = await axios.post(url, body, {
+        timeout: 10000,
+        headers: this.headers('POST', '/users/internal/complete-staff-activation', body),
+      });
       return res.data;
     } catch (error) {
       if (error instanceof AxiosError && error.response?.status === 400) {
@@ -186,15 +177,13 @@ export class UserHttpClient {
   }
 
   async resetPassword(userId: string, newPassword: string): Promise<void> {
-    this.ensureToken();
     try {
-      await axios.post(
-        `${this.baseUrl}/users/${userId}/reset-password-internal`,
-        { newPassword },
-        { timeout: 5000,
-          headers: { 'x-service-token': this.internalToken },
-        },
-      );
+      const url = `${this.baseUrl}/users/${userId}/reset-password-internal`;
+      const body = { newPassword };
+      await axios.post(url, body, {
+        timeout: 5000,
+        headers: this.headers('POST', `/users/${userId}/reset-password-internal`, body),
+      });
     } catch (error) {
       this.handleError('resetPassword', error);
     }

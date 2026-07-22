@@ -26,6 +26,7 @@ export function useScheduleData(selectedDate = new Date()) {
   const [resolvedClinicId, setResolvedClinicId] = useState<string | undefined>(
     storeClinicId && UUID_RE.test(storeClinicId) ? storeClinicId : undefined,
   );
+  const [resolvingClinic, setResolvingClinic] = useState(true);
   const [doctors, setDoctors] = useState<DoctorWithAppointments[]>([]);
   const [appointments, setAppointments] = useState<ApiAppointment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,6 +47,7 @@ export function useScheduleData(selectedDate = new Date()) {
     let cancelled = false;
 
     async function syncClinicAssignment() {
+      setResolvingClinic(true);
       try {
         const res = await listMyClinics(accessToken!, "SECRETARY");
         if (cancelled) return;
@@ -65,6 +67,10 @@ export function useScheduleData(selectedDate = new Date()) {
         }
       } catch {
         // handled when schedule load runs
+      } finally {
+        if (!cancelled) {
+          setResolvingClinic(false);
+        }
       }
     }
 
@@ -152,15 +158,15 @@ export function useScheduleData(selectedDate = new Date()) {
   }, [accessToken, clinicId, refetch]);
 
   useEffect(() => {
-    if (!accessToken || clinicId) return;
+    if (!accessToken || clinicId || resolvingClinic) return;
     const timeout = setTimeout(() => {
       setLoading(false);
       setError(
         "Your account is not linked to any clinic. Contact your clinic administrator.",
       );
-    }, 4000);
+    }, 8000);
     return () => clearTimeout(timeout);
-  }, [accessToken, clinicId]);
+  }, [accessToken, clinicId, resolvingClinic]);
 
   return { doctors, appointments, loading, error, clinicId, clinicName, refetch };
 }

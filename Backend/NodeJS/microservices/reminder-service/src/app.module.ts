@@ -21,6 +21,8 @@ import { medicareTypeOrmExtras } from '@medicare/telemetry';
         password: configService.get('DATABASE_PASSWORD') || 'postgres',
         database: configService.get('DATABASE_NAME') || 'reminder_db',
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
+        migrations: [__dirname + '/reminder/migrations/*{.ts,.js}'],
+        migrationsTableName: 'reminder_migrations',
         synchronize: configService.get('NODE_ENV') !== 'production',
         extra: { max: 20, min: 5, idleTimeoutMillis: 30000, connectionTimeoutMillis: 2000 },
         ...medicareTypeOrmExtras('reminder-service'),

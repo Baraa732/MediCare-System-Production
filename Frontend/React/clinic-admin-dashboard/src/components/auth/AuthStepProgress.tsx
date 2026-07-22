@@ -13,7 +13,7 @@ export function AuthStepProgress({ current }: { current: AuthFlowStep }) {
   const currentIndex = STEPS.findIndex((s) => s.id === current);
 
   return (
-    <div className="px-7 pt-6 pb-2">
+    <div className="px-5 pt-4 pb-1 sm:px-6">
       <div className="flex items-center justify-between gap-2">
         {STEPS.map((step, index) => {
           const Icon = step.icon;
@@ -73,7 +73,7 @@ export function RegisterSubSteps({
   total: number;
 }) {
   return (
-    <div className="flex items-center gap-2 mb-4">
+    <div className="flex items-center gap-2 mb-2">
       {Array.from({ length: total }, (_, i) => (
         <div
           key={i}

@@ -8,31 +8,10 @@ import { KafkaOptionsFactory } from './kafka-shared/kafka-options.factory';
 import { SessionService } from './auth/services/session.service';
 import { ApiExceptionFilter } from './common/filters/api-exception.filter';
 import { setupMedicareLogging, logServiceReady, createMedicareNestLogger } from '@medicare/telemetry';
-
-function requireInternalServiceToken(serviceName: string): void {
-  const token = process.env.INTERNAL_SERVICE_TOKEN?.trim();
-
-  if (!token) {
-    throw new Error(`[${serviceName}] INTERNAL_SERVICE_TOKEN is required and cannot be empty`);
-  }
-
-  if (token.length < 24) {
-    throw new Error(`[${serviceName}] INTERNAL_SERVICE_TOKEN must be at least 24 characters long`);
-  }
-
-  const normalized = token.toLowerCase();
-  const weakPatterns = ['changeme', 'replace-me', 'example', 'default', 'test', 'dummy'];
-  if (weakPatterns.some((pattern) => normalized.includes(pattern))) {
-    throw new Error(`[${serviceName}] INTERNAL_SERVICE_TOKEN appears to be a placeholder value`);
-  }
-
-  if (/\s/.test(token)) {
-    throw new Error(`[${serviceName}] INTERNAL_SERVICE_TOKEN must not contain whitespace`);
-  }
-}
+import { requireInternalAuthConfig } from './internal-auth-shared/internal-auth.config';
 
 async function bootstrap() {
-  requireInternalServiceToken('auth-service');
+  requireInternalAuthConfig('auth-service');
 
   const nestLogger = createMedicareNestLogger('auth-service');
   const app = await NestFactory.create(AppModule, { bodyParser: true, bufferLogs: true, logger: nestLogger });

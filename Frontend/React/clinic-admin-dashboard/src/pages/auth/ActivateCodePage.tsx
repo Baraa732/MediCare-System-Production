@@ -12,6 +12,7 @@ import { useOnboardingStore } from "@/stores/onboardingStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { authInputNoAutofill } from "@/lib/authInput";
 
 export function ActivateCodePage() {
   const navigate = useNavigate();
@@ -111,6 +112,12 @@ export function ActivateCodePage() {
       const context = {
         adminFullName: res.adminFullName,
         clinicLocation: res.clinicLocation,
+        idNumber: res.idNumber,
+        dateOfBirth: res.dateOfBirth,
+        email: res.email,
+        registrationLicenseNumber: res.registrationLicenseNumber,
+        address: res.address,
+        phoneNumber: canonicalPhone,
       };
       setActivationPhone(canonicalPhone, context);
       markDashboardActivated(canonicalPhone, context);
@@ -183,13 +190,14 @@ export function ActivateCodePage() {
         </div>
       )}
 
-      <form onSubmit={(e) => void handleSubmit(e)} className="space-y-5">
+      <form onSubmit={(e) => void handleSubmit(e)} className="space-y-5" autoComplete="off">
         <div className="space-y-2">
           <Label htmlFor="phone" className="text-[#929296]">
             Registered phone number
           </Label>
           <Input
             id="phone"
+            name="clinic-activate-phone"
             type="tel"
             value={phoneNumber}
             onChange={(e) => {
@@ -197,7 +205,8 @@ export function ActivateCodePage() {
               setError(null);
               setInfo(null);
             }}
-            placeholder="+963912345680"
+            {...authInputNoAutofill}
+            placeholder="Phone number"
             disabled={loading || success}
             required
             className={cn(

@@ -1,0 +1,13 @@
+import { DataSource } from 'typeorm';
+
+export default new DataSource({
+  type: 'postgres',
+  host: process.env.DATABASE_HOST || 'postgres-notification',
+  port: parseInt(process.env.DATABASE_PORT || '5432', 10),
+  username: process.env.DATABASE_USER || process.env.POSTGRES_USER || 'postgres',
+  password: process.env.DATABASE_PASSWORD || process.env.POSTGRES_PASSWORD || 'postgres',
+  database: process.env.DATABASE_NAME || 'notification_db',
+  migrations: [__dirname + '/notification/migrations/*.js', __dirname + '/notification/migrations/*.ts'],
+  migrationsTableName: 'notification_migrations',
+  migrationsTransactionMode: 'each',
+});

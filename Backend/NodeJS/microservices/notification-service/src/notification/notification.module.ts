@@ -7,6 +7,7 @@ import { KafkaClientModule } from '../kafka-shared/kafka-client.module';
 import { NotificationLog } from './entities/notification-log.entity';
 import { PushDeviceToken } from './entities/push-device-token.entity';
 import { StaffInboxNotification } from './entities/staff-inbox-notification.entity';
+import { ProcessedKafkaMessage } from './entities/processed-kafka-message.entity';
 import { NotificationService } from './services/notification.service';
 import { KafkaConsumerService } from './services/kafka.consumer.service';
 import { WhatsAppService } from './services/whatsapp.service';
@@ -16,6 +17,8 @@ import { FirebasePushService } from './services/firebase-push.service';
 import { StaffPushService } from './services/staff-push.service';
 import { InternalNotificationController } from './controllers/internal-notification.controller';
 import { NotificationController } from './controllers/notification.controller';
+import { KafkaIdempotencyService } from './services/kafka-idempotency.service';
+import { AppointmentKafkaCorroborator } from './services/appointment-kafka-corroborator.service';
 import { InternalServiceGuard } from './guards/internal-service.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
@@ -23,7 +26,7 @@ import { RolesGuard } from './guards/roles.guard';
 @Module({
   imports: [
     ConfigModule,
-    TypeOrmModule.forFeature([NotificationLog, PushDeviceToken, StaffInboxNotification]),
+    TypeOrmModule.forFeature([NotificationLog, PushDeviceToken, StaffInboxNotification, ProcessedKafkaMessage]),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -38,10 +41,12 @@ import { RolesGuard } from './guards/roles.guard';
       consumerGroupId: 'notification-service-producer',
     }),
   ],
-  controllers: [NotificationController, InternalNotificationController],
+  controllers: [NotificationController, InternalNotificationController, KafkaConsumerService],
   providers: [
     NotificationService,
     KafkaConsumerService,
+    KafkaIdempotencyService,
+    AppointmentKafkaCorroborator,
     WhatsAppService,
     UserHttpClient,
     ClinicHttpClient,

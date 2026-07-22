@@ -1,0 +1,122 @@
+# Staging overlay — production-like security without dev host exposure.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d
+#
+# Uses NODE_ENV=production so dev-only API routes are disabled. Observability
+# remains on the internal Docker network only (no host ports).
+
+x-staging-env: &staging-env
+  NODE_ENV: production
+  MEDICARE_ENV: staging
+  MEDICARE_DEPLOY_PROFILE: staging
+
+services:
+  auth-service:
+    environment:
+      <<: *staging-env
+
+  user-service:
+    environment:
+      <<: *staging-env
+
+  emr-service:
+    environment:
+      <<: *staging-env
+
+  clinic-service:
+    environment:
+      <<: *staging-env
+
+  scheduling-service:
+    environment:
+      <<: *staging-env
+
+  appointment-service:
+    environment:
+      <<: *staging-env
+
+  notification-service:
+    environment:
+      <<: *staging-env
+
+  reminder-service:
+    environment:
+      <<: *staging-env
+
+  system-manager-service:
+    environment:
+      <<: *staging-env
+
+  api-gateway:
+    environment:
+      <<: *staging-env
+    ports:
+      - "${API_GATEWAY_HOST_PORT:-3000}:3000"
+
+  grafana:
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    ports: []
+
+  prometheus:
+    ports: []
+
+  loki:
+    ports: []
+
+  jaeger:
+    ports: []
+
+  otel-collector:
+    ports: []
+
+  openemr:
+    ports: []
+
+  evolution-api:
+    ports: []
+
+  system-manager-dashboard:
+    ports: []
+
+  clinic-admin-dashboard:
+    ports: []
+
+  redis:
+    ports: []
+
+  mongodb:
+    ports: []
+
+  mariadb-openemr:
+    ports: []
+
+  postgres-auth:
+    ports: []
+
+  postgres-user:
+    ports: []
+
+  postgres-system:
+    ports: []
+
+  postgres-clinic:
+    ports: []
+
+  postgres-scheduling:
+    ports: []
+
+  postgres-notification:
+    ports: []
+
+  postgres-reminder:
+    ports: []
+
+  postgres-appointment:
+    ports: []
+
+  postgres-evolution:
+    ports: []
+
+  postgres-emr:
+    ports: []

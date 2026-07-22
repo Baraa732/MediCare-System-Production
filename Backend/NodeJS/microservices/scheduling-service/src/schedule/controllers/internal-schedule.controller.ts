@@ -16,7 +16,10 @@ export class InternalScheduleController {
   @Get('clinics/:clinicId/hours')
   @UseGuards(InternalServiceGuard)
   async getClinicHours(@Param('clinicId', ParseUUIDPipe) clinicId: string) {
-    const hours = await this.scheduleService.getClinicHours(clinicId);
+    const hours = await this.scheduleService.getClinicHours(clinicId, {
+      userId: 'internal',
+      role: 'SYSTEM_MANAGER',
+    });
     return { success: true, hours };
   }
 }

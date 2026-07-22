@@ -94,9 +94,13 @@ export class AuthService implements OnModuleInit {
             this.sessionService.revokeAllUserSessions(userId),
             this.trustedDeviceService.revokeByUserId(userId),
           ]);
-          logger.log(`All sessions and trusted devices revoked for user ${phoneNumber} after password change`);
+          logger.log(
+            `All sessions and trusted devices revoked for user ${PhoneUtils.maskPhoneNumber(phoneNumber ?? userId)} after password change`,
+          );
         } catch (error: any) {
-          logger.error(`Failed to revoke sessions for user ${phoneNumber} after password change: ${error.message}`);
+          logger.error(
+            `Failed to revoke sessions for user ${PhoneUtils.maskPhoneNumber(phoneNumber ?? userId)} after password change: ${error.message}`,
+          );
         }
       },
     );
@@ -115,25 +119,28 @@ export class AuthService implements OnModuleInit {
     if (!sessionId && !userId) return;
 
     const gatewayUrl = process.env.API_GATEWAY_URL || 'http://api-gateway:3000';
-    const internalToken = process.env.INTERNAL_SERVICE_TOKEN;
-    if (!internalToken) return;
+    const signingSecret = process.env.INTERNAL_AUTH_SECRET;
+    if (!signingSecret) return;
 
     const axios = require('axios');
+    const { createInternalAuthHeadersForUrl } = require('../../internal-auth-shared/internal-http.signer');
     const maxAttempts = 3;
     let lastError: any;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       try {
-        await axios.post(
-          `${gatewayUrl}/internal/cache/auth/invalidate`,
-          { sessionId, userId },
-          {
-            timeout: 3000,
-            headers: {
-              'x-service-token': internalToken,
-            },
-          },
-        );
+        const path = '/internal/cache/auth/invalidate';
+        const body = { sessionId, userId };
+        await axios.post(`${gatewayUrl}${path}`, body, {
+          timeout: 3000,
+          headers: createInternalAuthHeadersForUrl(
+            'auth-service',
+            signingSecret,
+            'POST',
+            path,
+            body,
+          ),
+        });
         return;
       } catch (error: any) {
         lastError = error;
@@ -165,16 +172,23 @@ export class AuthService implements OnModuleInit {
     // CLINIC_ADMIN must have an activated code before registering
     if (role === 'CLINIC_ADMIN') {
       const systemManagerUrl = process.env.SYSTEM_MANAGER_SERVICE_URL || 'http://system-manager-service:3003';
-      const internalToken = process.env.INTERNAL_SERVICE_TOKEN;
-      if (!internalToken) throw new Error('INTERNAL_SERVICE_TOKEN env var is not set');
+      const signingSecret = process.env.INTERNAL_AUTH_SECRET;
+      if (!signingSecret) throw new Error('INTERNAL_AUTH_SECRET env var is not set');
       try {
         const axios = require('axios');
+        const { createInternalAuthHeadersForUrl } = require('../../internal-auth-shared/internal-http.signer');
+        const path = '/v1/system-manager/activation-code/check-activated';
         const res = await axios.get(
-          `${systemManagerUrl}/v1/system-manager/activation-code/check-activated`,
+          `${systemManagerUrl}${path}`,
           {
             params: { phoneNumber: formattedPhoneNumber },
             timeout: 5000,
-            headers: { 'x-service-token': internalToken },
+            headers: createInternalAuthHeadersForUrl(
+              'auth-service',
+              signingSecret,
+              'GET',
+              path,
+            ),
           },
         );
         if (!res.data?.activated) {
@@ -339,6 +353,7 @@ export class AuthService implements OnModuleInit {
       temporaryPassword?: string;
       activationExpiresAt?: string;
       status?: string;
+      membershipOnly?: boolean;
     };
 
     try {
@@ -347,12 +362,40 @@ export class AuthService implements OnModuleInit {
       mapUserServiceHttpError(error);
     }
 
-    if (!response?.success || !response.temporaryPassword) {
+    if (!response?.success || !response.userId) {
       throw new BadRequestException(response?.message || 'User creation failed');
     }
 
     if (response.userId && clinicId) {
-      await this.clinicHttp.ensureStaffAssignment(response.userId, _adminId);
+      const staffRole = createUserDto.role === 'DOCTOR' ? 'DOCTOR' : 'SECRETARY';
+      const assignResult = await this.clinicHttp.assignStaffInternal({
+        clinicId,
+        userId: response.userId,
+        staffRole,
+        assignedBy: _adminId,
+      });
+      if (!assignResult.assigned) {
+        this.logger.error(
+          `Staff assignment failed for ${response.userId} at clinic ${clinicId}: ${assignResult.reason ?? 'unknown'}`,
+        );
+        throw new BadRequestException(
+          'Staff account was created but could not be linked to your clinic. Please try again.',
+        );
+      }
+    }
+
+    if (response.membershipOnly) {
+      return {
+        message: 'Staff member has been added to your clinic.',
+        whatsappSent: false,
+        userId: response.userId,
+        role: createUserDto.role,
+        status: response.status,
+      };
+    }
+
+    if (!response.temporaryPassword) {
+      throw new BadRequestException(response?.message || 'User creation failed');
     }
 
     const tempPassword = response.temporaryPassword;
@@ -367,22 +410,33 @@ export class AuthService implements OnModuleInit {
       'Please login within 48 hours.',
     ].join('\n');
 
-    const whatsappResult = await this.deliverOtpWhatsApp(
-      formattedPhoneNumber,
-      tempPassword,
-      welcomeTemplate,
+    // Do not block the HTTP response on WhatsApp — Evolution can poll up to 90s while reconnecting.
+    void this.deliverOtpWhatsApp(formattedPhoneNumber, tempPassword, welcomeTemplate).then(
+      (whatsappResult) => {
+        if (whatsappResult.sent) {
+          this.logger.log(
+            `Staff credentials sent via WhatsApp to ${PhoneUtils.maskPhoneNumber(formattedPhoneNumber)}`,
+          );
+          return;
+        }
+        this.logger.warn(
+          `Staff credentials WhatsApp not delivered for ${PhoneUtils.maskPhoneNumber(formattedPhoneNumber)}: ${whatsappResult.hint ?? 'unknown'}`,
+        );
+      },
     );
 
     const result = {
-      message: whatsappResult.sent
-        ? 'Staff account created. Login credentials sent via WhatsApp.'
-        : 'Staff account created. WhatsApp delivery failed — share credentials manually.',
-      whatsappSent: whatsappResult.sent,
+      message:
+        'Staff account created. Login credentials are being sent via WhatsApp — share manually if needed.',
+      whatsappSent: false,
       userId: response.userId,
       role: createUserDto.role,
       activationExpiresAt: response.activationExpiresAt,
       status: response.status || 'PENDING_ACTIVATION',
-      ...(whatsappResult.hint ? { whatsappHint: whatsappResult.hint } : {}),
+      whatsappHint:
+        process.env.NODE_ENV === 'development'
+          ? 'WhatsApp sends in the background. Use devTemporaryPassword from the response if delivery fails.'
+          : 'If WhatsApp is not connected, share the temporary password with the staff member directly.',
     };
 
     if (process.env.NODE_ENV === 'development') {
@@ -584,9 +638,11 @@ export class AuthService implements OnModuleInit {
     const ip = deviceInfo?.ip || 'unknown';
     const devSeedLogin =
       process.env.NODE_ENV === 'development' && PhoneUtils.isDevSeedPhone(formattedPhoneNumber);
+    const skipLoginRateLimits =
+      devSeedLogin || process.env.NODE_ENV === 'development';
 
     // ── IP-level rate limit (prevents one IP hammering many accounts) ──────────
-    if (!devSeedLogin) {
+    if (!skipLoginRateLimits) {
       const ipLimit = await this.rateLimitService.checkRateLimitByIp(ip, RateLimitType.LOGIN);
       if (!ipLimit.allowed) {
         throw new BadRequestException(`Too many login attempts from this IP. Retry in ${ipLimit.retryAfter}s.`);
@@ -594,21 +650,20 @@ export class AuthService implements OnModuleInit {
     }
 
     // ── Per-phone rate limit ───────────────────────────────────────────────────
-    if (!devSeedLogin) {
+    if (!skipLoginRateLimits) {
       const phoneLimit = await this.rateLimitService.checkRateLimit(formattedPhoneNumber, RateLimitType.LOGIN);
       if (!phoneLimit.allowed) {
         throw new BadRequestException(`Too many login attempts. Please try again in ${phoneLimit.retryAfter} seconds.`);
       }
     }
 
-    // Fix 11: Combined IP+phone rate limit — prevents IP rotation bypass
-    if (!devSeedLogin) {
+    // ── Combined IP+phone block (failed attempts only — see recordCombinedFailedAttempt) ──
+    if (!skipLoginRateLimits) {
       const combinedLimit = await this.rateLimitService.checkCombinedRateLimit(ip, formattedPhoneNumber);
       if (!combinedLimit.allowed) {
-        if (combinedLimit.requiresCaptcha) {
-          throw new BadRequestException('Too many login attempts. Please complete the CAPTCHA challenge.');
-        }
-        throw new BadRequestException(`Too many login attempts. Retry in ${combinedLimit.retryAfter}s.`);
+        throw new BadRequestException(
+          `Too many failed login attempts. Please try again in ${combinedLimit.retryAfter ?? 900} seconds.`,
+        );
       }
     }
 
@@ -634,6 +689,7 @@ export class AuthService implements OnModuleInit {
       // Record failed attempt in both rate limiter and account lock service
       await Promise.all([
         this.rateLimitService.recordFailedAttempt(formattedPhoneNumber, RateLimitType.LOGIN),
+        this.rateLimitService.recordCombinedFailedAttempt(ip, formattedPhoneNumber),
         this.accountLockService.recordFailedLogin(formattedPhoneNumber),
       ]);
       await this.auditLogService.createLog({
@@ -650,6 +706,11 @@ export class AuthService implements OnModuleInit {
     }
 
     const user = userResponse.user as AuthUserProfile;
+
+    await Promise.all([
+      this.rateLimitService.resetLoginRateLimits(ip, formattedPhoneNumber),
+      this.accountLockService.resetLock(formattedPhoneNumber),
+    ]);
 
     if (user.role === 'CLINIC_ADMIN' && !user.isDashboardActivated) {
       throw new UnauthorizedException('Please activate your dashboard before logging in');
@@ -678,15 +739,8 @@ export class AuthService implements OnModuleInit {
       });
 
       const pendingActivation = user.status === 'PENDING_ACTIVATION' || user.mustChangePassword;
-      const staffRoles = new Set(['SECRETARY', 'DOCTOR', 'CLINIC_ADMIN']);
-      if (staffRoles.has(user.role)) {
-        await this.clinicHttp.ensureStaffAssignment(user.id, user.id);
-        const resolved = await this.clinicHttp.resolveStaffClinic(user.id);
-        if (resolved.clinicId) {
-          user.clinicId = resolved.clinicId;
-        } else {
-          user.clinicId = undefined;
-        }
+      if (pendingActivation || this.staffRoleHint(user.role)) {
+        await this.linkStaffToClinic(user);
       }
       this.logger.log(
         `OTP step required: ${PhoneUtils.maskPhoneNumber(formattedPhoneNumber)} (${user.role}) pendingActivation=${pendingActivation}`,
@@ -702,11 +756,6 @@ export class AuthService implements OnModuleInit {
         ...(process.env.NODE_ENV === 'development' && otpResult.devOtp ? { devOtp: otpResult.devOtp } : {}),
       };
     }
-
-    await Promise.all([
-      this.rateLimitService.resetRateLimit(formattedPhoneNumber, RateLimitType.LOGIN),
-      this.accountLockService.resetLock(formattedPhoneNumber),
-    ]);
 
     this.kafkaClient.emit('user.login.success', {
       userId: user.id,
@@ -818,25 +867,20 @@ export class AuthService implements OnModuleInit {
     const user = userResponse.user as AuthUserProfile;
     const newRefreshToken = await this.sessionService.rotateRefreshToken(session.sessionId, refreshTokenHash);
 
-    const staffRoles = new Set(['SECRETARY', 'DOCTOR', 'CLINIC_ADMIN']);
-    if (staffRoles.has(user.role)) {
-      await this.clinicHttp.ensureStaffAssignment(user.id, user.id);
-      const resolved = await this.clinicHttp.resolveStaffClinic(user.id);
-      if (resolved.clinicId) {
-        user.clinicId = resolved.clinicId;
-        (user as AuthUserProfile & { tenantId?: string }).tenantId = resolved.clinicId;
-      }
-    }
+    await this.linkStaffToClinic(user);
 
     const jti = crypto.randomUUID();
-    const tenantId = (user as AuthUserProfile & { tenantId?: string }).tenantId ?? user.clinicId;
+    const staffTenantId =
+      user.role === 'PATIENT'
+        ? undefined
+        : ((user as AuthUserProfile & { tenantId?: string }).tenantId ?? user.clinicId);
     const accessToken = this.jwtService.sign({
       sub: user.id,
       jti,
       role: user.role,
       sessionId: session.sessionId,
       type: 'user',
-      ...(tenantId ? { tenantId } : {}),
+      ...(staffTenantId ? { tenantId: staffTenantId } : {}),
     });
 
     await this.auditLogService.createLog({
@@ -1042,10 +1086,7 @@ export class AuthService implements OnModuleInit {
     }
 
     if (user.status === 'PENDING_ACTIVATION' || user.mustChangePassword) {
-      const resolved = await this.clinicHttp.resolveStaffClinic(user.id);
-      if (resolved.clinicId) {
-        user.clinicId = resolved.clinicId;
-      }
+      await this.linkStaffToClinic(user);
       const activationToken = await this.issueActivationPendingToken(user.id, phone);
       this.logger.log(`MFA verified — password change required: ${PhoneUtils.maskPhoneNumber(user.phoneNumber)}`);
       return {
@@ -1060,9 +1101,27 @@ export class AuthService implements OnModuleInit {
       await this.trustedDeviceService.trustDevice(user.id, deviceInfo);
     }
 
-    await this.clinicHttp.ensureStaffAssignment(user.id, user.id);
+    await this.linkStaffToClinic(user);
 
     return this.issueFullLoginTokens(user, deviceInfo, requestId, { mfa: true });
+  }
+
+  private staffRoleHint(role: string): 'DOCTOR' | 'SECRETARY' | 'CLINIC_ADMIN' | undefined {
+    if (role === 'DOCTOR') return 'DOCTOR';
+    if (role === 'SECRETARY') return 'SECRETARY';
+    if (role === 'CLINIC_ADMIN') return 'CLINIC_ADMIN';
+    return undefined;
+  }
+
+  private async linkStaffToClinic(user: AuthUserProfile): Promise<void> {
+    const staffRoleHint = this.staffRoleHint(user.role);
+    if (!staffRoleHint) return;
+
+    const resolved = await this.clinicHttp.resolveStaffClinic(user.id);
+    if (resolved.clinicId) {
+      user.clinicId = resolved.clinicId;
+      (user as AuthUserProfile & { tenantId?: string }).tenantId = resolved.clinicId;
+    }
   }
 
   private async issueActivationPendingToken(userId: string, phoneNumber: string): Promise<string> {
@@ -1101,25 +1160,20 @@ export class AuthService implements OnModuleInit {
       (err) => this.logger.error('Login notification failed:', err.message),
     );
 
-    const staffRoles = new Set(['SECRETARY', 'DOCTOR', 'CLINIC_ADMIN']);
-    if (staffRoles.has(user.role)) {
-      await this.clinicHttp.ensureStaffAssignment(user.id, user.id);
-      const resolved = await this.clinicHttp.resolveStaffClinic(user.id);
-      if (resolved.clinicId) {
-        user.clinicId = resolved.clinicId;
-        (user as AuthUserProfile & { tenantId?: string }).tenantId = resolved.clinicId;
-      }
-    }
+    await this.linkStaffToClinic(user);
 
     const jti = crypto.randomUUID();
-    const tenantId = (user as AuthUserProfile & { tenantId?: string }).tenantId ?? user.clinicId;
+    const staffTenantId =
+      user.role === 'PATIENT'
+        ? undefined
+        : ((user as AuthUserProfile & { tenantId?: string }).tenantId ?? user.clinicId);
     const accessToken = this.jwtService.sign({
       sub: user.id,
       jti,
       role: user.role,
       sessionId: session.sessionId,
       type: 'user',
-      ...(tenantId ? { tenantId } : {}),
+      ...(staffTenantId ? { tenantId: staffTenantId } : {}),
     });
 
     const refreshToken = await this.sessionService.assignInitialRefreshToken(session.sessionId);
@@ -1176,11 +1230,8 @@ export class AuthService implements OnModuleInit {
     }
 
     const user = userResponse.user as AuthUserProfile;
-    await this.clinicHttp.ensureStaffAssignment(payload.sub, payload.sub);
-    const resolved = await this.clinicHttp.resolveStaffClinic(payload.sub);
-    if (resolved.clinicId) {
-      user.clinicId = resolved.clinicId;
-    }
+    await this.clinicHttp.activatePendingMemberships(user.id);
+    await this.linkStaffToClinic(user);
     await this.trustedDeviceService.trustDevice(user.id, deviceInfo);
     return this.issueFullLoginTokens(user, deviceInfo, requestId, { staffActivation: true });
   }
@@ -1195,6 +1246,21 @@ export class AuthService implements OnModuleInit {
     return otps.length
       ? { expiresAt: otps[0].expiresAt, note: 'OTP is stored hashed; check WhatsApp for the code' }
       : { otp: null };
+  }
+
+  async devClearRateLimits(phoneNumber?: string, ip?: string) {
+    if (phoneNumber) {
+      const formatted = PhoneUtils.validateAndFormat(phoneNumber);
+      await this.rateLimitService.resetRateLimit(formatted, RateLimitType.LOGIN);
+      await this.rateLimitService.resetRateLimit(formatted, RateLimitType.OTP);
+      await this.rateLimitService.resetRateLimit(formatted, RateLimitType.OTP_VERIFY);
+      if (ip) {
+        await this.rateLimitService.resetLoginRateLimits(ip, formatted);
+      }
+      await this.accountLockService.resetLock(formatted);
+      return { message: `Rate limits cleared for ${PhoneUtils.maskPhoneNumber(formatted)}` };
+    }
+    return { message: 'Provide phoneNumber query param to clear login rate limits.' };
   }
 
   async getWhatsAppStatus() {
@@ -1226,20 +1292,37 @@ export class AuthService implements OnModuleInit {
     // Kafka request-reply (ClientKafka.send) has known metadata fetch issues
     // in KafkaJS v2 that cause UNKNOWN_TOPIC_OR_PARTITION on reply topics.
     const systemManagerUrl = process.env.SYSTEM_MANAGER_SERVICE_URL || 'http://system-manager-service:3003';
-    const internalToken = process.env.INTERNAL_SERVICE_TOKEN;
-    if (!internalToken) throw new Error('INTERNAL_SERVICE_TOKEN env var is not set');
+    const signingSecret = process.env.INTERNAL_AUTH_SECRET;
+    if (!signingSecret) throw new Error('INTERNAL_AUTH_SECRET env var is not set');
     try {
       const axios = require('axios');
+      const { createInternalAuthHeadersForUrl } = require('../../internal-auth-shared/internal-http.signer');
+      const path = '/v1/system-manager/activation-code/validate-internal';
+      const body = { code, phoneNumber: formattedPhoneNumber };
       const response = await axios.post(
-        `${systemManagerUrl}/v1/system-manager/activation-code/validate-internal`,
-        { code, phoneNumber: formattedPhoneNumber },
-        { timeout: 10000, headers: { 'x-service-token': internalToken } },
+        `${systemManagerUrl}${path}`,
+        body,
+        {
+          timeout: 10000,
+          headers: createInternalAuthHeadersForUrl(
+            'auth-service',
+            signingSecret,
+            'POST',
+            path,
+            body,
+          ),
+        },
       );
       return {
         message: response.data.message,
-        phoneNumber: formattedPhoneNumber,
         adminFullName: response.data.adminFullName,
         clinicLocation: response.data.clinicLocation,
+        idNumber: response.data.idNumber,
+        dateOfBirth: response.data.dateOfBirth,
+        email: response.data.email,
+        registrationLicenseNumber: response.data.registrationLicenseNumber,
+        address: response.data.address,
+        phoneNumber: response.data.phoneNumber ?? formattedPhoneNumber,
       };
     } catch (error: any) {
       const msg = error.response?.data?.message || error.message;
@@ -1254,37 +1337,60 @@ export class AuthService implements OnModuleInit {
   async getClinicAdminOnboardingStatus(phoneNumber: string) {
     const formattedPhoneNumber = PhoneUtils.validateAndFormat(phoneNumber);
     const systemManagerUrl = process.env.SYSTEM_MANAGER_SERVICE_URL || 'http://system-manager-service:3003';
-    const internalToken = process.env.INTERNAL_SERVICE_TOKEN;
-    if (!internalToken) throw new Error('INTERNAL_SERVICE_TOKEN env var is not set');
+    const signingSecret = process.env.INTERNAL_AUTH_SECRET;
+    if (!signingSecret) throw new Error('INTERNAL_AUTH_SECRET env var is not set');
 
     let dashboardActivated = false;
     let adminFullName: string | undefined;
     let clinicLocation: string | undefined;
+    let idNumber: string | undefined;
+    let dateOfBirth: string | undefined;
+    let email: string | undefined;
+    let registrationLicenseNumber: string | undefined;
+    let address: string | undefined;
 
     try {
       const axios = require('axios');
+      const { createInternalAuthHeadersForUrl } = require('../../internal-auth-shared/internal-http.signer');
+      const activatedPath = '/v1/system-manager/activation-code/check-activated';
       const activatedRes = await axios.get(
-        `${systemManagerUrl}/v1/system-manager/activation-code/check-activated`,
+        `${systemManagerUrl}${activatedPath}`,
         {
           params: { phoneNumber: formattedPhoneNumber },
           timeout: 5000,
-          headers: { 'x-service-token': internalToken },
+          headers: createInternalAuthHeadersForUrl(
+            'auth-service',
+            signingSecret,
+            'GET',
+            activatedPath,
+          ),
         },
       );
       dashboardActivated = activatedRes.data?.activated === true;
 
       if (dashboardActivated) {
+        const lookupPath = '/v1/system-manager/activation-code/lookup-used-by-phone';
         const lookupRes = await axios.get(
-          `${systemManagerUrl}/v1/system-manager/activation-code/lookup-used-by-phone`,
+          `${systemManagerUrl}${lookupPath}`,
           {
             params: { phoneNumber: formattedPhoneNumber },
             timeout: 5000,
-            headers: { 'x-service-token': internalToken },
+            headers: createInternalAuthHeadersForUrl(
+              'auth-service',
+              signingSecret,
+              'GET',
+              lookupPath,
+            ),
           },
         );
         if (lookupRes.data?.found) {
           adminFullName = lookupRes.data.adminFullName;
           clinicLocation = lookupRes.data.clinicLocation;
+          idNumber = lookupRes.data.idNumber;
+          dateOfBirth = lookupRes.data.dateOfBirth;
+          email = lookupRes.data.email;
+          registrationLicenseNumber = lookupRes.data.registrationLicenseNumber;
+          address = lookupRes.data.address;
         }
       }
     } catch (error: any) {
@@ -1303,6 +1409,11 @@ export class AuthService implements OnModuleInit {
       canLogin: dashboardActivated && registered,
       adminFullName,
       clinicLocation,
+      idNumber,
+      dateOfBirth,
+      email,
+      registrationLicenseNumber,
+      address,
     };
   }
 
@@ -1437,11 +1548,7 @@ export class AuthService implements OnModuleInit {
       await this.trustedDeviceService.trustDevice(user.id, deviceInfo);
     }
 
-    await this.clinicHttp.ensureStaffAssignment(user.id, user.id);
-    const resolved = await this.clinicHttp.resolveStaffClinic(user.id);
-    if (resolved.clinicId) {
-      user.clinicId = resolved.clinicId;
-    }
+    await this.linkStaffToClinic(user);
 
     await Promise.all([
       this.rateLimitService.resetRateLimit(formattedPhoneNumber, RateLimitType.LOGIN),

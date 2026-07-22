@@ -7,6 +7,8 @@ import { Activity, Gauge, Search, Server, TrendingUp, X, Zap } from 'lucide-reac
 import type { ApmService, PlatformMonitor } from '../../api/types'
 import { useObservabilityData } from '../../hooks/useObservabilityData'
 import { AdvancedPageHeader, AdvancedPanel, CommandMetric, ObservabilityPage, PbiGrid, StatusDot } from '../../components/advanced/AdvancedPage'
+import { MotionHeader, MotionMetricGridItem, MotionPanel, MotionTabs } from '../../components/motion/AnimatedSections'
+import { PageMotion } from '../../components/motion/PageMotion'
 
 export default function Metrics() {
   const [tab, setTab] = useState(0)
@@ -20,6 +22,8 @@ export default function Metrics() {
 
   return (
     <ObservabilityPage>
+      <PageMotion motionKey={`metrics-${tab}`}>
+      <MotionHeader>
       <AdvancedPageHeader
         title="Metrics & Infrastructure"
         eyebrow="Telemetry Workbench"
@@ -30,19 +34,23 @@ export default function Metrics() {
         compact
       >
         <PbiGrid spacing={1}>
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}><CommandMetric label="Traffic" value={totalTraffic} helper="events/h" color="#06b6d4" icon={Activity} /></Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}><CommandMetric label="Avg P95" value={`${avgP95}ms`} helper="service latency" color={avgP95 > 800 ? '#ef4444' : avgP95 > 300 ? '#f59e0b' : '#10b981'} icon={TrendingUp} /></Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}><CommandMetric label="Error Rate" value={`${errorRate}%`} helper="mean service rate" color={errorRate > 1 ? '#ef4444' : '#10b981'} icon={Zap} /></Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}><CommandMetric label="Monitors" value={`${healthyHosts}/${hosts.length}`} helper="healthy checks" color="#10b981" icon={Server} /></Grid>
+          <MotionMetricGridItem index={0} size={{ xs: 12, sm: 6, md: 3 }}><CommandMetric label="Traffic" value={totalTraffic} helper="events/h" color="#06b6d4" icon={Activity} /></MotionMetricGridItem>
+          <MotionMetricGridItem index={1} size={{ xs: 12, sm: 6, md: 3 }}><CommandMetric label="Avg P95" value={`${avgP95}ms`} helper="service latency" color={avgP95 > 800 ? '#ef4444' : avgP95 > 300 ? '#f59e0b' : '#10b981'} icon={TrendingUp} /></MotionMetricGridItem>
+          <MotionMetricGridItem index={2} size={{ xs: 12, sm: 6, md: 3 }}><CommandMetric label="Error Rate" value={`${errorRate}%`} helper="mean service rate" color={errorRate > 1 ? '#ef4444' : '#10b981'} icon={Zap} /></MotionMetricGridItem>
+          <MotionMetricGridItem index={3} size={{ xs: 12, sm: 6, md: 3 }}><CommandMetric label="Monitors" value={`${healthyHosts}/${hosts.length}`} helper="healthy checks" color="#10b981" icon={Server} /></MotionMetricGridItem>
         </PbiGrid>
       </AdvancedPageHeader>
+      </MotionHeader>
 
+      <MotionTabs>
       <Tabs value={tab} onChange={(_, value) => setTab(value)} sx={{ flexShrink: 0, minHeight: 36 }}>
         <Tab label="Infrastructure" />
         <Tab label="Metrics Explorer" />
       </Tabs>
+      </MotionTabs>
       {tab === 0 && <InfrastructureTab hosts={hosts} services={services} />}
       {tab === 1 && <MetricsExplorerTab services={services} />}
+      </PageMotion>
     </ObservabilityPage>
   )
 }
@@ -58,19 +66,23 @@ function InfrastructureTab({ hosts, services }: { hosts: PlatformMonitor[]; serv
   return (
     <PbiGrid spacing={1.5}>
       <Grid size={{ xs: 12, xl: 8 }}>
+        <MotionPanel index={0}>
         <PbiGrid spacing={1}>
-          {cards.map((card) => <Grid key={card.label} size={{ xs: 12, sm: 6, md: 3 }}><Box sx={{ p: 1.25, border: `1px solid ${alpha(card.color, 0.22)}`, bgcolor: alpha(card.color, 0.05), borderRadius: '4px', borderLeft: `3px solid ${card.color}`, height: '100%' }}><Typography variant="caption" sx={{ color: 'text.secondary' }}>{card.label}</Typography><Typography variant="metricSm">{card.value}</Typography></Box></Grid>)}
+          {cards.map((card, i) => <Grid key={card.label} size={{ xs: 12, sm: 6, md: 3 }}><MotionPanel index={i}><Box sx={{ p: 1.25, border: `1px solid ${alpha(card.color, 0.22)}`, bgcolor: alpha(card.color, 0.05), borderRadius: '4px', borderLeft: `3px solid ${card.color}`, height: '100%' }}><Typography variant="caption" sx={{ color: 'text.secondary' }}>{card.label}</Typography><Typography variant="metricSm">{card.value}</Typography></Box></MotionPanel></Grid>)}
         </PbiGrid>
         <Box sx={{ mt: 1.5 }}>
           <AdvancedPanel title="Infrastructure Matrix" caption="click a row to inspect monitor details" dense>
             <HostsTable hosts={hosts} services={services} onSelect={setSelected} />
           </AdvancedPanel>
         </Box>
+        </MotionPanel>
       </Grid>
       <Grid size={{ xs: 12, xl: 4 }}>
+        <MotionPanel index={1}>
         <AdvancedPanel title="Capacity Radar" caption="traffic, latency, errors, monitor health" dense>
           <ReactECharts option={capacityOption(services, hosts)} style={{ height: 320 }} notMerge />
         </AdvancedPanel>
+        </MotionPanel>
       </Grid>
       <HostDrawer host={selected} open={Boolean(selected)} onClose={() => setSelected(null)} />
     </PbiGrid>
@@ -103,6 +115,7 @@ function MetricsExplorerTab({ services }: { services: ApmService[] }) {
   return (
     <PbiGrid spacing={1.5}>
       <Grid size={{ xs: 12, xl: 9 }}>
+        <MotionPanel index={0}>
         <AdvancedPanel title="Metrics Explorer" caption="query real service series" dense>
           <Box sx={{ display: 'flex', gap: 1, mb: 1, flexWrap: 'wrap' }}>
             <TextField size="small" value={query} onChange={(e) => setQuery(e.target.value)} slotProps={{ input: { startAdornment: <Search size={14} color="#8b93a8" style={{ marginRight: 6 }} /> } }} sx={{ width: 320 }} />
@@ -113,8 +126,10 @@ function MetricsExplorerTab({ services }: { services: ApmService[] }) {
           </Box>
           <ReactECharts option={option} style={{ height: 320 }} notMerge />
         </AdvancedPanel>
+        </MotionPanel>
       </Grid>
       <Grid size={{ xs: 12, xl: 3 }}>
+        <MotionPanel index={1}>
         <AdvancedPanel title="Metric Presets" caption="quick query targets" dense>
           {[
             ['service.req_rate', '#06b6d4'],
@@ -123,6 +138,7 @@ function MetricsExplorerTab({ services }: { services: ApmService[] }) {
             ['service.instances', '#10b981'],
           ].map(([preset, color]) => <Box key={preset} onClick={() => setQuery(preset)} sx={{ p: 1.25, mb: 1, border: `1px solid ${alpha(color, 0.25)}`, bgcolor: query === preset ? alpha(color, 0.12) : 'transparent', borderRadius: '4px', cursor: 'pointer' }}><Typography variant="body2">{preset}</Typography><Typography variant="caption2" sx={{ color }}>avg {preset.includes('latency') ? 'ms' : 'count'}</Typography></Box>)}
         </AdvancedPanel>
+        </MotionPanel>
       </Grid>
     </PbiGrid>
   )

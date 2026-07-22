@@ -1,11 +1,19 @@
 import { Injectable, Logger, BadRequestException, ServiceUnavailableException } from '@nestjs/common';
-import axios, { AxiosError } from 'axios';
+import axios from 'axios';
+import { createInternalAuthHeadersForUrl } from '../../internal-auth-shared/internal-http.signer';
 
 @Injectable()
 export class SchedulingHttpClient {
   private readonly baseUrl = process.env.SCHEDULING_SERVICE_URL || 'http://scheduling-service:3008';
-  private readonly token = process.env.INTERNAL_SERVICE_TOKEN || '';
+  private readonly serviceName = 'appointment-service';
+  private readonly signingSecret = process.env.INTERNAL_AUTH_SECRET || '';
   private readonly logger = new Logger(SchedulingHttpClient.name);
+
+  constructor() {
+    if (!this.signingSecret) {
+      throw new Error('INTERNAL_AUTH_SECRET env var is not set');
+    }
+  }
 
   async validateSlot(
     clinicId: string,
@@ -13,13 +21,19 @@ export class SchedulingHttpClient {
     scheduledAt: string,
     durationMinutes: number,
   ): Promise<void> {
-    if (!this.token) return;
     try {
-      const res = await axios.post(
-        `${this.baseUrl}/v1/schedule/internal/validate-slot`,
-        { clinicId, doctorId, scheduledAt, durationMinutes },
-        { timeout: 5000, headers: { 'x-service-token': this.token } },
-      );
+      const path = '/v1/schedule/internal/validate-slot';
+      const body = { clinicId, doctorId, scheduledAt, durationMinutes };
+      const res = await axios.post(`${this.baseUrl}${path}`, body, {
+        timeout: 5000,
+        headers: createInternalAuthHeadersForUrl(
+          this.serviceName,
+          this.signingSecret,
+          'POST',
+          path,
+          body,
+        ),
+      });
       if (!res.data?.valid) {
         throw new BadRequestException(
           res.data?.reason === 'SLOT_NOT_AVAILABLE'

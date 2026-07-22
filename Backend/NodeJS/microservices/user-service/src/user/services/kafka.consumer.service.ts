@@ -87,17 +87,11 @@ export class KafkaConsumerService implements OnModuleInit {
       return { success: false, error: 'Invalid message schema' };
     }
 
-    const { phoneNumber, password, skipPasswordCheck, userId } = data;
+    const { phoneNumber, password } = data;
 
     try {
-      if (userId && skipPasswordCheck) {
-        const user = await this.userService.findOne(userId);
-        const { password: _, ...userWithoutPassword } = user as any;
-        return { success: true, user: userWithoutPassword };
-      }
-
       this.logger.log(`Login request for: ${phoneNumber}`);
-      return await this.userService.validateLogin(phoneNumber, password, skipPasswordCheck === true);
+      return await this.userService.validateLogin(phoneNumber, password);
     } catch (error: any) {
       this.logger.error(`Login validation error: ${error.message}`);
       return { success: false };

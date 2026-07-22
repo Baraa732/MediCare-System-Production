@@ -1,0 +1,51 @@
+{
+  "apiBase": "http://localhost:3000/api",
+  "password": "E2e@Test1",
+  "systemManager": {
+    "role": "SYSTEM_MANAGER",
+    "username": "Baraa Al-Rifaee",
+    "password": "baraaalrifaee732"
+  },
+  "clinic": {
+    "id": "e2e00002-0002-4002-8002-000000000002",
+    "name": "E2E Demo Clinic"
+  },
+  "users": {
+    "clinicAdmin": {
+      "role": "CLINIC_ADMIN",
+      "phone": "+963999009001",
+      "password": "E2e@Test1",
+      "userId": "e2e10001-0001-4001-8001-000000000001"
+    },
+    "doctor": {
+      "role": "DOCTOR",
+      "phone": "+963999009010",
+      "password": "E2e@Test1",
+      "userId": "e2e10002-0002-4002-8002-000000000002"
+    },
+    "secretary": {
+      "role": "SECRETARY",
+      "phone": "+963999009002",
+      "password": "E2e@Test1",
+      "userId": "e2e10003-0003-4003-8003-000000000003"
+    },
+    "patient1": {
+      "role": "PATIENT",
+      "phone": "+963999009101",
+      "password": "E2e@Test1",
+      "userId": "e2e10004-0004-4004-8004-000000000004"
+    },
+    "patient2": {
+      "role": "PATIENT",
+      "phone": "+963999009102",
+      "password": "E2e@Test1",
+      "userId": "e2e10005-0005-4005-8005-000000000005"
+    }
+  },
+  "activation": {
+    "spareCode": "593816",
+    "sparePhone": "+963999009099",
+    "spareStatus": "pending",
+    "adminCodeUsed": "847291"
+  }
+}

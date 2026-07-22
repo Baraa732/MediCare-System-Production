@@ -39,6 +39,8 @@ import { Pause, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
 import type { PlatformMonitor } from '../../api/types'
 import { useObservabilityData } from '../../hooks/useObservabilityData'
 import { AdvancedPageHeader, AdvancedPanel, ObservabilityPage } from '../../components/advanced/AdvancedPage'
+import { MotionHeader, MotionPanel, MotionTabs } from '../../components/motion/AnimatedSections'
+import { PageMotion } from '../../components/motion/PageMotion'
 import { notify } from '../../lib/toast'
 
 echarts.use([LineChart, GridComponent, TooltipComponent, CanvasRenderer])
@@ -95,6 +97,8 @@ export default function Monitors() {
 
   return (
     <ObservabilityPage fill>
+      <PageMotion motionKey={`monitors-${tab}`}>
+      <MotionHeader>
       <AdvancedPageHeader
         title="Synthetics"
         eyebrow="Observability / Monitors"
@@ -103,16 +107,20 @@ export default function Monitors() {
         status={overallStatus.label}
         compact
       />
+      </MotionHeader>
 
       {error && <Alert severity="error" sx={{ flexShrink: 0 }}>{error}</Alert>}
 
+      <MotionTabs>
       <Tabs value={tab} onChange={(_, value) => setTab(value)} sx={{ flexShrink: 0, minHeight: 36 }}>
         <Tab label="Monitors" />
         <Tab label="Status Page" />
       </Tabs>
+      </MotionTabs>
 
       <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
       {tab === 0 && (
+        <MotionPanel index={0}>
         <AdvancedPanel title="Monitors" caption={`${filteredMonitors.length} checks`} dense>
         <Box>
           <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap' }}>
@@ -165,9 +173,11 @@ export default function Monitors() {
           )}
         </Box>
         </AdvancedPanel>
+        </MotionPanel>
       )}
 
       {tab === 1 && (
+        <MotionPanel index={0}>
         <AdvancedPanel title="Status Page" caption="platform availability snapshot" dense>
         <Box>
           <Box sx={{ p: 2, mb: 2, border: 1, borderColor: 'divider', borderRadius: '4px', textAlign: 'center' }}>
@@ -226,6 +236,7 @@ export default function Monitors() {
           </Box>
         </Box>
         </AdvancedPanel>
+        </MotionPanel>
       )}
       </Box>
 
@@ -239,6 +250,7 @@ export default function Monitors() {
         open={drawerOpen}
         onClose={() => { setDrawerOpen(false); setSelectedMonitor(null) }}
       />
+      </PageMotion>
     </ObservabilityPage>
   )
 }

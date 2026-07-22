@@ -17,6 +17,8 @@ const MESSAGE_MAP: Record<string, string> = {
     "This code was already used. Continue to registration or sign in if you already have an account.",
   "This phone number is already registered.":
     "This phone number already has an account. Sign in instead.",
+  "This phone number already has a pending staff invite.":
+    "This phone number already has a pending staff invite. Ask them to sign in with their temporary password, or try again to resend credentials.",
   "One or more fields are invalid.":
     "Please check the form — some fields are missing or invalid.",
   "Failed to fetch":

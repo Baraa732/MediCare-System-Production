@@ -11,6 +11,23 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('@lottiefiles/dotlottie')) {
+              return 'dotlottie'
+            }
+            if (id.includes('node_modules/gsap')) {
+              return 'gsap'
+            }
+            if (id.includes('node_modules/leaflet') || id.includes('react-leaflet')) {
+              return 'leaflet'
+            }
+          },
+        },
+      },
+    },
     server: {
       port: 3002,
       strictPort: true,

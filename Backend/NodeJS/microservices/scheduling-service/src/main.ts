@@ -6,8 +6,10 @@ import { ConfigService } from '@nestjs/config';
 import { KafkaOptionsFactory } from './kafka-shared/kafka-options.factory';
 import { ApiExceptionFilter } from './common/filters/api-exception.filter';
 import { setupMedicareLogging, logServiceReady, createMedicareNestLogger } from '@medicare/telemetry';
+import { requireInternalAuthConfig } from './internal-auth-shared/internal-auth.config';
 
 async function bootstrap() {
+  requireInternalAuthConfig('scheduling-service');
   const nestLogger = createMedicareNestLogger('scheduling-service');
   const app = await NestFactory.create(AppModule, { bufferLogs: true, logger: nestLogger });
   const configService = app.get(ConfigService);

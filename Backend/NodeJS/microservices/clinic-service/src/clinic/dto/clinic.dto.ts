@@ -157,6 +157,10 @@ export class CheckClinicAccessDto {
 
   @IsUUID()
   userId: string;
+
+  @IsOptional()
+  @IsString()
+  role?: string;
 }
 
 /** Called by auth-service after staff creation or activation. */
@@ -166,9 +170,37 @@ export class EnsureStaffAssignmentDto {
 
   @IsUUID()
   assignedBy: string;
+
+  @IsOptional()
+  @IsUUID()
+  clinicId?: string;
+
+  @IsOptional()
+  @IsEnum(StaffRole)
+  staffRole?: StaffRole;
+}
+
+/** Explicit staff assignment when clinic admin creates a staff account. */
+export class AssignStaffInternalDto {
+  @IsUUID()
+  clinicId: string;
+
+  @IsUUID()
+  userId: string;
+
+  @IsEnum(StaffRole)
+  staffRole: StaffRole;
+
+  @IsUUID()
+  assignedBy: string;
 }
 
 export class ResolveStaffClinicDto {
+  @IsUUID()
+  userId: string;
+}
+
+export class ActivatePendingMembershipsDto {
   @IsUUID()
   userId: string;
 }

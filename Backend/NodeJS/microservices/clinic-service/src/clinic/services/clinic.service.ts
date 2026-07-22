@@ -6,6 +6,8 @@ import {
   ConflictException,
   Inject,
 } from '@nestjs/common';
+import * as fs from 'fs';
+import * as path from 'path';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { ClientProxy } from '@nestjs/microservices';
@@ -19,6 +21,7 @@ import {
   CreateClinicDto,
   UpdateClinicDto,
   AssignStaffDto,
+  AssignStaffInternalDto,
   ProvisionFromActivationDto,
   LinkClinicAdminDto,
 } from '../dto/clinic.dto';
@@ -53,6 +56,14 @@ const USER_ROLE_TO_STAFF_ROLE: Record<string, StaffRole> = {
   DOCTOR: StaffRole.DOCTOR,
   SECRETARY: StaffRole.SECRETARY,
 };
+
+const LOGO_DIR =
+  process.env.CLINIC_LOGO_UPLOAD_DIR ||
+  path.join(process.cwd(), 'uploads', 'clinic-logos');
+const LOGO_MAX_BYTES = 2 * 1024 * 1024;
+const LOGO_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+
+type UploadedImageFile = { buffer: Buffer; size: number; mimetype: string };
 
 @Injectable()
 export class ClinicService {
@@ -199,7 +210,7 @@ export class ClinicService {
     return clinic;
   }
 
-  async checkClinicAccess(clinicId: string, userId: string) {
+  async checkClinicAccess(clinicId: string, userId: string, expectedRole?: string) {
     const tenantId = clinicId;
     const tenant = await this.tenantRepo.findOne({ where: { id: tenantId } });
     if (!tenant) return { allowed: false, reason: 'CLINIC_NOT_FOUND' };
@@ -207,149 +218,155 @@ export class ClinicService {
       return { allowed: false, reason: 'CLINIC_NOT_ACTIVE' };
     }
 
-    let assignment = await this.assignmentRepo.findOne({
+    const assignment = await this.assignmentRepo.findOne({
       where: { tenantId, userId, status: AssignmentStatus.ACTIVE },
     });
 
     if (!assignment) {
-      const repaired = await this.ensureStaffAssignmentForUser(userId, userId);
-      if (repaired.assigned && (repaired.tenantId === tenantId || repaired.clinicId === tenantId)) {
-        assignment = await this.assignmentRepo.findOne({
-          where: { tenantId, userId, status: AssignmentStatus.ACTIVE },
-        });
+      return { allowed: false, reason: 'NO_CLINIC_ACCESS' };
+    }
+
+    if (expectedRole) {
+      const expectedStaffRole = USER_ROLE_TO_STAFF_ROLE[expectedRole];
+      if (!expectedStaffRole || assignment.staffRole !== expectedStaffRole) {
+        return { allowed: false, reason: 'ROLE_MISMATCH' };
       }
     }
 
-    return assignment
-      ? { allowed: true, staffRole: assignment.staffRole }
-      : { allowed: false, reason: 'NO_CLINIC_ACCESS' };
-  }
-
-  /** Ensures clinic_staff_assignments row exists when user.clinicId is set (repairs legacy accounts). */
-  async ensureStaffAssignmentForUser(
-    userId: string,
-    assignedBy: string,
-  ): Promise<{ assigned: boolean; tenantId?: string; clinicId?: string; alreadyExisted?: boolean; reason?: string }> {
-    const user = await this.userHttpClient.getUserById(userId);
-    const staffRole = USER_ROLE_TO_STAFF_ROLE[user.role];
-    if (!staffRole) {
-      return { assigned: false, reason: 'ROLE_NOT_STAFF' };
-    }
-
-    let tenantId = user.tenantId ?? user.clinicId ?? undefined;
-    let tenant = tenantId
-      ? await this.tenantRepo.findOne({ where: { id: tenantId } })
-      : null;
-
-    if (!tenant) {
-      const reconciled = await this.reconcileOrphanClinic(user);
-      if (!reconciled) {
-        return {
-          assigned: false,
-          reason: tenantId ? 'CLINIC_NOT_FOUND' : 'NO_CLINIC_ON_USER',
-        };
-      }
-      tenantId = reconciled.id;
-      tenant = reconciled;
-    }
-
-    const existing = await this.assignmentRepo.findOne({
-      where: { tenantId, userId },
-    });
-    if (existing?.status === AssignmentStatus.ACTIVE) {
-      return { assigned: true, tenantId, clinicId: tenantId, alreadyExisted: true };
-    }
-
-    await this.upsertAssignment(tenantId, userId, staffRole, assignedBy);
-
-    this.kafkaClient.emit(
-      KafkaTopics.CLINIC_STAFF_ASSIGNED,
-      withTenantEvent(tenantId, {
-        tenantId,
-        clinicId: tenantId,
-        userId,
-        staffRole,
-        assignedBy,
-      }),
-    );
-
-    return { assigned: true, tenantId, clinicId: tenantId };
+    return { allowed: true, staffRole: assignment.staffRole };
   }
 
   /**
-   * Repairs users pointing at a missing clinic row (e.g. after DB reset).
-   * Clinic admins: re-link or re-provision from their used activation code.
-   * Staff: reconcile via their clinic admin first, then inherit the real clinic id.
+   * Read-only membership lookup — does not create or repair assignments.
+   * @deprecated Prefer resolveStaffTenant or checkClinicAccess for authorization.
    */
-  private async reconcileOrphanClinic(user: {
-    id: string;
-    role: string;
-    tenantId?: string | null;
-    clinicId?: string | null;
-    phoneNumber?: string;
-  }): Promise<Tenant | null> {
-    const userTenantId = user.tenantId ?? user.clinicId ?? null;
-    if (user.role === 'CLINIC_ADMIN' && user.phoneNumber) {
-      let tenant = await this.tenantRepo.findOne({
-        where: { adminPhoneNumber: user.phoneNumber },
-      });
+  async ensureStaffAssignmentForUser(
+    userId: string,
+    _assignedBy: string,
+    hints?: { clinicId?: string; staffRole?: StaffRole },
+  ): Promise<{ assigned: boolean; tenantId?: string; clinicId?: string; alreadyExisted?: boolean; reason?: string }> {
+    const where: Record<string, unknown> = {
+      userId,
+      status: AssignmentStatus.ACTIVE,
+    };
+    if (hints?.clinicId) where.tenantId = hints.clinicId;
+    if (hints?.staffRole) where.staffRole = hints.staffRole;
 
-      if (!tenant) {
-        const activation = await this.systemManagerHttp.lookupUsedActivationByPhone(user.phoneNumber);
-        if (activation.found && activation.activationCodeId && activation.adminPhoneNumber) {
-          tenant = await this.provisionFromActivation({
-            activationCodeId: activation.activationCodeId,
-            adminPhoneNumber: activation.adminPhoneNumber,
-            clinicLocation: activation.clinicLocation || 'Clinic',
-            adminFullName: activation.adminFullName || 'Clinic Admin',
-            generatedBy: activation.generatedBy,
-          });
-        }
-      }
-
-      if (tenant) {
-        if (userTenantId !== tenant.id) {
-          await this.userHttpClient.updateClinicId(user.id, tenant.id);
-        }
-        if (!tenant.adminUserId) {
-          tenant.adminUserId = user.id;
-          await this.tenantRepo.save(tenant);
-        }
-        await this.upsertAssignment(tenant.id, user.id, StaffRole.CLINIC_ADMIN, user.id);
-        return tenant;
-      }
+    const assignment = await this.assignmentRepo.findOne({ where });
+    if (!assignment) {
+      return { assigned: false, reason: 'NO_ACTIVE_ASSIGNMENT' };
     }
 
-    if (userTenantId && user.role !== 'CLINIC_ADMIN') {
-      const admin = await this.userHttpClient.findClinicAdminByClinicId(userTenantId);
-      if (admin && admin.id !== user.id) {
-        const adminTenant = await this.reconcileOrphanClinic(admin);
-        if (adminTenant) {
-          if (userTenantId !== adminTenant.id) {
-            await this.userHttpClient.updateClinicId(user.id, adminTenant.id);
-          }
-          return adminTenant;
-        }
-      }
-    }
-
-    return null;
+    return {
+      assigned: true,
+      tenantId: assignment.tenantId,
+      clinicId: assignment.tenantId,
+      alreadyExisted: true,
+    };
   }
 
-  /** Resolve the primary clinic for a staff member (assignments are source of truth). */
+  /** Links a staff user to a clinic membership (idempotent). Never mutates users.tenant_id. */
+  async assignStaffInternal(
+    dto: AssignStaffInternalDto,
+  ): Promise<{ assigned: boolean; tenantId?: string; clinicId?: string; alreadyExisted?: boolean; reason?: string }> {
+    const tenant = await this.tenantRepo.findOne({ where: { id: dto.clinicId } });
+    if (!tenant) {
+      return { assigned: false, reason: 'CLINIC_NOT_FOUND' };
+    }
+
+    const user = await this.userHttpClient.getUserById(dto.userId);
+    const expectedUserRole = STAFF_ROLE_TO_USER_ROLE[dto.staffRole];
+    if (user.role !== expectedUserRole) {
+      return {
+        assigned: false,
+        reason: `ROLE_MISMATCH:${user.role}`,
+      };
+    }
+
+    const existing = await this.assignmentRepo.findOne({
+      where: { tenantId: dto.clinicId, userId: dto.userId },
+    });
+    if (existing?.status === AssignmentStatus.ACTIVE && existing.staffRole === dto.staffRole) {
+      return {
+        assigned: true,
+        tenantId: dto.clinicId,
+        clinicId: dto.clinicId,
+        alreadyExisted: true,
+      };
+    }
+
+    const membershipStatus =
+      user.status === 'PENDING_ACTIVATION' ? AssignmentStatus.PENDING : AssignmentStatus.ACTIVE;
+
+    await this.upsertAssignment(
+      dto.clinicId,
+      dto.userId,
+      dto.staffRole,
+      dto.assignedBy,
+      membershipStatus,
+    );
+
+    this.kafkaClient.emit(
+      KafkaTopics.CLINIC_STAFF_ASSIGNED,
+      withTenantEvent(dto.clinicId, {
+        tenantId: dto.clinicId,
+        clinicId: dto.clinicId,
+        userId: dto.userId,
+        staffRole: dto.staffRole,
+        assignedBy: dto.assignedBy,
+        status: membershipStatus,
+      }),
+    );
+
+    return { assigned: true, tenantId: dto.clinicId, clinicId: dto.clinicId };
+  }
+
+  /** Activates all PENDING memberships after staff completes platform activation. */
+  async activatePendingMembershipsForUser(userId: string): Promise<{ activated: number }> {
+    const pending = await this.assignmentRepo.find({
+      where: { userId, status: AssignmentStatus.PENDING },
+    });
+    if (pending.length === 0) {
+      return { activated: 0 };
+    }
+
+    const now = new Date();
+    for (const assignment of pending) {
+      assignment.status = AssignmentStatus.ACTIVE;
+      assignment.startedAt = assignment.startedAt ?? now;
+      assignment.endedAt = null;
+      await this.assignmentRepo.save(assignment);
+    }
+
+    return { activated: pending.length };
+  }
+
+  /** Resolve JWT tenant from assignments; falls back to deprecated users.tenant_id for legacy rows. */
   async resolveStaffTenant(userId: string): Promise<{ tenantId?: string; clinicId?: string; source?: string }> {
+    const primary = await this.assignmentRepo.findOne({
+      where: { userId, status: AssignmentStatus.ACTIVE, isPrimary: true },
+    });
+    if (primary) {
+      return { tenantId: primary.tenantId, clinicId: primary.tenantId, source: 'primary' };
+    }
+
     const assignments = await this.assignmentRepo.find({
       where: { userId, status: AssignmentStatus.ACTIVE },
-      order: { assignedAt: 'ASC' },
+      order: { startedAt: 'ASC', assignedAt: 'ASC' },
     });
     if (assignments.length > 0) {
       const tenantId = assignments[0].tenantId;
       return { tenantId, clinicId: tenantId, source: 'assignment' };
     }
 
-    const repaired = await this.ensureStaffAssignmentForUser(userId, userId);
-    if (repaired.assigned && repaired.tenantId) {
-      return { tenantId: repaired.tenantId, clinicId: repaired.tenantId, source: 'repaired' };
+    const user = await this.userHttpClient.getUserById(userId);
+    const legacyTenantId = user.tenantId ?? user.clinicId;
+    if (legacyTenantId) {
+      return {
+        tenantId: legacyTenantId,
+        clinicId: legacyTenantId,
+        source: 'legacy_user_tenant_id',
+      };
     }
 
     return {};
@@ -583,10 +600,6 @@ export class ClinicService {
     if (staffRole) where.staffRole = staffRole;
 
     let assignments = await this.assignmentRepo.find({ where });
-    if (assignments.length === 0) {
-      await this.ensureStaffAssignmentForUser(userId, userId);
-      assignments = await this.assignmentRepo.find({ where });
-    }
     if (assignments.length === 0) return [];
 
     const tenantIds = assignments.map((a) => a.tenantId);
@@ -666,7 +679,8 @@ export class ClinicService {
       }
     }
 
-    assignment.status = AssignmentStatus.INACTIVE;
+    assignment.status = AssignmentStatus.ENDED;
+    assignment.endedAt = new Date();
     await this.assignmentRepo.save(assignment);
 
     this.kafkaClient.emit(
@@ -694,6 +708,7 @@ export class ClinicService {
       governorate: tenant.governorate,
       phone: tenant.phone,
       email: tenant.email,
+      logoUrl: tenant.logoUrl,
       timezone: tenant.timezone,
       status: tenant.status,
       subscriptionPlan: tenant.subscriptionPlan,
@@ -703,12 +718,81 @@ export class ClinicService {
     };
   }
 
+  private ensureLogoDir(): void {
+    if (!fs.existsSync(LOGO_DIR)) {
+      fs.mkdirSync(LOGO_DIR, { recursive: true });
+    }
+  }
+
+  private logoFilePath(tenantId: string, ext: string): string {
+    return path.join(LOGO_DIR, `${tenantId}${ext}`);
+  }
+
+  private findExistingLogoPath(tenantId: string): string | null {
+    for (const ext of ['.webp', '.jpg', '.jpeg', '.png']) {
+      const candidate = this.logoFilePath(tenantId, ext);
+      if (fs.existsSync(candidate)) return candidate;
+    }
+    return null;
+  }
+
+  async updateLogo(
+    id: string,
+    file: UploadedImageFile,
+    actor: AuthUser,
+  ): Promise<Tenant> {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('Logo file is required');
+    }
+    if (file.size > LOGO_MAX_BYTES) {
+      throw new BadRequestException('Logo must be 2 MB or smaller');
+    }
+    if (!LOGO_MIME_TYPES.has(file.mimetype)) {
+      throw new BadRequestException('Logo must be JPEG, PNG, or WebP');
+    }
+
+    const tenant = await this.findOne(id, actor);
+    await this.assertCanManageTenant(id, actor);
+    this.ensureLogoDir();
+
+    const ext =
+      file.mimetype === 'image/png'
+        ? '.png'
+        : file.mimetype === 'image/webp'
+          ? '.webp'
+          : '.jpg';
+
+    const existing = this.findExistingLogoPath(id);
+    if (existing && existing !== this.logoFilePath(id, ext)) {
+      fs.unlinkSync(existing);
+    }
+
+    fs.writeFileSync(this.logoFilePath(id, ext), file.buffer);
+
+    const version = Date.now();
+    tenant.logoUrl = `/api/clinics/logos/${id}?v=${version}`;
+    return this.tenantRepo.save(tenant);
+  }
+
+  async readLogo(tenantId: string): Promise<{ buffer: Buffer; mime: string }> {
+    const filePath = this.findExistingLogoPath(tenantId);
+    if (!filePath) {
+      throw new NotFoundException('Clinic logo not found');
+    }
+    const ext = path.extname(filePath).toLowerCase();
+    const mime =
+      ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg';
+    return { buffer: fs.readFileSync(filePath), mime };
+  }
+
   private async upsertAssignment(
     tenantId: string,
     userId: string,
     staffRole: StaffRole,
     assignedBy: string,
+    status: AssignmentStatus = AssignmentStatus.ACTIVE,
   ): Promise<TenantStaffAssignment> {
+    const now = new Date();
     const existing = await this.assignmentRepo.findOne({ where: { tenantId, userId } });
 
     if (existing) {
@@ -720,18 +804,29 @@ export class ClinicService {
           `User is already assigned as ${existing.staffRole}. Remove the assignment first.`,
         );
       }
-      existing.status = AssignmentStatus.ACTIVE;
+      existing.status = status;
       existing.staffRole = staffRole;
       existing.assignedBy = assignedBy;
+      if (status === AssignmentStatus.ACTIVE) {
+        existing.startedAt = existing.startedAt ?? now;
+        existing.endedAt = null;
+      }
       return this.assignmentRepo.save(existing);
     }
+
+    const activeCount = await this.assignmentRepo.count({
+      where: { userId, status: AssignmentStatus.ACTIVE },
+    });
 
     const assignment = this.assignmentRepo.create({
       tenantId,
       userId,
       staffRole,
       assignedBy,
-      status: AssignmentStatus.ACTIVE,
+      status,
+      isPrimary: activeCount === 0 && status === AssignmentStatus.ACTIVE,
+      startedAt: status === AssignmentStatus.ACTIVE ? now : null,
+      endedAt: null,
     });
 
     try {
@@ -747,20 +842,16 @@ export class ClinicService {
   private async assertCanAccessTenant(tenantId: string, actor: AuthUser): Promise<void> {
     if (actor.role === 'SYSTEM_MANAGER' || actor.role === 'PATIENT') return;
 
-    let assignment = await this.assignmentRepo.findOne({
+    const assignment = await this.assignmentRepo.findOne({
       where: { tenantId, userId: actor.userId, status: AssignmentStatus.ACTIVE },
     });
 
     if (!assignment) {
-      const repaired = await this.ensureStaffAssignmentForUser(actor.userId, actor.userId);
-      if (repaired.assigned && (repaired.tenantId === tenantId || repaired.clinicId === tenantId)) {
-        assignment = await this.assignmentRepo.findOne({
-          where: { tenantId, userId: actor.userId, status: AssignmentStatus.ACTIVE },
-        });
-      }
+      throw new ForbiddenException('You do not have access to this clinic');
     }
 
-    if (!assignment) {
+    const expectedStaffRole = USER_ROLE_TO_STAFF_ROLE[actor.role];
+    if (expectedStaffRole && assignment.staffRole !== expectedStaffRole) {
       throw new ForbiddenException('You do not have access to this clinic');
     }
   }

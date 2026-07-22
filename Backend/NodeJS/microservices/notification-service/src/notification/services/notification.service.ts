@@ -229,7 +229,16 @@ export class NotificationService {
     const tenantId =
       data.tenantId ??
       (data.payload.tenantId as string | undefined) ??
-      (data.payload.clinicId as string | undefined);
+      (data.payload.clinicId as string | undefined) ??
+      this.tenantContext.getTenantId() ??
+      undefined;
+
+    if (!tenantId) {
+      this.logger.warn(
+        `Skipping notification log — missing tenantId for appointment ${data.appointmentId}`,
+      );
+      return;
+    }
 
     await this.logRepo.save(
       this.logRepo.create({

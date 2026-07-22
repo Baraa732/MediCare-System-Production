@@ -22,6 +22,11 @@ export type ClinicAdminOnboardingStatus = {
   canLogin: boolean;
   adminFullName?: string;
   clinicLocation?: string;
+  idNumber?: string;
+  dateOfBirth?: string;
+  email?: string;
+  registrationLicenseNumber?: string;
+  address?: string;
 };
 
 export function getClinicAdminOnboardingStatus(phoneNumber: string) {
@@ -37,6 +42,11 @@ export function activateClinicAdmin(phoneNumber: string, code: string) {
     phoneNumber?: string;
     adminFullName?: string;
     clinicLocation?: string;
+    idNumber?: string;
+    dateOfBirth?: string;
+    email?: string;
+    registrationLicenseNumber?: string;
+    address?: string;
   }>("/auth/clinic-admin/activate", {
     method: "POST",
     body: { phoneNumber, code },

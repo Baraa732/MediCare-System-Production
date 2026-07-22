@@ -1,5 +1,9 @@
-# Local dev: expose databases to host for DBeaver / pgAdmin / redis-cli
-# Auto-loaded by docker compose alongside docker-compose.yml
+# Local development only — NEVER deploy this file to staging or production.
+# Auto-loaded by `docker compose` alongside docker-compose.yml when present.
+#
+# Publishes databases and observability UIs to localhost for DBeaver, Grafana, OpenEMR, etc.
+# Production/staging MUST use explicit -f flags and must NOT ship this file:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 services:
   postgres-auth:
@@ -28,3 +32,43 @@ services:
     ports: ["27018:27017"]
   redis:
     ports: ["6380:6379"]
+
+  openemr:
+    ports:
+      - "8081:80"
+      - "8443:443"
+
+  evolution-api:
+    ports:
+      - "8080:8080"
+
+  prometheus:
+    ports:
+      - "9090:9090"
+
+  grafana:
+    ports:
+      - "3001:3000"
+
+  loki:
+    ports:
+      - "3100:3100"
+
+  jaeger:
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+
+  otel-collector:
+    ports:
+      - "4319:4317"
+      - "4320:4318"
+
+  system-manager-dashboard:
+    ports:
+      - "3002:80"
+
+  clinic-admin-dashboard:
+    ports:
+      - "3003:80"

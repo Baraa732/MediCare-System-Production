@@ -60,11 +60,19 @@ export class GatewayService {
     // Remove host header to avoid conflicts
     delete filteredHeaders['host'];
 
-    // Attach internal service token so downstream services can verify the caller
-    const internalToken = this.configService.get<string>('INTERNAL_SERVICE_TOKEN');
-    if (internalToken) {
-      filteredHeaders['x-service-token'] = internalToken;
+    const signingSecret = this.configService.get<string>('INTERNAL_AUTH_SECRET');
+    if (!signingSecret) {
+      throw new HttpException('Gateway internal auth is not configured', HttpStatus.INTERNAL_SERVER_ERROR);
     }
+    const { createInternalAuthHeadersForUrl } = require('../internal-auth/internal-http.signer');
+    const internalHeaders = createInternalAuthHeadersForUrl(
+      'api-gateway',
+      signingSecret,
+      method,
+      path,
+      body,
+    );
+    Object.assign(filteredHeaders, internalHeaders);
     
     const config: AxiosRequestConfig = {
       method: method as any,

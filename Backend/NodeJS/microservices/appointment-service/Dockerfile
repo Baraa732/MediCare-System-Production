@@ -2,6 +2,7 @@ FROM node:20-alpine AS builder
 
 WORKDIR /build
 
+RUN npm config set fetch-retries 5 && npm config set fetch-retry-mintimeout 20000 && npm config set fetch-retry-maxtimeout 120000
 COPY Backend/NodeJS/libs/telemetry ./Backend/NodeJS/libs/telemetry
 RUN cd Backend/NodeJS/libs/telemetry && npm install --omit=dev
 COPY Backend/NodeJS/microservices/appointment-service/package*.json ./Backend/NodeJS/microservices/appointment-service/

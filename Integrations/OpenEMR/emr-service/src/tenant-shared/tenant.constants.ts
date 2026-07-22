@@ -2,6 +2,12 @@ export const TENANT_HEADER = 'x-tenant-id';
 
 export const TENANT_ID_CLAIM = 'tenantId';
 
+/** Explicit scope for platform-global patient resources (never use NULL). */
+export const PLATFORM_TENANT_SCOPE = '00000000-0000-4000-a000-000000000001';
+
+/** Storage prefix segment for global patient uploads (avatars, etc.). */
+export const GLOBAL_PATIENT_STORAGE_SCOPE = 'global-patients';
+
 /** Redis key prefix: tenant:{tenantId}:resource:{id} */
 export function tenantRedisKey(tenantId: string, resource: string, id: string): string {
   return `tenant:${tenantId}:${resource}:${id}`;

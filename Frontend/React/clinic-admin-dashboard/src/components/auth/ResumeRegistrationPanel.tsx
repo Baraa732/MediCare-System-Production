@@ -1,25 +1,22 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { ArrowRight, Phone } from "lucide-react";
-import { fetchOnboardingStatus } from "@/lib/onboarding";
+import { fetchOnboardingStatus, clearActivationProgress } from "@/lib/onboarding";
 import { normalizeCaughtError } from "@/lib/api/errors";
 import { normalizeSyrianPhone } from "@/lib/phone";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { authInputNoAutofill } from "@/lib/authInput";
 
 type ResumeRegistrationPanelProps = {
-  initialPhone?: string;
   onReady: () => void;
 };
 
-export function ResumeRegistrationPanel({
-  initialPhone = "",
-  onReady,
-}: ResumeRegistrationPanelProps) {
+export function ResumeRegistrationPanel({ onReady }: ResumeRegistrationPanelProps) {
   const navigate = useNavigate();
-  const [phone, setPhone] = useState(initialPhone);
+  const [phone, setPhone] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -40,6 +37,7 @@ export function ResumeRegistrationPanel({
       const status = await fetchOnboardingStatus(formatted);
 
       if (status.canLogin) {
+        clearActivationProgress();
         navigate("/auth/login", {
           replace: true,
           state: {
@@ -87,13 +85,15 @@ export function ResumeRegistrationPanel({
           <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
           <Input
             id="resume-phone"
+            name="clinic-resume-phone"
             type="tel"
             value={phone}
             onChange={(e) => {
               setPhone(e.target.value);
               setError(null);
             }}
-            placeholder="+963912345680"
+            {...authInputNoAutofill}
+            placeholder="Phone number"
             disabled={loading}
             className={cn("h-11 pl-10", error && "border-red-500")}
           />

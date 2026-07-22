@@ -10,3 +10,5 @@ export * from './tenant-query.util';
 export * from './tenant-logger';
 export * from './tenant-storage';
 export * from './tenant-kafka';
+export * from './tenant-access-checker';
+export * from './tenant-authorization.guard';

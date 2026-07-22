@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import axios, { AxiosError } from 'axios';
+import { createInternalAuthHeadersForUrl } from '../../internal-auth-shared/internal-http.signer';
 
 export interface UserPlatformStats {
   total: number;
@@ -12,23 +13,28 @@ export interface UserPlatformStats {
 export class UserHttpClient {
   private readonly logger = new Logger(UserHttpClient.name);
   private readonly baseUrl: string;
-  private readonly internalToken: string;
+  private readonly serviceName = 'system-manager-service';
+  private readonly signingSecret: string;
 
   constructor() {
     this.baseUrl = process.env.USER_SERVICE_URL || 'http://user-service:3002';
-    this.internalToken = process.env.INTERNAL_SERVICE_TOKEN || '';
+    this.signingSecret = process.env.INTERNAL_AUTH_SECRET || '';
+    if (!this.signingSecret) {
+      throw new Error('INTERNAL_AUTH_SECRET env var is not set');
+    }
   }
 
   async getPlatformStats(): Promise<UserPlatformStats | null> {
-    if (!this.internalToken) {
-      this.logger.warn('INTERNAL_SERVICE_TOKEN is not set — skipping user stats');
-      return null;
-    }
-
     try {
-      const res = await axios.get(`${this.baseUrl}/users/internal/stats`, {
+      const path = '/users/internal/stats';
+      const res = await axios.get(`${this.baseUrl}${path}`, {
         timeout: 5000,
-        headers: { 'x-service-token': this.internalToken },
+        headers: createInternalAuthHeadersForUrl(
+          this.serviceName,
+          this.signingSecret,
+          'GET',
+          path,
+        ),
       });
       return res.data as UserPlatformStats;
     } catch (error) {

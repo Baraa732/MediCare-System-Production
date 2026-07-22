@@ -7,22 +7,13 @@ import { queryKeys } from '../lib/queryClient'
 import { resolveSessionToken } from '../lib/sessionToken'
 import { useAuthStore } from '../store/authStore'
 
-function getCookieToken() {
-  if (typeof document === 'undefined') return null
-  const value = document.cookie
-    .split('; ')
-    .find((row) => row.startsWith('sm-auth='))
-    ?.split('=')[1]
-  return value ? decodeURIComponent(value) : null
-}
-
 /** Shared observability query — deduplicated via React Query. */
 export function useObservabilityData(explicitRange?: string, live = false) {
   const storeToken = useAuthStore((s) => s.token)
   const hasHydrated = useAuthStore((s) => s._hasHydrated)
   const storeRange = useDashboardStore((s) => s.timeRange)
   const range: DashboardTimeRange = explicitRange ? normalizeTimeRange(explicitRange) : storeRange
-  const token = resolveSessionToken(storeToken) ?? getCookieToken()
+  const token = resolveSessionToken(storeToken)
   const sessionReady = hasHydrated || Boolean(token)
 
   const query = useQuery({

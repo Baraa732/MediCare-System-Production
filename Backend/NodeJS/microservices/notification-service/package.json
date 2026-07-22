@@ -8,6 +8,8 @@
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main",
+    "migration:run": "node ./node_modules/typeorm/cli.js migration:run -d dist/typeorm-data-source.js",
+    "migration:run:dev": "typeorm-ts-node-commonjs migration:run -d src/typeorm-data-source.ts",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix"
   },
   "license": "ISC",

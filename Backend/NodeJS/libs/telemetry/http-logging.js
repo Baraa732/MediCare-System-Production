@@ -3,6 +3,7 @@
 const { randomUUID } = require('crypto');
 const { createLogger } = require('./logger');
 const { runWithRequestContext, mergeRequestContext } = require('./request-context');
+const { recordHttpResponse } = require('./prometheus-metrics');
 
 const DEFAULT_SKIP = new Set([
   '/health',
@@ -71,6 +72,7 @@ function createHttpLoggingMiddleware(serviceName, options = {}) {
       res.on('finish', () => {
         const duration_ms = Date.now() - started;
         const status_code = res.statusCode;
+        recordHttpResponse(serviceName, status_code);
         const payload = {
           event: status_code >= 400 ? 'request_error' : 'request_end',
           method: req.method,

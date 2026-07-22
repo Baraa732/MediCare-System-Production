@@ -49,6 +49,8 @@ const MESSAGE_MAP: Record<string, string> = {
     "Your verification session is invalid. Please sign in again.",
   "Invalid MFA token":
     "Your verification session is invalid. Please sign in again.",
+  "Too many login attempts. Please complete the CAPTCHA challenge.":
+    "Too many sign-in attempts. Please wait about 15 minutes, then try again.",
   "Invalid credentials":
     "The phone number or password doesn't look right. Please check both and try again.",
   "Authentication failed":
@@ -77,6 +79,10 @@ const MESSAGE_MAP: Record<string, string> = {
     "Your session has expired. Please sign in again.",
   "You do not have access to this clinic":
     "You are not assigned to this clinic. Contact your clinic administrator.",
+  "Missing tenant context":
+    "Your clinic session is not ready yet. Please sign out, sign in again, or refresh the page.",
+  "Not authorized":
+    "You are not allowed to perform this action.",
   "No clinic assigned to this secretary account.":
     "Your account has no clinic assigned. Contact your clinic administrator.",
   "No patient account found for this phone number":
@@ -108,7 +114,12 @@ function mapByCode(code: string | undefined, message: string): string | null {
       }
       return "Some fields are invalid. Please check your input and try again.";
     case "FORBIDDEN":
-      return MESSAGE_MAP["You do not have access to this clinic"] ?? message;
+      return (
+        MESSAGE_MAP[message] ??
+        (message.toLowerCase().includes("clinic")
+          ? MESSAGE_MAP["You do not have access to this clinic"]
+          : message)
+      );
     case "RATE_LIMITED":
       return message;
     case "INTERNAL_ERROR":
@@ -145,6 +156,13 @@ export function toUserFriendlyMessage(
   );
   if (lockMatch) {
     return `Your account is temporarily locked after several failed attempts. Try again in ${lockMatch[1]} seconds.`;
+  }
+
+  const failedLoginMatch = err.message.match(
+    /^Too many failed login attempts\. Please try again in (\d+) seconds\.$/,
+  );
+  if (failedLoginMatch) {
+    return `Too many sign-in attempts. Please wait ${failedLoginMatch[1]} seconds and try again.`;
   }
 
   const ipLockMatch = err.message.match(

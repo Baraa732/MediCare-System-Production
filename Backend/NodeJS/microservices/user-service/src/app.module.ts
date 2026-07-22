@@ -25,7 +25,7 @@ import { medicareTypeOrmExtras } from '@medicare/telemetry';
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
         synchronize: configService.get('NODE_ENV') !== 'production',
         extra: {
-          max: 20,
+          max: 30,
           min: 5,
           idleTimeoutMillis: 30000,
           connectionTimeoutMillis: 2000,

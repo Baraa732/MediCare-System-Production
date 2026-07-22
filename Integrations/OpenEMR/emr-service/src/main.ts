@@ -6,19 +6,10 @@ import { ConfigService } from '@nestjs/config';
 import { KafkaOptionsFactory } from './kafka-shared/kafka-options.factory';
 import { ApiExceptionFilter } from './common/filters/api-exception.filter';
 import { setupMedicareLogging, logServiceReady, createMedicareNestLogger } from '@medicare/telemetry';
-
-function requireInternalServiceToken(serviceName: string): void {
-  const token = process.env.INTERNAL_SERVICE_TOKEN?.trim();
-  if (!token) {
-    throw new Error(`[${serviceName}] INTERNAL_SERVICE_TOKEN is required and cannot be empty`);
-  }
-  if (token.length < 24) {
-    throw new Error(`[${serviceName}] INTERNAL_SERVICE_TOKEN must be at least 24 characters long`);
-  }
-}
+import { requireInternalAuthConfig } from './internal-auth-shared/internal-auth.config';
 
 async function bootstrap() {
-  requireInternalServiceToken('emr-service');
+  requireInternalAuthConfig('emr-service');
 
   const nestLogger = createMedicareNestLogger('emr-service');
   const app = await NestFactory.create(AppModule, { bufferLogs: true, logger: nestLogger });

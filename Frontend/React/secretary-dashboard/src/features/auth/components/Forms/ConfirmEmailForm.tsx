@@ -23,6 +23,8 @@ export function ConfirmEmailForm({
   const navigate = useNavigate();
   const phoneNumber = useAuthStore((s) => s.phoneNumber);
   const mfaToken = useAuthStore((s) => s.mfaToken);
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const activationToken = useAuthStore((s) => s.activationToken);
   const clearPendingFlow = useAuthStore((s) => s.clearPendingFlow);
   const { verify, isLoading, error, setError } = useVerifyOtp();
   const {
@@ -35,10 +37,11 @@ export function ConfirmEmailForm({
   const loading = externalLoading || isLoading || isResending;
 
   React.useEffect(() => {
-    if (!mfaToken) {
-      navigate("/auth/login", { replace: true });
-    }
-  }, [mfaToken, navigate]);
+    if (mfaToken) return;
+    // mfaToken is cleared after successful OTP — do not treat that as an expired session.
+    if (accessToken || activationToken) return;
+    navigate("/auth/login", { replace: true });
+  }, [mfaToken, accessToken, activationToken, navigate]);
 
   React.useEffect(() => {
     if (countdown <= 0) return;

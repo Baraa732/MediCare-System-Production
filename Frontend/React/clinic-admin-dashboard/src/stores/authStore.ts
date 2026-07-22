@@ -6,6 +6,12 @@ import { useOnboardingStore } from "@/stores/onboardingStore";
 export interface ActivationContext {
   adminFullName?: string;
   clinicLocation?: string;
+  idNumber?: string;
+  dateOfBirth?: string;
+  email?: string;
+  registrationLicenseNumber?: string;
+  address?: string;
+  phoneNumber?: string;
 }
 
 interface AuthState extends AuthIdentity {
@@ -34,6 +40,7 @@ interface AuthState extends AuthIdentity {
   setPendingRegistration: (phoneNumber: string) => void;
   setPendingActivation: (activationToken: string) => void;
   setActivationPhone: (phoneNumber: string, context?: ActivationContext) => void;
+  clearActivationSession: () => void;
   markOtpSent: () => void;
   clearPendingFlow: () => void;
   setClinicId: (clinicId: string) => void;
@@ -109,6 +116,11 @@ export const useAuthStore = create<AuthState>()(
         set({ activationToken, mfaToken: null, otpFlow: null, otpSentAt: null }),
       setActivationPhone: (phoneNumber, context) =>
         set({ phoneNumber, activationContext: context ?? null }),
+      clearActivationSession: () => {
+        if (!get().accessToken) {
+          set({ phoneNumber: null, activationContext: null });
+        }
+      },
       markOtpSent: () => set({ otpSentAt: Date.now() }),
       clearPendingFlow: () =>
         set({

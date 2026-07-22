@@ -6,6 +6,7 @@ import { OutboxEvent, OutboxStatus } from '../entities/outbox-event.entity';
 import { KafkaTopics } from '../../kafka-shared/topics/topics.config';
 import { withTenantEvent } from '../../tenant-shared/tenant.constants';
 import { TenantContextService } from '../../tenant-shared/tenant-context.service';
+import { createSignedKafkaEnvelope } from '../../kafka-security-shared/kafka-event.signer';
 
 const LEGACY_CREATE_BY_ADMIN_TOPIC = 'user.created.by.admin';
 
@@ -97,15 +98,13 @@ export class OutboxPublisherService implements OnModuleInit, OnModuleDestroy {
 
     const runPublish = async (): Promise<void> => {
       try {
-        const message = tenantId ? withTenantEvent(tenantId, payload) : payload;
-        if (!tenantId) {
-          this.logger.warn(
-            `Outbox event ${event.id} (${event.eventType}) missing tenantId — publishing bare envelope`,
-          );
-        }
+        const messagePayload = tenantId
+          ? ({ ...payload, tenantId, clinicId: tenantId } as Record<string, unknown>)
+          : (payload as Record<string, unknown>);
+        const envelope = createSignedKafkaEnvelope(event.eventType, messagePayload);
 
         await new Promise<void>((resolve, reject) => {
-          this.kafkaClient.emit(event.eventType, message).subscribe({
+          this.kafkaClient.emit(event.eventType, envelope).subscribe({
             error: reject,
             complete: resolve,
           });
