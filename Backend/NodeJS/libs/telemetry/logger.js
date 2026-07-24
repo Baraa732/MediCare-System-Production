@@ -156,6 +156,14 @@ function emit(serviceName, level, message, extra = {}) {
   } else {
     process.stdout.write(`${line}\n`);
   }
+
+  try {
+    const { enqueue } = require('./loki-push');
+    enqueue(serviceName, line);
+  } catch {
+    // Loki push is optional; never break logging.
+  }
+
   return record;
 }
 
