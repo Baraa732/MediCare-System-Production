@@ -1,0 +1,5 @@
+# One-shot: ensure WhatsApp instance exists in Evolution API.
+# Build context: repository root
+FROM node:20-alpine
+COPY Integrations/WhatsApp/evolution-api/scripts/ensure-whatsapp-instance.js /ensure-whatsapp-instance.js
+CMD ["node", "/ensure-whatsapp-instance.js"]
