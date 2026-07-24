@@ -66,9 +66,12 @@ const LEVEL_ORDER: PlatformLogLevel[] = ['ERROR', 'WARN', 'INFO', 'DEBUG', 'TRAC
 export class PlatformLogsService {
   private readonly logger = new Logger(PlatformLogsService.name);
   private docker: DockerClient | null = null;
+  /** After the first socket failure, skip docker forever (Railway has no docker.sock). */
+  private dockerUnavailable = process.env.PLATFORM_LOGS_DOCKER === 'false';
 
   constructor(private readonly lokiTelemetryService: LokiTelemetryService) {
     if (process.env.PLATFORM_LOGS_ENABLED === 'false') return;
+    if (this.dockerUnavailable) return;
     try {
       // CommonJS require avoids broken default export interop in compiled output.
       // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -77,6 +80,8 @@ export class PlatformLogsService {
         socketPath: process.env.DOCKER_SOCKET || '/var/run/docker.sock',
       });
     } catch (error) {
+      this.dockerUnavailable = true;
+      this.docker = null;
       this.logger.warn(`Docker client unavailable: ${String(error)}`);
     }
   }
@@ -119,7 +124,7 @@ export class PlatformLogsService {
       const maxEntries = Math.min(query.limit ?? 1000, 2000);
       entries = entries.slice(0, maxEntries);
 
-      if (!entries.length) {
+      if (!entries.length && !this.dockerUnavailable) {
         const dockerResult = await this.fetchDockerLogs(query, rangeKey);
         if (dockerResult.entries.length) {
           return {
@@ -144,6 +149,10 @@ export class PlatformLogsService {
       };
     }
 
+    if (this.dockerUnavailable) {
+      return this.emptyResponse('Loki unavailable and Docker log fallback is disabled on this host.');
+    }
+
     return this.fetchDockerLogs(query, rangeKey);
   }
 
@@ -162,7 +171,7 @@ export class PlatformLogsService {
       ? query.services.filter((s) => SERVICE_CONTAINERS[s])
       : Object.keys(SERVICE_CONTAINERS);
 
-    if (!this.docker) {
+    if (!this.docker || this.dockerUnavailable) {
       return this.emptyResponse('Docker socket is not available. Mount /var/run/docker.sock for platform logs.');
     }
 
@@ -172,6 +181,14 @@ export class PlatformLogsService {
         lines: await this.readContainerLogs(SERVICE_CONTAINERS[service], since, perServiceTail),
       })),
     );
+
+    // Railway / non-docker hosts: every container fails with ENOENT. Stop retrying.
+    if (chunks.every((chunk) => chunk.lines.length === 0)) {
+      this.dockerUnavailable = true;
+      this.docker = null;
+      this.logger.warn('Docker log fallback disabled after socket/container probe failures.');
+      return this.emptyResponse('Docker socket is not available. Mount /var/run/docker.sock for platform logs.');
+    }
 
     let entries: PlatformLogEntry[] = [];
     for (const chunk of chunks) {
@@ -237,7 +254,12 @@ export class PlatformLogsService {
 
       return this.demuxDockerLogs(buffer);
     } catch (error) {
-      this.logger.debug(`Could not read logs for ${containerName}: ${String(error)}`);
+      const message = String(error);
+      if (message.includes('ENOENT') || message.includes('docker.sock')) {
+        this.dockerUnavailable = true;
+        this.docker = null;
+      }
+      this.logger.debug(`Could not read logs for ${containerName}: ${message}`);
       return [];
     }
   }

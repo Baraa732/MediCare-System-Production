@@ -1,7 +1,5 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { PlatformObservabilityService } from './platform-observability.service';
-import { PlatformLogsService } from './platform-logs.service';
 
 export interface StreamEventPayload {
   type: 'observability' | 'logs' | 'alerts' | 'service_health' | 'heartbeat';
@@ -9,18 +7,24 @@ export interface StreamEventPayload {
   ts?: number;
 }
 
+/**
+ * SSE keepalive for the System Manager dashboard.
+ *
+ * IMPORTANT: Do NOT fetch full observability/logs payloads here.
+ * A previous implementation polled getOverview() every ~900ms, which saturated
+ * the service (health probes + Loki + docker fallback) and made dashboard
+ * refreshes hang for minutes.
+ *
+ * Clients already load data via REST; this stream only:
+ *  - keeps the connection alive with heartbeats
+ *  - optionally nudges clients to refetch on a slow cadence
+ */
 @Injectable()
 export class PlatformStreamService implements OnModuleDestroy {
   private readonly logger = new Logger(PlatformStreamService.name);
   private readonly clients = new Set<Response>();
   private broadcastTimer: ReturnType<typeof setInterval> | null = null;
-  private lastObservabilityHash = '';
-  private lastLogsHash = '';
-
-  constructor(
-    private readonly platformObservabilityService: PlatformObservabilityService,
-    private readonly platformLogsService: PlatformLogsService,
-  ) {}
+  private readonly nudgeIntervalMs = Number(process.env.PLATFORM_STREAM_NUDGE_MS || 60_000);
 
   onModuleDestroy() {
     this.stopBroadcast();
@@ -63,48 +67,22 @@ export class PlatformStreamService implements OnModuleDestroy {
     req.on('aborted', cleanup);
 
     this.writeEvent(res, { type: 'heartbeat', ts: Date.now() });
-    void this.pushUpdates(range, true);
   }
 
   private ensureBroadcast(range: string) {
     if (this.broadcastTimer) return;
     this.broadcastTimer = setInterval(() => {
-      void this.pushUpdates(range, false);
-    }, 900);
+      if (!this.clients.size) return;
+      // Soft invalidate signal only — clients refetch their own REST endpoints.
+      this.broadcast({ type: 'observability', range });
+      this.broadcast({ type: 'logs' });
+    }, Math.max(30_000, this.nudgeIntervalMs));
   }
 
   private stopBroadcast() {
     if (this.broadcastTimer) {
       clearInterval(this.broadcastTimer);
       this.broadcastTimer = null;
-    }
-  }
-
-  private async pushUpdates(range: string, force: boolean) {
-    if (!this.clients.size) return;
-
-    try {
-      const [observability, logs] = await Promise.all([
-        this.platformObservabilityService.getOverview(range),
-        this.platformLogsService.getPlatformLogs({ range, limit: 200 }),
-      ]);
-
-      const obsHash = `${observability.timestamp}:${observability.apm.services.length}`;
-      const logsHash = `${logs.timestamp}:${logs.entries.length}`;
-
-      if (force || obsHash !== this.lastObservabilityHash) {
-        this.lastObservabilityHash = obsHash;
-        this.broadcast({ type: 'observability', range });
-        this.broadcast({ type: 'service_health', range });
-        this.broadcast({ type: 'alerts', range });
-      }
-
-      if (force || logsHash !== this.lastLogsHash) {
-        this.lastLogsHash = logsHash;
-        this.broadcast({ type: 'logs' });
-      }
-    } catch (error) {
-      this.logger.debug(`Stream push failed: ${String(error)}`);
     }
   }
 

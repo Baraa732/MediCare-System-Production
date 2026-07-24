@@ -74,6 +74,10 @@ const FALLBACK_EDGES: Array<[string, string]> = [
 
 @Injectable()
 export class PlatformObservabilityService {
+  private overviewCache = new Map<string, { expiresAt: number; value: Awaited<ReturnType<PlatformObservabilityService['buildOverview']>> }>();
+  private readonly overviewCacheTtlMs = Number(process.env.PLATFORM_OVERVIEW_CACHE_MS || 20_000);
+  private overviewInflight = new Map<string, Promise<Awaited<ReturnType<PlatformObservabilityService['buildOverview']>>>>();
+
   constructor(
     private readonly platformHealthService: PlatformHealthService,
     private readonly platformLogsService: PlatformLogsService,
@@ -83,9 +87,35 @@ export class PlatformObservabilityService {
   ) {}
 
   async getOverview(range = '1h') {
+    const cacheKey = range || '1h';
+    const cached = this.overviewCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value;
+    }
+
+    const inflight = this.overviewInflight.get(cacheKey);
+    if (inflight) return inflight;
+
+    const pending = this.buildOverview(cacheKey)
+      .then((value) => {
+        this.overviewCache.set(cacheKey, {
+          expiresAt: Date.now() + Math.max(5_000, this.overviewCacheTtlMs),
+          value,
+        });
+        return value;
+      })
+      .finally(() => {
+        this.overviewInflight.delete(cacheKey);
+      });
+
+    this.overviewInflight.set(cacheKey, pending);
+    return pending;
+  }
+
+  private async buildOverview(range = '1h') {
     const [health, logs, prometheusAvailable, lokiAvailable, otelAvailable, promMetrics] = await Promise.all([
       this.platformHealthService.getPlatformHealth(),
-      this.platformLogsService.getPlatformLogs({ range, limit: 1200 }),
+      this.platformLogsService.getPlatformLogs({ range, limit: 300 }),
       this.prometheusTelemetryService.isAvailable(),
       this.lokiTelemetryService.isAvailable(),
       this.otelTopologyService.isAvailable(),
@@ -328,7 +358,7 @@ export class PlatformObservabilityService {
   ): Promise<PlatformIntegration> {
     const started = Date.now();
     try {
-      await axios.get(url, { timeout: 3000, headers });
+      await axios.get(url, { timeout: 1500, headers });
       return { name, category, desc, url, status: 'connected', latencyMs: Date.now() - started, checkedAt: new Date().toISOString() };
     } catch {
       return { name, category, desc, url, status: 'error', latencyMs: null, checkedAt: new Date().toISOString() };

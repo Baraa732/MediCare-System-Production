@@ -87,7 +87,7 @@ export class PlatformHealthService {
     checks?: Record<string, string>;
   }> {
     try {
-      const res = await axios.get(`${target.url}/health/ready`, { timeout: 5000 });
+      const res = await axios.get(`${target.url}/health/ready`, { timeout: 1500 });
       const checks = res.data?.checks as Record<string, string> | undefined;
       return {
         name: target.name,

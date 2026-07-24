@@ -16,7 +16,9 @@ interface ObservabilityUiState {
 }
 
 export const useObservabilityStore = create<ObservabilityUiState>((set) => ({
-  liveStreamEnabled: true,
+  // Off by default — the previous default (true) opened an SSE/poll loop on every
+  // AppShell mount that invalidated heavy observability queries every ~1.5s.
+  liveStreamEnabled: false,
   setLiveStreamEnabled: (liveStreamEnabled) => set({ liveStreamEnabled }),
   selectedServiceName: null,
   setSelectedServiceName: (selectedServiceName) => set({ selectedServiceName }),

@@ -18,8 +18,9 @@ export function useLiveStreamSync() {
     if (!liveEnabled) return
 
     const client = getLiveStreamClient({
-      pollIntervalMs: 1_500,
-      throttleMs: 350,
+      // Soft nudge only — must stay slower than overview cache / staleTime.
+      pollIntervalMs: 60_000,
+      throttleMs: 5_000,
       getToken: () => token,
     })
 
