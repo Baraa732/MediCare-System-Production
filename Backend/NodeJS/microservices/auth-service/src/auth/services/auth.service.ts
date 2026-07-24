@@ -1145,11 +1145,16 @@ export class AuthService implements OnModuleInit {
     auditMeta?: Record<string, unknown>,
     message = 'Login successful',
   ): Promise<AuthSessionResponse> {
+    const sessionTenantId =
+      user.tenantId ??
+      user.clinicId ??
+      // Never persist non-UUID ambient context (e.g. Railway hostname slug).
+      undefined;
     const session = await this.sessionService.createSession(
       user.id,
       deviceInfo || { userAgent: 'Unknown', ip: '127.0.0.1' },
       7,
-      user.tenantId ?? user.clinicId ?? this.tenantContext.getTenantId() ?? undefined,
+      sessionTenantId,
     );
 
     this.sessionAnomalyService.analyse(user.id, session, deviceInfo || {}).catch(

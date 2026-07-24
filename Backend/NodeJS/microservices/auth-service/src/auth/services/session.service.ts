@@ -9,6 +9,7 @@ import { AuditLogService } from './audit-log.service';
 import { AuditAction, AuditResource } from '../entities/audit-log.entity';
 import { TenantContextService } from '../../tenant-shared/tenant-context.service';
 import { createTenantLogger } from '../../tenant-shared/tenant-logger';
+import { asTenantUuid } from '../../tenant-shared/tenant-resolver';
 
 export interface DeviceInfo {
   userAgent?: string;
@@ -53,7 +54,9 @@ export class SessionService {
         .where('userId = :userId', { userId })
         .execute();
 
-      const resolvedTenantId = tenantId ?? this.tenantContext.getTenantId() ?? undefined;
+      const resolvedTenantId = asTenantUuid(
+        tenantId ?? this.tenantContext.getTenantId() ?? undefined,
+      );
       const newSession = sessionRepo.create({
         userId,
         tenantId: resolvedTenantId,

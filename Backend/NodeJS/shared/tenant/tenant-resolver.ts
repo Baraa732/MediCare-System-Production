@@ -30,16 +30,38 @@ function paramValue(source: Record<string, unknown> | undefined, key: string): s
   return undefined;
 }
 
-/** Subdomain tenant slug — future-ready; returns null until DNS routing is enabled. */
+const UUID_TENANT_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/** Keep only UUID tenant ids — DB columns are uuid. */
+export function asTenantUuid(value?: string | null): string | undefined {
+  if (!value) return undefined;
+  return UUID_TENANT_RE.test(value) ? value : undefined;
+}
+
+/**
+ * Subdomain tenant slug — disabled until custom DNS routing is enabled
+ * (`TENANT_SUBDOMAIN_ROUTING=true`). Platform hosts (Railway, localhost) never count.
+ */
 export function resolveTenantFromSubdomain(hostname?: string): string | null {
   if (!hostname) return null;
+  if (process.env.TENANT_SUBDOMAIN_ROUTING !== 'true') {
+    return null;
+  }
   const host = hostname.split(':')[0].toLowerCase();
   if (host === 'localhost' || host.endsWith('.localhost')) return null;
+  if (
+    host.endsWith('.up.railway.app') ||
+    host.endsWith('.railway.app') ||
+    host.endsWith('.railway.internal')
+  ) {
+    return null;
+  }
   const parts = host.split('.');
   if (parts.length < 3) return null;
   const slug = parts[0];
   if (!slug || slug === 'www' || slug === 'api') return null;
-  return slug;
+  return asTenantUuid(slug) ?? null;
 }
 
 function resolveRole(input: TenantResolutionInput): string | undefined {

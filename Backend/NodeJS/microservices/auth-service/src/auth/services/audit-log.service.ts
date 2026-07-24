@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { AuditLog, AuditAction, AuditResource } from '../entities/audit-log.entity';
 import { TenantContextService } from '../../tenant-shared/tenant-context.service';
 import { createTenantLogger } from '../../tenant-shared/tenant-logger';
+import { asTenantUuid } from '../../tenant-shared/tenant-resolver';
 
 export interface CreateAuditLogDto {
   userId?: string;
@@ -40,7 +41,9 @@ export class AuditLogService {
   }
 
   async createLog(dto: CreateAuditLogDto): Promise<AuditLog> {
-    const tenantId = dto.tenantId ?? this.tenantContext.getTenantId() ?? undefined;
+    const tenantId = asTenantUuid(
+      dto.tenantId ?? this.tenantContext.getTenantId() ?? undefined,
+    );
     const auditLog = this.auditLogRepository.create({
       ...dto,
       tenantId,
