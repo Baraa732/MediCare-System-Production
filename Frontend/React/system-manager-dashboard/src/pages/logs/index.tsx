@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Alert, Box, Chip, Typography } from '@mui/material'
 import { alpha } from '@mui/material/styles'
@@ -12,7 +12,6 @@ import { parseLogsSearchParams, useLogsFilterStore } from '../../store/logsFilte
 import type { PlatformLogEntry, PlatformLogLevel } from '../../api/types'
 import LiveLogsStream from './components/LiveLogsStream'
 import LogDetailPanel from './components/LogDetailPanel'
-import LogsChartsRow from './components/LogsChartsRow'
 import LogsFilterBar from './components/LogsFilterBar'
 import LogsFilterHeader from './components/LogsFilterHeader'
 import LogsTable from './components/LogsTable'
@@ -27,6 +26,8 @@ import {
   type LogSortOrder,
   type LogViewDensity,
 } from './logUtils'
+
+const LogsChartsRow = lazy(() => import('./components/LogsChartsRow'))
 
 export default function LogsPage() {
   const [searchParams] = useSearchParams()
@@ -229,7 +230,9 @@ export default function LogsPage() {
       {data?.warning && <Alert severity="warning" sx={{ flexShrink: 0 }}>{data.warning}</Alert>}
 
       <MotionPanel index={0}>
-      <LogsChartsRow histogram={chartHistogram} levels={levelCounts} />
+      <Suspense fallback={<Box sx={{ height: 220, borderRadius: 1, bgcolor: 'action.hover' }} />}>
+        <LogsChartsRow histogram={chartHistogram} levels={levelCounts} />
+      </Suspense>
       </MotionPanel>
 
       <MotionPanel index={1}>

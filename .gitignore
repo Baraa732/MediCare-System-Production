@@ -44,3 +44,5 @@ Thumbs.db
 
 # Docker volumes (local)
 docker/volumes/
+
+.railway-secrets.json

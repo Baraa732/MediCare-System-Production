@@ -107,34 +107,35 @@ export class PlatformDataService implements OnModuleDestroy {
     const started = Date.now();
 
     try {
+      // user_db.users uses TypeORM default camelCase column names (only tenant_id is snake_case).
       const result = await pool.query<{
         id: string;
-        phone_number: string;
-        first_name: string;
-        last_name: string;
+        phoneNumber: string;
+        firstName: string;
+        lastName: string;
         role: string;
         status: string;
         tenant_id: string | null;
-        created_at: Date;
+        createdAt: Date;
       }>(
-        `SELECT id, phone_number, first_name, last_name, role::text AS role, status::text AS status,
-                tenant_id, created_at
+        `SELECT id, "phoneNumber", "firstName", "lastName", role::text AS role, status::text AS status,
+                tenant_id, "createdAt"
          FROM users
-         WHERE deleted_at IS NULL
-         ORDER BY created_at DESC
+         WHERE "deletedAt" IS NULL
+         ORDER BY "createdAt" DESC
          LIMIT $1 OFFSET $2`,
         [take, skip],
       );
 
       return result.rows.map((row) => ({
         id: row.id,
-        phoneNumber: row.phone_number,
-        firstName: row.first_name,
-        lastName: row.last_name,
+        phoneNumber: row.phoneNumber,
+        firstName: row.firstName,
+        lastName: row.lastName,
         role: row.role,
         status: row.status,
         clinicId: row.tenant_id ?? undefined,
-        createdAt: row.created_at?.toISOString(),
+        createdAt: row.createdAt?.toISOString(),
       }));
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));

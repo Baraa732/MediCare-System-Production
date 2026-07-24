@@ -62,7 +62,7 @@ export class LokiTelemetryService {
           end,
           direction: 'backward',
         },
-        timeout: 12000,
+          timeout: 8000,
       });
 
       const rows: StructuredLogRow[] = [];

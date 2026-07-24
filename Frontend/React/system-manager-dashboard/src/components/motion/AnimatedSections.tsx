@@ -12,7 +12,7 @@ export function MotionMetric({ children, index }: { children: ReactNode; index: 
 
 export function MotionPanel({ children, index = 0 }: { children: ReactNode; index?: number }) {
   return (
-    <MotionReveal index={index} variant="fadeUp" staggerStep={0.09}>
+    <MotionReveal pageSection="panel" index={index} variant="fadeUp" staggerStep={0.09}>
       <Box sx={{ height: '100%' }}>{children}</Box>
     </MotionReveal>
   )

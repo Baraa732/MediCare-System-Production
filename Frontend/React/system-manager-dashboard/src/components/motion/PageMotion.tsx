@@ -32,6 +32,8 @@ export function PageMotion({ children, motionKey }: PageMotionProps) {
         return
       }
 
+      // Use fromTo (not from): React Strict Mode remounts can kill a .from() mid-flight
+      // and leave opacity stuck at 0 — looks like a blank white page until hard refresh.
       const tl = gsap.timeline({ defaults: { ease: MOTION.ease } })
 
       const header = root.querySelector('[data-page-header]')
@@ -41,29 +43,31 @@ export function PageMotion({ children, motionKey }: PageMotionProps) {
       const panels = root.querySelectorAll('[data-page-panel]')
 
       if (header) {
-        tl.from(header, { opacity: 0, x: -28, duration: MOTION.duration }, 0)
+        tl.fromTo(header, { opacity: 0, x: -28 }, { opacity: 1, x: 0, duration: MOTION.duration }, 0)
       }
 
       if (metrics.length) {
-        tl.from(
+        tl.fromTo(
           metrics,
-          { opacity: 0, y: 22, scale: 0.94, duration: MOTION.durationFast, stagger: MOTION.staggerTight },
+          { opacity: 0, y: 22, scale: 0.94 },
+          { opacity: 1, y: 0, scale: 1, duration: MOTION.durationFast, stagger: MOTION.staggerTight },
           header ? '-=0.35' : 0,
         )
       }
 
       if (tabs) {
-        tl.from(tabs, { opacity: 0, y: 14, duration: MOTION.durationFast }, '-=0.25')
+        tl.fromTo(tabs, { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: MOTION.durationFast }, '-=0.25')
       }
 
       if (toolbar) {
-        tl.from(toolbar, { opacity: 0, y: 16, duration: MOTION.durationFast }, '-=0.2')
+        tl.fromTo(toolbar, { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: MOTION.durationFast }, '-=0.2')
       }
 
       if (panels.length) {
-        tl.from(
+        tl.fromTo(
           panels,
-          { opacity: 0, y: 32, scale: 0.97, duration: MOTION.duration, stagger: MOTION.stagger },
+          { opacity: 0, y: 32, scale: 0.97 },
+          { opacity: 1, y: 0, scale: 1, duration: MOTION.duration, stagger: MOTION.stagger },
           '-=0.15',
         )
       }
