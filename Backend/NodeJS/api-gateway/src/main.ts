@@ -131,7 +131,8 @@ function getPublicGatewayPaths(): Set<string> {
 }
 
 function normalizeGatewayPath(req: express.Request): string {
-  const raw = (req.originalUrl || req.url || req.path || '').split('?')[0];
+  // Prefer req.url so legacy /api rewrite middleware is reflected in auth checks.
+  const raw = (req.url || req.originalUrl || req.path || '').split('?')[0];
   if (!raw) return '/';
   return raw.length > 1 && raw.endsWith('/') ? raw.slice(0, -1) : raw;
 }
@@ -483,6 +484,20 @@ async function bootstrap() {
   // ── Health check — handled locally, never proxied ───────────────────────────
   expressApp.get('/health', (_req: express.Request, res: express.Response) => {
     res.json({ status: 'OK', timestamp: new Date().toISOString() });
+  });
+
+  // Compat: older dashboard builds called gateway paths without the /api prefix
+  // (e.g. /system-manager/login). Rewrite so cached clients still reach public
+  // routes instead of getting 401 "Authorization header is required".
+  const LEGACY_UNPREFIXED_API =
+    /^\/(auth|users|account-linking|system-manager|emr|clinics|appointments|schedule|notifications)(\/|$|\?)/;
+  expressApp.use((req: express.Request, _res: express.Response, next: express.NextFunction) => {
+    const raw = req.url || '';
+    const pathOnly = raw.split('?')[0];
+    if (pathOnly.startsWith('/api/') || pathOnly === '/api') return next();
+    if (!LEGACY_UNPREFIXED_API.test(pathOnly)) return next();
+    req.url = '/api' + raw;
+    next();
   });
 
   // ── Auth validation middleware ───────────────────────────────────────────────
