@@ -171,7 +171,15 @@ export const useAuthStore = create<AuthState>()(
   ),
 )
 
-// Zustand v5: ensure hydration flag is always set (onRehydrateStorage alone can miss edge cases).
+// Synchronous sessionStorage hydrates DURING create(), before `useAuthStore` is
+// assigned — so the onRehydrateStorage finalizer's setState is thrown away (TDZ)
+// and onFinishHydration never fires for that initial pass. If we don't resolve the
+// flag here, `_hasHydrated` stays false forever and any UI gated on it hangs.
+if (useAuthStore.persist.hasHydrated()) {
+  useAuthStore.setState({ _hasHydrated: true })
+}
+
+// Covers async storage / manual rehydrate() calls.
 useAuthStore.persist.onFinishHydration(() => {
   useAuthStore.setState({ _hasHydrated: true })
 })
