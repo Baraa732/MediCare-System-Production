@@ -23,7 +23,7 @@ import { medicareTypeOrmExtras } from '@medicare/telemetry';
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
         migrations: [__dirname + '/reminder/migrations/*{.ts,.js}'],
         migrationsTableName: 'reminder_migrations',
-        synchronize: configService.get('NODE_ENV') !== 'production',
+        synchronize: process.env.DB_BOOTSTRAP === 'true',
         extra: { max: 20, min: 5, idleTimeoutMillis: 30000, connectionTimeoutMillis: 2000 },
         ...medicareTypeOrmExtras('reminder-service'),
       }),

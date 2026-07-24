@@ -12,11 +12,15 @@ export class HealthController {
     return { status: 'ok', service: 'api-gateway', timestamp: new Date().toISOString() };
   }
 
-  // Readiness: all upstream services are reachable
+  // Readiness: required upstream services are reachable
   @Get('ready')
   @HttpCode(HttpStatus.OK)
   async ready() {
-    const services = ['auth-service', 'user-service', 'system-manager-service', 'emr-service'];
+    const services = ['auth-service', 'user-service', 'system-manager-service'];
+    // EMR is optional — only probe when EMR_SERVICE_URL is explicitly configured
+    if (process.env.EMR_SERVICE_URL?.trim()) {
+      services.push('emr-service');
+    }
     const checks = await Promise.all(
       services.map(async (service) => ({
         service,
@@ -45,7 +49,10 @@ export class HealthController {
   // Legacy combined (docker-compose healthcheck)
   @Get()
   async getHealth() {
-    const services = ['auth-service', 'user-service', 'system-manager-service', 'emr-service'];
+    const services = ['auth-service', 'user-service', 'system-manager-service'];
+    if (process.env.EMR_SERVICE_URL?.trim()) {
+      services.push('emr-service');
+    }
     const healthChecks = await Promise.all(
       services.map(async (service) => ({
         service,

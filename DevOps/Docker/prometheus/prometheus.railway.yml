@@ -1,0 +1,54 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    environment: 'medicare-railway'
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+scrape_configs:
+  - job_name: 'api-gateway'
+    static_configs:
+      - targets: ['api-gateway.railway.internal:3000']
+    metrics_path: '/metrics'
+
+  - job_name: 'auth-service'
+    static_configs:
+      - targets: ['auth-service.railway.internal:3001']
+    metrics_path: '/metrics'
+
+  - job_name: 'user-service'
+    static_configs:
+      - targets: ['user-service.railway.internal:3002']
+    metrics_path: '/metrics'
+
+  - job_name: 'system-manager-service'
+    static_configs:
+      - targets: ['system-manager-service.railway.internal:3003']
+    metrics_path: '/metrics'
+
+  - job_name: 'clinic-service'
+    static_configs:
+      - targets: ['clinic-service.railway.internal:3006']
+    metrics_path: '/metrics'
+
+  - job_name: 'appointment-service'
+    static_configs:
+      - targets: ['appointment-service.railway.internal:3007']
+    metrics_path: '/metrics'
+
+  - job_name: 'scheduling-service'
+    static_configs:
+      - targets: ['scheduling-service.railway.internal:3008']
+    metrics_path: '/metrics'
+
+  - job_name: 'notification-service'
+    static_configs:
+      - targets: ['notification-service.railway.internal:3009']
+    metrics_path: '/metrics'
+
+  - job_name: 'reminder-service'
+    static_configs:
+      - targets: ['reminder-service.railway.internal:3010']
+    metrics_path: '/metrics'

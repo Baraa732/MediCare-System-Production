@@ -20,7 +20,7 @@ import { medicareTypeOrmExtras } from '@medicare/telemetry';
         password: configService.get('DATABASE_PASSWORD') || 'postgres',
         database: configService.get('DATABASE_NAME') || 'system_db',
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
-        synchronize: configService.get('NODE_ENV') !== 'production',
+        synchronize: process.env.DB_BOOTSTRAP === 'true',
         extra: {
           max: 20,
           min: 5,

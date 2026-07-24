@@ -21,7 +21,7 @@ import { medicareTypeOrmExtras } from '@medicare/telemetry';
         password: c.get('DATABASE_PASSWORD') || 'postgres',
         database: c.get('DATABASE_NAME') || 'scheduling_db',
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
-        synchronize: c.get('NODE_ENV') !== 'production',
+        synchronize: process.env.DB_BOOTSTRAP === 'true',
         extra: { max: 20, min: 5, idleTimeoutMillis: 30000, connectionTimeoutMillis: 2000 },
         ...medicareTypeOrmExtras('scheduling-service'),
       }),

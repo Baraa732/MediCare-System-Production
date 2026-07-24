@@ -64,7 +64,7 @@ import { PhiAuditPublisherService } from '../phi-audit-shared/phi-audit.publishe
         entities: [Otp, Session, AuditLog, PhiAuditLog, IdempotencyKey, AccountLock, JwtBlocklistEntry, TrustedDevice],
         migrations: [__dirname + '/auth/migrations/*{.ts,.js}'],
         migrationsTableName: 'auth_migrations',
-        synchronize: configService.get('NODE_ENV') !== 'production',
+        synchronize: process.env.DB_BOOTSTRAP === 'true',
         // HIGH FIX: Configure connection pools for production load
         poolSize: 50,
         extra: {

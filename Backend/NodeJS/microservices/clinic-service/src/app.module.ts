@@ -22,9 +22,11 @@ import { medicareTypeOrmExtras } from '@medicare/telemetry';
         database: configService.get('DATABASE_NAME') || 'clinic_db',
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
         migrations: [__dirname + '/clinic/migrations/*{.ts,.js}'],
-        migrationsRun: true,
         migrationsTableName: 'clinic_migrations',
-        synchronize: configService.get('NODE_ENV') !== 'production',
+        // TypeORM runs migrationsRun BEFORE synchronize. On an empty DB with
+        // DB_BOOTSTRAP=true, skip auto-migrations so synchronize can create base tables.
+        migrationsRun: process.env.DB_BOOTSTRAP !== 'true',
+        synchronize: process.env.DB_BOOTSTRAP === 'true',
         extra: {
           max: 25,
           min: 5,
