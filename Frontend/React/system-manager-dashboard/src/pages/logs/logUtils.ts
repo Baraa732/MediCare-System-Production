@@ -326,17 +326,33 @@ export function getTableLogDisplay(entry: PlatformLogEntry): TableLogDisplay {
   const raw = (entry.message || entry.raw || '').trim()
   const fromJson = extractFriendlyFromJson(raw)
 
-  const headline = truncateText(humanized.title || entry.service, 72)
+  // Prefer a readable title; keep enough of the real message so long errors remain useful.
+  // CSS line-clamping handles overflow — avoid aggressive truncation here.
+  const headline = truncateText(humanized.title || entry.service, 220)
 
   let subtitle: string | null = null
   if (fromJson && !fromJson.toLowerCase().includes(headline.toLowerCase())) {
-    subtitle = truncateText(fromJson, 88)
+    subtitle = truncateText(fromJson, 320)
   } else if (humanized.subtitle && humanized.subtitle !== humanized.title) {
     const clean = isJsonLike(humanized.subtitle)
       ? summarizeJsonPreview(tryParseJson(humanized.subtitle) ?? humanized.subtitle)
       : humanized.subtitle
     if (!clean.toLowerCase().includes(headline.toLowerCase())) {
-      subtitle = truncateText(clean, 88)
+      subtitle = truncateText(clean, 320)
+    }
+  }
+
+  // For errors, surface the full message as headline when humanize collapsed it.
+  if (entry.level === 'ERROR' && humanized.title === 'Error reported' && raw) {
+    return {
+      headline: truncateText(raw, 320),
+      subtitle: null,
+    }
+  }
+  if (entry.level === 'ERROR' && humanized.title === 'Messaging pipeline signal' && raw) {
+    return {
+      headline: truncateText(raw, 320),
+      subtitle: null,
     }
   }
 

@@ -186,17 +186,19 @@ export default function LogsTable({ entries, selectedId, density, onSelect }: Lo
                     {log.service}
                   </Typography>
 
-                  <Box sx={{ minWidth: 0 }}>
+                  <Box sx={{ minWidth: 0, overflow: 'hidden' }}>
                     <Typography
                       sx={{
                         color: 'text.primary',
                         fontSize: density === 'compact' ? 12 : 13,
-                        lineHeight: 1.4,
+                        lineHeight: 1.45,
                         fontWeight: 600,
+                        overflowWrap: 'anywhere',
+                        wordBreak: 'break-word',
+                        whiteSpace: 'pre-wrap',
                         overflow: 'hidden',
-                        textOverflow: 'ellipsis',
                         display: '-webkit-box',
-                        WebkitLineClamp: density === 'compact' ? 1 : 2,
+                        WebkitLineClamp: density === 'compact' ? 3 : 5,
                         WebkitBoxOrient: 'vertical',
                       }}
                     >
@@ -207,11 +209,15 @@ export default function LogsTable({ entries, selectedId, density, onSelect }: Lo
                         sx={{
                           color: 'text.secondary',
                           fontSize: 11,
-                          lineHeight: 1.35,
+                          lineHeight: 1.4,
                           mt: 0.25,
+                          overflowWrap: 'anywhere',
+                          wordBreak: 'break-word',
+                          whiteSpace: 'pre-wrap',
                           overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
+                          display: '-webkit-box',
+                          WebkitLineClamp: density === 'compact' ? 2 : 3,
+                          WebkitBoxOrient: 'vertical',
                         }}
                       >
                         {display.subtitle}

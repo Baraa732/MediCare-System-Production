@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan } from 'typeorm';
+import { Repository } from 'typeorm';
 import { ClientKafka } from '@nestjs/microservices';
 import { OutboxEvent, OutboxStatus } from '../entities/outbox-event.entity';
 import { KafkaTopics } from '../../kafka-shared/topics/topics.config';
@@ -13,7 +13,6 @@ const LEGACY_CREATE_BY_ADMIN_TOPIC = 'user.created.by.admin';
 const POLL_INTERVAL_MS  = 5_000;   // poll every 5 seconds
 const BATCH_SIZE        = 50;      // process up to 50 events per poll cycle
 const MAX_RETRIES       = 5;       // mark FAILED after 5 consecutive failures
-const RETRY_BACKOFF_MS  = 30_000;  // don't retry a failed event for 30 seconds
 
 @Injectable()
 export class OutboxPublisherService implements OnModuleInit, OnModuleDestroy {
@@ -48,6 +47,12 @@ export class OutboxPublisherService implements OnModuleInit, OnModuleDestroy {
 
     this.pollTimer = setInterval(() => this.publishPending(), POLL_INTERVAL_MS);
     this.logger.log(`Outbox publisher started — polling every ${POLL_INTERVAL_MS}ms`);
+
+    // One-shot recovery: re-queue permanently FAILED events so a fixed config
+    // (e.g. missing Kafka signing secret) can publish them after redeploy.
+    void this.retryFailed().catch((err: Error) => {
+      this.logger.warn(`Outbox FAILED reset on startup skipped: ${err.message}`);
+    });
   }
 
   onModuleDestroy() {
@@ -64,15 +69,10 @@ export class OutboxPublisherService implements OnModuleInit, OnModuleDestroy {
     this.isRunning = true;
 
     try {
-      // Fetch PENDING events, oldest first.
-      // Also retry FAILED events that haven't been retried recently.
-      const retryBefore = new Date(Date.now() - RETRY_BACKOFF_MS);
-
+      // Only PENDING is auto-polled. FAILED means retries were exhausted —
+      // re-queue via retryFailed() (startup recovery / admin), not every poll.
       const events = await this.outboxRepository.find({
-        where: [
-          { status: OutboxStatus.PENDING },
-          { status: OutboxStatus.FAILED, createdAt: LessThan(retryBefore) },
-        ],
+        where: { status: OutboxStatus.PENDING },
         order: { createdAt: 'ASC' },
         take: BATCH_SIZE,
       });

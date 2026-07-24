@@ -115,7 +115,23 @@ function LiveLogsStream({ entries, live, onSelect, selectedId }: LiveLogsStreamP
               <Typography variant="caption2" sx={{ color: LOG_LEVEL_COLORS[log.level], fontWeight: 700 }}>{log.level}</Typography>
               <Typography variant="caption2" sx={{ color: 'text.secondary' }}>{when.relative}</Typography>
               <Typography variant="caption2" sx={{ color: 'text.secondary', fontFamily: theme.typography.mono?.fontFamily, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{log.service}</Typography>
-              <Typography variant="caption2" sx={{ color: 'text.primary', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={display.headline}>{display.headline}</Typography>
+              <Typography
+                variant="caption2"
+                sx={{
+                  color: 'text.primary',
+                  overflowWrap: 'anywhere',
+                  wordBreak: 'break-word',
+                  whiteSpace: 'pre-wrap',
+                  overflow: 'hidden',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 3,
+                  WebkitBoxOrient: 'vertical',
+                  lineHeight: 1.4,
+                }}
+                title={display.headline}
+              >
+                {display.headline}
+              </Typography>
               <Typography variant="caption2" sx={{ color: traceId ? 'primary.main' : 'text.disabled', fontFamily: theme.typography.mono?.fontFamily, fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {traceId ? traceId.slice(0, 8) : '—'}
               </Typography>
