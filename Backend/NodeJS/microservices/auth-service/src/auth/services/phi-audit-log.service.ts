@@ -36,11 +36,16 @@ export class PhiAuditLogService {
    * Append-only persistence — no update or delete methods exposed.
    */
   async append(event: PhiAuditEvent): Promise<PhiAuditLog> {
+    // actor_id / tenant_id columns are uuid — service names (e.g. "user-service")
+    // from internal calls must not be written or inserts fail and poison Kafka.
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const actorId = event.actorId && uuidRe.test(event.actorId) ? event.actorId : null;
+    const tenantId = event.tenantId && uuidRe.test(event.tenantId) ? event.tenantId : null;
     const row = this.phiAuditRepo.create({
       timestamp: new Date(event.timestamp),
-      actorId: event.actorId ?? null,
+      actorId,
       actorRole: event.actorRole ?? null,
-      tenantId: event.tenantId ?? null,
+      tenantId,
       action: event.action,
       resourceType: event.resourceType,
       resourceId: event.resourceId ?? null,

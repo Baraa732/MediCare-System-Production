@@ -106,7 +106,7 @@ export class PhiAuditConsumerService {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.error(`Failed to persist audit.log action=${event.action}: ${message}`);
-      throw error;
+      // Do not rethrow — a bad audit payload must not crash the Kafka consumer group.
     }
   }
 }
