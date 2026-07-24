@@ -1,7 +1,0 @@
-/no_think
-Answer the patient in 3-4 short sentences. Plain language only.
-
-Question: {{question}}
-Context: {{context}}
-
-Answer:
