@@ -12,10 +12,6 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon } from "lucide-react"
 
-type CalendarProps = Extract<DayPickerProps, { mode: "single" }> & {
-  buttonVariant?: React.ComponentProps<typeof Button>["variant"]
-}
-
 function Calendar({
   className,
   classNames,
@@ -23,26 +19,29 @@ function Calendar({
   locale,
   formatters,
   components,
-  buttonVariant: _buttonVariant,
-  selected,
-  onSelect,
   ...props
-}: CalendarProps) {
+}: DayPickerProps & {
+  buttonVariant?: React.ComponentProps<typeof Button>["variant"]
+}) {
+  const selectedDate =
+    props.mode === "single" && props.selected instanceof Date
+      ? props.selected
+      : undefined;
 
   // حالات التحكم في واجهة العرض (الأيام مقابل الأشهر والسنوات)
   const [viewMode, setViewMode] = React.useState<"days" | "months">("days")
   const [currentMonth, setCurrentMonth] = React.useState<Date>(
-    () => (selected instanceof Date ? selected : new Date())
+    () => (selectedDate ?? new Date())
   )
 
   // التزامن عند تغيير التاريخ من الخارج
   React.useEffect(() => {
-    if (selected instanceof Date) {
-      setCurrentMonth(selected)
+    if (selectedDate) {
+      setCurrentMonth(selectedDate)
     }
-  }, [selected])
+  }, [selectedDate])
 
-  const displayHeaderDate = selected instanceof Date ? selected : currentMonth
+  const displayHeaderDate = selectedDate ?? currentMonth
 
   // مصفوفات الأشهر والسنوات لإنشاء القوائم المخصصة
   const monthsShort = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
@@ -71,7 +70,12 @@ function Calendar({
   }
 
   return (
-    <div className="p-0 bg-white rounded-lg overflow-hidden shadow-2xl border w-[290px] select-none text-direction-ltr">
+    <div className={
+      cn(
+        "p-0 bg-white rounded-lg overflow-hidden shadow-2xl border w-[290px] select-none text-direction-ltr",
+        className
+      )
+    }>
       
       {/* 1. الشريط العلوي الأزرق (Blue Header Banner) */}
       <div className="bg-[#0066ff] px-5 py-4 text-white flex flex-col justify-start items-start gap-0.5">
@@ -120,42 +124,35 @@ function Calendar({
         {/* الوضع الأول: عرض شبكة الأيام الافتراضية */}
         {viewMode === "days" && (
           <DayPicker
-            {...({
-              ...props,
-              mode: "single",
-              showOutsideDays,
-              month: currentMonth,
-              onMonthChange: setCurrentMonth,
-              selected,
-              onSelect,
-              locale,
-              className: "m-0 p-0",
-              classNames: {
-                root: "w-full",
-                months: "w-full",
-                month: "flex w-full flex-col gap-2",
-                month_caption: "hidden",
-                nav: "hidden",
-                month_grid: "w-full border-collapse mt-1",
-                weekdays: "flex justify-between mb-1",
-                weekday:
-                  "w-9 text-[11px] font-bold uppercase tracking-widest text-neutral-400 text-center",
-                week: "flex w-full justify-between mt-1",
-                day: "group/day relative aspect-square h-9 w-9 rounded-full p-0 text-center flex items-center justify-center",
-                today:
-                  "rounded-full bg-neutral-100 text-neutral-900 border border-neutral-200 font-bold",
-                outside: "text-neutral-300 opacity-40",
-                disabled: "text-neutral-300 opacity-50 line-through",
-                hidden: "invisible",
-                ...classNames,
-              },
-              components: {
-                DayButton: ({ ...dayProps }) => (
-                  <CalendarDayButton locale={locale} {...dayProps} />
-                ),
-                ...components,
-              },
-            } as React.ComponentProps<typeof DayPicker>)}
+            showOutsideDays={showOutsideDays}
+            month={currentMonth}
+            onMonthChange={setCurrentMonth}
+            locale={locale}
+            className="m-0 p-0"
+            classNames={{
+              root: "w-full",
+              months: "w-full",
+              month: "flex w-full flex-col gap-2",
+              month_caption: "hidden", // إخفاء الكابشن الافتراضي تماماً لتفادي المشكلة السابقة
+              nav: "hidden", // إخفاء أزرار التنقل الافتراضية للـ DayPicker
+              month_grid: "w-full border-collapse mt-1",
+              weekdays: "flex justify-between mb-1",
+              weekday: "w-9 text-[11px] font-bold uppercase tracking-widest text-neutral-400 text-center",
+              week: "flex w-full justify-between mt-1",
+              day: "group/day relative aspect-square h-9 w-9 rounded-full p-0 text-center flex items-center justify-center",
+              today: "rounded-full bg-neutral-100 text-neutral-900 border border-neutral-200 font-bold",
+              outside: "text-neutral-300 opacity-40",
+              disabled: "text-neutral-300 opacity-50 line-through",
+              hidden: "invisible",
+              ...classNames,
+            }}
+            components={{
+              DayButton: ({ ...props }) => (
+                <CalendarDayButton locale={locale} {...props} />
+              ),
+              ...components,
+            }}
+            {...props}
           />
         )}
 

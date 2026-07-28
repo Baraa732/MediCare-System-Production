@@ -124,7 +124,10 @@ export class ClinicHttpClient {
         headers: this.headers('POST', path, {}),
       });
       return res.data?.success === true;
-    } catch {
+    } catch (error) {
+      this.logger.warn(
+        `clinicExists check failed for ${clinicId}: ${error instanceof Error ? error.message : error}`,
+      );
       return false;
     }
   }

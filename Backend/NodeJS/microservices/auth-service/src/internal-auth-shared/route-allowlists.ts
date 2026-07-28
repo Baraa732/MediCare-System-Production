@@ -51,6 +51,7 @@ export const INTERNAL_ROUTE_ALLOWLISTS: Record<InternalServiceName, RouteAllowli
     'POST /v1/clinics/internal/assign-staff': ['auth-service'],
     'POST /v1/clinics/internal/resolve-staff-clinic': ['auth-service'],
     'POST /v1/clinics/internal/get-by-id/:id': [
+      'auth-service',
       'scheduling-service',
       'appointment-service',
       'notification-service',

@@ -46,3 +46,7 @@ Thumbs.db
 docker/volumes/
 
 .railway-secrets.json
+
+# Local scratch clones and pre-migration backups
+_tmp-*/
+_secretary-medicare-backup/

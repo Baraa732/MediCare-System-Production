@@ -14,7 +14,10 @@ export function useAuthHydration() {
       setReady(true);
     };
 
-    if (useAuthStore.persist.hasHydrated() || useAuthStore.getState()._hasHydrated) {
+    if (
+      useAuthStore.persist.hasHydrated() ||
+      useAuthStore.getState()._hasHydrated
+    ) {
       markReady();
       return;
     }

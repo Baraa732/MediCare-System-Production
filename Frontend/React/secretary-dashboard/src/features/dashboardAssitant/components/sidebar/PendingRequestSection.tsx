@@ -1,11 +1,7 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Calendar, Clock, GripVertical } from "lucide-react";
 import { useEditeMode } from "../../hooks/useEditeMode";
-import { useScheduleContext } from "../../context/ScheduleContext";
-import { useAppointmentDrawer } from "../../hooks/useAppointmentDrawer";
-import type { PendingRequest } from "../../types";
-import { formatDistanceToNow } from "date-fns";
 
 import {
   DndContext,
@@ -26,39 +22,22 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+
+// 1. استيراد المُعدّل المسؤول عن تقييد حركة السحب عمودياً فقط
 import { restrictToParentElement } from "@dnd-kit/modifiers";
+import type { PendingRequest } from "../../types";
+
+import { useWizardDrawer } from "../../hooks/useWizardDrawer";
+import { usePendingRequest } from "../../hooks/usePendingRequest";
+import { useDragHandlers } from "../SchedualeGrid/DNDGrid/hooks/useDragHandlers";
+import { formatMinutesToAMPM } from "../SchedualeGrid/DNDGrid/utils/timeFormatters";
 
 export function PendingRequestSection() {
   const isEditMode = useEditeMode((state) => state.isEditMode);
-  const { appointments, doctors } = useScheduleContext();
-  const [order, setOrder] = useState<string[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
-
-  const requests: PendingRequest[] = useMemo(() => {
-    const doctorMap = new Map(doctors.map((d) => [d.id, d.name]));
-    const pending = appointments.filter((a) => a.status === "REQUESTED");
-
-    const mapped = pending.map((apt) => {
-      const date = new Date(apt.scheduledAt);
-      return {
-        id: apt.id,
-        patientName: apt.reason || `Patient ${apt.patientId.slice(0, 8)}`,
-        doctorName: doctorMap.get(apt.doctorId) ?? "Doctor",
-        date: date.toLocaleDateString(),
-        time: date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
-        timeAgo: formatDistanceToNow(date, { addSuffix: true }),
-      };
-    });
-
-    if (order.length === 0) return mapped;
-
-    const byId = new Map(mapped.map((r) => [r.id, r]));
-    const ordered = order
-      .map((id) => byId.get(id))
-      .filter(Boolean) as PendingRequest[];
-    const extras = mapped.filter((r) => !order.includes(r.id));
-    return [...ordered, ...extras];
-  }, [appointments, doctors, order]);
+  // const [requests, setRequests] = useState(INITIAL_REQUESTS)
+  const requests = usePendingRequest((state) => state.requests);
+  const setRequests = usePendingRequest((state) => state.setRequests);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -74,18 +53,26 @@ export function PendingRequestSection() {
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     setActiveId(null);
-    if (!over || active.id === over.id) return;
 
-    const ids = requests.map((r) => r.id);
-    const oldIndex = ids.indexOf(active.id as string);
-    const newIndex = ids.indexOf(over.id as string);
-    if (oldIndex >= 0 && newIndex >= 0) {
-      setOrder(arrayMove(ids, oldIndex, newIndex));
+    if (!over) return;
+
+    if (active.id !== over.id) {
+      const newRquests = (items: PendingRequest[]): PendingRequest[] => {
+        const oldIndex: number = items.findIndex((i) => i.id === active.id);
+        const newIndex = items.findIndex((i) => i.id === over.id);
+        return arrayMove(items, oldIndex, newIndex);
+      };
+      setRequests(newRquests(requests));
     }
   }
 
   const activeItem = requests.find((r) => r.id === activeId);
 
+  if (requests.length == 0) return null;
+
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const { doctors } = useDragHandlers();
+  const doctor = doctors.find((doc) => doc.id == activeItem?.docId);
   return (
     <div className="flex-1 flex flex-col min-h-0 p-5">
       <div className="flex items-center justify-between mb-4 shrink-0">
@@ -93,74 +80,73 @@ export function PendingRequestSection() {
           <h4 className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">
             Pending requests:
           </h4>
-          <span className="bg-red-50 text-red-500 text-[10px] font-extrabold w-4 h-4 rounded-full flex items-center justify-center border border-red-100">
-            {requests.length}
-          </span>
+          {requests.length == 0 ? null : (
+            <span className="bg-red-50 text-red-500 text-[10px] font-extrabold w-4 h-4 rounded-full flex items-center justify-center border border-red-100">
+              {requests.length}
+            </span>
+          )}
         </div>
       </div>
 
-      {requests.length === 0 ? (
-        <p className="text-xs text-neutral-400">No pending appointment requests.</p>
-      ) : (
-        <div className="flex-1 overflow-y-auto pr-1 space-y-3 scrollbar-thin scrollbar-thumb-neutral-200">
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
-            modifiers={[restrictToParentElement]}
+      <div className="flex-1 overflow-y-auto pr-1 space-y-3 scrollbar-thin scrollbar-thumb-neutral-200">
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          // 2. تمرير المُعدّل هنا لمنع الكارت الطائر من الخروج أفقياً نهائياً خارج الحاوية الجانبية
+          modifiers={[restrictToParentElement]}
+        >
+          <SortableContext
+            items={requests.map((r) => r.id)}
+            strategy={verticalListSortingStrategy}
           >
-            <SortableContext
-              items={requests.map((r) => r.id)}
-              strategy={verticalListSortingStrategy}
-            >
-              {requests.map((item) => (
-                <SortableRequestCard
-                  key={item.id}
-                  item={item}
-                  isEditMode={isEditMode}
-                />
-              ))}
-            </SortableContext>
+            {requests.map((item) => (
+              <SortableRequestCard
+                key={item.id}
+                item={item}
+                isEditMode={isEditMode}
+              />
+            ))}
+          </SortableContext>
 
-            <DragOverlay dropAnimation={null}>
-              {activeId && activeItem ? (
-                <div className="bg-white border border-neutral-300 rounded-xl shadow-xl flex relative overflow-hidden min-h-[110px] w-full opacity-90 select-none pointer-events-none scale-[1.01] border-r-4 border-r-blue-500">
-                  <div className="bg-neutral-50/80 border-r border-neutral-200 flex items-center justify-center shrink-0 w-9">
-                    <GripVertical className="w-4 h-4 text-neutral-400 shrink-0" />
-                  </div>
-                  <div className="flex-1 p-3 flex flex-col justify-between min-w-0 text-right">
-                    <div className="flex justify-between items-start gap-2">
-                      <div className="min-w-0 flex-1">
-                        <h5 className="text-xs font-bold text-neutral-900 truncate">
-                          {activeItem.patientName}
-                        </h5>
-                        <p className="flex items-center text-[11px] text-neutral-400 font-medium mt-0.5 gap-1 truncate">
-                          <Calendar className="w-3 h-3 text-neutral-400 shrink-0" />{" "}
-                          {activeItem.doctorName}
-                        </p>
-                      </div>
-                      <span className="text-[10px] font-bold text-[#0066ff] bg-blue-50/70 border border-blue-100 px-1.5 py-0.5 rounded-md shrink-0">
-                        {activeItem.timeAgo}
-                      </span>
+          <DragOverlay dropAnimation={null}>
+            {activeId && activeItem ? (
+              <div className="bg-white border border-neutral-300 rounded-xl shadow-xl flex relative overflow-hidden min-h-[110px] w-full opacity-90 select-none pointer-events-none scale-[1.01] border-r-4 border-r-blue-500">
+                <div className="bg-neutral-50/80 border-r border-neutral-200 flex items-center justify-center shrink-0 w-9">
+                  <GripVertical className="w-4 h-4 text-neutral-400 shrink-0" />
+                </div>
+                <div className="flex-1 p-3 flex flex-col justify-between min-w-0 text-right">
+                  <div className="flex justify-between items-start gap-2">
+                    <div className="min-w-0 flex-1">
+                      <h5 className="text-xs font-bold text-neutral-900 truncate">
+                        {activeItem.patient.name}
+                      </h5>
+                      <p className="flex items-center text-[11px] text-neutral-400 font-medium mt-0.5 gap-1 truncate">
+                        <Calendar className="w-3 h-3 text-neutral-400 shrink-0" />{" "}
+                        {doctor?.name}
+                      </p>
                     </div>
-                    <div className="flex flex-col justify-between text-[11px] font-semibold text-neutral-500 mt-2">
-                      <div className="flex items-center gap-1">
-                        <Calendar className="w-3 h-3 text-neutral-400" />{" "}
-                        {activeItem.date}
-                      </div>
-                      <div className="flex items-center gap-1 mt-0.5">
-                        <Clock className="w-3 h-3 text-neutral-400" />{" "}
-                        {activeItem.time}
-                      </div>
+                    <span className="text-[10px] font-bold text-[#0066ff] bg-blue-50/70 border border-blue-100 px-1.5 py-0.5 rounded-md shrink-0">
+                      {formatTimeAgo(activeItem.timeRequistAgo)}
+                    </span>
+                  </div>
+                  <div className="flex flex-col justify-between text-[11px] font-semibold text-neutral-500 mt-2">
+                    <div className="flex items-center gap-1">
+                      <Calendar className="w-3 h-3 text-neutral-400" />{" "}
+                      {activeItem.date.toDateString()}
+                    </div>
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <Clock className="w-3 h-3 text-neutral-400" />{" "}
+                      {formatMinutesToAMPM(activeItem.start)}
                     </div>
                   </div>
                 </div>
-              ) : null}
-            </DragOverlay>
-          </DndContext>
-        </div>
-      )}
+              </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
+      </div>
     </div>
   );
 }
@@ -170,8 +156,21 @@ interface SortableCardProps {
   isEditMode: boolean;
 }
 
+function formatTimeAgo(minutesAgo: number): string {
+  if (minutesAgo <= 0) return "now";
+  // إذا كان الوقت أقل من ساعة (60 دقيقة)
+  if (minutesAgo < 60) return `${minutesAgo} Min Ago`;
+  const hoursAgo = Math.floor(minutesAgo / 60);
+  // إذا كان الوقت أقل من يوم (1440 دقيقة)
+  if (hoursAgo < 24) return `${hoursAgo} Hours Ago`;
+  const daysAgo = Math.floor(hoursAgo / 24);
+  return `${daysAgo} Day Ago`;
+}
+
 function SortableRequestCard({ item, isEditMode }: SortableCardProps) {
-  const openDrawer = useAppointmentDrawer((s) => s.open);
+  const openWithPendingRequest = useWizardDrawer(
+    (state) => state.openWithPendingRequest,
+  );
   const {
     attributes,
     listeners,
@@ -189,6 +188,10 @@ function SortableRequestCard({ item, isEditMode }: SortableCardProps) {
     transition,
     opacity: isDragging ? 0.3 : 1,
   };
+
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const { doctors } = useDragHandlers();
+  const doctor = doctors.find((doc) => doc.id == item.docId);
 
   return (
     <div
@@ -219,24 +222,26 @@ function SortableRequestCard({ item, isEditMode }: SortableCardProps) {
         <div className="flex justify-between items-start gap-2">
           <div className="min-w-0 flex-1">
             <h5 className="text-xs font-bold text-neutral-900 truncate">
-              {item.patientName}
+              {item.patient.name}
             </h5>
             <p className="flex items-center text-[11px] text-neutral-400 font-medium mt-0.5 gap-1 truncate">
               <Calendar className="w-3 h-3 text-neutral-400 shrink-0" />{" "}
-              {item.doctorName}
+              {doctor?.name}
             </p>
           </div>
           <span className="text-[10px] font-bold text-[#0066ff] bg-blue-50/70 border border-blue-100 px-1.5 py-0.5 rounded-md shrink-0">
-            {item.timeAgo}
+            {formatTimeAgo(item.timeRequistAgo)}
           </span>
         </div>
 
         <div className="flex flex-col justify-between text-[11px] font-semibold text-neutral-500 mt-2">
           <div className="flex items-center gap-1">
-            <Calendar className="w-3 h-3 text-neutral-400" /> {item.date}
+            <Calendar className="w-3 h-3 text-neutral-400" />{" "}
+            {item.date.toDateString()}
           </div>
           <div className="flex items-center gap-1 mt-0.5">
-            <Clock className="w-3 h-3 text-neutral-400" /> {item.time}
+            <Clock className="w-3 h-3 text-neutral-400" />{" "}
+            {formatMinutesToAMPM(item.start)}
           </div>
         </div>
 
@@ -249,7 +254,7 @@ function SortableRequestCard({ item, isEditMode }: SortableCardProps) {
         >
           <Button
             className="w-full h-8 bg-[#39A3FF] hover:bg-[#258ce5] text-white text-xs font-bold rounded-lg shadow-2xs transition-colors"
-            onClick={() => openDrawer(item.id)}
+            onClick={() => openWithPendingRequest(item)} // ربط الأكشن هنا 🔥
           >
             Review
           </Button>

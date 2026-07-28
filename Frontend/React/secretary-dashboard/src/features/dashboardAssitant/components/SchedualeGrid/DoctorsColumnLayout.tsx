@@ -1,12 +1,21 @@
 import { cn } from "@/lib/utils";
 import { SLOT_HEIGHT, DOCTOR_COL_WIDTH } from "../../data/scheduleGrid";
 import { useHandleSelection } from "../../hooks";
-import { CellsLayer, ExistingBooked, PersistentSelectionArea } from ".";
-import type { DoctorWithApts } from "./DNDGrid";
+import type { DoctorType } from "../../types";
+// 🚀 استهلاك متجر التضاربات لضبط عتامة الواجهة حياً
+import { useGlobalConflictStore } from "../../hooks/useGlobalConflictStore";
+import { ExistingBooked } from "./Appointement";
+import { CellsLayer } from "./CellsLayer";
+import { PersistentSelectionArea } from "./PersistentSelectionArea";
 
 interface DoctorsColumnLayoutProps {
-  doctors: DoctorWithApts[];
-  overSlotInfo: { docId: string; slotIdx: number; top: number; height: number } | null;
+  doctors: DoctorType[];
+  overSlotInfo: {
+    docId: string;
+    slotIdx: number;
+    top: number;
+    height: number;
+  } | null;
 }
 
 export function DoctorsColumnLayout({
@@ -14,10 +23,12 @@ export function DoctorsColumnLayout({
   overSlotInfo,
 }: DoctorsColumnLayoutProps): React.ReactNode {
   const selection = useHandleSelection((state) => state.selection);
+  const conflictPayload = useGlobalConflictStore(
+    (state) => state.conflictPayload,
+  );
 
   return doctors.map((doctor) => {
-    // جلب مواعيد الطبيب مباشرة من الـ State لضمان التزامن
-    const columnAppointments = doctor.appointments || doctor.columnAppointments || [];
+    const columnAppointments = doctor.appointments || [];
     const hasSelectionInColumn = selection?.docId === doctor.id;
 
     let selectionTop = 0;
@@ -29,28 +40,45 @@ export function DoctorsColumnLayout({
       selectionHeight = (maxS - minS + 1) * SLOT_HEIGHT;
     }
 
+    // 🧠 التحقق مما إذا كان هناك نزاع نشط يخص طبيب آخر لتعتيم هذا العمود
+    const isAnyConflictActive = !!conflictPayload;
+    const isThisDoctorConflicted =
+      conflictPayload?.targetDoctorId === doctor.id;
+
     return (
       <div
         key={doctor.id}
-        className={cn("h-full relative z-10", DOCTOR_COL_WIDTH)}
+        className={cn(
+          "h-full relative z-10 transition-all duration-300",
+          DOCTOR_COL_WIDTH,
+        )}
+        style={{
+          opacity: isAnyConflictActive && !isThisDoctorConflicted ? 0.25 : 1,
+          filter:
+            isAnyConflictActive && !isThisDoctorConflicted
+              ? "blur(0.8px)"
+              : "none",
+        }}
       >
+        {/* طبقة الخلايا الزمنية الفارغة */}
         <CellsLayer
           columnAppointments={columnAppointments}
           idDoctor={doctor.id}
         />
 
+        {/* مساحة التحديد المستمر للـ Dragging */}
         <PersistentSelectionArea
           hasSelectionInColumn={hasSelectionInColumn}
           selectionHeight={selectionHeight}
           selectionTop={selectionTop}
-          doctorName={doctor.name}
+          doctorId={doctor.id} // 👈 نمرر id الطبيب الخاص بالعمود الحالي
         />
 
-        {/* تمرير المواعيد والـ overSlotInfo لـ ExistingBooked */}
-        <ExistingBooked 
-          columnAppointments={columnAppointments} 
-          docId={doctor.id} 
-          overSlotInfo={overSlotInfo} 
+        {/* المواعيد المحجوزة الحالية وتأثير الإسقاط */}
+        <ExistingBooked
+          columnAppointments={columnAppointments}
+          docId={doctor.id}
+          overSlotInfo={overSlotInfo}
         />
       </div>
     );

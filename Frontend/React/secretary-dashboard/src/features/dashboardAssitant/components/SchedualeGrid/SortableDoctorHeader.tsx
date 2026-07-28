@@ -2,7 +2,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/utils";
 import { GripVertical } from "lucide-react"; 
-import type { DoctorWithApts } from "./DNDGrid";
+import type { DoctorType } from "../../types";
 
 export function SortableDoctorHeader({
   id,
@@ -10,7 +10,7 @@ export function SortableDoctorHeader({
   disabled,
 }: {
   id: string;
-  doctor: DoctorWithApts;
+  doctor: DoctorType;
   disabled: boolean;
 }) {
   const {
@@ -55,7 +55,7 @@ export function SortableDoctorHeader({
               {doctor.name}
             </h4>
             <p className="text-[11px] font-semibold text-neutral-400 mt-1.5 leading-none">
-              {doctor.patients} patients
+              {doctor.appointments.length} patients
             </p>
           </div>
         </div>

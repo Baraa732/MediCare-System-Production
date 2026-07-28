@@ -40,13 +40,14 @@ export function mapAppointmentToGrid(
 
 export function mapDoctorToGrid(
   doctor: ClinicDoctor,
-  appointmentCount: number,
+  _appointmentCount: number,
 ): DoctorType {
   return {
     id: doctor.userId,
     name: (doctor.fullName ?? `${doctor.firstName ?? ""} ${doctor.lastName ?? ""}`.trim()) || "Doctor",
-    patients: appointmentCount,
+    specialty: doctor.specialization ?? "General Dentistry",
     avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(doctor.fullName ?? doctor.userId)}`,
+    appointments: [],
   };
 }
 

@@ -4,4 +4,4 @@ export { useToggleSideBar } from "./useToggleSideBar";
 export { useHandleSelection } from "./useHandleSelection";
 export { useRedLine } from "./useRedLine";
 export { useScheduleData } from "./useScheduleData";
-export { useAppointmentDialog } from "./useAppointmentDialog";
+export { useAppointmentDrawer } from "./useAppointmentDrawer";

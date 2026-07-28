@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CheckCircle2, RotateCcw, X } from "lucide-react";
+import { CheckCircle2, RotateCcw, X, Info } from "lucide-react";
 
 interface ToastProps {
   isOpen: boolean;
@@ -8,6 +8,7 @@ interface ToastProps {
   onClose: () => void;
   onUndo: () => void;
   durationMs?: number;
+  isTestingMessage?: boolean;
 }
 
 export function AppointmentUpdateToast({
@@ -16,25 +17,33 @@ export function AppointmentUpdateToast({
   newTimeLabel,
   onClose,
   onUndo,
-  durationMs = 5000,
+  durationMs = 10000, // 10 Seconds action countdown default standard
+  isTestingMessage = false,
 }: ToastProps) {
   const [progress, setProgress] = useState(100);
+  const [timeLeft, setTimeLeft] = useState(Math.ceil(durationMs / 1000));
 
   useEffect(() => {
     if (!isOpen) return;
 
     const startTime = Date.now();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTimeLeft(Math.ceil(durationMs / 1000));
+    setProgress(100);
     
     const interval = setInterval(() => {
       const elapsed = Date.now() - startTime;
-      const remaining = Math.max(0, 100 - (elapsed / durationMs) * 100);
-      setProgress(remaining);
+      const remainingProgress = Math.max(0, 100 - (elapsed / durationMs) * 100);
+      const remainingSeconds = Math.max(0, Math.ceil((durationMs - elapsed) / 1000));
+      
+      setProgress(remainingProgress);
+      setTimeLeft(remainingSeconds);
 
       if (elapsed >= durationMs) {
         clearInterval(interval);
         onClose();
       }
-    }, 30);
+    }, 50);
 
     return () => clearInterval(interval);
   }, [isOpen, durationMs, onClose]);
@@ -42,46 +51,63 @@ export function AppointmentUpdateToast({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed bottom-5 right-5 z-50 min-w-[360px] max-w-md bg-white border border-neutral-100 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300 flex flex-col">
+    <div className="fixed bottom-5 right-5 z-50 min-w-[360px] max-w-md bg-white border border-neutral-200/70 rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300 flex flex-col">
+      {/* Visual Progress Micro-Bar */}
+      <div 
+        className={`h-1 transition-all duration-75 ${isTestingMessage ? "bg-blue-500" : "bg-emerald-500"}`}
+        style={{ width: `${progress}%` }}
+      />
       
-      {/* 1. شريط الوقت (Timer) متمركز في الأعلى تماماً */}
-      <div className="w-full h-[3px] bg-neutral-50 relative shrink-0">
-        <div 
-          className="h-full bg-emerald-500 transition-all ease-linear"
-          style={{ width: `${progress}%` }}
-        />
-      </div>
-
-      {/* 2. صف المحتوى والأزرار أسفل شريط الوقت */}
       <div className="p-4 flex items-center justify-between gap-4">
-        
-        {/* التفاصيل: اسم المريض والوقت الجديد */}
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          <div className="bg-emerald-50 text-emerald-500 p-2 rounded-lg shrink-0">
-            <CheckCircle2 className="w-5 h-5" />
+        {isTestingMessage ? (
+          // Option 1 Reschedule Temporary Message Block Layout
+          <div className="flex gap-3 items-start flex-1 min-w-0">
+            <div className="bg-blue-50 text-blue-500 p-2 rounded-lg shrink-0 mt-0.5">
+              <Info className="w-5 h-5" />
+            </div>
+            <div className="flex flex-col min-w-0">
+              <span className="text-[14px] font-bold text-neutral-900 leading-tight">Hello</span>
+              <p className="text-[11px] text-neutral-500 font-medium mt-1 leading-normal">
+                This is only for testing and will be replaced later.
+              </p>
+            </div>
           </div>
-          <div className="min-w-0">
-            <p className="text-[13px] font-bold text-neutral-900 truncate leading-tight">
-              {patientName}
-            </p>
-            <p className="text-[11px] text-neutral-500 font-medium mt-1.5 leading-none">
-              {newTimeLabel}
-            </p>
+        ) : (
+          // Main Menu Structural Standard Countdown Layout
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <div className="bg-emerald-50 text-emerald-500 p-2 rounded-lg shrink-0">
+              <CheckCircle2 className="w-5 h-5" />
+            </div>
+            <div className="min-w-0 flex flex-col gap-0.5">
+              <p className="text-[13px] font-bold text-neutral-900 truncate leading-tight">
+                Action completed
+              </p>
+              {patientName && (
+                <p className="text-[11px] font-semibold text-neutral-700 truncate">
+                  Target: {patientName} ({newTimeLabel})
+                </p>
+              )}
+              <p className="text-[11px] text-neutral-400 font-medium mt-1">
+                Closing in: <span className="font-bold text-neutral-800 text-xs">{timeLeft}</span>
+              </p>
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* أزرار التحكم: زر الـ Undo وزر الإغلاق الجانبي */}
+        {/* Action Controller Tray */}
         <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={() => {
-              onUndo();
-              onClose();
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-neutral-700 bg-neutral-50 hover:bg-neutral-100 border border-neutral-200/80 rounded-lg transition-colors active:scale-[0.98]"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            Undo
-          </button>
+          {!isTestingMessage && (
+            <button
+              onClick={() => {
+                onUndo();
+                onClose();
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-neutral-700 bg-neutral-50 hover:bg-neutral-100 border border-neutral-200/80 rounded-lg transition-colors active:scale-[0.98]"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Undo
+            </button>
+          )}
           
           <button 
             onClick={onClose} 
@@ -90,7 +116,6 @@ export function AppointmentUpdateToast({
             <X className="w-4 h-4" />
           </button>
         </div>
-
       </div>
     </div>
   );

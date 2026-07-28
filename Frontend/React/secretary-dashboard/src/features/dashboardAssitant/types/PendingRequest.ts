@@ -1,8 +1,3 @@
-export interface PendingRequest {
-  id: string;
-  patientName: string;
-  doctorName: string;
-  date: string;
-  time: string;
-  timeAgo: string;
-}
+import type { AppointmentType } from "./AppointmentType";
+
+export type PendingRequest = AppointmentType & { timeRequistAgo: number };

@@ -9,7 +9,7 @@ export default defineConfig({
   build: {
     chunkSizeWarningLimit: 800, // Increase this to 800kB or higher
   },
-  base: process.env.NODE_ENV === "production" ? "/CMS_Project/" : "/",
+  base: "/",
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

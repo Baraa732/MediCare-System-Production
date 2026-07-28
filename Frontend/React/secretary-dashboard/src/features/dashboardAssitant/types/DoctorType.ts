@@ -1,6 +1,10 @@
-export interface DoctorType {
+import type { AppointmentType } from "./AppointmentType";
+
+export  interface DoctorType {
   id: string;
   name: string;
-  patients: number;
   avatar: string;
+  appointments: AppointmentType[];
+  specialty: string;
 }
+
