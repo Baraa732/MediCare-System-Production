@@ -4,6 +4,11 @@ import axios from 'axios';
 const WHATSAPP_TIMEOUT_MS = 10_000;
 const CONNECTION_POLL_MS = 2_000;
 const CONNECTION_WAIT_MS = Number(process.env.WHATSAPP_CONNECTION_WAIT_MS || 90_000);
+/**
+ * Sends run inside request-scoped work, so they get a much shorter reconnect budget than
+ * background recovery — a down session must fail fast rather than stall the caller.
+ */
+const SEND_CONNECTION_WAIT_MS = Number(process.env.WHATSAPP_SEND_WAIT_MS || 5_000);
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -46,7 +51,7 @@ export class WhatsAppService {
    * Prepare instance for messaging — creates record if missing, restores session if possible.
    * Never calls /instance/connect here; that endpoint is for manual QR pairing only.
    */
-  private async ensureInstanceReady(): Promise<void> {
+  private async ensureInstanceReady(maxWaitMs = CONNECTION_WAIT_MS): Promise<void> {
     if (!this.isConfigured()) {
       this.logger.warn('EVOLUTION_API_KEY is not set — WhatsApp OTP will not be sent');
       return;
@@ -55,7 +60,7 @@ export class WhatsAppService {
     try {
       if (!(await this.ensureInstanceRecord())) return;
 
-      const state = await this.restorePersistedSession(this.instanceName);
+      const state = await this.restorePersistedSession(this.instanceName, maxWaitMs);
       if (state === 'open') {
         await this.syncProfileDisplayName(this.instanceName);
         this.logger.log(`WhatsApp instance '${this.instanceName}' connected`);
@@ -106,12 +111,15 @@ export class WhatsAppService {
     }
   }
 
-  private async restorePersistedSession(instanceName: string): Promise<string> {
-    let state = await this.waitForConnection(instanceName, 30_000);
+  private async restorePersistedSession(
+    instanceName: string,
+    maxWaitMs = CONNECTION_WAIT_MS,
+  ): Promise<string> {
+    let state = await this.waitForConnection(instanceName, Math.min(30_000, maxWaitMs));
     if (state === 'open') return state;
 
     await this.restartInstance(instanceName);
-    state = await this.waitForConnection(instanceName, CONNECTION_WAIT_MS);
+    state = await this.waitForConnection(instanceName, maxWaitMs);
     return state;
   }
 
@@ -214,16 +222,14 @@ export class WhatsAppService {
       throw new Error('WhatsApp is not configured (EVOLUTION_API_KEY missing)');
     }
 
-    await this.ensureInstanceReady();
+    // ensureInstanceReady already attempted a restore; retrying it here would double the wait.
+    await this.ensureInstanceReady(SEND_CONNECTION_WAIT_MS);
 
-    let state = await this.getConnectionState(instanceName);
-    if (state !== 'open') {
-      state = await this.restorePersistedSession(instanceName);
-    }
+    const state = await this.getConnectionState(instanceName);
     if (state !== 'open') {
       throw new Error(
         `WhatsApp is not connected (state=${state}). ` +
-          'Scan the QR: GET http://localhost:3000/api/auth/dev/whatsapp-qr (development).',
+          'Pair the instance again by scanning the QR from GET /api/auth/dev/whatsapp-qr.',
       );
     }
 

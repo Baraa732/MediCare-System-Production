@@ -252,7 +252,7 @@ export class AuthService implements OnModuleInit {
       expiresAt,
     });
 
-    const whatsappResult = await this.deliverOtpWhatsApp(
+    this.deliverOtpWhatsAppInBackground(
       formattedPhoneNumber,
       otp,
       'Your MediCare verification code is: {otp}. Valid for 10 minutes. Do not share this code.',
@@ -260,15 +260,15 @@ export class AuthService implements OnModuleInit {
 
     this.logger.log(`Registration OTP saved: ${PhoneUtils.maskPhoneNumber(formattedPhoneNumber)} (${role})`);
     const response: OtpDeliveryResponse = {
-      message: whatsappResult.sent
-        ? 'Registration initiated. Please verify your phone number with the OTP sent to WhatsApp.'
-        : 'Registration initiated. OTP was created but WhatsApp delivery failed. Connect WhatsApp (see whatsappHint).',
-      whatsappSent: whatsappResult.sent,
+      message:
+        'Registration initiated. Please verify your phone number with the OTP sent to WhatsApp.',
+      whatsappSent: false,
       userId: createResponse.userId,
       role,
-      ...(whatsappResult.hint ? { whatsappHint: whatsappResult.hint } : {}),
+      whatsappHint:
+        'If the code does not arrive, ask your administrator to check the WhatsApp connection.',
     };
-    if (process.env.NODE_ENV === 'development' && !whatsappResult.sent) {
+    if (process.env.NODE_ENV === 'development') {
       response.devOtp = otp;
     }
     return response;
@@ -284,6 +284,26 @@ export class AuthService implements OnModuleInit {
     const body = template.replace('{otp}', otp);
     const message = body.startsWith(brand) ? body : `*${brand}*\n${body}`;
     return this.deliverWhatsAppMessage(phoneNumber, message);
+  }
+
+  /**
+   * Delivery must never gate the HTTP response: the OTP is already persisted, and a
+   * disconnected WhatsApp session makes the send path retry for minutes, which strands
+   * the caller (e.g. the login request) with no reply.
+   */
+  private deliverOtpWhatsAppInBackground(
+    phoneNumber: string,
+    otp: string,
+    template: string,
+  ): void {
+    void this.deliverOtpWhatsApp(phoneNumber, otp, template).then((result) => {
+      const masked = PhoneUtils.maskPhoneNumber(phoneNumber);
+      if (result.sent) {
+        this.logger.log(`OTP delivered via WhatsApp to ${masked}`);
+        return;
+      }
+      this.logger.warn(`OTP WhatsApp delivery failed for ${masked}: ${result.hint ?? 'unknown'}`);
+    });
   }
 
   private async deliverWhatsAppMessage(
@@ -485,15 +505,16 @@ export class AuthService implements OnModuleInit {
       [OtpType.LOGIN_VERIFICATION]: 'Your MediCare login code is: {otp}. Valid for 10 minutes. Do not share this code.',
     };
 
-    const whatsappResult = await this.deliverOtpWhatsApp(formattedPhoneNumber, otp, templates[type]);
+    this.deliverOtpWhatsAppInBackground(formattedPhoneNumber, otp, templates[type]);
     this.logger.log(`OTP saved for ${PhoneUtils.maskPhoneNumber(formattedPhoneNumber)} (${type})`);
 
     const response: OtpDeliveryResponse = {
-      message: whatsappResult.sent ? 'OTP sent successfully' : 'OTP created but WhatsApp delivery failed',
-      whatsappSent: whatsappResult.sent,
-      ...(whatsappResult.hint ? { whatsappHint: whatsappResult.hint } : {}),
+      message: 'Verification code sent to WhatsApp. It may take a few seconds to arrive.',
+      whatsappSent: false,
+      whatsappHint:
+        'If the code does not arrive, ask your administrator to check the WhatsApp connection.',
     };
-    if (process.env.NODE_ENV === 'development' && !whatsappResult.sent) {
+    if (process.env.NODE_ENV === 'development') {
       response.devOtp = otp;
     }
     return response;
