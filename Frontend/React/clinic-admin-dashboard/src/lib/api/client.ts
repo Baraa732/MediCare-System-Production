@@ -11,6 +11,9 @@ const NO_REFRESH_PATHS = [
   "/auth/resend-otp",
   "/auth/resend-mfa-otp",
   "/auth/staff/complete-activation",
+  "/auth/forgot-password/send-otp",
+  "/auth/forgot-password/verify-otp",
+  "/auth/reset-password",
 ];
 
 const IDEMPOTENT_POST_PATHS = ["/auth/register"];

@@ -139,6 +139,34 @@ export function logout(refreshToken: string, token: string) {
   });
 }
 
+export function sendPasswordResetOtp(phoneNumber: string) {
+  return apiRequest<OtpDeliveryResult>("/auth/forgot-password/send-otp", {
+    method: "POST",
+    body: { phoneNumber },
+  });
+}
+
+export function verifyPasswordResetOtp(phoneNumber: string, otp: string) {
+  return apiRequest<{ message: string; verified: boolean }>(
+    "/auth/forgot-password/verify-otp",
+    {
+      method: "POST",
+      body: { phoneNumber, otp },
+    },
+  );
+}
+
+export function resetPassword(body: {
+  phoneNumber: string;
+  otp: string;
+  newPassword: string;
+}) {
+  return apiRequest<AuthSession>("/auth/reset-password", {
+    method: "POST",
+    body,
+  });
+}
+
 export function createClinicStaff(
   body: {
     phoneNumber: string;

@@ -23,6 +23,8 @@ interface AuthState extends AuthIdentity {
   activationToken: string | null;
   otpFlow: "mfa" | "register" | null;
   otpSentAt: number | null;
+  passwordResetPhone: string | null;
+  passwordResetOtp: string | null;
   _hasHydrated: boolean;
   setSession: (
     session: AuthIdentity & { accessToken: string; refreshToken: string },
@@ -43,6 +45,9 @@ interface AuthState extends AuthIdentity {
   clearActivationSession: () => void;
   markOtpSent: () => void;
   clearPendingFlow: () => void;
+  setPasswordResetPhone: (phoneNumber: string) => void;
+  setPasswordResetOtp: (otp: string) => void;
+  clearPasswordResetFlow: () => void;
   setClinicId: (clinicId: string) => void;
   setTenantId: (tenantId: string) => void;
   logout: () => void;
@@ -62,6 +67,8 @@ const initialState = {
   activationToken: null as string | null,
   otpFlow: null as "mfa" | "register" | null,
   otpSentAt: null as number | null,
+  passwordResetPhone: null as string | null,
+  passwordResetOtp: null as string | null,
   _hasHydrated: false,
 };
 
@@ -129,6 +136,11 @@ export const useAuthStore = create<AuthState>()(
           otpFlow: null,
           otpSentAt: null,
         }),
+      setPasswordResetPhone: (phoneNumber) =>
+        set({ passwordResetPhone: phoneNumber, passwordResetOtp: null }),
+      setPasswordResetOtp: (otp) => set({ passwordResetOtp: otp }),
+      clearPasswordResetFlow: () =>
+        set({ passwordResetPhone: null, passwordResetOtp: null }),
       setClinicId: (clinicId) => set({ clinicId, tenantId: clinicId }),
       setTenantId: (tenantId) => set({ tenantId, clinicId: tenantId }),
       logout: () => set({ ...initialState, _hasHydrated: true }),

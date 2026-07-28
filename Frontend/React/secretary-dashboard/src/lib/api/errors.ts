@@ -162,7 +162,11 @@ export function toUserFriendlyMessage(
     /^Too many login attempts\. Please try again in (\d+) seconds\.$/,
   );
   if (phoneLimitMatch) {
-    const minutes = Math.ceil(Number(phoneLimitMatch[1]) / 60);
+    const seconds = Number(phoneLimitMatch[1]);
+    if (seconds <= 90) {
+      return `Too many sign-in attempts. Please wait ${seconds} seconds and try again.`;
+    }
+    const minutes = Math.ceil(seconds / 60);
     return `Too many sign-in attempts. Please wait about ${minutes} minute${minutes === 1 ? "" : "s"} and try again.`;
   }
 

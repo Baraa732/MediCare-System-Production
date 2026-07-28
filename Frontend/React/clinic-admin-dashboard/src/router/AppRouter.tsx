@@ -13,6 +13,7 @@ import { ActivateCodePage } from "@/pages/auth/ActivateCodePage";
 import { RegisterPage } from "@/pages/auth/RegisterPage";
 import { OtpPage } from "@/pages/auth/OtpPage";
 import { SetPasswordPage } from "@/pages/auth/SetPasswordPage";
+import { ForgotPasswordPage } from "@/pages/auth/ForgotPasswordPage";
 import { AuthShell, GuestRoute, ProtectedRoute } from "@/router/ProtectedRoute";
 
 export function AppRouter() {
@@ -32,6 +33,7 @@ export function AppRouter() {
         <Route path="auth/register" element={<RegisterPage />} />
         <Route path="auth/otp" element={<OtpPage />} />
         <Route path="auth/set-password" element={<SetPasswordPage />} />
+        <Route path="auth/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="auth/activation" element={<Navigate to="/auth/activate-code" replace />} />
       </Route>
 

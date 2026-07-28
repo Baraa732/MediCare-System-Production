@@ -7,8 +7,8 @@ import { AccountLock, LockTierDb } from '../entities/account-lock.entity';
 
 export enum LockTier {
   NONE         = 'none',
-  SHORT        = 'short',        // 5  fails → 15 min
-  MEDIUM       = 'medium',       // 10 fails → 1 hr
+  SHORT        = 'short',        // 5  fails → 1 min
+  MEDIUM       = 'medium',       // 10 fails → 5 min
   ADMIN_REVIEW = 'admin_review', // 20 fails → manual unlock required
 }
 
@@ -22,8 +22,8 @@ export interface LockStatus {
 
 const TIERS: Array<{ threshold: number; lockSeconds: number; tier: LockTier }> = [
   { threshold: 20, lockSeconds: -1,   tier: LockTier.ADMIN_REVIEW },
-  { threshold: 10, lockSeconds: 3600, tier: LockTier.MEDIUM },
-  { threshold: 5,  lockSeconds: 900,  tier: LockTier.SHORT },
+  { threshold: 10, lockSeconds: 300, tier: LockTier.MEDIUM },
+  { threshold: 5,  lockSeconds: 60,  tier: LockTier.SHORT },
 ];
 
 // Atomic INCR + EXPIRE — eliminates the race between INCR and EXPIRE.

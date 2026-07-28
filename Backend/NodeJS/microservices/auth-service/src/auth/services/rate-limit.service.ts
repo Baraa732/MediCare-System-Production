@@ -9,8 +9,14 @@ export interface RateLimitConfig {
   blockSeconds: number;
 }
 
+/** Failed login tiers: 5 fails → 1 min block, 10 fails → 5 min block. */
+export const LOGIN_FAIL_TIERS = [
+  { threshold: 10, blockSeconds: 300 },
+  { threshold: 5, blockSeconds: 60 },
+] as const;
+
 export const RATE_LIMIT_CONFIGS: Record<RateLimitType, RateLimitConfig> = {
-  [RateLimitType.LOGIN]:          { maxRequests: 8,  windowSeconds: 300,  blockSeconds: 600  },
+  [RateLimitType.LOGIN]:          { maxRequests: 10, windowSeconds: 3600, blockSeconds: 60  },
   [RateLimitType.OTP]:            { maxRequests: 3,  windowSeconds: 300,  blockSeconds: 900  },
   [RateLimitType.OTP_VERIFY]:     { maxRequests: 5,  windowSeconds: 600,  blockSeconds: 1800 },
   [RateLimitType.REGISTER]:       { maxRequests: 3,  windowSeconds: 900,  blockSeconds: 3600 },
@@ -95,12 +101,16 @@ export class RateLimitService implements OnModuleInit, OnModuleDestroy {
   }
 
   async recordFailedAttempt(identifier: string, type: RateLimitType): Promise<void> {
+    if (type === RateLimitType.LOGIN) {
+      await this.recordLoginFailedAttempt(identifier);
+      return;
+    }
+
     const config = RATE_LIMIT_CONFIGS[type];
     const failKey  = `rl:fail:${type}:${identifier}`;
     const blockKey = `rl:block:${type}:${identifier}`;
 
     try {
-      // Atomic INCR + EXPIRE via Lua
       const fails = await this.redis.eval(
         INCR_WITH_TTL_SCRIPT,
         1,
@@ -115,6 +125,36 @@ export class RateLimitService implements OnModuleInit, OnModuleDestroy {
       }
     } catch (err: any) {
       this.logger.error(`recordFailedAttempt Redis error: ${err.message}`);
+    }
+  }
+
+  /** Tiered login blocks: 5 failed attempts → 1 min, 10 → 5 min. */
+  async recordLoginFailedAttempt(identifier: string): Promise<void> {
+    const type = RateLimitType.LOGIN;
+    const failKey = `rl:fail:${type}:${identifier}`;
+    const blockKey = `rl:block:${type}:${identifier}`;
+    const failWindowSeconds = 86400;
+
+    try {
+      const fails = await this.redis.eval(
+        INCR_WITH_TTL_SCRIPT,
+        1,
+        failKey,
+        String(failWindowSeconds),
+      ) as number;
+
+      const tier = LOGIN_FAIL_TIERS.find((t) => fails >= t.threshold);
+      if (!tier) return;
+
+      const currentTtl = await this.redis.ttl(blockKey);
+      if (currentTtl < tier.blockSeconds) {
+        await this.redis.set(blockKey, '1', 'EX', tier.blockSeconds);
+      }
+      this.logger.warn(
+        `Login blocked after ${fails} failed attempts: ${identifier} for ${tier.blockSeconds}s`,
+      );
+    } catch (err: any) {
+      this.logger.error(`recordLoginFailedAttempt Redis error: ${err.message}`);
     }
   }
 
@@ -186,26 +226,28 @@ export class RateLimitService implements OnModuleInit, OnModuleDestroy {
 
   /** Count failed logins per IP+phone pair — blocks after repeated bad passwords. */
   async recordCombinedFailedAttempt(ip: string, phone: string): Promise<void> {
-    const COMBINED_MAX = 5;
-    const COMBINED_WINDOW = 300;
-    const COMBINED_BLOCK = 900;
-
     const combinedKey = `rl:combined:${ip}:${phone}`;
     const blockKey = `rl:combined:block:${ip}:${phone}`;
+    const failWindowSeconds = 86400;
 
     try {
-      const count = (await this.redis.eval(
+      const fails = (await this.redis.eval(
         INCR_WITH_TTL_SCRIPT,
         1,
         combinedKey,
-        String(COMBINED_WINDOW),
+        String(failWindowSeconds),
       )) as number;
 
-      if (count > COMBINED_MAX) {
-        await this.redis.set(blockKey, '1', 'EX', COMBINED_BLOCK);
-        await this.redis.del(combinedKey);
-        this.logger.warn(`Combined rate limit exceeded: ip=${ip} phone=${phone}`);
+      const tier = LOGIN_FAIL_TIERS.find((t) => fails >= t.threshold);
+      if (!tier) return;
+
+      const currentTtl = await this.redis.ttl(blockKey);
+      if (currentTtl < tier.blockSeconds) {
+        await this.redis.set(blockKey, '1', 'EX', tier.blockSeconds);
       }
+      this.logger.warn(
+        `Combined login block after ${fails} fails: ip=${ip} phone=${phone} for ${tier.blockSeconds}s`,
+      );
     } catch (err: any) {
       this.logger.error(`recordCombinedFailedAttempt Redis error: ${err.message}`);
     }

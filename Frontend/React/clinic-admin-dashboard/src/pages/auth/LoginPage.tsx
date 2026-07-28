@@ -250,9 +250,17 @@ export function LoginPage() {
         </div>
 
         <div className="space-y-2">
-          <label htmlFor="password" className="text-sm text-[#929296]">
-            Password
-          </label>
+          <div className="flex items-center justify-between">
+            <label htmlFor="password" className="text-sm text-[#929296]">
+              Password
+            </label>
+            <Link
+              to="/auth/forgot-password"
+              className="text-xs font-semibold text-[#0066ff] hover:underline"
+            >
+              Forgot password?
+            </Link>
+          </div>
           <div className="relative">
             <input
               {...register("password")}
