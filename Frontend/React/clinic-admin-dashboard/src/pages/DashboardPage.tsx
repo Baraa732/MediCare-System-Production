@@ -128,9 +128,16 @@ export function DashboardPage() {
       <DashboardEntrance delay={DASHBOARD_MOTION.headerDelayMs}>
         <PageHeader
           title={clinic?.name ?? "Clinic overview"}
-          subtitle="Last 30 days · live from your clinic workspace"
+          subtitle="Last 30 days · your clinic only (tenant-scoped)"
           actions={
-            <Button
+            <div className="flex items-center gap-2">
+              <Link
+                to="/dashboard/analytics"
+                className="text-xs font-semibold text-[#0066ff] hover:underline hidden sm:inline"
+              >
+                Full analytics
+              </Link>
+              <Button
               type="button"
               size="sm"
               onClick={() => void reload()}
@@ -139,6 +146,7 @@ export function DashboardPage() {
               <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
               Refresh
             </Button>
+            </div>
           }
         />
       </DashboardEntrance>

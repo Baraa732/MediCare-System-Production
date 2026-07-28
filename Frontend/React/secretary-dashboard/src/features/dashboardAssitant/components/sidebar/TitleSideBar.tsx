@@ -18,7 +18,7 @@ export function TitleSideBar() {
             {clinicName ?? "MediCare Clinic"}
           </span>
           <span className="text-[11px] text-neutral-400 font-medium mt-0.5">
-            Secretary dashboard
+            Secretary · your clinic only
           </span>
         </div>
       </div>

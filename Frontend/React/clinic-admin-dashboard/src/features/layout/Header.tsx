@@ -1,6 +1,7 @@
 import { LogOut, Menu, RefreshCw } from "lucide-react";
 import { useNavigate } from "react-router";
 import { AuthAvatar } from "@/components/AuthAvatar";
+import { TenantScopeBadge } from "@/components/layout/TenantScopeBadge";
 import { Button } from "@/components/ui/button";
 import { logout as logoutApi } from "@/lib/api/auth";
 import { useAuthStore } from "@/stores/authStore";
@@ -45,7 +46,8 @@ export function Header() {
           <Menu className="w-4 h-4" />
         </Button>
         <div className="h-5 w-px bg-[#edebe9] hidden sm:block" />
-        <p className="text-sm font-medium text-[#1a1b1e] truncate hidden sm:block">
+        <TenantScopeBadge clinicName={clinic?.name} />
+        <p className="text-sm font-medium text-[#1a1b1e] truncate hidden lg:block">
           {clinic?.name ?? "MediCare Clinic"}
         </p>
       </div>

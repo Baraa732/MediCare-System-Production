@@ -29,8 +29,9 @@ const ROLE_CLASS: Record<string, string> = {
 
 export function StaffPage() {
   const token = useAuthStore((s) => s.accessToken)!;
-  const clinicId = useAuthStore((s) => s.clinicId ?? s.tenantId)!;
-  const { staff, reload, loading, error } = useClinicAdmin();
+  const { staff, reload, loading, error, clinicId: contextClinicId } = useClinicAdmin();
+  const authClinicId = useAuthStore((s) => s.clinicId ?? s.tenantId);
+  const clinicId = contextClinicId ?? authClinicId;
 
   const [form, setForm] = useState<StaffFormState>(emptyStaffForm);
   const [search, setSearch] = useState("");
@@ -63,6 +64,10 @@ export function StaffPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!clinicId) {
+      setMessage("Clinic workspace is not loaded yet.");
+      return;
+    }
     if (form.role === "DOCTOR" && !form.specialization.trim()) {
       setMessage("Specialization is required for doctors.");
       return;
@@ -89,6 +94,7 @@ export function StaffPage() {
   };
 
   const handleRemove = async (userId: string) => {
+    if (!clinicId) return;
     if (!confirm("Remove this staff member from the clinic?")) return;
     try {
       await clinicApi.removeStaff(clinicId, userId, token);

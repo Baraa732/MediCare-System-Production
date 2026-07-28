@@ -30,12 +30,13 @@ function doctorLabel(doctors: ClinicDoctor[], id: string) {
   return d.fullName ?? (`${d.firstName ?? ""} ${d.lastName ?? ""}`.trim() || "Doctor");
 }
 
-/** 14-day stacked area — appointment volume by status */
+/** Stacked area — appointment volume by status over N days (default 14). */
 export function buildAppointmentTrendOption(
   appointments: ApiAppointment[],
+  dayCount = 14,
 ): EChartsOption {
   const end = startOfDay(new Date());
-  const start = subDays(end, 13);
+  const start = subDays(end, dayCount - 1);
   const days = eachDayOfInterval({ start, end });
   const statuses = ["CONFIRMED", "COMPLETED", "REQUESTED", "CANCELLED", "NO_SHOW"];
 
@@ -210,6 +211,169 @@ export function buildDoctorWorkloadOption(
         },
       },
     ],
+  };
+}
+
+/** Bar chart — appointments by hour of day (peak hours). */
+export function buildPeakHoursOption(appointments: ApiAppointment[]): EChartsOption {
+  const buckets = Array.from({ length: 24 }, () => 0);
+
+  appointments.forEach((a) => {
+    const hour = parseISO(a.scheduledAt).getHours();
+    buckets[hour] += 1;
+  });
+
+  const labels = buckets.map((_, i) => {
+    const h = i % 12 || 12;
+    const suffix = i < 12 ? "am" : "pm";
+    return `${h}${suffix}`;
+  });
+
+  return {
+    tooltip: { trigger: "axis", ...CHART_TOOLTIP },
+    grid: { left: 40, right: 16, top: 16, bottom: 32 },
+    xAxis: {
+      type: "category",
+      data: labels,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { color: "#929296", fontSize: 10, interval: 1 },
+    },
+    yAxis: {
+      type: "value",
+      minInterval: 1,
+      splitLine: { lineStyle: { color: "#f0f0f0" } },
+      axisLabel: { color: "#929296", fontSize: 11 },
+    },
+    series: [
+      {
+        type: "bar",
+        data: buckets,
+        barMaxWidth: 14,
+        itemStyle: {
+          color: BRAND,
+          borderRadius: [4, 4, 0, 0],
+        },
+      },
+    ],
+  };
+}
+
+/** Line chart — unique patients seen per day. */
+export function buildUniquePatientsOption(
+  appointments: ApiAppointment[],
+  dayCount: number,
+): EChartsOption {
+  const end = startOfDay(new Date());
+  const start = subDays(end, dayCount - 1);
+  const days = eachDayOfInterval({ start, end });
+  const dayKeys = days.map((d) => format(d, "yyyy-MM-dd"));
+
+  const patientsByDay = dayKeys.map(() => new Set<string>());
+  appointments.forEach((a) => {
+    const key = format(parseISO(a.scheduledAt), "yyyy-MM-dd");
+    const idx = dayKeys.indexOf(key);
+    if (idx >= 0 && a.patientId) patientsByDay[idx].add(a.patientId);
+  });
+
+  const counts = patientsByDay.map((set) => set.size);
+
+  return {
+    tooltip: { trigger: "axis", ...CHART_TOOLTIP },
+    grid: { left: 44, right: 16, top: 20, bottom: 32 },
+    xAxis: {
+      type: "category",
+      boundaryGap: false,
+      data: dayKeys.map((k) => format(parseISO(k), "MMM d")),
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { color: "#929296", fontSize: 11 },
+    },
+    yAxis: {
+      type: "value",
+      minInterval: 1,
+      splitLine: { lineStyle: { color: "#f0f0f0" } },
+      axisLabel: { color: "#929296", fontSize: 11 },
+    },
+    series: [
+      {
+        type: "line",
+        smooth: true,
+        symbol: "circle",
+        symbolSize: 5,
+        showSymbol: false,
+        areaStyle: { opacity: 0.2, color: "#10b981" },
+        data: counts,
+        itemStyle: { color: "#10b981" },
+        lineStyle: { width: 2, color: "#10b981" },
+      },
+    ],
+  };
+}
+
+/** Donut — staff count by role. */
+export function buildStaffRoleOption(staff: StaffMember[]): EChartsOption {
+  const ROLE_COLORS: Record<string, string> = {
+    DOCTOR: BRAND,
+    SECRETARY: "#8b5cf6",
+    CLINIC_ADMIN: "#6b7280",
+  };
+
+  const counts = staff.reduce<Record<string, number>>((acc, s) => {
+    acc[s.staffRole] = (acc[s.staffRole] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  const data = Object.entries(counts).map(([name, value]) => ({
+    name: name.replace("_", " "),
+    value,
+    itemStyle: { color: ROLE_COLORS[name] ?? "#9ca3af" },
+  }));
+
+  if (data.length === 0) {
+    data.push({ name: "No staff", value: 1, itemStyle: { color: "#e5e7eb" } });
+  }
+
+  return {
+    tooltip: { trigger: "item", ...CHART_TOOLTIP },
+    legend: {
+      bottom: 0,
+      icon: "roundRect",
+      itemWidth: 10,
+      itemHeight: 10,
+      textStyle: { color: "#6b7280", fontSize: 11 },
+    },
+    series: [
+      {
+        type: "pie",
+        radius: ["48%", "72%"],
+        center: ["50%", "44%"],
+        itemStyle: { borderColor: "#fff", borderWidth: 2 },
+        label: { show: false },
+        data,
+      },
+    ],
+  };
+}
+
+export function computeAnalyticsMetrics(appointments: ApiAppointment[], dayCount: number) {
+  const uniquePatients = new Set(
+    appointments.map((a) => a.patientId).filter(Boolean),
+  ).size;
+  const completed = appointments.filter((a) => a.status === "COMPLETED").length;
+  const cancelled = appointments.filter((a) => a.status === "CANCELLED").length;
+  const noShow = appointments.filter((a) => a.status === "NO_SHOW").length;
+  const total = appointments.length;
+  const avgPerDay = dayCount > 0 ? Math.round((total / dayCount) * 10) / 10 : 0;
+
+  return {
+    total,
+    uniquePatients,
+    avgPerDay,
+    completed,
+    completionRate: total > 0 ? Math.round((completed / total) * 100) : 0,
+    cancellationRate: total > 0 ? Math.round((cancelled / total) * 100) : 0,
+    noShowRate: total > 0 ? Math.round((noShow / total) * 100) : 0,
   };
 }
 

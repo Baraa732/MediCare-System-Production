@@ -6,12 +6,14 @@ import {
   ChevronRight,
   Clock3,
   LayoutDashboard,
+  LineChart,
   UserSearch,
   Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useClinicAdmin } from "@/context/ClinicAdminContext";
 import { useSidebarStore } from "@/stores/sidebarStore";
+import { resolveAssetUrl } from "@/lib/resolveAssetUrl";
 import { SidebarQuickStats } from "./SidebarQuickStats";
 
 const navSections = [
@@ -28,6 +30,12 @@ const navSections = [
       { to: "/dashboard/schedule", label: "Schedule", icon: Clock3, end: false },
       { to: "/dashboard/patients", label: "Patients", icon: UserSearch, end: false },
       { to: "/dashboard/staff", label: "Staff", icon: Users, end: false },
+    ],
+  },
+  {
+    label: "Insights",
+    items: [
+      { to: "/dashboard/analytics", label: "Analytics", icon: LineChart, end: false },
     ],
   },
   {
@@ -49,6 +57,7 @@ export function Sidebar() {
   const isCollapsed = mode === "collapsed";
   const { clinic, loading } = useClinicAdmin();
   const displayName = clinic?.name?.trim() || (loading ? "Loading…" : "Your clinic");
+  const logoUrl = resolveAssetUrl(clinic?.logoUrl);
 
   return (
     <aside
@@ -64,8 +73,12 @@ export function Sidebar() {
         )}
       >
         <div className={cn("flex items-center gap-2.5 min-w-0", isCollapsed && "justify-center")}>
-          <div className="w-8 h-8 shrink-0 rounded-sm bg-[#0066ff] text-white flex items-center justify-center font-bold text-sm shadow-sm">
-            {clinicInitial(displayName)}
+          <div className="w-8 h-8 shrink-0 rounded-sm bg-[#0066ff] text-white flex items-center justify-center font-bold text-sm shadow-sm overflow-hidden">
+            {logoUrl ? (
+              <img src={logoUrl} alt="" className="w-full h-full object-cover" />
+            ) : (
+              clinicInitial(displayName)
+            )}
           </div>
           {!isCollapsed && (
             <div className="min-w-0 flex-1 sidebar-label-fade">

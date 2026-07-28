@@ -9,6 +9,7 @@ import {
   Save,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
+import { useClinicAdmin } from "@/context/ClinicAdminContext";
 import * as clinicApi from "@/lib/api/clinics";
 import { normalizeCaughtError } from "@/lib/api/errors";
 import type { ClinicDoctor, ClinicPublic } from "@/lib/api/types";
@@ -16,6 +17,7 @@ import { AlertBanner, PageLoading } from "@/components/layout/PageState";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PanelCard } from "@/components/layout/PanelCard";
 import { ClinicPreviewCard } from "@/features/settings/ClinicPreviewCard";
+import { ClinicLogoUpload } from "@/features/settings/ClinicLogoUpload";
 import {
   SettingsFieldGroup,
   SettingsSectionNav,
@@ -58,7 +60,9 @@ function sectionDirty(
 
 export function ClinicSettingsPage() {
   const token = useAuthStore((s) => s.accessToken)!;
-  const clinicId = useAuthStore((s) => s.clinicId ?? s.tenantId)!;
+  const { clinicId: contextClinicId, reload: reloadClinicContext } = useClinicAdmin();
+  const authClinicId = useAuthStore((s) => s.clinicId ?? s.tenantId);
+  const clinicId = contextClinicId ?? authClinicId;
 
   const [form, setForm] = useState<Partial<ClinicPublic>>({});
   const [initial, setInitial] = useState<Partial<ClinicPublic>>({});
@@ -72,6 +76,7 @@ export function ClinicSettingsPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!clinicId) return;
     let cancelled = false;
     (async () => {
       try {
@@ -113,6 +118,7 @@ export function ClinicSettingsPage() {
   };
 
   const handleSave = async () => {
+    if (!clinicId) return;
     setSaving(true);
     setMessage(null);
     setSaveError(null);
@@ -147,7 +153,7 @@ export function ClinicSettingsPage() {
     setSaveError(null);
   };
 
-  if (loading) return <PageLoading label="Loading clinic settings…" />;
+  if (loading || !clinicId) return <PageLoading label="Loading clinic settings…" />;
 
   return (
     <div className="pbi-canvas space-y-4">
@@ -204,6 +210,16 @@ export function ClinicSettingsPage() {
         >
           {activeSection === "identity" && (
             <SettingsFieldGroup title="Brand" icon={Building2}>
+              <ClinicLogoUpload
+                clinicId={clinicId}
+                token={token}
+                logoUrl={form.logoUrl}
+                onUploaded={(url) => {
+                  setForm((f) => ({ ...f, logoUrl: url }));
+                  setInitial((f) => ({ ...f, logoUrl: url }));
+                  void reloadClinicContext();
+                }}
+              />
               <div className="space-y-1.5">
                 <Label>Clinic name</Label>
                 <Input
