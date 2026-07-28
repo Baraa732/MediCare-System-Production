@@ -158,6 +158,14 @@ export function toUserFriendlyMessage(
     return `Your account is temporarily locked after several failed attempts. Try again in ${lockMatch[1]} seconds.`;
   }
 
+  const phoneLimitMatch = err.message.match(
+    /^Too many login attempts\. Please try again in (\d+) seconds\.$/,
+  );
+  if (phoneLimitMatch) {
+    const minutes = Math.ceil(Number(phoneLimitMatch[1]) / 60);
+    return `Too many sign-in attempts. Please wait about ${minutes} minute${minutes === 1 ? "" : "s"} and try again.`;
+  }
+
   const failedLoginMatch = err.message.match(
     /^Too many failed login attempts\. Please try again in (\d+) seconds\.$/,
   );

@@ -697,17 +697,17 @@ export class AuthService implements OnModuleInit {
 
     // ── IP-level rate limit (prevents one IP hammering many accounts) ──────────
     if (!skipLoginRateLimits) {
-      const ipLimit = await this.rateLimitService.checkRateLimitByIp(ip, RateLimitType.LOGIN);
-      if (!ipLimit.allowed) {
-        throw new BadRequestException(`Too many login attempts from this IP. Retry in ${ipLimit.retryAfter}s.`);
+      const ipStatus = await this.rateLimitService.getRateLimitStatus(`ip:${ip}`, RateLimitType.LOGIN);
+      if (ipStatus.isBlocked) {
+        throw new BadRequestException(`Too many login attempts from this IP. Retry in ${ipStatus.retryAfter}s.`);
       }
     }
 
-    // ── Per-phone rate limit ───────────────────────────────────────────────────
+    // ── Per-phone rate limit (block check only — increments on failed login) ──
     if (!skipLoginRateLimits) {
-      const phoneLimit = await this.rateLimitService.checkRateLimit(formattedPhoneNumber, RateLimitType.LOGIN);
-      if (!phoneLimit.allowed) {
-        throw new BadRequestException(`Too many login attempts. Please try again in ${phoneLimit.retryAfter} seconds.`);
+      const phoneStatus = await this.rateLimitService.getRateLimitStatus(formattedPhoneNumber, RateLimitType.LOGIN);
+      if (phoneStatus.isBlocked) {
+        throw new BadRequestException(`Too many login attempts. Please try again in ${phoneStatus.retryAfter} seconds.`);
       }
     }
 
@@ -743,6 +743,7 @@ export class AuthService implements OnModuleInit {
       // Record failed attempt in both rate limiter and account lock service
       await Promise.all([
         this.rateLimitService.recordFailedAttempt(formattedPhoneNumber, RateLimitType.LOGIN),
+        this.rateLimitService.recordFailedAttempt(`ip:${ip}`, RateLimitType.LOGIN),
         this.rateLimitService.recordCombinedFailedAttempt(ip, formattedPhoneNumber),
         this.accountLockService.recordFailedLogin(formattedPhoneNumber),
       ]);
@@ -1328,6 +1329,10 @@ export class AuthService implements OnModuleInit {
       }
       await this.accountLockService.resetLock(formatted);
       return { message: `Rate limits cleared for ${PhoneUtils.maskPhoneNumber(formatted)}` };
+    }
+    if (ip) {
+      await this.rateLimitService.resetRateLimit(`ip:${ip}`, RateLimitType.LOGIN);
+      return { message: `Login rate limits cleared for IP ${ip}` };
     }
     return { message: 'Provide phoneNumber query param to clear login rate limits.' };
   }

@@ -27,6 +27,13 @@ const MESSAGE_MAP: Record<string, string> = {
 
 export function toLoginErrorMessage(err: unknown): string {
   if (err instanceof ApiError) {
+    const phoneLimitMatch = err.message.match(
+      /^Too many login attempts\. Please try again in (\d+) seconds\.$/,
+    );
+    if (phoneLimitMatch) {
+      const minutes = Math.ceil(Number(phoneLimitMatch[1]) / 60);
+      return `Too many sign-in attempts. Please wait about ${minutes} minute${minutes === 1 ? "" : "s"} and try again.`;
+    }
     return MESSAGE_MAP[err.message] ?? err.message;
   }
   if (err instanceof Error && MESSAGE_MAP[err.message]) {

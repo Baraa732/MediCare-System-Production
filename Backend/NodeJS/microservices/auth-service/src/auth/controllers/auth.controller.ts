@@ -235,7 +235,10 @@ export class AuthController {
   @Post('dev/clear-rate-limits')
   @HttpCode(HttpStatus.OK)
   async devClearRateLimits(@Query('phoneNumber') phoneNumber: string, @Request() req) {
-    if (process.env.NODE_ENV !== 'development') {
+    const allowed =
+      process.env.NODE_ENV === 'development' ||
+      process.env.RATE_LIMIT_ADMIN_ENABLED === 'true';
+    if (!allowed) {
       return { message: 'Only available in development' };
     }
     return this.authService.devClearRateLimits(phoneNumber, req.ip);

@@ -10,7 +10,7 @@ export interface RateLimitConfig {
 }
 
 export const RATE_LIMIT_CONFIGS: Record<RateLimitType, RateLimitConfig> = {
-  [RateLimitType.LOGIN]:          { maxRequests: 5,  windowSeconds: 120,  blockSeconds: 900  },
+  [RateLimitType.LOGIN]:          { maxRequests: 8,  windowSeconds: 300,  blockSeconds: 600  },
   [RateLimitType.OTP]:            { maxRequests: 3,  windowSeconds: 300,  blockSeconds: 900  },
   [RateLimitType.OTP_VERIFY]:     { maxRequests: 5,  windowSeconds: 600,  blockSeconds: 1800 },
   [RateLimitType.REGISTER]:       { maxRequests: 3,  windowSeconds: 900,  blockSeconds: 3600 },
