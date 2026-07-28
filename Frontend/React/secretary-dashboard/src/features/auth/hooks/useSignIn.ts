@@ -38,6 +38,8 @@ export function useSignIn() {
           clinicId: response.clinicId,
           userId: response.userId,
           role: response.role,
+          whatsappSent: response.whatsappSent,
+          whatsappHint: response.whatsappHint,
         });
         navigate("/auth/otp", { replace: true });
         return;

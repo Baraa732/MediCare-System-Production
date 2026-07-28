@@ -24,8 +24,12 @@ export function useResendOtp() {
 
     try {
       const response = await resendMfaOtp(mfaToken);
+      useAuthStore.setState({
+        otpWhatsappSent: response.whatsappSent === true,
+        otpWhatsappHint: response.whatsappHint ?? null,
+      });
       setSuccessMessage(
-        response.message === "OTP sent successfully"
+        response.whatsappSent
           ? "A new verification code was sent to your WhatsApp."
           : response.message,
       );

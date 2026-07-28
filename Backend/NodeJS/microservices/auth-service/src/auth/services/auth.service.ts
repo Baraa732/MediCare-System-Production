@@ -287,10 +287,36 @@ export class AuthService implements OnModuleInit {
   }
 
   /**
-   * Delivery must never gate the HTTP response: the OTP is already persisted, and a
-   * disconnected WhatsApp session makes the send path retry for minutes, which strands
-   * the caller (e.g. the login request) with no reply.
+   * Waits briefly for WhatsApp delivery so login/MFA responses can report whether the
+   * code actually left the server. OTP is already persisted; this only affects status.
    */
+  private async deliverOtpWhatsAppWithTimeout(
+    phoneNumber: string,
+    otp: string,
+    template: string,
+    timeoutMs = Number(process.env.WHATSAPP_OTP_DELIVERY_TIMEOUT_MS || 15_000),
+  ): Promise<{ sent: boolean; hint?: string }> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        this.deliverOtpWhatsApp(phoneNumber, otp, template),
+        new Promise<{ sent: false; hint: string }>((resolve) => {
+          timer = setTimeout(
+            () =>
+              resolve({
+                sent: false,
+                hint: 'WhatsApp delivery timed out. Try resend or ask your administrator to check the WhatsApp connection.',
+              }),
+            timeoutMs,
+          );
+        }),
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
+  /** Fire-and-forget OTP delivery for non-blocking flows (e.g. staff welcome message). */
   private deliverOtpWhatsAppInBackground(
     phoneNumber: string,
     otp: string,
@@ -505,14 +531,19 @@ export class AuthService implements OnModuleInit {
       [OtpType.LOGIN_VERIFICATION]: 'Your MediCare login code is: {otp}. Valid for 10 minutes. Do not share this code.',
     };
 
-    this.deliverOtpWhatsAppInBackground(formattedPhoneNumber, otp, templates[type]);
+    const whatsappResult = await this.deliverOtpWhatsAppWithTimeout(
+      formattedPhoneNumber,
+      otp,
+      templates[type],
+    );
     this.logger.log(`OTP saved for ${PhoneUtils.maskPhoneNumber(formattedPhoneNumber)} (${type})`);
 
     const response: OtpDeliveryResponse = {
-      message: 'Verification code sent to WhatsApp. It may take a few seconds to arrive.',
-      whatsappSent: false,
-      whatsappHint:
-        'If the code does not arrive, ask your administrator to check the WhatsApp connection.',
+      message: whatsappResult.sent
+        ? 'Verification code sent to WhatsApp.'
+        : 'Verification code created but WhatsApp delivery failed.',
+      whatsappSent: whatsappResult.sent,
+      ...(whatsappResult.hint ? { whatsappHint: whatsappResult.hint } : {}),
     };
     if (process.env.NODE_ENV === 'development') {
       response.devOtp = otp;
@@ -652,6 +683,8 @@ export class AuthService implements OnModuleInit {
         requiresMfa: boolean;
         mfaToken: string;
         requiresPasswordChange?: boolean;
+        whatsappSent?: boolean;
+        whatsappHint?: string;
       })
   > {
     const formattedPhoneNumber = PhoneUtils.validateAndFormat(loginDto.phoneNumber);
@@ -772,6 +805,8 @@ export class AuthService implements OnModuleInit {
           : 'MFA required',
         requiresMfa: true,
         mfaToken,
+        whatsappSent: otpResult.whatsappSent,
+        ...(otpResult.whatsappHint ? { whatsappHint: otpResult.whatsappHint } : {}),
         ...toAuthIdentity(user),
         ...(pendingActivation ? { requiresPasswordChange: true } : {}),
         ...(process.env.NODE_ENV === 'development' && otpResult.devOtp ? { devOtp: otpResult.devOtp } : {}),

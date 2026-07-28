@@ -23,6 +23,8 @@ export function ConfirmEmailForm({
   const navigate = useNavigate();
   const phoneNumber = useAuthStore((s) => s.phoneNumber);
   const mfaToken = useAuthStore((s) => s.mfaToken);
+  const otpWhatsappSent = useAuthStore((s) => s.otpWhatsappSent);
+  const otpWhatsappHint = useAuthStore((s) => s.otpWhatsappHint);
   const accessToken = useAuthStore((s) => s.accessToken);
   const activationToken = useAuthStore((s) => s.activationToken);
   const clearPendingFlow = useAuthStore((s) => s.clearPendingFlow);
@@ -93,6 +95,12 @@ export function ConfirmEmailForm({
             Enter the code sent to {phoneNumber ?? "your phone"} via WhatsApp.
             On your first login you will set a permanent password next.
           </p>
+          {otpWhatsappSent === false && (
+            <p className="mt-3 font-inter text-[15px] leading-snug text-[#93370D] bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+              {otpWhatsappHint ??
+                "We could not deliver the code via WhatsApp. Wait for the timer, then tap Resend, or contact your clinic administrator."}
+            </p>
+          )}
         </div>
 
         <div className="mb-13">

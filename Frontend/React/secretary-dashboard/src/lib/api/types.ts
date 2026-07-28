@@ -42,6 +42,8 @@ export interface LoginMfaRequired extends AuthIdentity {
   requiresMfa: true;
   mfaToken: string;
   requiresPasswordChange?: boolean;
+  whatsappSent?: boolean;
+  whatsappHint?: string;
 }
 
 export interface VerifyMfaPasswordChange extends AuthIdentity {

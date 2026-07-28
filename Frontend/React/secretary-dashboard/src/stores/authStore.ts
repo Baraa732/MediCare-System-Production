@@ -11,6 +11,8 @@ interface AuthState extends AuthIdentity {
   passwordResetPhone: string | null;
   passwordResetOtp: string | null;
   passwordResetOtpSentAt: number | null;
+  otpWhatsappSent: boolean | null;
+  otpWhatsappHint: string | null;
   _hasHydrated: boolean;
   setSession: (
     session: AuthIdentity & { accessToken: string; refreshToken: string },
@@ -29,6 +31,8 @@ interface AuthState extends AuthIdentity {
     clinicId?: string;
     userId?: string;
     role?: string;
+    whatsappSent?: boolean;
+    whatsappHint?: string;
   }) => void;
   setPendingActivation: (payload: {
     activationToken: string;
@@ -60,6 +64,8 @@ const initialState = {
   passwordResetPhone: null as string | null,
   passwordResetOtp: null as string | null,
   passwordResetOtpSentAt: null as number | null,
+  otpWhatsappSent: null as boolean | null,
+  otpWhatsappHint: null as string | null,
   _hasHydrated: false,
 };
 
@@ -100,6 +106,8 @@ export const useAuthStore = create<AuthState>()(
         clinicId,
         userId,
         role,
+        whatsappSent,
+        whatsappHint,
       }) =>
         set({
           mfaToken,
@@ -110,6 +118,8 @@ export const useAuthStore = create<AuthState>()(
           accessToken: null,
           refreshToken: null,
           activationToken: requiresPasswordChange ? get().activationToken : null,
+          otpWhatsappSent: whatsappSent ?? null,
+          otpWhatsappHint: whatsappHint ?? null,
         }),
       setPendingActivation: ({ activationToken, clinicId, userId, role }) =>
         set({
@@ -137,7 +147,13 @@ export const useAuthStore = create<AuthState>()(
           passwordResetOtpSentAt: null,
         }),
       clearPendingFlow: () =>
-        set({ mfaToken: null, activationToken: null, phoneNumber: null }),
+        set({
+          mfaToken: null,
+          activationToken: null,
+          phoneNumber: null,
+          otpWhatsappSent: null,
+          otpWhatsappHint: null,
+        }),
       logout: () => set({ ...initialState, _hasHydrated: true }),
       isAuthenticated: () => Boolean(get().accessToken),
     }),
@@ -157,6 +173,8 @@ export const useAuthStore = create<AuthState>()(
         passwordResetPhone: state.passwordResetPhone,
         passwordResetOtp: state.passwordResetOtp,
         passwordResetOtpSentAt: state.passwordResetOtpSentAt,
+        otpWhatsappSent: state.otpWhatsappSent,
+        otpWhatsappHint: state.otpWhatsappHint,
       }),
       onRehydrateStorage: () => (_state, error) => {
         if (error) {
