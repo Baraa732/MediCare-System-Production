@@ -341,6 +341,14 @@ export class InternalUserController {
     return { success: true, doctors };
   }
 
+  @Post('internal/clinic-staff-profiles')
+  @UseGuards(InternalServiceGuard)
+  @HttpCode(HttpStatus.OK)
+  async getClinicStaffProfiles(@Body() body: { userIds?: string[] }) {
+    const staff = await this.userService.getClinicStaffProfiles(body?.userIds || []);
+    return { success: true, staff };
+  }
+
   @Post('internal/search-doctor-ids')
   @UseGuards(InternalServiceGuard)
   @HttpCode(HttpStatus.OK)

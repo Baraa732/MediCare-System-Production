@@ -524,6 +524,55 @@ export class UserService {
     return users.map((u) => this.toPublicDoctorProfile(u));
   }
 
+  /** Clinic-admin workforce directory — tenant-scoped staff profiles for assignments. */
+  async getClinicStaffProfiles(userIds: string[]) {
+    if (!userIds.length) return [];
+    const unique = [...new Set(userIds)];
+    const ctxTenant = this.tenantContext.getTenantId();
+    const where: Record<string, unknown> = {
+      id: In(unique),
+      role: In([UserRole.DOCTOR, UserRole.SECRETARY, UserRole.CLINIC_ADMIN]),
+    };
+    if (ctxTenant) where.tenantId = ctxTenant;
+    const users = await this.userRepository.find({ where });
+    return users.map((u) => this.toClinicStaffProfile(u));
+  }
+
+  toClinicStaffProfile(user: User) {
+    const raw = (user.profileData || {}) as Record<string, unknown>;
+    const pick = (key: string) => {
+      const v = raw[key];
+      return typeof v === 'string' || typeof v === 'number' ? v : undefined;
+    };
+    return {
+      id: user.id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      fullName: `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim(),
+      phoneNumber: user.phoneNumber,
+      email: user.email ?? undefined,
+      username: user.username ?? (typeof raw.username === 'string' ? raw.username : undefined),
+      role: user.role,
+      status: user.status,
+      specialization: user.specialization ?? undefined,
+      licenseNumber: user.licenseNumber ?? undefined,
+      gender: typeof raw.gender === 'string' ? raw.gender : undefined,
+      yearsOfExperience:
+        typeof raw.yearsOfExperience === 'number' ? raw.yearsOfExperience : undefined,
+      governorate: typeof raw.governorate === 'string' ? raw.governorate : undefined,
+      state: typeof raw.state === 'string' ? raw.state : undefined,
+      streetInfo: typeof raw.streetInfo === 'string' ? raw.streetInfo : undefined,
+      birthDate: typeof raw.birthDate === 'string' ? raw.birthDate : undefined,
+      nationalId: typeof raw.nationalId === 'string' ? raw.nationalId : undefined,
+      maritalStatus: typeof raw.maritalStatus === 'string' ? raw.maritalStatus : undefined,
+      languages: Array.isArray(raw.languages) ? raw.languages.filter((x) => typeof x === 'string') : undefined,
+      department: typeof raw.department === 'string' ? raw.department : pick('department') as string | undefined,
+      shift: typeof raw.shift === 'string' ? raw.shift : undefined,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    };
+  }
+
   async getPublicDoctorProfile(doctorId: string) {
     const user = await this.findOne(doctorId);
     if (user.role !== UserRole.DOCTOR || user.status !== UserStatus.ACTIVE) {

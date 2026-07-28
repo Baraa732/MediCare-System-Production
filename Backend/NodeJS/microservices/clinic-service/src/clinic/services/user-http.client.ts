@@ -84,6 +84,49 @@ export class UserHttpClient {
     }
   }
 
+  async getClinicStaffProfiles(userIds: string[]): Promise<
+    Array<{
+      id: string;
+      firstName?: string;
+      lastName?: string;
+      fullName?: string;
+      phoneNumber?: string;
+      email?: string;
+      username?: string;
+      role?: string;
+      status?: string;
+      specialization?: string;
+      licenseNumber?: string;
+      gender?: string;
+      yearsOfExperience?: number;
+      governorate?: string;
+      state?: string;
+      streetInfo?: string;
+      birthDate?: string;
+      nationalId?: string;
+      maritalStatus?: string;
+      languages?: string[];
+      department?: string;
+      shift?: string;
+      createdAt?: string;
+      updatedAt?: string;
+    }>
+  > {
+    if (!userIds.length) return [];
+    try {
+      const path = '/users/internal/clinic-staff-profiles';
+      const body = { userIds };
+      const res = await axios.post(`${this.baseUrl}${path}`, body, {
+        timeout: 8000,
+        headers: this.headers('POST', path, body),
+      });
+      return res.data?.staff || [];
+    } catch (error) {
+      this.logger.error(`getClinicStaffProfiles failed: ${error}`);
+      return [];
+    }
+  }
+
   async searchDoctorIds(filters: { q?: string; specialization?: string }): Promise<string[]> {
     try {
       const path = '/users/internal/search-doctor-ids';

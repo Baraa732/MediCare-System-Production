@@ -184,8 +184,10 @@ export function createClinicStaff(
     streetInfo?: string;
     gender?: "MALE" | "FEMALE" | "OTHER";
     birthDate?: string;
+    birthPlace?: string;
     middleName?: string;
     nationalId?: string;
+    maritalStatus?: "SINGLE" | "MARRIED" | "DIVORCED" | "WIDOWED";
   },
   token: string,
 ) {

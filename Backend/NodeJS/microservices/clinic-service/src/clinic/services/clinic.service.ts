@@ -536,7 +536,51 @@ export class ClinicService {
   async listStaff(clinicId: string, actor: AuthUser, role?: StaffRole) {
     await this.assertCanAccessClinic(clinicId, actor);
 
-    return this.listStaffInternal(clinicId, role);
+    return this.listStaffEnriched(clinicId, role);
+  }
+
+  async listStaffEnriched(clinicId: string, role?: StaffRole) {
+    const assignments = await this.listStaffInternal(clinicId, role);
+    if (assignments.length === 0) return [];
+
+    const profiles = await this.userHttpClient.getClinicStaffProfiles(
+      assignments.map((a) => a.userId),
+    );
+    const profileMap = new Map(profiles.map((p) => [p.id, p]));
+
+    return assignments.map((a) => {
+      const profile = profileMap.get(a.userId);
+      return {
+        userId: a.userId,
+        clinicId,
+        staffRole: a.staffRole,
+        status: profile?.status ?? a.status,
+        assignmentStatus: a.status,
+        assignedAt: a.assignedAt,
+        assignedBy: a.assignedBy,
+        firstName: profile?.firstName,
+        lastName: profile?.lastName,
+        fullName: profile?.fullName,
+        phoneNumber: profile?.phoneNumber,
+        email: profile?.email,
+        username: profile?.username,
+        specialization: profile?.specialization,
+        licenseNumber: profile?.licenseNumber,
+        gender: profile?.gender,
+        yearsOfExperience: profile?.yearsOfExperience,
+        governorate: profile?.governorate,
+        state: profile?.state,
+        streetInfo: profile?.streetInfo,
+        birthDate: profile?.birthDate,
+        nationalId: profile?.nationalId,
+        maritalStatus: profile?.maritalStatus,
+        languages: profile?.languages,
+        department: profile?.department,
+        shift: profile?.shift,
+        userRole: profile?.role,
+        createdAt: profile?.createdAt,
+      };
+    });
   }
 
   /** Internal service-to-service — no user actor required. */

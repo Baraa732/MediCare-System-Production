@@ -72,11 +72,30 @@ export interface StaffMember {
   clinicId: string;
   staffRole: string;
   status?: string;
+  assignmentStatus?: string;
+  assignedAt?: string;
+  assignedBy?: string;
   firstName?: string;
   lastName?: string;
   fullName?: string;
   phoneNumber?: string;
+  email?: string;
+  username?: string;
   specialization?: string;
+  licenseNumber?: string;
+  gender?: string;
+  yearsOfExperience?: number;
+  governorate?: string;
+  state?: string;
+  streetInfo?: string;
+  birthDate?: string;
+  nationalId?: string;
+  maritalStatus?: string;
+  languages?: string[];
+  department?: string;
+  shift?: string;
+  userRole?: string;
+  createdAt?: string;
 }
 
 export interface ClinicDoctor {

@@ -25,6 +25,7 @@ export const INTERNAL_ROUTE_ALLOWLISTS: Record<InternalServiceName, RouteAllowli
       'scheduling-service',
       'notification-service',
     ],
+    'POST /users/internal/clinic-staff-profiles': ['clinic-service'],
     'POST /users/internal/search-doctor-ids': ['clinic-service'],
     'GET /users/internal/by-phone/:phoneNumber': ['auth-service'],
     'GET /users/internal/clinic-admin-by-clinic/:clinicId': ['clinic-service', 'notification-service'],
