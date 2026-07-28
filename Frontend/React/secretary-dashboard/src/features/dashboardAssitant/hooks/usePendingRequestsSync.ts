@@ -3,11 +3,9 @@ import { listAppointments } from "@/lib/api/appointments";
 import { mapApiAppointmentToPendingRequest } from "@/lib/api/mappers";
 import { normalizeCaughtError } from "@/lib/api/errors";
 import { useAuthStore } from "@/stores/authStore";
-import { useScheduleContext } from "../context/ScheduleContext";
 import { usePendingRequest } from "./usePendingRequest";
 
-export function usePendingRequestsSync() {
-  const { clinicId } = useScheduleContext();
+export function usePendingRequestsSync(clinicId?: string) {
   const accessToken = useAuthStore((s) => s.accessToken);
   const setRequests = usePendingRequest((s) => s.setRequests);
 

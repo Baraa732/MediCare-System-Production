@@ -1,4 +1,5 @@
 # Multi-stage build: Vite SPA served by nginx
+# deploy: cf3a39a dynamic secretary dashboard
 FROM node:20-alpine AS build
 
 WORKDIR /app

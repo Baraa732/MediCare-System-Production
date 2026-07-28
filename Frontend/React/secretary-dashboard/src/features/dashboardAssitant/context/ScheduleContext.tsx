@@ -24,7 +24,7 @@ const ScheduleContext = createContext<ScheduleContextValue | null>(null);
 export function ScheduleProvider({ children }: { children: ReactNode }) {
   const selectedDate = useHandleDatePicker((s) => s.date);
   const schedule = useScheduleData(selectedDate);
-  usePendingRequestsSync();
+  usePendingRequestsSync(schedule.clinicId);
 
   useEffect(() => {
     useScheduleGridStore.getState().setDoctors(schedule.doctors);
