@@ -14,8 +14,9 @@ export function useVerifyOtp() {
 
   const verify = async (otp: string) => {
     if (!mfaToken) {
-      setError("Your verification session has expired. Please sign in again.");
-      navigate("/auth/login", { replace: true });
+      setError(
+        "Your verification session has expired. Please sign in again to receive a new code.",
+      );
       return;
     }
 

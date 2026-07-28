@@ -778,15 +778,23 @@ export class AuthService implements OnModuleInit {
     const needsOtpStep = isPendingActivation || (roleUsesLoginMfa && !trustedDevice);
 
     if (needsOtpStep) {
-      const otpResult = await this.sendOtp({ phoneNumber: formattedPhoneNumber }, OtpType.LOGIN_VERIFICATION);
+      const otpStatus = await this.checkOtpStatus(formattedPhoneNumber, OtpType.LOGIN_VERIFICATION);
+      const otpResult =
+        otpStatus.hasActiveOtp && otpStatus.expiresIn && otpStatus.expiresIn > 540
+          ? {
+              message: 'Verification code already sent. Check WhatsApp.',
+              whatsappSent: true,
+            }
+          : await this.sendOtp({ phoneNumber: formattedPhoneNumber }, OtpType.LOGIN_VERIFICATION);
 
+      const mfaTtlSeconds = 900;
       const mfaJti = crypto.randomUUID();
       const mfaToken = this.jwtService.sign(
         { sub: user.id, role: user.role, type: 'mfa_pending', jti: mfaJti, phoneNumber: formattedPhoneNumber },
-        { expiresIn: '5m' } as any,
+        { expiresIn: `${mfaTtlSeconds}s` } as any,
       );
 
-      await this.jwtBlocklistService.addToBlocklist(mfaJti, 300, {
+      await this.jwtBlocklistService.storeMfaPendingSession(mfaJti, mfaTtlSeconds, {
         userId: user.id,
         phoneNumber: formattedPhoneNumber,
         type: 'mfa_pending',
@@ -875,7 +883,7 @@ export class AuthService implements OnModuleInit {
       throw new UnauthorizedException('Invalid MFA token type');
     }
 
-    const metadata = await this.jwtBlocklistService.getMetadata(payload.jti);
+    const metadata = await this.jwtBlocklistService.getMfaPendingSession(payload.jti);
     if (!metadata?.phoneNumber || metadata.type !== 'mfa_pending') {
       throw new UnauthorizedException('Invalid or expired MFA token');
     }
@@ -1099,7 +1107,7 @@ export class AuthService implements OnModuleInit {
       throw new UnauthorizedException('Invalid MFA token type');
     }
 
-    const metadata = await this.jwtBlocklistService.getMetadata(payload.jti);
+    const metadata = await this.jwtBlocklistService.getMfaPendingSession(payload.jti);
     if (!metadata || metadata.type !== 'mfa_pending') {
       throw new UnauthorizedException('Invalid or expired MFA token');
     }
@@ -1138,7 +1146,7 @@ export class AuthService implements OnModuleInit {
 
     // Single-use: revoke MFA token only after successful OTP verification
     if (payload.jti) {
-      await this.jwtBlocklistService.addToBlocklist(payload.jti, 300);
+      await this.jwtBlocklistService.consumeMfaPendingSession(payload.jti);
     }
 
     if (user.status === 'PENDING_ACTIVATION' || user.mustChangePassword) {

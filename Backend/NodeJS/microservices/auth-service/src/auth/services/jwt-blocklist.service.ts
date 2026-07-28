@@ -41,6 +41,41 @@ export class JwtBlocklistService {
   }
 
   /**
+   * Pending MFA sessions are stored separately from the revocation blocklist.
+   * Adding a brand-new mfa_pending jti to the blocklist made verify/resend treat it as revoked.
+   */
+  async storeMfaPendingSession(
+    jti: string,
+    ttlSeconds: number,
+    metadata: Record<string, any>,
+  ): Promise<void> {
+    try {
+      await this.redis.setex(`mfa:pending:meta:${jti}`, ttlSeconds, JSON.stringify(metadata));
+    } catch (error: any) {
+      this.logger.error(`Failed to store MFA pending session: ${error.message}`);
+    }
+  }
+
+  async getMfaPendingSession(jti: string): Promise<Record<string, any> | null> {
+    try {
+      const metadata = await this.redis.get(`mfa:pending:meta:${jti}`);
+      return metadata ? JSON.parse(metadata) : null;
+    } catch (error: any) {
+      this.logger.error(`Failed to get MFA pending session: ${error.message}`);
+      return null;
+    }
+  }
+
+  async consumeMfaPendingSession(jti: string, revokeTtlSeconds = 300): Promise<void> {
+    try {
+      await this.redis.del(`mfa:pending:meta:${jti}`);
+    } catch (error: any) {
+      this.logger.error(`Failed to consume MFA pending session: ${error.message}`);
+    }
+    await this.addToBlocklist(jti, revokeTtlSeconds);
+  }
+
+  /**
    * Fix 5: Dual-write — add jti to both Redis (primary) and PostgreSQL (fallback).
    * This ensures revoked tokens remain rejected even during a Redis outage.
    * CRITICAL FIX: Added metadata parameter for MFA token ownership validation

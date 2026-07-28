@@ -12,6 +12,7 @@ import { useNavigate } from "react-router";
 import { useVerifyOtp } from "../../hooks/useVerifyOtp";
 import { useResendOtp } from "../../hooks/useResendOtp";
 import { useAuthStore } from "@/stores/authStore";
+import { useAuthHydration } from "@/hooks/useAuthHydration";
 
 const RESEND_COOLDOWN_SECONDS = 60;
 
@@ -28,6 +29,7 @@ export function ConfirmEmailForm({
   const accessToken = useAuthStore((s) => s.accessToken);
   const activationToken = useAuthStore((s) => s.activationToken);
   const clearPendingFlow = useAuthStore((s) => s.clearPendingFlow);
+  const hydrated = useAuthHydration();
   const { verify, isLoading, error, setError } = useVerifyOtp();
   const {
     resend,
@@ -39,11 +41,20 @@ export function ConfirmEmailForm({
   const loading = externalLoading || isLoading || isResending;
 
   React.useEffect(() => {
+    if (!hydrated) return;
     if (mfaToken) return;
     // mfaToken is cleared after successful OTP — do not treat that as an expired session.
     if (accessToken || activationToken) return;
     navigate("/auth/login", { replace: true });
-  }, [mfaToken, accessToken, activationToken, navigate]);
+  }, [hydrated, mfaToken, accessToken, activationToken, navigate]);
+
+  if (!hydrated) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-7 text-sm text-neutral-500">
+        Loading verification session...
+      </div>
+    );
+  }
 
   React.useEffect(() => {
     if (countdown <= 0) return;
