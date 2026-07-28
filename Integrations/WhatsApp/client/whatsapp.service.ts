@@ -4,12 +4,6 @@ import axios from 'axios';
 const WHATSAPP_TIMEOUT_MS = 10_000;
 const CONNECTION_POLL_MS = 2_000;
 const CONNECTION_WAIT_MS = Number(process.env.WHATSAPP_CONNECTION_WAIT_MS || 90_000);
-/**
- * Sends run inside request-scoped work, so they get a much shorter reconnect budget than
- * background recovery — a down session must fail fast rather than stall the caller.
- */
-const SEND_CONNECTION_WAIT_MS = Number(process.env.WHATSAPP_SEND_WAIT_MS || 5_000);
-
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -100,7 +94,8 @@ export class WhatsAppService {
    */
   async restartInstance(instanceName: string): Promise<void> {
     try {
-      await axios.put(
+      // Evolution exposes restart as POST; PUT 404s (upstream docs are wrong).
+      await axios.post(
         `${this.evolutionApiUrl}/instance/restart/${instanceName}`,
         {},
         { headers: this.headers(), timeout: WHATSAPP_TIMEOUT_MS },
@@ -222,14 +217,15 @@ export class WhatsAppService {
       throw new Error('WhatsApp is not configured (EVOLUTION_API_KEY missing)');
     }
 
-    // ensureInstanceReady already attempted a restore; retrying it here would double the wait.
-    await this.ensureInstanceReady(SEND_CONNECTION_WAIT_MS);
-
+    // Deliberately no reconnect/restart here. Evolution auto-connects its instances on boot
+    // and Baileys retries internally; driving restarts per send produced a connect/disconnect
+    // loop that WhatsApp reads as a session conflict and answers with a forced logout, which
+    // is what kept invalidating the pairing.
     const state = await this.getConnectionState(instanceName);
     if (state !== 'open') {
       throw new Error(
         `WhatsApp is not connected (state=${state}). ` +
-          'Pair the instance again by scanning the QR from GET /api/auth/dev/whatsapp-qr.',
+          'Pair the instance in the Evolution manager and try again.',
       );
     }
 
