@@ -1,6 +1,7 @@
 import type { ApiAppointment, ClinicDoctor } from "./types";
 import type { ColumnAppointmentsType } from "@/features/dashboardAssitant/types";
 import type { DoctorType } from "@/features/dashboardAssitant/types";
+import type { PendingRequest } from "@/features/dashboardAssitant/types/PendingRequest";
 import { START_TIME_MINUTES } from "@/features/dashboardAssitant/data/scheduleGrid";
 
 const STATUS_MAP: Record<string, string> = {
@@ -67,4 +68,45 @@ export function dayRangeIso(date = new Date()) {
   const to = new Date(date);
   to.setHours(23, 59, 59, 999);
   return { from: from.toISOString(), to: to.toISOString() };
+}
+
+function absoluteMinutesFromIso(scheduledAt: string): number {
+  const date = new Date(scheduledAt);
+  return date.getHours() * 60 + date.getMinutes();
+}
+
+export function mapApiAppointmentToPendingRequest(
+  appointment: ApiAppointment,
+): PendingRequest {
+  const scheduledDate = new Date(appointment.scheduledAt);
+  const start = absoluteMinutesFromIso(appointment.scheduledAt);
+  const end = start + appointment.durationMinutes;
+  const minutesAgo = Math.max(
+    0,
+    Math.floor((Date.now() - scheduledDate.getTime()) / 60_000),
+  );
+
+  return {
+    id: appointment.id,
+    docId: appointment.doctorId,
+    title: appointment.reason ?? "Patient appointment request",
+    start,
+    end,
+    status: "pending_request",
+    date: scheduledDate,
+    treatmentId: "patient-request",
+    complexity: "standard",
+    duration: appointment.durationMinutes,
+    price: 0,
+    notes: appointment.notes,
+    patient: {
+      name: appointment.reason ?? `Patient ${appointment.patientId.slice(0, 8)}`,
+      age: 0,
+      phone: "",
+      gender: null,
+      adddress: "",
+    },
+    refuseTransfer: false,
+    timeRequistAgo: minutesAgo,
+  };
 }

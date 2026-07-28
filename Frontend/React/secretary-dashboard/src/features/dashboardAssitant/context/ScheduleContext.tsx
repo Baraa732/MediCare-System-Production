@@ -1,9 +1,11 @@
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useEffect, type ReactNode } from "react";
 import { useHandleDatePicker } from "@/features/dashboardAssitant/hooks/useHandleDatePicker";
 import {
   useScheduleData,
   type DoctorWithAppointments,
 } from "@/features/dashboardAssitant/hooks/useScheduleData";
+import { usePendingRequestsSync } from "@/features/dashboardAssitant/hooks/usePendingRequestsSync";
+import { useScheduleGridStore } from "@/features/dashboardAssitant/hooks/scheduleGridStore";
 import type { ApiAppointment } from "@/lib/api/types";
 
 interface ScheduleContextValue {
@@ -22,6 +24,11 @@ const ScheduleContext = createContext<ScheduleContextValue | null>(null);
 export function ScheduleProvider({ children }: { children: ReactNode }) {
   const selectedDate = useHandleDatePicker((s) => s.date);
   const schedule = useScheduleData(selectedDate);
+  usePendingRequestsSync();
+
+  useEffect(() => {
+    useScheduleGridStore.getState().setDoctors(schedule.doctors);
+  }, [schedule.doctors]);
 
   return (
     <ScheduleContext.Provider value={{ ...schedule, selectedDate }}>

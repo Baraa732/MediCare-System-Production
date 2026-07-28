@@ -11,6 +11,8 @@ import { ContentAppointementCard, SideIconAppointementCard } from ".";
 import { AlertTriangle, ShieldAlert } from "lucide-react";
 import { useGlobalConflictStore } from "@/features/dashboardAssitant/hooks/useGlobalConflictStore";
 import { useWizardDrawer } from "@/features/dashboardAssitant/hooks/useWizardDrawer";
+import { useAppointmentDrawer } from "@/features/dashboardAssitant/hooks/useAppointmentDrawer";
+import { isApiAppointmentId } from "@/features/dashboardAssitant/hooks/useAppointmentActions";
 import { useEffect, useRef, useState } from "react";
 import {
   Dialog,
@@ -64,6 +66,7 @@ export function AppointmentCard({
   const openWithEditAppointment = useWizardDrawer(
     (state) => state.openWithEditAppointment,
   );
+  const openAppointmentDetails = useAppointmentDrawer((state) => state.open);
   // 🚀 مراقبة تداخل الكرت الحالي حياً مع عملية السحب النشطة
   const conflictPayload = useGlobalConflictStore(
     (state) => state.conflictPayload,
@@ -139,6 +142,11 @@ export function AppointmentCard({
   const handleCardClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
+
+    if (isApiAppointmentId(apt.id)) {
+      openAppointmentDetails(apt.id);
+      return;
+    }
 
     if (isPastAppointment) {
       // السيناريو 1: موعد منتهي -> فتح وضع القراءة فقط فوراً

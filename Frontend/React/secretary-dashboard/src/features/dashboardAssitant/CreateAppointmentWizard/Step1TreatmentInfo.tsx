@@ -7,9 +7,8 @@ import {
   type WizardFormData,
 } from "./useAppointmentWizard";
 import { formatMinutesToAMPM } from "../components/SchedualeGrid/DNDGrid/utils/timeFormatters";
-import type { AppointmentType } from "../types";
+import type { AppointmentType, DoctorType } from "../types";
 import { Calendar } from "@/components/ui/calendar";
-import { INITIAL_DOCTORS } from "../data/scheduleGrid";
 import { useWizardDrawer } from "../hooks/useWizardDrawer";
 
 export interface availableDoctorsFilteredType {
@@ -28,6 +27,7 @@ interface Step1TreatmentInfoType {
   formData: WizardFormData;
   availableTimeSlots: number[];
   availableDoctorsFiltered: availableDoctorsFilteredType[];
+  doctors: DoctorType[];
   searchTreatment: string;
   setSearchTreatment: (e: string) => void;
   handleFieldChange: <K extends keyof WizardFormData>(
@@ -41,6 +41,7 @@ export function Step1TreatmentInfo({
   formData,
   availableTimeSlots,
   availableDoctorsFiltered,
+  doctors,
   searchTreatment,
   setSearchTreatment,
   handleFieldChange,
@@ -324,7 +325,7 @@ export function Step1TreatmentInfo({
         >
           <span>
             {viewOnlyMode || editingAppointment
-              ? INITIAL_DOCTORS.find((d) => d.id === formData.doctorId)?.name
+              ? doctors.find((d) => d.id === formData.doctorId)?.name
               : formData.doctorId
                 ? availableDoctorsFiltered.find(
                     (d) => d.id === formData.doctorId,

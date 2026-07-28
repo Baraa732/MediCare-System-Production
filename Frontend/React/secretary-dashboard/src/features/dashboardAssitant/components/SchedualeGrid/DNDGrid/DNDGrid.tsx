@@ -46,7 +46,6 @@ export function DNDGrid() {
     handleUndoAction,
     closeToast,
     updateAppointment, // Destructured state mutation handler
-    addAppointment,
     confirmPendingMove,
     cancelPendingMove,
   } = useDragHandlers();
@@ -113,11 +112,7 @@ export function DNDGrid() {
         onClose={closeToast}
         onUndo={handleUndoAction}
       />
-      <AppointmentWizardDrawer 
-  doctors={doctors} 
-  onExecuteCreation={addAppointment} 
-  onExecuteUpdate={updateAppointment} // Map this callback in your top-level scheduler state
-/>
+      <AppointmentWizardDrawer doctors={doctors} />
 
       {/* 🚀 حقن درج النزاعات التفاعلي في قاع المكون المستقر */}
       <ConflictDrawer

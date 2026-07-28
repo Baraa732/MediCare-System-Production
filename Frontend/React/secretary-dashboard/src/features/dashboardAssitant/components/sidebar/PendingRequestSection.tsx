@@ -29,7 +29,7 @@ import type { PendingRequest } from "../../types";
 
 import { useWizardDrawer } from "../../hooks/useWizardDrawer";
 import { usePendingRequest } from "../../hooks/usePendingRequest";
-import { useDragHandlers } from "../SchedualeGrid/DNDGrid/hooks/useDragHandlers";
+import { useScheduleContext } from "../../context/ScheduleContext";
 import { formatMinutesToAMPM } from "../SchedualeGrid/DNDGrid/utils/timeFormatters";
 
 export function PendingRequestSection() {
@@ -38,6 +38,7 @@ export function PendingRequestSection() {
   // const [requests, setRequests] = useState(INITIAL_REQUESTS)
   const requests = usePendingRequest((state) => state.requests);
   const setRequests = usePendingRequest((state) => state.setRequests);
+  const { doctors } = useScheduleContext();
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -70,8 +71,6 @@ export function PendingRequestSection() {
 
   if (requests.length == 0) return null;
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const { doctors } = useDragHandlers();
   const doctor = doctors.find((doc) => doc.id == activeItem?.docId);
   return (
     <div className="flex-1 flex flex-col min-h-0 p-5">
@@ -190,7 +189,7 @@ function SortableRequestCard({ item, isEditMode }: SortableCardProps) {
   };
 
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const { doctors } = useDragHandlers();
+  const { doctors } = useScheduleContext();
   const doctor = doctors.find((doc) => doc.id == item.docId);
 
   return (

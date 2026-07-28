@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import {  HelpCircle, X } from "lucide-react";
 import {
-  TREATMENT_OPTIONS,
   useAppointmentWizard,
   type WizardFormData,
 } from "./useAppointmentWizard";
@@ -11,9 +10,10 @@ import { Step3ReviewSummary } from "./Step3ReviewSummary";
 
 import { useWizardDrawer } from "../hooks/useWizardDrawer";
 import StepperCustome from "./StepperCustome";
-import type { AppointmentType, DoctorType } from "../types";
+import type { DoctorType } from "../types";
 import { usePendingRequest } from "../hooks/usePendingRequest";
-import { START_TIME_MINUTES } from "../data/scheduleGrid";
+import { useAppointmentActions } from "../hooks/useAppointmentActions";
+import { normalizeCaughtError } from "@/lib/api/errors";
 
 // استيراد المكونات السلسة والآمنة من shadcn/ui
 import {
@@ -27,14 +27,10 @@ import {
 } from "@/components/ui/dialog";
 interface AppointmentWizardDrawerProps {
   doctors: DoctorType[];
-  onExecuteCreation: (newApt: AppointmentType) => void;
-  onExecuteUpdate?: (updatedApt: AppointmentType) => void; // إضافة دالة اختيارية للتعديل الفعلي
 }
 
 export function AppointmentWizardDrawer({
   doctors,
-  onExecuteCreation,
-  onExecuteUpdate,
 }: AppointmentWizardDrawerProps) {
   const viewOnlyMode = useWizardDrawer((state) => state.viewOnlyMode);
   const isWizardOpen = useWizardDrawer((state) => state.isWizardOpen);
@@ -51,84 +47,45 @@ export function AppointmentWizardDrawer({
   const onRemovePendingRequest = usePendingRequest(
     (state) => state.onRemovePendingRequest,
   );
+  const { saveWizardAppointment } = useAppointmentActions();
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const handleSaveAppointment = useCallback(
-    (wizardData?: WizardFormData) => {
+    async (wizardData?: WizardFormData) => {
       if (!wizardData) return null;
-      const treatmentName =
-        TREATMENT_OPTIONS.find((t) => t.id === wizardData.treatmentId)?.name ||
-        "";
+      setSaveError(null);
+      setIsSaving(true);
 
-      const targetStart =
-        wizardData.timeSlot !== null ? wizardData.timeSlot : 0;
-      const targetEnd = targetStart + wizardData.duration;
-
-      // Validate overlaps against existing doctors and their appointments
-      const assignedDoctor = doctors.find((d) => d.id === wizardData.doctorId);
-      if (assignedDoctor) {
-        const hasOverlapConflict = (
-          assignedDoctor.appointments || []
-        ).some((app) => {
-          // Ignore the appointment currently being modified during validation
-          if (editingAppointment && app.id === editingAppointment.id) {
-            return false;
-          }
-          return targetStart < app.end && targetEnd > app.start;
+      try {
+        await saveWizardAppointment(wizardData, {
+          editingId: editingAppointment?.id,
+          pendingRequestId: pendingRequestData?.id,
         });
 
-        if (hasOverlapConflict) {
-          alert(
-            "This slot conflicts with an existing appointment for the selected doctor.",
-          );
-          return; // If validation fails, original appointment remains unchanged.
+        if (pendingRequestData) {
+          onRemovePendingRequest(pendingRequestData.id);
         }
+
+        onClose();
+      } catch (err) {
+        setSaveError(
+          normalizeCaughtError(
+            err,
+            "Could not save the appointment. Please try again.",
+          ),
+        );
+      } finally {
+        setIsSaving(false);
       }
-
-      const updatedApt: AppointmentType = {
-        id: editingAppointment ? editingAppointment.id : `apt-${Date.now()}`,
-        docId: wizardData.doctorId,
-        title: `${wizardData.patientName} - ${treatmentName}`,
-        start:
-          wizardData.timeSlot !== null
-            ? wizardData.timeSlot - START_TIME_MINUTES
-            : 0,
-        end:
-          (wizardData.timeSlot !== null
-            ? wizardData.timeSlot - START_TIME_MINUTES
-            : 0) + wizardData.duration,
-        status:
-          wizardData.complexity === "urgent"
-            ? "urgent"
-            : editingAppointment?.status || "confirmed",
-        treatmentId: wizardData.treatmentId,
-        complexity: wizardData.complexity,
-        duration: wizardData.duration,
-        price: wizardData.duration * 5, // حساب السعر التقريبي
-        patient: {
-          name: wizardData.patientName,
-          age: Number.parseInt(wizardData.patientAge),
-          phone: wizardData.patientPhone,
-          gender: wizardData.patientGender || "Male",
-          adddress: wizardData.patientAddress,
-        },
-        refuseTransfer: wizardData.isLockedToDoctor,
-        date: wizardData.date,
-        notes: wizardData.notes,
-      };
-
-      if (editingAppointment && onExecuteUpdate) {
-        onExecuteUpdate(updatedApt); // تحديث الموعد القائم فعلياً لمنع الأخطاء والازدواجية
-      } else {
-        onExecuteCreation(updatedApt); // إنشاء موعد جديد
-      }
-
-      if (pendingRequestData) {
-        onRemovePendingRequest(pendingRequestData.id);
-      }
-
-      onClose();
     },
-    [doctors, editingAppointment, onExecuteUpdate, pendingRequestData, onClose, onExecuteCreation, onRemovePendingRequest],
+    [
+      editingAppointment?.id,
+      onClose,
+      onRemovePendingRequest,
+      pendingRequestData,
+      saveWizardAppointment,
+    ],
   );
 
   // نمرر الدالة الوسيطة handleSaveAppointment هنا بدلاً من onExecuteCreation المباشرة
@@ -231,6 +188,11 @@ export function AppointmentWizardDrawer({
 
           {/* Middle Scrollable Layout Body Panel */}
           <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-neutral-200">
+            {saveError ? (
+              <p className="mb-4 text-xs font-semibold text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
+                {saveError}
+              </p>
+            ) : null}
             {wizard.currentStep === 1 && <Step1TreatmentInfo {...wizard} />}
             {wizard.currentStep === 2 && <Step2PatientInfo {...wizard} />}
             {wizard.currentStep === 3 && <Step3ReviewSummary {...wizard} />}
@@ -274,11 +236,14 @@ export function AppointmentWizardDrawer({
               !viewOnlyMode && (
                 <button
                   onClick={wizard.handleFinalSubmit}
-                  className="px-5 py-2 text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm rounded-xl transition-all active:scale-[0.99] cursor-pointer"
+                  disabled={isSaving}
+                  className="px-5 py-2 text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm rounded-xl transition-all active:scale-[0.99] cursor-pointer disabled:opacity-50"
                 >
-                  {editingAppointment
-                    ? "Update Appointment"
-                    : "Create Appointment"}
+                  {isSaving
+                    ? "Saving..."
+                    : editingAppointment
+                      ? "Update Appointment"
+                      : "Create Appointment"}
                 </button>
               )
             )}

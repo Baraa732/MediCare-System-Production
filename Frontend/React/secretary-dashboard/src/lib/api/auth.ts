@@ -21,7 +21,7 @@ export function verifyMfa(mfaToken: string, otp: string) {
 }
 
 export function resendMfaOtp(mfaToken: string) {
-  return apiRequest<{ message: string }>("/auth/resend-mfa-otp", {
+  return apiRequest<OtpDeliveryResponse>("/auth/resend-mfa-otp", {
     method: "POST",
     body: { mfaToken },
   });

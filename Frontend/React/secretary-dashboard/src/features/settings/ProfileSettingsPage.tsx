@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/stores/authStore";
 import { changePassword, getProfile, updateProfile } from "@/lib/api/users";
 import { normalizeCaughtError } from "@/lib/api/errors";
+import { useLogout } from "@/hooks/useLogout";
 import type { UserProfile } from "@/lib/api/types";
 
 export function ProfileSettingsPage() {
@@ -26,6 +27,7 @@ export function ProfileSettingsPage() {
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
+  const logout = useLogout();
 
   useEffect(() => {
     if (!accessToken || !userId) return;
@@ -111,7 +113,10 @@ export function ProfileSettingsPage() {
             <ArrowLeft className="w-4 h-4" />
             Back to schedule
           </Button>
-          <h1 className="text-lg font-semibold">Profile &amp; security</h1>
+          <h1 className="text-lg font-semibold flex-1">Profile &amp; security</h1>
+          <Button type="button" variant="outline" size="sm" onClick={() => void logout()}>
+            Log out
+          </Button>
         </header>
 
         <main className="flex-1 overflow-y-auto p-6 max-w-2xl mx-auto w-full space-y-8">

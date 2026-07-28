@@ -3,6 +3,8 @@ import type { DoctorType } from "@/features/dashboardAssitant/types";
 import { useWizardDrawer } from "../hooks/useWizardDrawer";
 import { START_TIME_MINUTES } from "../data/scheduleGrid";
 import { formatMinutesToAMPM } from "../components/SchedualeGrid/DNDGrid/utils/timeFormatters";
+import { lookupPatientByPhone } from "@/lib/api/users";
+import { useAuthStore } from "@/stores/authStore";
 
 export interface TreatmentOption {
   id: string;
@@ -58,42 +60,6 @@ const INITIAL_FORM_DATA: WizardFormData = {
   duration: 15,
 };
 
-// Sample Database for Autocomplete Queries
-const MOCK_PATIENT_DATABASE: PatientProfile[] = [
-  {
-    id: "p1",
-    name: "Mohammad Ahmad",
-    age: 28,
-    gender: "Male",
-    phone: "+963 99 123 4567",
-    address: "Damascus, Sahnaya",
-  },
-  {
-    id: "p2",
-    name: "Mohammad Ali",
-    age: 34,
-    gender: "Female",
-    phone: "+963 93 444 5555",
-    address: "Damascus, Malki",
-  },
-  {
-    id: "p3",
-    name: "Mohammad Hassan",
-    age: 52,
-    gender: "Male",
-    phone: "+963 95 777 8888",
-    address: "Rif Dimashq",
-  },
-  {
-    id: "p4",
-    name: "Ali Ahmad",
-    age: 22,
-    gender: "Male",
-    phone: "+963 99 111 2222",
-    address: "Damascus",
-  },
-];
-
 export const TREATMENT_OPTIONS: TreatmentOption[] = [
   { id: "t1", name: "Follow-up Visit", baseDuration: 30, basePrice: 100000 },
   {
@@ -116,6 +82,8 @@ export function useAppointmentWizard(
   const [searchDoctor, setSearchDoctor] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [isDuplicatePhone, setIsDuplicatePhone] = useState(false);
+  const [lookupPatients, setLookupPatients] = useState<PatientProfile[]>([]);
+  const accessToken = useAuthStore((s) => s.accessToken);
   const isWizardOpen = useWizardDrawer((state) => state.isWizardOpen);
   const pendingRequestData = useWizardDrawer(
     (state) => state.pendingRequestData,
@@ -234,11 +202,60 @@ if (isWizardOpen && !prevIsWizardOpen.current) {      if (editingAppointment) {
   }, [selectedTreatment]);
 
   const filteredPatients = useMemo(() => {
-    if (!searchQuery.trim()) return [];
-    return MOCK_PATIENT_DATABASE.filter((p) =>
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()),
-    );
-  }, [searchQuery]);
+    if (!searchQuery.trim()) return lookupPatients;
+    const query = searchQuery.toLowerCase();
+    return lookupPatients.filter((p) => p.name.toLowerCase().includes(query));
+  }, [searchQuery, lookupPatients]);
+
+  useEffect(() => {
+    const phone = formData.patientPhone.replace(/\D/g, "");
+    if (!accessToken || phone.length < 8) {
+      setLookupPatients([]);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      void lookupPatientByPhone(formData.patientPhone.trim(), accessToken)
+        .then((result) => {
+          if (cancelled) return;
+          const name =
+            result.fullName ||
+            [result.firstName, result.lastName].filter(Boolean).join(" ").trim() ||
+            "Patient";
+          const profile: PatientProfile = {
+            id: result.id,
+            name,
+            age: 0,
+            gender: "Male",
+            phone: result.phoneNumber,
+            address: "",
+          };
+          setLookupPatients([profile]);
+          setIsDuplicatePhone(
+            !formData.isExistingPatient &&
+              Boolean(formData.patientName) &&
+              formData.patientName !== name,
+          );
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setLookupPatients([]);
+            setIsDuplicatePhone(false);
+          }
+        });
+    }, 450);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [
+    accessToken,
+    formData.isExistingPatient,
+    formData.patientName,
+    formData.patientPhone,
+  ]);
 
   const handleFieldChange = <K extends keyof WizardFormData>(
     field: K,
@@ -262,12 +279,10 @@ if (isWizardOpen && !prevIsWizardOpen.current) {      if (editingAppointment) {
 
       if (field === "patientPhone") {
         const cleanedPhone = (value as string).replace(/\s+/g, "");
-        const holdsDuplicate = MOCK_PATIENT_DATABASE.some(
-          (p) =>
-            p.phone.replace(/\s+/g, "") === cleanedPhone &&
-            p.name !== prev.patientName,
-        );
-        setIsDuplicatePhone(next.isExistingPatient ? false : holdsDuplicate);
+        setIsDuplicatePhone(false);
+        if (!cleanedPhone) {
+          setLookupPatients([]);
+        }
       }
 
       return next;
@@ -482,6 +497,7 @@ if (isWizardOpen && !prevIsWizardOpen.current) {      if (editingAppointment) {
     selectedTreatment,
     availableTimeSlots,
     availableDoctorsFiltered,
+    doctors,
     isStep1Valid,
     isStep2Valid,
     step2Errors,

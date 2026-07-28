@@ -1,6 +1,5 @@
 import { create } from "zustand";
 
-import { INITIAL_REQUESTS } from "../data/sideBarData";
 import type { PendingRequest } from "../types";
 
 interface PendingRequestState {
@@ -10,7 +9,7 @@ interface PendingRequestState {
 }
 
 export const usePendingRequest = create<PendingRequestState>((set) => ({
-  requests: INITIAL_REQUESTS,
+  requests: [],
   setRequests: (newRequests: PendingRequest[]) =>
     set({ requests: newRequests }),
   onRemovePendingRequest: (requestId: string) =>

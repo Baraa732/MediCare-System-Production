@@ -1,7 +1,8 @@
 // useHandleSelection.ts
 import { create } from "zustand";
 import type { SelectionType } from "../types";
-import { APPOINTMENTS, ROW_MINUTES } from "../data/scheduleGrid";
+import { ROW_MINUTES } from "../data/scheduleGrid";
+import { useScheduleGridStore } from "./scheduleGridStore";
 // 1️⃣ استيراد هوك الـ Wizard لفتحه عند الحاجة
 import { useWizardDrawer } from "./useWizardDrawer";
 import { useHandleDatePicker } from "./useHandleDatePicker";
@@ -25,7 +26,10 @@ export const useHandleSelection = create<HandleSelectionState>((set) => {
     startMinutes: number,
     endMinutes: number,
   ) => {
-    const columnAppointments = APPOINTMENTS.filter((a) => a.docId === docId);
+    const doc = useScheduleGridStore
+      .getState()
+      .doctors.find((d) => d.id === docId);
+    const columnAppointments = doc?.appointments ?? [];
     return columnAppointments.some(
       (apt) => startMinutes < apt.end && endMinutes > apt.start,
     );
