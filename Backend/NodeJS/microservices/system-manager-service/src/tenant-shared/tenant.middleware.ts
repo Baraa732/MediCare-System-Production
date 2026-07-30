@@ -84,7 +84,7 @@ export class TenantMiddleware implements NestMiddleware {
       return;
     }
 
-    if (!tenantId && !isPublicOrInternal(req)) {
+    if (!tenantId && !isPublicOrInternal(req) && role !== 'PATIENT') {
       throw new ForbiddenException('Tenant context is required');
     }
 

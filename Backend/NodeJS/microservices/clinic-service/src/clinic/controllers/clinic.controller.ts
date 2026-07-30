@@ -57,6 +57,7 @@ export class ClinicController {
   }
 
   @Get('search')
+  @SkipTenantGuard()
   @SkipTenantAuthorization()
   async search(@Request() req, @Query() query: ClinicSearchQueryDto) {
     const page = Math.max(parseInt(String(query['page'] || '1'), 10) || 1, 1);
