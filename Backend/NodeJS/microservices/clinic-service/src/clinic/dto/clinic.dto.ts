@@ -3,6 +3,7 @@ import {
   IsOptional,
   IsEnum,
   IsUUID,
+  IsNumber,
   MaxLength,
   MinLength,
 } from 'class-validator';
@@ -124,6 +125,27 @@ export class ProvisionFromActivationDto {
   @MinLength(2)
   @MaxLength(200)
   adminFullName: string;
+
+  @IsOptional()
+  latitude?: number;
+
+  @IsOptional()
+  longitude?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  address?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  city?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  governorate?: string;
 
   @IsOptional()
   @IsUUID()

@@ -130,7 +130,11 @@ export class ClinicService {
     const tenant = this.tenantRepo.create({
       name: dto.clinicLocation,
       slug: slugify(dto.clinicLocation),
-      address: dto.clinicLocation,
+      address: dto.address?.trim() || dto.clinicLocation,
+      city: dto.city?.trim() || null,
+      governorate: dto.governorate?.trim() || null,
+      latitude: dto.latitude ?? null,
+      longitude: dto.longitude ?? null,
       phone: dto.adminPhoneNumber,
       description: `Clinic for ${dto.adminFullName}`,
       timezone: 'Asia/Damascus',
@@ -385,10 +389,11 @@ export class ClinicService {
     }
 
     if (actor.role === 'PATIENT') {
-      return this.tenantRepo.find({
+      const clinics = await this.tenantRepo.find({
         where: { status: TenantStatus.ACTIVE },
         order: { name: 'ASC' },
       });
+      return Promise.all(clinics.map((clinic) => this.hydrateTenantLocation(clinic)));
     }
 
     const assignments = await this.assignmentRepo.find({
@@ -492,7 +497,7 @@ export class ClinicService {
     const clinic = await this.tenantRepo.findOne({ where: { id } });
     if (!clinic) throw new NotFoundException('Clinic not found');
     await this.assertCanAccessClinic(id, actor);
-    return clinic;
+    return this.hydrateTenantLocation(clinic);
   }
 
   async update(id: string, dto: UpdateClinicDto, actor: AuthUser): Promise<Tenant> {
@@ -750,6 +755,8 @@ export class ClinicService {
       address: tenant.address,
       city: tenant.city,
       governorate: tenant.governorate,
+      latitude: tenant.latitude,
+      longitude: tenant.longitude,
       phone: tenant.phone,
       email: tenant.email,
       logoUrl: tenant.logoUrl,
@@ -760,6 +767,50 @@ export class ClinicService {
       createdAt: tenant.createdAt,
       updatedAt: tenant.updatedAt,
     };
+  }
+
+  /** Backfill map coordinates from activation record for legacy clinics. */
+  private async hydrateTenantLocation(tenant: Tenant): Promise<Tenant> {
+    if (tenant.latitude != null && tenant.longitude != null) {
+      return tenant;
+    }
+    if (!tenant.adminPhoneNumber) {
+      return tenant;
+    }
+
+    const lookup = await this.systemManagerHttp.lookupUsedActivationByPhone(
+      tenant.adminPhoneNumber,
+    );
+    if (!lookup.found) {
+      return tenant;
+    }
+
+    let changed = false;
+    if (tenant.latitude == null && lookup.latitude != null) {
+      tenant.latitude = lookup.latitude;
+      changed = true;
+    }
+    if (tenant.longitude == null && lookup.longitude != null) {
+      tenant.longitude = lookup.longitude;
+      changed = true;
+    }
+    if (!tenant.address?.trim() && lookup.address?.trim()) {
+      tenant.address = lookup.address.trim();
+      changed = true;
+    }
+    if (!tenant.city?.trim() && lookup.city?.trim()) {
+      tenant.city = lookup.city.trim();
+      changed = true;
+    }
+    if (!tenant.governorate?.trim() && lookup.governorate?.trim()) {
+      tenant.governorate = lookup.governorate.trim();
+      changed = true;
+    }
+
+    if (changed) {
+      return this.tenantRepo.save(tenant);
+    }
+    return tenant;
   }
 
   private ensureLogoDir(): void {

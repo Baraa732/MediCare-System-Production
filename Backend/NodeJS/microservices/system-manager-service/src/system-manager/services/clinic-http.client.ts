@@ -8,6 +8,11 @@ export interface ProvisionClinicPayload {
   clinicLocation: string;
   adminFullName: string;
   generatedBy?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  address?: string | null;
+  city?: string | null;
+  governorate?: string | null;
 }
 
 @Injectable()

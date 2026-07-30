@@ -462,6 +462,9 @@ export class SystemManagerService {
       clinicLocation: activation.clinicLocation,
       adminFullName: activation.fullName,
       generatedBy: activation.generatedBy,
+      latitude: activation.latitude,
+      longitude: activation.longitude,
+      address: activation.address ?? activation.clinicLocation,
     });
 
     // Atomic consume: only one concurrent request can move PENDING -> USED.
@@ -530,6 +533,11 @@ export class SystemManagerService {
     clinicLocation?: string;
     adminFullName?: string;
     generatedBy?: string;
+    latitude?: number | null;
+    longitude?: number | null;
+    address?: string | null;
+    city?: string | null;
+    governorate?: string | null;
   }> {
     const formattedPhoneNumber = PhoneUtils.validateSyrianPhone(phoneNumber);
     const activation = await this.clinicAdminActivationRepository.findOne({
@@ -545,6 +553,9 @@ export class SystemManagerService {
       adminPhoneNumber: activation.phoneNumber,
       ...activationAdminProfile(activation),
       generatedBy: activation.generatedBy,
+      latitude: activation.latitude != null ? Number(activation.latitude) : null,
+      longitude: activation.longitude != null ? Number(activation.longitude) : null,
+      address: activation.address,
     };
   }
 

@@ -120,6 +120,7 @@ export class ClinicController {
   }
 
   @Get(':id/profile')
+  @SkipTenantGuard()
   @SkipTenantAuthorization()
   async getProfile(@Param('id', ParseUUIDPipe) id: string, @Request() req) {
     const profile = await this.clinicService.getClinicProfile(id, req.user);
@@ -127,6 +128,7 @@ export class ClinicController {
   }
 
   @Get(':id')
+  @SkipTenantGuard()
   @SkipTenantAuthorization()
   async findOne(@Param('id', ParseUUIDPipe) id: string, @Request() req) {
     const clinic = await this.clinicService.findOne(id, req.user);
@@ -183,6 +185,7 @@ export class ClinicController {
   }
 
   @Get(':id/doctors')
+  @SkipTenantGuard()
   @SkipTenantAuthorization()
   async listDoctors(@Param('id', ParseUUIDPipe) id: string, @Request() req) {
     const doctors = await this.clinicService.listDoctors(id, req.user);
