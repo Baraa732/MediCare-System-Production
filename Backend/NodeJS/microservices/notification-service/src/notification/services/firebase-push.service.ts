@@ -8,6 +8,11 @@ export interface PushPayload {
   imageUrl?: string;
 }
 
+export interface PushSendOptions {
+  androidChannelId?: string;
+  deepLink?: string;
+}
+
 @Injectable()
 export class FirebasePushService implements OnModuleInit {
   private readonly logger = new Logger(FirebasePushService.name);
@@ -68,7 +73,11 @@ export class FirebasePushService implements OnModuleInit {
     };
   }
 
-  async sendToTokens(tokens: string[], payload: PushPayload): Promise<{
+  async sendToTokens(
+    tokens: string[],
+    payload: PushPayload,
+    options?: PushSendOptions,
+  ): Promise<{
     successCount: number;
     failureCount: number;
     invalidTokens: string[];
@@ -81,6 +90,9 @@ export class FirebasePushService implements OnModuleInit {
     const invalidTokens: string[] = [];
     let successCount = 0;
     let failureCount = 0;
+
+    const androidChannelId = options?.androidChannelId ?? 'medicare_secretary';
+    const deepLink = options?.deepLink ?? payload.data?.deepLink ?? '/dashboard';
 
     const chunkSize = 500;
     for (let i = 0; i < unique.length; i += chunkSize) {
@@ -108,13 +120,13 @@ export class FirebasePushService implements OnModuleInit {
               tag: payload.data?.appointmentId || payload.data?.category || 'medicare',
             },
             fcmOptions: {
-              link: payload.data?.deepLink || '/dashboard',
+              link: deepLink,
             },
           },
           android: {
             priority: 'high',
             notification: {
-              channelId: 'medicare_secretary',
+              channelId: androidChannelId,
               priority: 'high',
               defaultSound: true,
             },

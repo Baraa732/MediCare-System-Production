@@ -7,6 +7,7 @@ import { KafkaClientModule } from '../kafka-shared/kafka-client.module';
 import { NotificationLog } from './entities/notification-log.entity';
 import { PushDeviceToken } from './entities/push-device-token.entity';
 import { StaffInboxNotification } from './entities/staff-inbox-notification.entity';
+import { PatientInboxNotification } from './entities/patient-inbox-notification.entity';
 import { ProcessedKafkaMessage } from './entities/processed-kafka-message.entity';
 import { NotificationService } from './services/notification.service';
 import { KafkaConsumerService } from './services/kafka.consumer.service';
@@ -15,6 +16,7 @@ import { UserHttpClient } from './services/user-http.client';
 import { ClinicHttpClient } from './services/clinic-http.client';
 import { FirebasePushService } from './services/firebase-push.service';
 import { StaffPushService } from './services/staff-push.service';
+import { PatientPushService } from './services/patient-push.service';
 import { InternalNotificationController } from './controllers/internal-notification.controller';
 import { NotificationController } from './controllers/notification.controller';
 import { KafkaIdempotencyService } from './services/kafka-idempotency.service';
@@ -26,7 +28,7 @@ import { RolesGuard } from './guards/roles.guard';
 @Module({
   imports: [
     ConfigModule,
-    TypeOrmModule.forFeature([NotificationLog, PushDeviceToken, StaffInboxNotification, ProcessedKafkaMessage]),
+    TypeOrmModule.forFeature([NotificationLog, PushDeviceToken, StaffInboxNotification, PatientInboxNotification, ProcessedKafkaMessage]),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -52,6 +54,7 @@ import { RolesGuard } from './guards/roles.guard';
     ClinicHttpClient,
     FirebasePushService,
     StaffPushService,
+    PatientPushService,
     InternalServiceGuard,
     JwtAuthGuard,
     RolesGuard,

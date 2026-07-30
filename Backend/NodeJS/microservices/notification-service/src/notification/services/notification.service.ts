@@ -12,6 +12,7 @@ import { WhatsAppService } from './whatsapp.service';
 import { UserHttpClient } from './user-http.client';
 import { ClinicHttpClient } from './clinic-http.client';
 import { StaffPushService } from './staff-push.service';
+import { PatientPushService } from './patient-push.service';
 import { StaffNotificationCategory } from '../entities/staff-inbox-notification.entity';
 import { AppointmentReminderDto } from '../dto/notification.dto';
 import { KafkaTopics } from '../../kafka-shared/topics/topics.config';
@@ -42,6 +43,7 @@ export class NotificationService {
     private readonly userHttpClient: UserHttpClient,
     private readonly clinicHttpClient: ClinicHttpClient,
     private readonly staffPushService: StaffPushService,
+    private readonly patientPushService: PatientPushService,
     @Inject('KAFKA_CLIENT') private readonly kafkaClient: ClientProxy,
     private readonly tenantContext: TenantContextService,
   ) {
@@ -50,6 +52,10 @@ export class NotificationService {
 
   async handleAppointmentCreated(payload: AppointmentEventPayload): Promise<void> {
     await this.sendAppointmentNotification(payload, NotificationType.APPOINTMENT_CONFIRMED);
+    await this.patientPushService.notifyFromAppointmentEvent(
+      payload,
+      NotificationType.APPOINTMENT_CONFIRMED,
+    );
     const category =
       payload.status === 'REQUESTED'
         ? StaffNotificationCategory.APPOINTMENT_REQUESTED
@@ -59,6 +65,10 @@ export class NotificationService {
 
   async handleAppointmentCancelled(payload: AppointmentEventPayload): Promise<void> {
     await this.sendAppointmentNotification(payload, NotificationType.APPOINTMENT_CANCELLED);
+    await this.patientPushService.notifyFromAppointmentEvent(
+      payload,
+      NotificationType.APPOINTMENT_CANCELLED,
+    );
     await this.staffPushService.notifyClinicSecretaries(
       payload,
       StaffNotificationCategory.APPOINTMENT_CANCELLED,
@@ -67,6 +77,10 @@ export class NotificationService {
 
   async handleAppointmentUpdated(payload: AppointmentEventPayload): Promise<void> {
     await this.sendAppointmentNotification(payload, NotificationType.APPOINTMENT_RESCHEDULED);
+    await this.patientPushService.notifyFromAppointmentEvent(
+      payload,
+      NotificationType.APPOINTMENT_RESCHEDULED,
+    );
     await this.staffPushService.notifyClinicSecretaries(
       payload,
       StaffNotificationCategory.APPOINTMENT_UPDATED,
@@ -99,6 +113,7 @@ export class NotificationService {
         NotificationType.APPOINTMENT_REMINDER,
         tenantId,
       );
+      await this.patientPushService.notifyReminder(dto);
       return { success: true };
     } catch (error: any) {
       const message = error?.message || 'Reminder send failed';
