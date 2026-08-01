@@ -9,6 +9,7 @@ import {
   MaxLength,
   IsDateString,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { AppointmentStatus } from '../entities/appointment.entity';
 
 export class CreateAppointmentDto {
@@ -27,6 +28,7 @@ export class CreateAppointmentDto {
   scheduledAt: string;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(5)
   @Max(240)
@@ -48,6 +50,7 @@ export class UpdateAppointmentDto {
   scheduledAt?: string;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(5)
   @Max(240)
