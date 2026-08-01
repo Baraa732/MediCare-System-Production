@@ -24,7 +24,7 @@ export class PlatformStreamService implements OnModuleDestroy {
   private readonly logger = new Logger(PlatformStreamService.name);
   private readonly clients = new Set<Response>();
   private broadcastTimer: ReturnType<typeof setInterval> | null = null;
-  private readonly nudgeIntervalMs = Number(process.env.PLATFORM_STREAM_NUDGE_MS || 60_000);
+  private readonly nudgeIntervalMs = Number(process.env.PLATFORM_STREAM_NUDGE_MS || 20_000);
 
   onModuleDestroy() {
     this.stopBroadcast();
@@ -76,7 +76,8 @@ export class PlatformStreamService implements OnModuleDestroy {
       // Soft invalidate signal only — clients refetch their own REST endpoints.
       this.broadcast({ type: 'observability', range });
       this.broadcast({ type: 'logs' });
-    }, Math.max(30_000, this.nudgeIntervalMs));
+      this.broadcast({ type: 'alerts' });
+    }, Math.max(15_000, this.nudgeIntervalMs));
   }
 
   private stopBroadcast() {

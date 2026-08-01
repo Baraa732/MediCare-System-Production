@@ -4,11 +4,12 @@ import { normalizeError } from '../api/errors'
 import type { DashboardTimeRange } from '../store/dashboardStore'
 import { normalizeTimeRange, useDashboardStore } from '../store/dashboardStore'
 import { queryKeys } from '../lib/queryClient'
+import { LIVE_POLL, LIVE_STALE_TIME } from '../lib/livePolling'
 import { resolveSessionToken } from '../lib/sessionToken'
 import { useAuthStore } from '../store/authStore'
 
 /** Shared observability query — deduplicated via React Query. */
-export function useObservabilityData(explicitRange?: string, live = false) {
+export function useObservabilityData(explicitRange?: string, live = true) {
   const storeToken = useAuthStore((s) => s.token)
   const hasHydrated = useAuthStore((s) => s._hasHydrated)
   const storeRange = useDashboardStore((s) => s.timeRange)
@@ -20,8 +21,8 @@ export function useObservabilityData(explicitRange?: string, live = false) {
     queryKey: queryKeys.observability(range),
     queryFn: ({ signal }) => getPlatformObservability(token!, range, signal),
     enabled: sessionReady && Boolean(token),
-    staleTime: 30_000,
-    refetchInterval: live ? 60_000 : false,
+    staleTime: LIVE_STALE_TIME,
+    refetchInterval: live ? LIVE_POLL.observability : false,
     placeholderData: keepPreviousData,
   })
 

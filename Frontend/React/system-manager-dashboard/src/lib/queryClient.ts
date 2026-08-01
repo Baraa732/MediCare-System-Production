@@ -1,12 +1,14 @@
 import { QueryClient } from '@tanstack/react-query'
+import { LIVE_STALE_TIME } from './livePolling'
 
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 4_000,
+      staleTime: LIVE_STALE_TIME,
       gcTime: 5 * 60_000,
       retry: 1,
-      refetchOnWindowFocus: false,
+      refetchOnWindowFocus: true,
+      refetchOnReconnect: true,
     },
   },
 })

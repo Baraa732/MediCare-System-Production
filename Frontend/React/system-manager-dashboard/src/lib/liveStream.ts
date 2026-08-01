@@ -84,9 +84,11 @@ export class LiveStreamClient {
   private fallbackToPoll() {
     if (this.disposed || this.pollTimer) return
     this.mode = 'poll'
-    const interval = this.options.pollIntervalMs ?? 1_500
+    const interval = this.options.pollIntervalMs ?? 20_000
     this.pollTimer = setInterval(() => {
       this.emit({ type: 'observability', range: '1h' })
+      this.emit({ type: 'logs' })
+      this.emit({ type: 'alerts' })
     }, interval)
   }
 

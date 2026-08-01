@@ -2,10 +2,11 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { getPlatformStats } from '../api/systemManager'
 import { normalizeError } from '../api/errors'
 import { queryKeys } from '../lib/queryClient'
+import { LIVE_POLL, LIVE_STALE_TIME } from '../lib/livePolling'
 import { resolveSessionToken } from '../lib/sessionToken'
 import { useAuthStore } from '../store/authStore'
 
-export function usePlatformStats(live = false) {
+export function usePlatformStats(live = true) {
   const storeToken = useAuthStore((s) => s.token)
   const hasHydrated = useAuthStore((s) => s._hasHydrated)
   const token = resolveSessionToken(storeToken)
@@ -14,8 +15,8 @@ export function usePlatformStats(live = false) {
     queryKey: queryKeys.platformStats(),
     queryFn: () => getPlatformStats(token!),
     enabled: (hasHydrated || Boolean(token)) && Boolean(token),
-    staleTime: 30_000,
-    refetchInterval: live ? 60_000 : false,
+    staleTime: LIVE_STALE_TIME,
+    refetchInterval: live ? LIVE_POLL.stats : false,
     placeholderData: keepPreviousData,
   })
 

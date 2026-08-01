@@ -1,43 +1,14 @@
 import { Box, Card, CardContent, CardHeader, Skeleton, Typography } from '@mui/material'
 import { useTheme } from '@mui/material/styles'
 import { Link } from 'react-router-dom'
-import { useEffect, useState } from 'react'
-import { getPlatformLogs } from '../../api/systemManager'
-import { normalizeError } from '../../api/errors'
 import type { PlatformLogEntry } from '../../api/types'
-import { useAuthStore } from '../../store/authStore'
-import { LOG_LEVEL_COLORS, formatLogTime } from '../../pages/logs/logUtils'
+import { usePlatformLogs } from '../../hooks/usePlatformLogs'
+import { LOG_LEVEL_COLORS, formatLogTime, getTableLogDisplay } from '../../pages/logs/logUtils'
 
 export default function LogsPreview() {
   const theme = useTheme()
-  const token = useAuthStore((s) => s.token)
-  const hasHydrated = useAuthStore((s) => s._hasHydrated)
-  const [entries, setEntries] = useState<PlatformLogEntry[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!hasHydrated || !token) {
-      setLoading(false)
-      return
-    }
-
-    let cancelled = false
-    getPlatformLogs(token, { range: '15m', limit: 8 })
-      .then((data) => {
-        if (!cancelled) setEntries(data.entries.slice(0, 8))
-      })
-      .catch((err) => {
-        if (!cancelled) setError(normalizeError(err, 'Could not load recent logs.'))
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [hasHydrated, token])
+  const { entries, loading, error } = usePlatformLogs({ range: '15m', limit: 8 }, true, true)
+  const preview = entries.slice(0, 8)
 
   return (
     <Card sx={{ height: '100%' }}>
@@ -56,7 +27,9 @@ export default function LogsPreview() {
 
         {!loading &&
           !error &&
-          entries.map((log) => (
+          preview.map((log: PlatformLogEntry) => {
+            const display = getTableLogDisplay(log)
+            return (
             <Box
               key={log.id}
               sx={{
@@ -119,12 +92,12 @@ export default function LogsPreview() {
                   flex: 1,
                 }}
               >
-                {log.message}
+                {display.headline}
               </Typography>
             </Box>
-          ))}
+          )})}
 
-        {!loading && !error && entries.length === 0 && (
+        {!loading && !error && preview.length === 0 && (
           <Typography variant="caption2" sx={{ color: 'text.secondary', display: 'block', p: 2 }}>
             No recent logs in the selected window.
           </Typography>

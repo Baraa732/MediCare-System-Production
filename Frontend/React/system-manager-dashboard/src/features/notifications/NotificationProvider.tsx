@@ -17,6 +17,7 @@ import {
   type Messaging,
 } from 'firebase/messaging'
 import { useAuthStore } from '../../store/authStore'
+import { LIVE_POLL } from '../../lib/livePolling'
 import {
   fetchPushWebConfig,
   fetchStaffInbox,
@@ -204,7 +205,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       if (document.visibilityState === 'visible') {
         void refreshInbox()
       }
-    }, 45_000)
+    }, LIVE_POLL.notifications)
 
     const onVisible = () => {
       if (document.visibilityState === 'visible') {

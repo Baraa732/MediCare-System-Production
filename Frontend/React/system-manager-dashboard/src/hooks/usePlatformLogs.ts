@@ -4,6 +4,7 @@ import { normalizeError } from '../api/errors'
 import type { PlatformLogLevel } from '../api/types'
 import { applyLogFilters } from '../pages/logs/logUtils'
 import { queryKeys } from '../lib/queryClient'
+import { LIVE_POLL, LIVE_STALE_TIME } from '../lib/livePolling'
 import { resolveSessionToken } from '../lib/sessionToken'
 import { useAuthStore } from '../store/authStore'
 
@@ -38,8 +39,8 @@ export function usePlatformLogs(params: PlatformLogsParams = {}, enabled = true,
         signal,
       }),
     enabled: (hasHydrated || Boolean(token)) && Boolean(token) && enabled,
-    staleTime: 30_000,
-    refetchInterval: live ? 60_000 : false,
+    staleTime: LIVE_STALE_TIME,
+    refetchInterval: live ? LIVE_POLL.logs : false,
     placeholderData: keepPreviousData,
   })
 

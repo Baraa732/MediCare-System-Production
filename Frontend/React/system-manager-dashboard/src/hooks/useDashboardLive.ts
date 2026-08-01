@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { invalidateDashboardQueries } from '../lib/queryClient'
 import { getLiveStreamClient } from '../lib/liveStream'
+import { LIVE_POLL } from '../lib/livePolling'
 import { resolveSessionToken } from '../lib/sessionToken'
 import { useAuthStore } from '../store/authStore'
 
 /** Subscribes to platform SSE stream and softly invalidates cached queries (no remount). */
-export function useDashboardLive(enabled = false) {
+export function useDashboardLive(enabled = true) {
   const storeToken = useAuthStore((s) => s.token)
   const [mode, setMode] = useState<'sse' | 'poll' | 'off'>('off')
   const [lastSyncAt, setLastSyncAt] = useState<number | null>(null)
@@ -20,13 +21,13 @@ export function useDashboardLive(enabled = false) {
     const token = resolveSessionToken(storeToken)
     const client = getLiveStreamClient({
       getToken: () => token,
-      pollIntervalMs: 30_000,
-      throttleMs: 5_000,
+      pollIntervalMs: LIVE_POLL.streamFallback,
+      throttleMs: LIVE_POLL.streamThrottle,
     })
 
     const softRefresh = () => {
       const now = Date.now()
-      if (now - lastInvalidateRef.current < 5_000) return
+      if (now - lastInvalidateRef.current < LIVE_POLL.streamThrottle) return
       lastInvalidateRef.current = now
       void invalidateDashboardQueries()
       setLastSyncAt(now)

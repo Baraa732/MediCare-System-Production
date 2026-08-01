@@ -9,6 +9,7 @@ import {
 } from '../api/systemManager'
 import { normalizeError } from '../api/errors'
 import { queryKeys } from '../lib/queryClient'
+import { LIVE_POLL, LIVE_STALE_TIME } from '../lib/livePolling'
 import { resolveSessionToken } from '../lib/sessionToken'
 import { useAuthStore } from '../store/authStore'
 import type { PlatformIncidentStatus } from '../api/types'
@@ -31,7 +32,8 @@ export function useIncidentPersistence() {
     queryKey: queryKeys.platformIncidents(),
     queryFn: () => listPlatformIncidents(token!),
     enabled: (hasHydrated || Boolean(token)) && Boolean(token),
-    staleTime: 10_000,
+    staleTime: LIVE_STALE_TIME,
+    refetchInterval: LIVE_POLL.incidents,
   })
 
   const byId = new Map((query.data ?? []).map((row) => [row.id, row]))

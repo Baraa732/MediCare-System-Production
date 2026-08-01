@@ -53,7 +53,7 @@ function ChartFallback() {
 export default function Dashboard() {
   const location = useLocation()
   const timeRange = useDashboardStore((s) => s.timeRange)
-  const [live, setLive] = useState(false)
+  const [live, setLive] = useState(true)
   const [commandIncident, setCommandIncident] = useState<DashboardIncident | null>(null)
 
   const { mode, lastSyncAt } = useDashboardLive(live)
