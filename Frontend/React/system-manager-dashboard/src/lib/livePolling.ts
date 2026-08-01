@@ -1,7 +1,7 @@
 /** Shared real-time polling intervals for the System Manager dashboard (ms). */
 export const LIVE_POLL = {
   /** Log stream — most frequently updated. */
-  logs: 15_000,
+  logs: 10_000,
   /** Observability, APM, alerts, traces. */
   observability: 20_000,
   /** Platform KPI stats. */

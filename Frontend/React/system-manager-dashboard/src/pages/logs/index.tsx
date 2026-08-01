@@ -186,8 +186,9 @@ export default function LogsPage() {
   }
 
   const handleRefresh = useCallback(() => {
-    void refresh()
-    notify.success('Log stream refreshed.')
+    void refresh().then(() => {
+      notify.success('Log stream refreshed.')
+    })
   }, [refresh])
 
   const clearAllFilters = () => {

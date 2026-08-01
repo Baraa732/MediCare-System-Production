@@ -543,13 +543,24 @@ async function bootstrap() {
 
     if (isPublicGatewayRoute(requestPath, req.method) || req.method === 'OPTIONS') return next();
 
-    const authHeader = req.headers['authorization'];
+    // EventSource cannot set Authorization headers — allow ?token= for SSE stream only.
+    const queryToken =
+      typeof req.query?.token === 'string' && req.query.token.trim()
+        ? req.query.token.trim()
+        : '';
+    const isSseStream = requestPath === '/api/system-manager/platform/stream';
+    let authHeader = req.headers['authorization'];
+    if (!authHeader && isSseStream && queryToken) {
+      authHeader = `Bearer ${queryToken}`;
+      req.headers['authorization'] = authHeader;
+    }
+
     if (!authHeader) {
       res.status(401).json({ message: 'Authorization header is required' });
       return;
     }
 
-    const token = authHeader.replace('Bearer ', '');
+    const token = authHeader.replace(/^Bearer\s+/i, '');
 
     try {
       // Check cache first

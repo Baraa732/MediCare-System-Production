@@ -19,13 +19,25 @@ export class AuthMiddleware implements NestMiddleware {
       return next();
     }
 
-    const authHeader = req.headers['authorization'];
-    
+    // EventSource cannot set Authorization headers — allow ?token= for SSE stream.
+    const queryToken =
+      typeof req.query?.token === 'string' && req.query.token.trim()
+        ? req.query.token.trim()
+        : '';
+    const isSseStream =
+      req.path === '/api/system-manager/platform/stream'
+      || req.path === '/system-manager/platform/stream';
+    let authHeader = req.headers['authorization'];
+    if (!authHeader && isSseStream && queryToken) {
+      authHeader = `Bearer ${queryToken}`;
+      req.headers['authorization'] = authHeader;
+    }
+
     if (!authHeader) {
       throw new HttpException('Authorization header is required', HttpStatus.UNAUTHORIZED);
     }
 
-    const token = authHeader.replace('Bearer ', '');
+    const token = authHeader.replace(/^Bearer\s+/i, '');
 
     try {
       // Check cache first
