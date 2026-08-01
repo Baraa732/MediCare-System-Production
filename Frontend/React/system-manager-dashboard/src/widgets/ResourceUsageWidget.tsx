@@ -1,34 +1,54 @@
 ﻿import { useMemo } from 'react'
-import { ChartCard } from '../components/observability'
-import { LiveIndicator } from '../components/observability'
+import { ChartCard, LiveIndicator } from '../components/observability'
+import { EmptyState } from '../components/ui'
 import { multiLineOption, CC_CHART } from '../charts'
-import { RESOURCE_USAGE } from '../constants/overviewData'
+import type { PlatformObservability } from '../api/types'
 
-export default function ResourceUsageWidget({ delay = 0 }: { delay?: number }) {
-  const option = useMemo(
-    () =>
-      multiLineOption({
-        labels: RESOURCE_USAGE.labels,
-        series: [
-          { name: 'CPU', data: RESOURCE_USAGE.cpu, color: CC_CHART.cyan },
-          { name: 'Memory', data: RESOURCE_USAGE.memory, color: CC_CHART.purple },
-          { name: 'Disk', data: RESOURCE_USAGE.disk, color: CC_CHART.amber },
-          { name: 'Network', data: RESOURCE_USAGE.network, color: CC_CHART.green },
-        ],
-      }),
-    [],
-  )
+export default function ResourceUsageWidget({
+  delay = 0,
+  observability,
+}: {
+  delay?: number
+  observability?: PlatformObservability | null
+}) {
+  const option = useMemo(() => {
+    const tp = observability?.apm.throughput
+    if (!tp?.timestamps?.length) return null
+    return multiLineOption({
+      labels: tp.timestamps.map((t) =>
+        new Date(t).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }),
+      ),
+      series: [
+        { name: 'Requests', data: tp.total, color: CC_CHART.cyan },
+        { name: 'Errors', data: tp.errors, color: CC_CHART.red },
+      ],
+    })
+  }, [observability])
+
+  if (!option) {
+    return (
+      <ChartCard
+        title="Resource Usage"
+        subtitle="Throughput"
+        badge={<LiveIndicator />}
+        delay={delay}
+        minHeight={280}
+      >
+        <EmptyState title="No throughput series" hint="Waiting for Prometheus rate data." />
+      </ChartCard>
+    )
+  }
 
   return (
     <ChartCard
       title="Resource Usage"
-      subtitle="24h utilization"
+      subtitle={`${observability?.apm.throughput?.unit ?? 'req/s'} · ${observability?.apm.throughput?.source ?? 'live'}`}
       badge={<LiveIndicator />}
       option={option}
       height={200}
       delay={delay}
       minHeight={280}
-      ariaLabel="Resource usage multi-line chart"
+      ariaLabel="Request throughput chart"
     />
   )
 }

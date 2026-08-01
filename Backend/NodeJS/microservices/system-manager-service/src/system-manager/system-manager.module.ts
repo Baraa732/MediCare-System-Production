@@ -24,13 +24,23 @@ import { UserHttpClient } from './services/user-http.client';
 import { SystemManager } from './entities/system-manager.entity';
 import { ClinicAdminActivation } from './entities/clinic-admin-activation.entity';
 import { PlatformIncident } from './entities/platform-incident.entity';
+import { PlatformDeployment } from './entities/platform-deployment.entity';
+import { AuthHttpClient } from './services/auth-http.client';
+import { PlatformSecurityService } from './services/platform-security.service';
+import { PlatformQueuesService } from './services/platform-queues.service';
+import { PlatformDeploymentsService } from './services/platform-deployments.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { InternalServiceGuard } from './guards/internal-service.guard';
 
 @Module({
   imports: [
     ConfigModule,
-    TypeOrmModule.forFeature([SystemManager, ClinicAdminActivation, PlatformIncident]),
+    TypeOrmModule.forFeature([
+      SystemManager,
+      ClinicAdminActivation,
+      PlatformIncident,
+      PlatformDeployment,
+    ]),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -70,6 +80,10 @@ import { InternalServiceGuard } from './guards/internal-service.guard';
     PlatformIncidentsService,
     PlatformDataService,
     UserHttpClient,
+    AuthHttpClient,
+    PlatformSecurityService,
+    PlatformQueuesService,
+    PlatformDeploymentsService,
     ActivationDocumentService,
     JwtAuthGuard,
     InternalServiceGuard,

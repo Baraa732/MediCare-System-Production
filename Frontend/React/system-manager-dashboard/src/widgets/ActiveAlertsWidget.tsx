@@ -1,30 +1,35 @@
 ﻿import { useMemo, useState } from 'react'
-import { DashboardCard, WidgetHeader } from '../components/ui'
-import {
-  AlertCard,
-  LiveIndicator,
-  WidgetToolbar,
-} from '../components/observability'
-import { ACTIVE_ALERTS } from '../constants/overviewData'
+import { DashboardCard, WidgetHeader, EmptyState } from '../components/ui'
+import { AlertCard, LiveIndicator, WidgetToolbar } from '../components/observability'
 import obs from '../components/observability/obs.module.css'
 
 type Filter = 'All' | 'Critical' | 'Warning' | 'Info'
+type AlertItem = {
+  id: string
+  title: string
+  service: string
+  level: 'Critical' | 'Warning' | 'Info'
+  ago: string
+}
 
-export default function ActiveAlertsWidget({ delay = 0 }: { delay?: number }) {
+export default function ActiveAlertsWidget({
+  delay = 0,
+  alerts = [],
+}: {
+  delay?: number
+  alerts?: AlertItem[]
+}) {
   const [filter, setFilter] = useState<Filter>('All')
   const items = useMemo(
-    () =>
-      filter === 'All'
-        ? ACTIVE_ALERTS
-        : ACTIVE_ALERTS.filter((a) => a.level === filter),
-    [filter],
+    () => (filter === 'All' ? alerts : alerts.filter((a) => a.level === filter)),
+    [alerts, filter],
   )
 
   return (
     <DashboardCard minHeight={280} delay={delay}>
       <WidgetHeader
         title="Active Alerts"
-        subtitle={`${ACTIVE_ALERTS.length} open`}
+        subtitle={`${alerts.length} open`}
         badge={<LiveIndicator />}
       />
       <WidgetToolbar
@@ -40,13 +45,17 @@ export default function ActiveAlertsWidget({ delay = 0 }: { delay?: number }) {
           </button>
         ))}
       />
-      <div className={obs.alertList} role="list" aria-label="Active alerts">
-        {items.map((a) => (
-          <div key={a.id} role="listitem">
-            <AlertCard {...a} />
-          </div>
-        ))}
-      </div>
+      {!items.length ? (
+        <EmptyState title="No active alerts" hint="Incidents and degraded services appear here." />
+      ) : (
+        <div className={obs.alertList} role="list" aria-label="Active alerts">
+          {items.map((a) => (
+            <div key={a.id} role="listitem">
+              <AlertCard {...a} />
+            </div>
+          ))}
+        </div>
+      )}
     </DashboardCard>
   )
 }

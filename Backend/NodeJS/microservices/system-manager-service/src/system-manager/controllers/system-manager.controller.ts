@@ -12,6 +12,9 @@ import { PlatformObservabilityService } from '../services/platform-observability
 import { PlatformStreamService } from '../services/platform-stream.service';
 import { PlatformIncidentsService } from '../services/platform-incidents.service';
 import { PlatformDataService } from '../services/platform-data.service';
+import { PlatformSecurityService } from '../services/platform-security.service';
+import { PlatformQueuesService } from '../services/platform-queues.service';
+import { PlatformDeploymentsService } from '../services/platform-deployments.service';
 import { SystemManagerLoginDto, CreateSystemManagerDto, CreateClinicAdminDto } from '../dto/system-manager.dto';
 import { ValidateActivationCodeDto, RevokeActivationCodeDto, CreateActivationCodeDto } from '../dto/clinic-admin-activation.dto';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
@@ -53,6 +56,9 @@ export class SystemManagerController {
     private readonly platformStreamService: PlatformStreamService,
     private readonly platformIncidentsService: PlatformIncidentsService,
     private readonly platformDataService: PlatformDataService,
+    private readonly platformSecurityService: PlatformSecurityService,
+    private readonly platformQueuesService: PlatformQueuesService,
+    private readonly platformDeploymentsService: PlatformDeploymentsService,
   ) {}
 
   @Post('login')
@@ -459,5 +465,53 @@ export class SystemManagerController {
       throw new ForbiddenException('Only system managers can manage incidents');
     }
     return this.platformIncidentsService.escalate(id, body.notes, body);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('platform/security-summary')
+  async getSecuritySummary(@Request() req, @Query('range') range?: string) {
+    if (req.user.role !== 'SYSTEM_MANAGER') {
+      throw new ForbiddenException('Only system managers can view security summary');
+    }
+    return this.platformSecurityService.getSummary(range ?? '1h');
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('platform/queues')
+  async getQueues(@Request() req) {
+    if (req.user.role !== 'SYSTEM_MANAGER') {
+      throw new ForbiddenException('Only system managers can view queues');
+    }
+    return this.platformQueuesService.getOverview();
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('platform/deployments')
+  async listDeployments(@Request() req, @Query('limit') limit?: string) {
+    if (req.user.role !== 'SYSTEM_MANAGER') {
+      throw new ForbiddenException('Only system managers can view deployments');
+    }
+    return this.platformDeploymentsService.list(limit ? parseInt(limit, 10) : 20);
+  }
+
+  @UseGuards(InternalServiceGuard)
+  @Post('internal/deployments')
+  async ingestDeployment(
+    @Body()
+    body: {
+      service: string;
+      version?: string;
+      status?: 'Success' | 'Failed' | 'Rolled back' | 'In progress';
+      actor?: string;
+      startedAt?: string;
+      finishedAt?: string;
+      durationMs?: number;
+      source?: string;
+    },
+  ) {
+    if (!body?.service) {
+      throw new BadRequestException('service is required');
+    }
+    return this.platformDeploymentsService.ingest(body);
   }
 }

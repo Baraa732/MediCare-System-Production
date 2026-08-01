@@ -1,0 +1,132 @@
+.frame {
+  position: relative;
+  flex: 1;
+  min-height: 200px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(6, 182, 212, 0.35);
+  box-shadow: inset 0 0 40px rgba(6, 182, 212, 0.08), 0 0 20px rgba(6, 182, 212, 0.12);
+  background: #0a0e16;
+}
+
+.map {
+  width: 100%;
+  height: 100%;
+  min-height: 200px;
+  background: #0a0e16;
+}
+
+.gridOverlay {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 400;
+  background-image:
+    linear-gradient(rgba(6, 182, 212, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(6, 182, 212, 0.05) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mix-blend-mode: screen;
+}
+
+.hudCorner {
+  position: absolute;
+  z-index: 450;
+  pointer-events: none;
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #06b6d4;
+  text-shadow: 0 0 10px rgba(6, 182, 212, 0.55);
+  padding: 8px 10px;
+  background: rgba(15, 17, 23, 0.55);
+  border: 1px solid rgba(6, 182, 212, 0.25);
+  backdrop-filter: blur(6px);
+}
+
+.topLeft { top: 8px; left: 8px; }
+.topRight { top: 8px; right: 8px; text-align: right; }
+.bottomLeft { bottom: 8px; left: 8px; }
+.bottomRight { bottom: 8px; right: 8px; text-align: right; }
+
+.active {
+  color: #10b981;
+}
+
+.legend {
+  position: absolute;
+  z-index: 450;
+  left: 8px;
+  bottom: 40px;
+  display: flex;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(15, 17, 23, 0.75);
+  border: 1px solid rgba(6, 182, 212, 0.28);
+  font-size: 10px;
+  color: #8b93a8;
+  font-weight: 600;
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.dotOk { background: #10b981; box-shadow: 0 0 8px rgba(16,185,129,.6); }
+.dotWarn { background: #f59e0b; box-shadow: 0 0 8px rgba(245,158,11,.55); }
+.dotBad { background: #ef4444; box-shadow: 0 0 8px rgba(239,68,68,.6); }
+
+.marker {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #0f1117;
+  box-shadow: 0 0 12px currentColor;
+}
+
+.markerPulse {
+  animation: pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.35); opacity: 0.65; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .markerPulse { animation: none; }
+}
+
+.empty {
+  display: grid;
+  place-items: center;
+  min-height: 200px;
+  color: #8b93a8;
+  font-size: 12px;
+  padding: 16px;
+  text-align: center;
+}
+
+:global(.leaflet-container) {
+  background: #0a0e16;
+  font: inherit;
+}
+
+:global(.leaflet-control-attribution) {
+  background: rgba(15, 17, 23, 0.7) !important;
+  color: #4d566b !important;
+  font-size: 9px !important;
+}
+
+:global(.leaflet-control-attribution a) {
+  color: #8b93a8 !important;
+}

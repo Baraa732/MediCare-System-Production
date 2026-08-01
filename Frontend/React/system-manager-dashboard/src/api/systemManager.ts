@@ -13,6 +13,9 @@ import type {
   SystemManagerUser,
   DistributedTrace,
   PlatformIncidentRecord,
+  SecuritySummary,
+  QueueOverviewResponse,
+  DeploymentsResponse,
 } from './types'
 
 export function login(username: string, password: string) {
@@ -187,8 +190,29 @@ export function getClinicStaff(token: string, clinicId: string) {
   )
 }
 
-export function getPlatformHealth(token: string) {
-  return apiRequest<PlatformHealth>('/system-manager/platform/health', { token })
+export function getPlatformHealth(token: string, signal?: AbortSignal) {
+  return apiRequest<PlatformHealth>('/system-manager/platform/health', { token, signal })
+}
+
+export function getSecuritySummary(token: string, range = '1h', signal?: AbortSignal) {
+  return apiRequest<SecuritySummary>(
+    `/system-manager/platform/security-summary?range=${encodeURIComponent(range)}`,
+    { token, signal },
+  )
+}
+
+export function getQueueOverview(token: string, signal?: AbortSignal) {
+  return apiRequest<QueueOverviewResponse>('/system-manager/platform/queues', {
+    token,
+    signal,
+  })
+}
+
+export function getDeployments(token: string, limit = 20, signal?: AbortSignal) {
+  return apiRequest<DeploymentsResponse>(
+    `/system-manager/platform/deployments?limit=${limit}`,
+    { token, signal },
+  )
 }
 
 export function getPlatformStats(token: string) {

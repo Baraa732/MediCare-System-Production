@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import {
   Activity,
   AlertTriangle,
@@ -13,10 +14,31 @@ import {
   DateSelector,
   SectionHeader,
 } from '../../components/ui'
-import { MetricCard } from '../../components/observability'
+import { MetricCard, LiveIndicator } from '../../components/observability'
 import { staggerContainer } from '../../animations/variants'
-import { KPI_DATA } from '../../constants/overviewData'
 import { CC_CHART } from '../../charts'
+import { useObservabilityData } from '../../hooks/useObservabilityData'
+import { usePlatformHealth } from '../../hooks/usePlatformHealth'
+import { usePlatformStats } from '../../hooks/usePlatformStats'
+import { usePlatformLogs } from '../../hooks/usePlatformLogs'
+import { useIncidentPersistence } from '../../hooks/useIncidentPersistence'
+import { useSecuritySummary } from '../../hooks/useSecuritySummary'
+import { useQueueOverview } from '../../hooks/useQueueOverview'
+import { useDeployments } from '../../hooks/useDeployments'
+import { usePlatformData } from '../../hooks/usePlatformData'
+import { useDashboardLive } from '../../hooks/useDashboardLive'
+import {
+  timeRangeLabel,
+  useDashboardStore,
+  normalizeTimeRange,
+} from '../../store/dashboardStore'
+import {
+  buildActiveAlerts,
+  buildAiInsights,
+  buildOverviewKpis,
+  buildServiceRows,
+  buildSystemLoad,
+} from './overviewModel'
 import {
   ActiveAlertsWidget,
   AiInsightsWidget,
@@ -62,24 +84,83 @@ const kpiColors: Record<string, string> = {
 }
 
 export default function OverviewPage() {
+  const timeRange = useDashboardStore((s) => s.timeRange)
+  const setTimeRange = useDashboardStore((s) => s.setTimeRange)
+  const { live, lastSyncAt, mode } = useDashboardLive(true)
+
+  const obs = useObservabilityData(undefined, live)
+  const healthQ = usePlatformHealth(live)
+  const statsQ = usePlatformStats(live)
+  const logsQ = usePlatformLogs({ range: timeRange, limit: 200 }, true, live)
+  const { records: incidents } = useIncidentPersistence()
+  const securityQ = useSecuritySummary(undefined, live)
+  const queuesQ = useQueueOverview(live)
+  const deploymentsQ = useDeployments(live)
+  const { clinics } = usePlatformData({ loadStaff: false, live: false })
+
+  const kpis = useMemo(
+    () =>
+      buildOverviewKpis({
+        observability: obs.data,
+        health: healthQ.health,
+        stats: statsQ.stats,
+        incidents,
+      }),
+    [obs.data, healthQ.health, statsQ.stats, incidents],
+  )
+
+  const serviceRows = useMemo(() => buildServiceRows(obs.data), [obs.data])
+  const load = useMemo(() => buildSystemLoad(obs.data), [obs.data])
+  const alerts = useMemo(() => buildActiveAlerts(incidents, obs.data), [incidents, obs.data])
+  const insights = useMemo(
+    () =>
+      buildAiInsights({
+        observability: obs.data,
+        queues: queuesQ.data,
+        security: securityQ.data,
+      }),
+    [obs.data, queuesQ.data, securityQ.data],
+  )
+
+  const syncLabel = lastSyncAt
+    ? new Date(lastSyncAt).toLocaleTimeString()
+    : obs.dataUpdatedAt
+      ? new Date(obs.dataUpdatedAt).toLocaleTimeString()
+      : '—'
+
   return (
     <div className={styles.page}>
       <header className={styles.hero}>
         <div>
           <h1 className={styles.heroTitle}>Control Center Overview</h1>
           <p className={styles.heroMeta}>
-            MediCare enterprise observability · static UI architecture · no live telemetry
+            Live MediCare observability · synced {syncLabel} · {mode}
           </p>
         </div>
         <div className={styles.heroActions}>
-          <DateSelector />
-          <AnimatedButton>Customize layout</AnimatedButton>
+          <LiveIndicator />
+          <DateSelector
+            value={timeRangeLabel(timeRange)}
+            onChange={(v) => setTimeRange(normalizeTimeRange(v))}
+          />
+          <AnimatedButton
+            onClick={() => {
+              void obs.refresh()
+              void healthQ.refresh()
+              void securityQ.refresh()
+              void queuesQ.refresh()
+              void deploymentsQ.refresh()
+              void logsQ.refresh()
+            }}
+          >
+            Refresh
+          </AnimatedButton>
         </div>
       </header>
 
       <SectionHeader
         title="Key performance indicators"
-        meta="Animated counters · sparklines · live badges"
+        meta={obs.loading ? 'Loading telemetry…' : 'Live APM · health · incidents'}
       />
 
       <motion.div
@@ -88,52 +169,92 @@ export default function OverviewPage() {
         initial="hidden"
         animate="show"
       >
-        {KPI_DATA.map((kpi, i) => (
+        {kpis.map((kpi, i) => (
           <MetricCard
             key={kpi.id}
             label={kpi.label}
             value={kpi.value}
-            icon={kpiIcons[kpi.id]}
+            icon={kpiIcons[kpi.id as keyof typeof kpiIcons] ?? Server}
             trend={kpi.trend}
             trendLabel={kpi.trendLabel}
             sparkline={kpi.sparkline}
             live={kpi.live}
-            decimals={'decimals' in kpi ? kpi.decimals : 0}
-            suffix={'suffix' in kpi ? kpi.suffix : ''}
+            decimals={kpi.decimals ?? 0}
+            suffix={kpi.suffix ?? ''}
             delay={i * 0.04}
             sparkColor={kpiColors[kpi.id]}
           />
         ))}
       </motion.div>
 
-      <SectionHeader title="Operations grid" meta="Enterprise observability widgets" />
+      <SectionHeader title="Operations grid" meta="Wired to platform APIs" />
 
       <div className={styles.grid}>
-        <div className={styles.span3}><SystemOverviewWidget delay={0.05} /></div>
-        <div className={styles.span3}><InfrastructureMapWidget delay={0.08} /></div>
-        <div className={styles.span3}><LiveSystemLoadWidget delay={0.11} /></div>
-        <div className={styles.span3}><ActiveAlertsWidget delay={0.14} /></div>
+        <div className={styles.span3}>
+          <SystemOverviewWidget delay={0.05} rows={serviceRows} loading={obs.loading} />
+        </div>
+        <div className={styles.span3}>
+          <InfrastructureMapWidget delay={0.08} clinics={clinics} />
+        </div>
+        <div className={styles.span3}>
+          <LiveSystemLoadWidget delay={0.11} load={load} />
+        </div>
+        <div className={styles.span3}>
+          <ActiveAlertsWidget delay={0.14} alerts={alerts} />
+        </div>
 
-        <div className={styles.span4}><ResourceUsageWidget delay={0.16} /></div>
-        <div className={styles.span4}><TopServicesWidget delay={0.18} /></div>
-        <div className={styles.span4}><ErrorRateWidget delay={0.2} /></div>
+        <div className={styles.span4}>
+          <ResourceUsageWidget delay={0.16} observability={obs.data} />
+        </div>
+        <div className={styles.span4}>
+          <TopServicesWidget delay={0.18} observability={obs.data} />
+        </div>
+        <div className={styles.span4}>
+          <ErrorRateWidget delay={0.2} observability={obs.data} />
+        </div>
 
-        <div className={styles.span6}><RecentDeploymentsWidget delay={0.22} /></div>
-        <div className={styles.span6}><SystemLogsWidget delay={0.24} /></div>
+        <div className={styles.span6}>
+          <RecentDeploymentsWidget delay={0.22} deployments={deploymentsQ.data} />
+        </div>
+        <div className={styles.span6}>
+          <SystemLogsWidget delay={0.24} logs={logsQ.data} />
+        </div>
 
-        <div className={styles.span3}><DistributedTracingWidget delay={0.26} /></div>
-        <div className={styles.span3}><DatabaseOverviewWidget delay={0.28} /></div>
-        <div className={styles.span3}><QueueOverviewWidget delay={0.3} /></div>
-        <div className={styles.span3}><SecurityOverviewWidget delay={0.32} /></div>
+        <div className={styles.span3}>
+          <DistributedTracingWidget delay={0.26} observability={obs.data} />
+        </div>
+        <div className={styles.span3}>
+          <DatabaseOverviewWidget delay={0.28} health={healthQ.health} />
+        </div>
+        <div className={styles.span3}>
+          <QueueOverviewWidget delay={0.3} queues={queuesQ.data} />
+        </div>
+        <div className={styles.span3}>
+          <SecurityOverviewWidget delay={0.32} security={securityQ.data} />
+        </div>
 
-        <div className={styles.span3}><RecentEventsWidget delay={0.34} /></div>
-        <div className={styles.span3}><PlatformActivityWidget delay={0.36} /></div>
-        <div className={styles.span3}><NetworkTrafficWidget delay={0.38} /></div>
-        <div className={styles.span3}><AiInsightsWidget delay={0.4} /></div>
+        <div className={styles.span3}>
+          <RecentEventsWidget delay={0.34} incidents={incidents} logs={logsQ.data} />
+        </div>
+        <div className={styles.span3}>
+          <PlatformActivityWidget delay={0.36} security={securityQ.data} />
+        </div>
+        <div className={styles.span3}>
+          <NetworkTrafficWidget delay={0.38} observability={obs.data} />
+        </div>
+        <div className={styles.span3}>
+          <AiInsightsWidget delay={0.4} insights={insights} />
+        </div>
 
-        <div className={styles.span4}><IncidentTimelineWidget delay={0.42} /></div>
-        <div className={styles.span4}><DeploymentHistoryWidget delay={0.44} /></div>
-        <div className={styles.span4}><AuditTimelineWidget delay={0.46} /></div>
+        <div className={styles.span4}>
+          <IncidentTimelineWidget delay={0.42} incidents={incidents} />
+        </div>
+        <div className={styles.span4}>
+          <DeploymentHistoryWidget delay={0.44} deployments={deploymentsQ.data} />
+        </div>
+        <div className={styles.span4}>
+          <AuditTimelineWidget delay={0.46} security={securityQ.data} />
+        </div>
       </div>
     </div>
   )

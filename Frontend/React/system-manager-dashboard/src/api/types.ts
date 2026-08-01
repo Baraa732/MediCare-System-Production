@@ -74,6 +74,71 @@ export interface Clinic {
   email?: string
   status: string
   createdAt?: string
+  latitude?: number | null
+  longitude?: number | null
+}
+
+export interface SecuritySummary {
+  available: boolean
+  timestamp: string
+  range: string
+  failedLogins: number
+  suspicious: number
+  rateLimitExceeded: number
+  activeSessions: number
+  blockedIdentifiers: Array<{
+    identifier: string
+    tier: string
+    failedAttempts: number
+    lockedUntil: string | null
+  }>
+  topIps: Array<{
+    ip: string
+    count: number
+    lastSeen: string
+    actions: string[]
+  }>
+  recentAudits: Array<{
+    id: string
+    actor: string
+    action: string
+    target: string
+    result: string
+    ip: string | null
+    ago: string
+    createdAt: string
+  }>
+  warning?: string
+}
+
+export interface QueueOverviewResponse {
+  available: boolean
+  timestamp: string
+  warning?: string
+  items: Array<{
+    name: string
+    messages: number
+    consumers: number
+    lag: number
+    status: 'Healthy' | 'Warning' | 'Critical' | 'Unknown'
+  }>
+}
+
+export interface DeploymentsResponse {
+  available: boolean
+  timestamp: string
+  source: 'db' | 'loki' | 'none'
+  warning?: string
+  items: Array<{
+    id: string
+    service: string
+    version: string
+    status: 'Success' | 'Failed' | 'Rolled back' | 'In progress'
+    by: string
+    ago: string
+    duration: string
+    startedAt: string
+  }>
 }
 
 export interface PlatformUser {

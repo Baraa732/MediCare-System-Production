@@ -13,6 +13,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { AuthService } from '../services/auth.service';
+import { SecuritySummaryService, SecurityRange } from '../services/security-summary.service';
 import {
   RegisterDto,
   SendOtpDto,
@@ -47,7 +48,10 @@ enum UserRole {
 // LOW FIX: Add API versioning
 @Controller('v1/auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly securitySummaryService: SecuritySummaryService,
+  ) {}
 
   // Idempotency-Key header makes retries safe — same key + same body returns
   // the cached response without creating a second user or sending a second OTP.
@@ -91,6 +95,15 @@ export class AuthController {
         clinicId: req.user.tenantId ?? req.user.clinicId,
       },
     };
+  }
+
+  /** Aggregated security metrics for system-manager Control Center */
+  @UseGuards(InternalServiceGuard)
+  @Get('internal/security-summary')
+  async securitySummary(@Query('range') range?: string) {
+    const normalized: SecurityRange =
+      range === '6h' || range === '24h' ? range : '1h';
+    return this.securitySummaryService.getSummary(normalized);
   }
 
   @Post('login')

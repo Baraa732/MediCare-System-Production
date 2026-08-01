@@ -1,16 +1,41 @@
-﻿import { DashboardCard, WidgetHeader } from '../components/ui'
+﻿import { DashboardCard, WidgetHeader, EmptyState } from '../components/ui'
 import { GaugeCard, LiveIndicator } from '../components/observability'
-import { SYSTEM_LOAD } from '../constants/overviewData'
 
-export default function LiveSystemLoadWidget({ delay = 0 }: { delay?: number }) {
+export default function LiveSystemLoadWidget({
+  delay = 0,
+  load,
+}: {
+  delay?: number
+  load?: {
+    overall: number
+    cpu: number
+    memory: number
+    disk: number | null
+    network: number | null
+    available: boolean
+  }
+}) {
   return (
     <DashboardCard minHeight={280} delay={delay}>
       <WidgetHeader
         title="Live System Load"
-        subtitle="CPU · RAM · Disk · Network"
+        subtitle="CPU · memory from APM"
         badge={<LiveIndicator />}
       />
-      <GaugeCard {...SYSTEM_LOAD} />
+      {!load?.available ? (
+        <EmptyState
+          title="Resource metrics unavailable"
+          hint="CPU/memory appear when Prometheus scrapes process_* series."
+        />
+      ) : (
+        <GaugeCard
+          overall={load.overall}
+          cpu={load.cpu}
+          memory={load.memory}
+          disk={load.disk ?? 0}
+          network={load.network ?? 0}
+        />
+      )}
     </DashboardCard>
   )
 }

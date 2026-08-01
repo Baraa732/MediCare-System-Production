@@ -13,6 +13,7 @@ import { ClinicHttpClient } from './services/clinic-http.client';
 import { WhatsAppService } from './services/whatsapp.service';
 import { SessionService } from './services/session.service';
 import { AuditLogService } from './services/audit-log.service';
+import { SecuritySummaryService } from './services/security-summary.service';
 import { PhiAuditLogService } from './services/phi-audit-log.service';
 import { PhiAuditConsumerService } from './services/phi-audit-consumer.service';
 import { RateLimitService } from './services/rate-limit.service';
@@ -118,6 +119,7 @@ import { PhiAuditPublisherService } from '../phi-audit-shared/phi-audit.publishe
   controllers: [AuthController, PhiAuditConsumerService],
   providers: [
     AuthService, UserHttpClient, ClinicHttpClient, WhatsAppService, SessionService, AuditLogService,
+    SecuritySummaryService,
     PhiAuditLogService, PhiAuditConsumerService, PhiAuditPublisherService,
     RateLimitService, AccountLockService, SessionAnomalyService,
     IdempotencyService, JwtBlocklistService, TrustedDeviceService, RedisCircuitBreakerService, JwtStrategy, RateLimitGuard,

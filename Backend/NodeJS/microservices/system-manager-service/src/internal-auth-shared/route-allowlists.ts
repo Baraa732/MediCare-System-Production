@@ -8,6 +8,7 @@ export const INTERNAL_ROUTE_ALLOWLISTS: Record<InternalServiceName, RouteAllowli
   },
   'auth-service': {
     'GET /v1/auth/validate-token': ['api-gateway'],
+    'GET /v1/auth/internal/security-summary': ['system-manager-service'],
   },
   'user-service': {
     'GET /users/internal/exists': ['auth-service'],
@@ -96,6 +97,10 @@ export const INTERNAL_ROUTE_ALLOWLISTS: Record<InternalServiceName, RouteAllowli
     'GET /v1/system-manager/activation-code/check-activated': ['auth-service'],
     'GET /v1/system-manager/activation-code/lookup-used-by-phone': ['auth-service', 'clinic-service'],
     'POST /v1/system-manager/activation-code/validate-internal': ['auth-service'],
+    'POST /v1/system-manager/internal/deployments': [
+      'system-manager-service',
+      'api-gateway',
+    ],
   },
   'reminder-service': {},
 };

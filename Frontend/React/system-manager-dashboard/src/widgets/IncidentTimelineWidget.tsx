@@ -1,26 +1,46 @@
-﻿import { DashboardCard, WidgetHeader } from '../components/ui'
+﻿import { DashboardCard, WidgetHeader, EmptyState } from '../components/ui'
 import { SeverityBadge, TimelineCard } from '../components/observability'
-import { INCIDENT_TIMELINE } from '../constants/overviewData'
+import type { PlatformIncidentRecord } from '../api/types'
 
-export default function IncidentTimelineWidget({ delay = 0 }: { delay?: number }) {
+export default function IncidentTimelineWidget({
+  delay = 0,
+  incidents = [],
+}: {
+  delay?: number
+  incidents?: PlatformIncidentRecord[]
+}) {
+  const items = incidents.slice(0, 10).map((i) => ({
+    id: i.id,
+    title: i.title || `Incident ${i.id.slice(0, 8)}`,
+    meta: i.service || i.status,
+    ago: i.updatedAt,
+    tone:
+      i.status === 'escalated'
+        ? ('error' as const)
+        : i.status === 'resolved'
+          ? ('success' as const)
+          : ('warning' as const),
+    badge: (
+      <SeverityBadge
+        level={
+          i.status === 'escalated'
+            ? 'Critical'
+            : i.status === 'resolved'
+              ? 'Success'
+              : 'Warning'
+        }
+      />
+    ),
+  }))
+
   return (
     <DashboardCard minHeight={280} delay={delay}>
-      <WidgetHeader title="Incident Timeline" subtitle="Severity chronology" />
-      <TimelineCard
-        items={INCIDENT_TIMELINE.map((i) => ({
-          id: i.id,
-          title: i.title,
-          meta: `Duration ${i.duration}`,
-          ago: i.ago,
-          tone:
-            i.severity === 'Critical'
-              ? 'error'
-              : i.severity === 'Warning'
-                ? 'warning'
-                : 'info',
-          badge: <SeverityBadge level={i.severity} />,
-        }))}
-      />
+      <WidgetHeader title="Incident Timeline" subtitle="Persisted incidents" />
+      {!items.length ? (
+        <EmptyState title="No incidents" />
+      ) : (
+        <TimelineCard items={items} />
+      )}
     </DashboardCard>
   )
 }

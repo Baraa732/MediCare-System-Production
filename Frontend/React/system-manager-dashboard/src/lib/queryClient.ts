@@ -20,6 +20,9 @@ export const queryKeys = {
   platformHealth: () => ['platform-health'] as const,
   platformLogs: (params: string) => ['platform-logs', params] as const,
   platformIncidents: () => ['platform-incidents'] as const,
+  securitySummary: (range: string) => ['platform-security-summary', range] as const,
+  queues: () => ['platform-queues'] as const,
+  deployments: () => ['platform-deployments'] as const,
 }
 
 /** Live telemetry keys only — clinics/users (platform-data) stay manual. */
@@ -30,6 +33,9 @@ function isLiveDashboardQueryKey(key: unknown): boolean {
     || key === 'platform-health'
     || key === 'platform-logs'
     || key === 'platform-incidents'
+    || key === 'platform-security-summary'
+    || key === 'platform-queues'
+    || key === 'platform-deployments'
   )
 }
 

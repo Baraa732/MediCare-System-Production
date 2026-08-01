@@ -13,6 +13,8 @@ export interface PlatformClinicRecord {
   email?: string;
   status: string;
   createdAt?: string;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 export interface PlatformUserRecord {
@@ -65,8 +67,10 @@ export class PlatformDataService implements OnModuleDestroy {
         email: string | null;
         status: string;
         created_at: Date;
+        latitude: number | null;
+        longitude: number | null;
       }>(
-        `SELECT id, name, description, city, governorate, phone, email, status, created_at
+        `SELECT id, name, description, city, governorate, phone, email, status, created_at, latitude, longitude
          FROM tenants
          ORDER BY name ASC`,
       );
@@ -83,6 +87,8 @@ export class PlatformDataService implements OnModuleDestroy {
           email: row.email ?? undefined,
           status: row.status,
           createdAt: row.created_at?.toISOString(),
+          latitude: row.latitude,
+          longitude: row.longitude,
         })),
       };
     } catch (error) {
