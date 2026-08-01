@@ -10,6 +10,7 @@ import {
   Matches,
   MaxLength,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class SetClinicHoursDto {
   @IsInt()
@@ -86,6 +87,7 @@ export class SlotsQueryDto {
   date: string;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(5)
   @Max(120)
@@ -103,6 +105,7 @@ export class ValidateSlotDto {
   scheduledAt: string;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(5)
   @Max(240)
