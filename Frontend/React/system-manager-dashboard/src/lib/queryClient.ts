@@ -22,37 +22,28 @@ export const queryKeys = {
   platformIncidents: () => ['platform-incidents'] as const,
 }
 
+/** Live telemetry keys only — clinics/users (platform-data) stay manual. */
+function isLiveDashboardQueryKey(key: unknown): boolean {
+  return (
+    key === 'platform-observability'
+    || key === 'platform-stats'
+    || key === 'platform-health'
+    || key === 'platform-logs'
+    || key === 'platform-incidents'
+  )
+}
+
 export function invalidateDashboardQueries() {
   return queryClient.invalidateQueries({
-    predicate: (query) => {
-      const key = query.queryKey[0]
-      return (
-        key === 'platform-observability'
-        || key === 'platform-stats'
-        || key === 'platform-data'
-        || key === 'platform-health'
-        || key === 'platform-logs'
-        || key === 'platform-incidents'
-      )
-    },
+    predicate: (query) => isLiveDashboardQueryKey(query.queryKey[0]),
     refetchType: 'active',
   })
 }
 
-/** Force an immediate network refetch of active dashboard queries. */
+/** Force an immediate network refetch of active live dashboard queries. */
 export function refetchDashboardQueries() {
   return queryClient.refetchQueries({
-    predicate: (query) => {
-      const key = query.queryKey[0]
-      return (
-        key === 'platform-observability'
-        || key === 'platform-stats'
-        || key === 'platform-data'
-        || key === 'platform-health'
-        || key === 'platform-logs'
-        || key === 'platform-incidents'
-      )
-    },
+    predicate: (query) => isLiveDashboardQueryKey(query.queryKey[0]),
     type: 'active',
   })
 }

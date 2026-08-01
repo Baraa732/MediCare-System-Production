@@ -26,7 +26,6 @@ export function useForcedLiveRefresh(enabled: boolean, intervalMs: number) {
             return (
               key === 'platform-observability'
               || key === 'platform-stats'
-              || key === 'platform-data'
               || key === 'platform-health'
               || key === 'platform-logs'
               || key === 'platform-incidents'

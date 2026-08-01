@@ -305,6 +305,16 @@ export class SystemManagerController {
     return this.platformDataService.listClinicStaff(clinicId);
   }
 
+  /** One-shot repair: promote PENDING staff assignments to ACTIVE (seed / activation gap). */
+  @UseGuards(JwtAuthGuard)
+  @Post('platform/staff/activate-pending')
+  async activatePendingPlatformStaff(@Request() req) {
+    if (req.user.role !== 'SYSTEM_MANAGER') {
+      throw new ForbiddenException('Only system managers can repair staff assignments');
+    }
+    return this.platformDataService.activatePendingStaffAssignments();
+  }
+
   @UseGuards(JwtAuthGuard)
   @Get('platform/health')
   async getPlatformHealth(@Request() req) {

@@ -42,15 +42,17 @@ export function usePlatformData(options?: { loadStaff?: boolean; live?: boolean 
   const hasHydrated = useAuthStore((s) => s._hasHydrated)
   const token = resolveSessionToken(storeToken)
   const loadStaff = options?.loadStaff ?? false
-  const live = options?.live ?? true
+  // Clinics/users are not live telemetry — default off so pages don't reload on a timer.
+  const live = options?.live ?? false
   const sessionReady = hasHydrated || Boolean(token)
 
   const query = useQuery({
     queryKey: [...queryKeys.platformData(), loadStaff ? 'staff' : 'base'],
     queryFn: () => fetchPlatformData(token!, loadStaff),
     enabled: sessionReady && Boolean(token),
-    staleTime: LIVE_STALE_TIME,
+    staleTime: live ? LIVE_STALE_TIME : 60_000,
     refetchInterval: live ? LIVE_POLL.platformData : false,
+    refetchOnWindowFocus: live,
     retry: 1,
   })
 
@@ -63,7 +65,8 @@ export function usePlatformData(options?: { loadStaff?: boolean; live?: boolean 
     users: query.data?.users ?? [],
     staffByClinic: query.data?.staffByClinic ?? [],
     loading: !sessionReady || query.isLoading,
-    staffLoading: loadStaff && query.isFetching,
+    // Only block the staff section on the first load — not background refetches.
+    staffLoading: loadStaff && query.isLoading && !query.data,
     error: query.error ? normalizeError(query.error, 'Could not load platform data.') : null,
     reload,
     token,

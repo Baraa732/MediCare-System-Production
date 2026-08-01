@@ -46,7 +46,7 @@ function staffName(member: ClinicStaffMember): string {
 export default function Clinics() {
   const theme = useTheme()
   const { clinics, staffByClinic, loading, staffLoading, error: loadError, reload, token } =
-    usePlatformData({ loadStaff: true })
+    usePlatformData({ loadStaff: true, live: false })
   const [error, setError] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
 
@@ -268,6 +268,9 @@ export default function Clinics() {
                               </Box>
                               <Typography variant="body2" sx={{ flex: 1 }}>{staffName(m)}</Typography>
                               <Chip label={meta.label} size="small" sx={{ color: meta.color, bgcolor: `${meta.color}1f` }} />
+                              {m.status === 'PENDING' && (
+                                <Chip label="Pending" size="small" color="warning" variant="outlined" />
+                              )}
                             </Box>
                           )
                         })}

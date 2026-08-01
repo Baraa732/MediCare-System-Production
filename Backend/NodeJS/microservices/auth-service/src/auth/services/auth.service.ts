@@ -1297,7 +1297,12 @@ export class AuthService implements OnModuleInit {
     }
 
     const user = userResponse.user as AuthUserProfile;
-    await this.clinicHttp.activatePendingMemberships(user.id);
+    const membership = await this.clinicHttp.activatePendingMemberships(user.id);
+    if ((membership.activated ?? 0) === 0) {
+      this.logger.warn(
+        `Staff activation completed for ${user.id} but no PENDING memberships were activated — check clinic-service allowlist for activate-pending-memberships`,
+      );
+    }
     await this.linkStaffToClinic(user);
     await this.trustedDeviceService.trustDevice(user.id, deviceInfo);
     return this.issueFullLoginTokens(user, deviceInfo, requestId, { staffActivation: true });

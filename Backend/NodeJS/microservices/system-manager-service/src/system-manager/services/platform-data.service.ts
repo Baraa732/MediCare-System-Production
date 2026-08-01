@@ -168,7 +168,7 @@ export class PlatformDataService implements OnModuleDestroy {
       }>(
         `SELECT id, user_id, staff_role, status, assigned_at, assigned_by
          FROM tenant_staff_assignments
-         WHERE tenant_id = $1 AND status = 'ACTIVE'
+         WHERE tenant_id = $1 AND status IN ('ACTIVE', 'PENDING')
          ORDER BY assigned_at ASC`,
         [clinicId],
       );
@@ -195,6 +195,48 @@ export class PlatformDataService implements OnModuleDestroy {
         metadata: { clinicId },
       });
       return { success: true, staff: [] };
+    }
+  }
+
+  /**
+   * Activates staff memberships left PENDING when auth→clinic activate-pending
+   * was blocked by the internal allowlist (seed / staff onboarding).
+   */
+  async activatePendingStaffAssignments(): Promise<{ success: boolean; activated: number }> {
+    const pool = this.getClinicPool();
+    if (!pool) {
+      return { success: false, activated: 0 };
+    }
+
+    const started = Date.now();
+    try {
+      const result = await pool.query<{ id: string }>(
+        `UPDATE tenant_staff_assignments
+         SET status = 'ACTIVE',
+             started_at = COALESCE(started_at, NOW()),
+             ended_at = NULL,
+             updated_at = NOW()
+         WHERE status = 'PENDING'
+         RETURNING id`,
+      );
+      const activated = result.rowCount ?? result.rows.length;
+      this.log.info('Activated pending clinic staff assignments', {
+        event: 'staff_pending_activated',
+        module: 'PlatformDataService',
+        duration_ms: Date.now() - started,
+        metadata: { activated },
+      });
+      return { success: true, activated };
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      this.log.error('Failed to activate pending staff assignments', {
+        event: 'db_query_failed',
+        module: 'PlatformDataService',
+        query_name: 'platform_activate_pending_staff',
+        duration_ms: Date.now() - started,
+        err,
+      });
+      throw err;
     }
   }
 
