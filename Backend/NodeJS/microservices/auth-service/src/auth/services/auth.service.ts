@@ -268,7 +268,7 @@ export class AuthService implements OnModuleInit {
       whatsappHint:
         'If the code does not arrive, ask your administrator to check the WhatsApp connection.',
     };
-    if (process.env.NODE_ENV === 'development') {
+    if (PhoneUtils.shouldExposeSeedSecrets(formattedPhoneNumber)) {
       response.devOtp = otp;
     }
     return response;
@@ -485,7 +485,7 @@ export class AuthService implements OnModuleInit {
           : 'If WhatsApp is not connected, share the temporary password with the staff member directly.',
     };
 
-    if (process.env.NODE_ENV === 'development') {
+    if (PhoneUtils.shouldExposeSeedSecrets(formattedPhoneNumber)) {
       return { ...result, devTemporaryPassword: tempPassword };
     }
     return result;
@@ -545,7 +545,7 @@ export class AuthService implements OnModuleInit {
       whatsappSent: whatsappResult.sent,
       ...(whatsappResult.hint ? { whatsappHint: whatsappResult.hint } : {}),
     };
-    if (process.env.NODE_ENV === 'development') {
+    if (PhoneUtils.shouldExposeSeedSecrets(formattedPhoneNumber)) {
       response.devOtp = otp;
     }
     return response;
@@ -690,8 +690,7 @@ export class AuthService implements OnModuleInit {
     const formattedPhoneNumber = PhoneUtils.validateAndFormat(loginDto.phoneNumber);
     const { password } = loginDto;
     const ip = deviceInfo?.ip || 'unknown';
-    const devSeedLogin =
-      process.env.NODE_ENV === 'development' && PhoneUtils.isDevSeedPhone(formattedPhoneNumber);
+    const devSeedLogin = PhoneUtils.isDevSeedPhone(formattedPhoneNumber);
     const skipLoginRateLimits =
       devSeedLogin || process.env.NODE_ENV === 'development';
 
@@ -818,7 +817,9 @@ export class AuthService implements OnModuleInit {
         ...(otpResult.whatsappHint ? { whatsappHint: otpResult.whatsappHint } : {}),
         ...toAuthIdentity(user),
         ...(pendingActivation ? { requiresPasswordChange: true } : {}),
-        ...(process.env.NODE_ENV === 'development' && otpResult.devOtp ? { devOtp: otpResult.devOtp } : {}),
+        ...(PhoneUtils.shouldExposeSeedSecrets(formattedPhoneNumber) && otpResult.devOtp
+          ? { devOtp: otpResult.devOtp }
+          : {}),
       };
     }
 

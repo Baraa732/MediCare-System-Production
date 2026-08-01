@@ -1,14 +1,22 @@
 #!/usr/bin/env node
 /**
- * Seeds demo clinics via the same public API flow as Postman (no internal bypass).
- * Dev seed phones (+96399900XXXX) skip WhatsApp — devOtp is returned in responses.
+ * Seeds demo clinics via the public API flow.
+ * Reserved phones (+96399900XXXX) never send WhatsApp — OTP/temp password
+ * come back in the API response (auth-service seed-phone support).
  *
- * Usage: node tools/dev/seed-demo-clinics.mjs
- * Env:   API_BASE=http://localhost:3000/api (default)
+ * Usage:
+ *   node tools/dev/seed-demo-clinics.mjs
+ *   API_BASE=https://medicare-system-production-production.up.railway.app/api node tools/dev/seed-demo-clinics.mjs
+ *
+ * Env:
+ *   API_BASE       default http://localhost:3000/api
+ *   SM_USERNAME    system manager login
+ *   SM_PASSWORD    system manager password
+ *   DEMO_PASSWORD  password for all seeded accounts (default Demo@Test1)
  */
 
 const API_BASE = (process.env.API_BASE || 'http://localhost:3000/api').replace(/\/$/, '');
-const DEMO_PASSWORD = 'Demo@Test1';
+const DEMO_PASSWORD = process.env.DEMO_PASSWORD || 'Demo@Test1';
 
 const CLINICS = [
   {
@@ -19,7 +27,6 @@ const CLINICS = [
     admin: { firstName: 'Omar', lastName: 'Haddad', fullName: 'Omar Haddad', idNumber: 'DEMO-ADM-001' },
     doctors: [
       { firstName: 'Layla', lastName: 'Khalil', specialization: 'Cardiology', licenseNumber: 'SY-CARD-001' },
-      { firstName: 'Samir', lastName: 'Nasser', specialization: 'Cardiology', licenseNumber: 'SY-CARD-002' },
     ],
   },
   {
@@ -40,23 +47,101 @@ const CLINICS = [
     admin: { firstName: 'Nadia', lastName: 'Saleh', fullName: 'Nadia Saleh', idNumber: 'DEMO-ADM-003' },
     doctors: [
       { firstName: 'Karim', lastName: 'Darwish', specialization: 'Dentistry', licenseNumber: 'SY-DENT-001' },
-      { firstName: 'Maya', lastName: 'Fares', specialization: 'Dentistry', licenseNumber: 'SY-DENT-002' },
-      { firstName: 'Tarek', lastName: 'Hamdan', specialization: 'Dentistry', licenseNumber: 'SY-DENT-003' },
+    ],
+  },
+  {
+    name: 'Latakia Coastal Clinic',
+    city: 'Latakia',
+    governorate: 'Latakia',
+    address: 'Corniche Street, Floor 2',
+    admin: { firstName: 'Fadi', lastName: 'Issa', fullName: 'Fadi Issa', idNumber: 'DEMO-ADM-004' },
+    doctors: [
+      { firstName: 'Rima', lastName: 'Abboud', specialization: 'Pediatrics', licenseNumber: 'SY-PED-001' },
+    ],
+  },
+  {
+    name: 'Tartus Wellness Center',
+    city: 'Tartus',
+    governorate: 'Tartus',
+    address: 'Al-Basel Street 18',
+    admin: { firstName: 'Samer', lastName: 'Khoury', fullName: 'Samer Khoury', idNumber: 'DEMO-ADM-005' },
+    doctors: [
+      { firstName: 'Hala', lastName: 'Nemeh', specialization: 'Dermatology', licenseNumber: 'SY-DERM-001' },
+    ],
+  },
+  {
+    name: 'Hama General Practice',
+    city: 'Hama',
+    governorate: 'Hama',
+    address: 'Al-Assi Square, Building 7',
+    admin: { firstName: 'Yara', lastName: 'Halabi', fullName: 'Yara Halabi', idNumber: 'DEMO-ADM-006' },
+    doctors: [
+      { firstName: 'Basel', lastName: 'Qassem', specialization: 'General Practice', licenseNumber: 'SY-GP-002' },
+    ],
+  },
+  {
+    name: 'Daraa Care Clinic',
+    city: 'Daraa',
+    governorate: 'Daraa',
+    address: 'Main Street, Clinic Block A',
+    admin: { firstName: 'Mona', lastName: 'Shami', fullName: 'Mona Shami', idNumber: 'DEMO-ADM-007' },
+    doctors: [
+      { firstName: 'Walid', lastName: 'Farhat', specialization: 'Orthopedics', licenseNumber: 'SY-ORTH-001' },
+    ],
+  },
+  {
+    name: 'Sweida Mountain Clinic',
+    city: 'Sweida',
+    governorate: 'Sweida',
+    address: 'Qanawat Road 4',
+    admin: { firstName: 'Rami', lastName: 'Jaber', fullName: 'Rami Jaber', idNumber: 'DEMO-ADM-008' },
+    doctors: [
+      { firstName: 'Dina', lastName: 'Masri', specialization: 'Gynecology', licenseNumber: 'SY-GYN-001' },
+    ],
+  },
+  {
+    name: 'Idlib Community Health',
+    city: 'Idlib',
+    governorate: 'Idlib',
+    address: 'Central District, Suite 9',
+    admin: { firstName: 'Lina', lastName: 'Othman', fullName: 'Lina Othman', idNumber: 'DEMO-ADM-009' },
+    doctors: [
+      { firstName: 'Amer', lastName: 'Zaki', specialization: 'Internal Medicine', licenseNumber: 'SY-IM-001' },
+    ],
+  },
+  {
+    name: 'Quneitra Family Clinic',
+    city: 'Quneitra',
+    governorate: 'Quneitra',
+    address: 'New Town Street 2',
+    admin: { firstName: 'Hiba', lastName: 'Rahal', fullName: 'Hiba Rahal', idNumber: 'DEMO-ADM-010' },
+    doctors: [
+      { firstName: 'Nour', lastName: 'Salem', specialization: 'Family Medicine', licenseNumber: 'SY-FM-001' },
+      { firstName: 'Jad', lastName: 'Karam', specialization: 'ENT', licenseNumber: 'SY-ENT-001' },
     ],
   },
 ];
 
-const PATIENT = {
-  phoneNumber: '+963999000100',
-  firstName: 'Test',
-  lastName: 'Patient',
-  email: 'demo.patient@medicare.local',
-};
+/** 10 seed patients — phones +963999008001 … +963999008010 (no WhatsApp). */
+const PATIENTS = Array.from({ length: 10 }, (_, i) => {
+  const n = i + 1;
+  return {
+    phoneNumber: `+96399900${String(8000 + n).padStart(4, '0')}`,
+    firstName: ['Sara', 'Omar', 'Maya', 'Tarek', 'Lina', 'Karim', 'Hala', 'Fadi', 'Rima', 'Ziad'][i],
+    lastName: ['Younes', 'Fares', 'Haddad', 'Nasser', 'Saleh', 'Ahmad', 'Khalil', 'Darwish', 'Issa', 'Mansour'][i],
+    email: `patient${n}@demo.medicare.local`,
+  };
+});
 
-/** +96399900CXXX — C=clinic (1-3), XXX=role slot (001 admin, 002 secretary, 101+ doctors) */
+/**
+ * Phone map (fits +96399900XXXX):
+ *   clinic 1..10 × slot → (clinic*100 + slot) as 4 digits
+ *   slot 1=admin, 2=secretary, 10+=doctors
+ * Examples: clinic1 admin +963999000101, clinic10 doctor0 +963999001010
+ */
 function seedPhone(clinicIndex, slot) {
-  const c = clinicIndex + 1;
-  return `+96399900${c}${String(slot).padStart(3, '0')}`;
+  const n = (clinicIndex + 1) * 100 + slot;
+  return `+96399900${String(n).padStart(4, '0')}`;
 }
 
 function uuid() {
@@ -99,7 +184,7 @@ async function loginPatient(phoneNumber, password = DEMO_PASSWORD) {
       otp: login.devOtp,
     });
   }
-  throw new Error(`Could not login patient ${phoneNumber}`);
+  throw new Error(`Could not login ${phoneNumber} (no accessToken / no seed OTP). Is auth-service seed-phone support deployed?`);
 }
 
 async function registerAndVerify({ phoneNumber, firstName, lastName, email, role, password = DEMO_PASSWORD }) {
@@ -115,7 +200,9 @@ async function registerAndVerify({ phoneNumber, firstName, lastName, email, role
 
     const otp = reg.devOtp;
     if (!otp) {
-      throw new Error(`No devOtp for ${phoneNumber}. Ensure NODE_ENV=development and phone matches +96399900XXXX.`);
+      throw new Error(
+        `No seed OTP for ${phoneNumber}. Auth must skip WhatsApp and return devOtp for +96399900XXXX.`,
+      );
     }
 
     const verified = await api('POST', '/auth/verify-otp', {
@@ -134,18 +221,23 @@ async function registerAndVerify({ phoneNumber, firstName, lastName, email, role
 }
 
 async function activateStaffMember(phoneNumber, tempPassword, permanentPassword = DEMO_PASSWORD) {
+  if (!tempPassword) {
+    throw new Error(`Missing temp password for ${phoneNumber} (WhatsApp was not used; API must return devTemporaryPassword).`);
+  }
+
   const login = await api('POST', '/auth/login', {
     phoneNumber,
     password: tempPassword,
   });
 
   if (!login.requiresMfa || !login.mfaToken) {
-    throw new Error(`Staff login for ${phoneNumber} did not require MFA`);
+    if (login.accessToken) return login.accessToken;
+    throw new Error(`Staff login for ${phoneNumber} did not require MFA and returned no token`);
   }
 
   const otp = login.devOtp;
   if (!otp) {
-    throw new Error(`No devOtp on staff login for ${phoneNumber}. Rebuild auth-service with seed phone support.`);
+    throw new Error(`No seed OTP on staff login for ${phoneNumber}. Rebuild/redeploy auth-service.`);
   }
 
   const mfa = await api('POST', '/auth/verify-mfa', {
@@ -154,6 +246,7 @@ async function activateStaffMember(phoneNumber, tempPassword, permanentPassword 
   });
 
   if (!mfa.activationToken) {
+    if (mfa.accessToken) return mfa.accessToken;
     throw new Error(`No activationToken for staff ${phoneNumber}`);
   }
 
@@ -166,6 +259,7 @@ async function activateStaffMember(phoneNumber, tempPassword, permanentPassword 
 }
 
 async function ensureSystemManagerToken() {
+  // Dev-only on some environments — ignore failure when already seeded.
   await api('POST', '/system-manager/dev/seed-default').catch(() => {});
 
   const login = await api('POST', '/system-manager/login', {
@@ -173,6 +267,9 @@ async function ensureSystemManagerToken() {
     password: process.env.SM_PASSWORD || 'baraaalrifaee732',
   });
 
+  if (!login.accessToken) {
+    throw new Error('System manager login failed — set SM_USERNAME / SM_PASSWORD');
+  }
   return login.accessToken;
 }
 
@@ -180,7 +277,8 @@ async function seedClinic(clinicIndex, clinicDef, smToken) {
   const adminPhone = seedPhone(clinicIndex, 1);
   const secretaryPhone = seedPhone(clinicIndex, 2);
 
-  console.log(`\n── Clinic ${clinicIndex + 1}: ${clinicDef.name} ──`);
+  console.log(`\n── Clinic ${clinicIndex + 1}/10: ${clinicDef.name} ──`);
+  console.log(`   admin ${adminPhone} · secretary ${secretaryPhone}`);
 
   const activation = await api('POST', '/system-manager/activation-code/generate', {
     idNumber: clinicDef.admin.idNumber,
@@ -189,7 +287,7 @@ async function seedClinic(clinicIndex, clinicDef, smToken) {
     clinicLocation: clinicDef.name,
     price: 0,
     isCashPaymentDone: true,
-    notes: 'Demo seed data',
+    notes: 'Demo seed data — no WhatsApp',
   }, { Authorization: `Bearer ${smToken}` });
 
   await api('POST', '/auth/clinic-admin/activate', {
@@ -222,16 +320,15 @@ async function seedClinic(clinicIndex, clinicDef, smToken) {
 
   await api('PUT', `/clinics/${clinic.id}`, {
     name: clinicDef.name,
-    description: `${clinicDef.name} — demo clinic for AI booking tests`,
+    description: `${clinicDef.name} — demo clinic (seed, no OTP WhatsApp)`,
     address: clinicDef.address,
     city: clinicDef.city,
     governorate: clinicDef.governorate,
     phone: adminPhone,
   }, { Authorization: `Bearer ${adminSession.accessToken}` });
 
-  let secretaryCreate;
   try {
-    secretaryCreate = await api('POST', '/auth/clinic/create-user', {
+    const secretaryCreate = await api('POST', '/auth/clinic/create-user', {
       phoneNumber: secretaryPhone,
       firstName: 'Demo',
       lastName: 'Secretary',
@@ -239,22 +336,23 @@ async function seedClinic(clinicIndex, clinicDef, smToken) {
       role: 'SECRETARY',
       clinicId: clinic.id,
     }, { Authorization: `Bearer ${adminSession.accessToken}` });
-    await sleep(1500);
+    await sleep(800);
     await activateStaffMember(secretaryPhone, secretaryCreate.devTemporaryPassword);
   } catch (err) {
-    if (!String(err.message).includes('PHONE_ALREADY_REGISTERED')) throw err;
+    if (!String(err.message).includes('PHONE_ALREADY_REGISTERED') && !String(err.message).includes('already registered')) {
+      throw err;
+    }
     await loginPatient(secretaryPhone);
   }
 
-  await sleep(1500);
+  await sleep(800);
 
   const doctors = [];
   for (let d = 0; d < clinicDef.doctors.length; d++) {
     const docDef = clinicDef.doctors[d];
     const doctorPhone = seedPhone(clinicIndex, 10 + d);
-    let created;
     try {
-      created = await api('POST', '/auth/clinic/create-user', {
+      const created = await api('POST', '/auth/clinic/create-user', {
         phoneNumber: doctorPhone,
         firstName: docDef.firstName,
         lastName: docDef.lastName,
@@ -264,14 +362,16 @@ async function seedClinic(clinicIndex, clinicDef, smToken) {
         specialization: docDef.specialization,
         licenseNumber: docDef.licenseNumber,
       }, { Authorization: `Bearer ${adminSession.accessToken}` });
-      await sleep(1500);
+      await sleep(800);
       await activateStaffMember(doctorPhone, created.devTemporaryPassword);
     } catch (err) {
-      if (!String(err.message).includes('PHONE_ALREADY_REGISTERED')) throw err;
+      if (!String(err.message).includes('PHONE_ALREADY_REGISTERED') && !String(err.message).includes('already registered')) {
+        throw err;
+      }
       await loginPatient(doctorPhone);
     }
 
-    await sleep(1500);
+    await sleep(800);
 
     doctors.push({
       phoneNumber: doctorPhone,
@@ -280,6 +380,8 @@ async function seedClinic(clinicIndex, clinicDef, smToken) {
       password: DEMO_PASSWORD,
     });
   }
+
+  console.log(`   ✓ clinic ${clinic.id} · ${doctors.length} doctor(s)`);
 
   return {
     id: clinic.id,
@@ -293,8 +395,8 @@ async function seedClinic(clinicIndex, clinicDef, smToken) {
 }
 
 async function main() {
-  console.log(`Seeding demo clinics via ${API_BASE}`);
-  console.log('Dev seed phones: +96399900XXXX (WhatsApp skipped, devOtp in API responses)\n');
+  console.log(`Seeding 10 clinics + staff + 10 patients via ${API_BASE}`);
+  console.log('Seed phones +96399900XXXX — WhatsApp delivery skipped\n');
 
   const smToken = await ensureSystemManagerToken();
   const seededClinics = [];
@@ -303,53 +405,25 @@ async function main() {
     seededClinics.push(await seedClinic(i, CLINICS[i], smToken));
   }
 
-  console.log('\n── Demo patient ──');
-  const patientSession = await registerAndVerify({
-    ...PATIENT,
-    role: 'PATIENT',
-  });
-  console.log('Patient ready.');
+  console.log('\n── Patients (10) ──');
+  const seededPatients = [];
+  for (const patient of PATIENTS) {
+    const session = await registerAndVerify({ ...patient, role: 'PATIENT' });
+    seededPatients.push({
+      ...patient,
+      password: DEMO_PASSWORD,
+      userId: session.userId,
+    });
+    console.log(`   ✓ ${patient.phoneNumber} ${patient.firstName} ${patient.lastName}`);
+    await sleep(400);
+  }
 
   const output = {
     apiBase: API_BASE,
     password: DEMO_PASSWORD,
-    patient: {
-      ...PATIENT,
-      password: DEMO_PASSWORD,
-      accessToken: patientSession.accessToken,
-    },
+    note: 'All phones are +96399900XXXX seed numbers — no WhatsApp OTP was sent.',
+    patients: seededPatients,
     clinics: seededClinics,
-    postman: {
-      registerPatient: {
-        method: 'POST',
-        url: `${API_BASE}/auth/register`,
-        headers: { 'Idempotency-Key': '<uuid>', 'Content-Type': 'application/json' },
-        body: {
-          phoneNumber: '+963999000200',
-          firstName: 'New',
-          lastName: 'Patient',
-          password: DEMO_PASSWORD,
-          role: 'PATIENT',
-        },
-      },
-      verifyOtp: {
-        method: 'POST',
-        url: `${API_BASE}/auth/verify-otp`,
-        body: { phoneNumber: '+963999000200', otp: '<devOtp from register>', autoLogin: 'true' },
-      },
-      aiBooking: {
-        method: 'POST',
-        url: `${API_BASE}/ai/patient-booking-assistant`,
-        headers: { Authorization: 'Bearer <patient accessToken>' },
-        body: { sessionId: 'demo-session-1', message: 'Find cardiology clinics in Damascus' },
-      },
-      aiChat: {
-        method: 'POST',
-        url: `${API_BASE}/ai/patient-chat`,
-        headers: { Authorization: 'Bearer <patient accessToken>' },
-        body: { message: 'What should I bring to a cardiology visit?' },
-      },
-    },
   };
 
   const outPath = new URL('./seed-demo-output.json', import.meta.url);
@@ -359,9 +433,9 @@ async function main() {
 
   console.log('\n✓ Seed complete');
   console.log(`  Output: ${outPath.pathname.replace(/^\/([A-Za-z]:)/, '$1')}`);
-  console.log(`  Patient: ${PATIENT.phoneNumber} / ${DEMO_PASSWORD}`);
   console.log(`  Clinics: ${seededClinics.length}`);
-  console.log('\nOpen the patient test page: cd Frontend/patient-ai-test && npm run dev');
+  console.log(`  Patients: ${seededPatients.length}`);
+  console.log(`  Password for all: ${DEMO_PASSWORD}`);
 }
 
 main().catch((err) => {

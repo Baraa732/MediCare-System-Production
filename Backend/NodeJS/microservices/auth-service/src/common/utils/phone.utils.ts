@@ -121,17 +121,22 @@ export class PhoneUtils {
   }
 
   /**
-   * Dev-only seed phones (+96399900XXXX) — never deliver WhatsApp OTP/credentials.
-   * Used by tools/dev/seed-demo-clinics.mjs for Postman and AI assistant testing.
+   * Reserved seed phones (+96399900XXXX) — never deliver WhatsApp OTP/credentials.
+   * Used by tools/dev/seed-demo-clinics.mjs. Pattern alone is enough (no NODE_ENV gate)
+   * so Railway/prod seeding cannot accidentally message real WhatsApp numbers.
    */
   static isDevSeedPhone(phoneNumber: string): boolean {
-    if (process.env.NODE_ENV !== 'development') return false;
     try {
       const formatted = this.validateAndFormat(phoneNumber);
       return /^\+96399900\d{4}$/.test(formatted);
     } catch {
       return false;
     }
+  }
+
+  /** Expose OTP / temp password in API responses for seed phones or local development. */
+  static shouldExposeSeedSecrets(phoneNumber: string): boolean {
+    return process.env.NODE_ENV === 'development' || this.isDevSeedPhone(phoneNumber);
   }
 
   /**
