@@ -139,6 +139,9 @@ export class PlatformLogsService {
         timestamp: new Date().toISOString(),
         enabled: true,
         source: 'loki',
+        warning: entries.length
+          ? undefined
+          : 'No logs in the selected time range. Generate traffic or widen the range; logs ship from microservices after deploy.',
         entries,
         services: this.countBy(entries, 'service', Object.keys(SERVICE_CONTAINERS)),
         levels: LEVEL_ORDER.map((level) => ({
@@ -150,7 +153,11 @@ export class PlatformLogsService {
     }
 
     if (this.dockerUnavailable) {
-      return this.emptyResponse('Loki unavailable and Docker log fallback is disabled on this host.');
+      const lokiUrl = this.lokiTelemetryService.getBaseUrl();
+      return this.emptyResponse(
+        `Cannot reach Loki at ${lokiUrl}. Docker log fallback is disabled on Railway. `
+          + 'Ensure the loki service is running and microservices can push logs (LOKI_URL or Railway auto-detect).',
+      );
     }
 
     return this.fetchDockerLogs(query, rangeKey);

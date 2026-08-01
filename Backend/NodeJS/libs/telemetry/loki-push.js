@@ -2,12 +2,14 @@
 
 /**
  * Optional Loki push for Railway (no Docker socket / Promtail).
- * Enabled when LOKI_URL is set. Batches lines and POSTs to /loki/api/v1/push.
+ * Auto-enabled on Railway; otherwise enabled when LOKI_URL is set.
+ * Batches lines and POSTs to /loki/api/v1/push.
  */
 
 const http = require('http');
 const https = require('https');
 const { URL } = require('url');
+const { isRailwayRuntime, resolveLokiPushUrl } = require('./loki-url');
 
 const MAX_BATCH = Number(process.env.LOKI_PUSH_BATCH_SIZE || 40);
 const FLUSH_MS = Number(process.env.LOKI_PUSH_INTERVAL_MS || 1000);
@@ -20,10 +22,9 @@ let inflight = false;
 let dropCount = 0;
 
 function resolvePushUrl() {
-  const base = (process.env.LOKI_PUSH_URL || process.env.LOKI_URL || '').trim().replace(/\/$/, '');
-  if (!base) return null;
-  if (base.endsWith('/loki/api/v1/push')) return base;
-  return `${base}/loki/api/v1/push`;
+  const explicit = (process.env.LOKI_PUSH_URL || process.env.LOKI_URL || '').trim();
+  if (!explicit && !isRailwayRuntime()) return null;
+  return resolveLokiPushUrl();
 }
 
 function enqueue(serviceName, line) {

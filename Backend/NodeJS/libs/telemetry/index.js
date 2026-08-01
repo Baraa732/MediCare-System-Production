@@ -14,6 +14,7 @@ const { instrumentRedisClient, wrapRedisCommand, instrumentIoredisClient } = req
 const { setupMedicareLogging, logServiceReady, createMedicareNestLogger, overrideNestStaticLogger } = require('./setup-logging');
 const { registerPrometheusRoute } = require('./prometheus-metrics');
 const { getRequestContext, mergeRequestContext, runWithRequestContext } = require('./request-context');
+const { isRailwayRuntime, resolveLokiBaseUrl, resolveLokiPushUrl } = require('./loki-url');
 
 module.exports = {
   initTelemetry,
@@ -45,4 +46,7 @@ module.exports = {
   mergeRequestContext,
   runWithRequestContext,
   registerPrometheusRoute,
+  isRailwayRuntime,
+  resolveLokiBaseUrl,
+  resolveLokiPushUrl,
 };

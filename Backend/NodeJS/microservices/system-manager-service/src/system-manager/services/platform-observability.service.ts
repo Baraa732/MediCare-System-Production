@@ -10,6 +10,11 @@ import { PrometheusTelemetryService } from './prometheus-telemetry.service';
 import { OtelTopologyService } from './otel-topology.service';
 import { LokiTelemetryService } from './loki-telemetry.service';
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { resolveLokiBaseUrl } = require('@medicare/telemetry/loki-url') as {
+  resolveLokiBaseUrl: () => string;
+};
+
 type ServiceStatus = 'healthy' | 'degraded' | 'down';
 type TraceStatus = 'ok' | 'slow' | 'error';
 type MonitorStatus = 'up' | 'degraded' | 'down';
@@ -325,7 +330,7 @@ export class PlatformObservabilityService {
     const [prometheus, grafana, loki, jaeger, evolution] = await Promise.all([
       this.probeIntegration('Prometheus', 'Data Sources', 'Metrics collection and alerting', process.env.PROMETHEUS_URL || 'http://prometheus:9090/-/ready'),
       this.probeIntegration('Grafana', 'Data Sources', 'Metrics dashboards and visualization', process.env.GRAFANA_INTERNAL_URL || 'http://grafana:3000/api/health'),
-      this.probeIntegration('Loki', 'Data Sources', 'Structured log aggregation', `${process.env.LOKI_URL || 'http://loki:3100'}/ready`),
+      this.probeIntegration('Loki', 'Data Sources', 'Structured log aggregation', `${resolveLokiBaseUrl()}/ready`),
       this.probeIntegration('Jaeger', 'Tracing', 'Distributed trace visualization', `${process.env.JAEGER_QUERY_URL || 'http://jaeger:16686'}/api/services`),
       this.probeEvolutionApi(),
     ]);

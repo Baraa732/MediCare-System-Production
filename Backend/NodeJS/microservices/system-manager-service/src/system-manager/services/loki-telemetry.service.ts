@@ -4,6 +4,11 @@ import type { PlatformLogEntry, PlatformLogLevel } from './platform-logs.service
 import { SERVICE_CONTAINERS } from './platform-logs.service';
 import { normalizeServiceLabel, parseLogLine } from './log-line.parser';
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { resolveLokiBaseUrl } = require('@medicare/telemetry/loki-url') as {
+  resolveLokiBaseUrl: () => string;
+};
+
 export interface StructuredLogRow {
   timestamp: string;
   service: string;
@@ -18,16 +23,32 @@ export interface StructuredLogRow {
 @Injectable()
 export class LokiTelemetryService {
   private readonly logger = new Logger(LokiTelemetryService.name);
-  private readonly baseUrl = process.env.LOKI_URL || 'http://loki:3100';
+  private readonly baseUrl = resolveLokiBaseUrl();
   private readonly knownServices = Object.keys(SERVICE_CONTAINERS);
 
+  getBaseUrl(): string {
+    return this.baseUrl;
+  }
+
   async isAvailable(): Promise<boolean> {
-    try {
-      await axios.get(`${this.baseUrl}/ready`, { timeout: 2000 });
-      return true;
-    } catch {
-      return false;
+    const attempts = Number(process.env.LOKI_READY_RETRIES || 4);
+    const timeoutMs = Number(process.env.LOKI_READY_TIMEOUT_MS || 4000);
+    let lastError = 'unknown';
+
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+      try {
+        await axios.get(`${this.baseUrl}/ready`, { timeout: timeoutMs });
+        return true;
+      } catch (error) {
+        lastError = String(error);
+        if (attempt < attempts) {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+      }
     }
+
+    this.logger.warn(`Loki not reachable at ${this.baseUrl}/ready after ${attempts} attempts: ${lastError}`);
+    return false;
   }
 
   async queryLogs(params: {
