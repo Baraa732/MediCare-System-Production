@@ -24,6 +24,11 @@ export const COLORS = {
     subtle:  '#06b6d415',
     border:  '#06b6d440',
   },
+  secondary: {
+    default: '#8b5cf6',
+    subtle:  '#8b5cf615',
+    border:  '#8b5cf640',
+  },
   status: {
     success:    '#10b981',
     successBg:  '#10b98115',
@@ -57,4 +62,28 @@ export const RADIUS = {
   sm: 3,
   md: 4,
   lg: 6,
+  xl: 12,
+  xxl: 16,
+} as const
+
+/** Control Center visual extensions — keep MediCare palette, improve polish. */
+export const CC = {
+  glow: {
+    accent: '0 0 24px rgba(6, 182, 212, 0.22)',
+    accentSoft: '0 0 12px rgba(6, 182, 212, 0.12)',
+    success: '0 0 16px rgba(16, 185, 129, 0.25)',
+    error: '0 0 16px rgba(239, 68, 68, 0.25)',
+    warning: '0 0 16px rgba(245, 158, 11, 0.22)',
+  },
+  glass: {
+    bg: 'rgba(22, 27, 39, 0.72)',
+    bgStrong: 'rgba(28, 35, 51, 0.88)',
+    border: 'rgba(42, 49, 71, 0.9)',
+    blur: '12px',
+  },
+  layout: {
+    topbarH: 56,
+    sidebarExpanded: 240,
+    sidebarCollapsed: 64,
+  },
 } as const
