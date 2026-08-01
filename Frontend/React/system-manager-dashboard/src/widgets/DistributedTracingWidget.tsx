@@ -60,7 +60,7 @@ export default function DistributedTracingWidget({
   }, [observability])
 
   return (
-    <DashboardCard minHeight={280} delay={delay}>
+    <DashboardCard minHeight={520} delay={delay}>
       <WidgetHeader
         title="Distributed Tracing"
         subtitle={
@@ -69,7 +69,7 @@ export default function DistributedTracingWidget({
             : 'Obsidian force graph · live'
         }
       />
-      <ObsidianTraceGraph nodes={nodes} edges={edges} />
+      <ObsidianTraceGraph nodes={nodes} edges={edges} tall />
     </DashboardCard>
   )
 }

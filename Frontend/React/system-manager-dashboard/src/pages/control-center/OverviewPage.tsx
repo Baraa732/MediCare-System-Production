@@ -190,17 +190,18 @@ export default function OverviewPage() {
       <SectionHeader title="Operations grid" meta="Wired to platform APIs" />
 
       <div className={styles.grid}>
-        <div className={styles.span3}>
+        <div className={styles.span4}>
           <SystemOverviewWidget delay={0.05} rows={serviceRows} loading={obs.loading} />
         </div>
-        <div className={styles.span3}>
-          <InfrastructureMapWidget delay={0.08} clinics={clinics} />
+        <div className={styles.span4}>
+          <LiveSystemLoadWidget delay={0.08} load={load} />
         </div>
-        <div className={styles.span3}>
-          <LiveSystemLoadWidget delay={0.11} load={load} />
+        <div className={styles.span4}>
+          <ActiveAlertsWidget delay={0.11} alerts={alerts} />
         </div>
-        <div className={styles.span3}>
-          <ActiveAlertsWidget delay={0.14} alerts={alerts} />
+
+        <div className={styles.span12}>
+          <InfrastructureMapWidget delay={0.14} clinics={clinics} />
         </div>
 
         <div className={styles.span4}>
@@ -220,16 +221,17 @@ export default function OverviewPage() {
           <SystemLogsWidget delay={0.24} logs={logsQ.data} />
         </div>
 
-        <div className={styles.span3}>
+        <div className={styles.span12}>
           <DistributedTracingWidget delay={0.26} observability={obs.data} />
         </div>
-        <div className={styles.span3}>
+
+        <div className={styles.span4}>
           <DatabaseOverviewWidget delay={0.28} health={healthQ.health} />
         </div>
-        <div className={styles.span3}>
+        <div className={styles.span4}>
           <QueueOverviewWidget delay={0.3} queues={queuesQ.data} />
         </div>
-        <div className={styles.span3}>
+        <div className={styles.span4}>
           <SecurityOverviewWidget delay={0.32} security={securityQ.data} />
         </div>
 

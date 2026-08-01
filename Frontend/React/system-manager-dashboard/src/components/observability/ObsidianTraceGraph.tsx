@@ -35,10 +35,12 @@ export default function ObsidianTraceGraph({
   nodes,
   edges,
   onNodeClick,
+  tall = false,
 }: {
   nodes: TraceGraphNode[]
   edges: TraceGraphEdge[]
   onNodeClick?: (node: TraceGraphNode) => void
+  tall?: boolean
 }) {
   const option = useMemo(() => {
     const maxReq = Math.max(1, ...nodes.map((n) => n.reqRate ?? 0))
@@ -131,20 +133,24 @@ export default function ObsidianTraceGraph({
     }
   }, [nodes, edges])
 
+  const shellClass = [styles.traceCanvas, tall ? styles.traceCanvasTall : '']
+    .filter(Boolean)
+    .join(' ')
+
   if (!nodes.length) {
     return (
-      <div className={styles.traceCanvas}>
+      <div className={shellClass}>
         <EmptyState title="No service map yet" hint="Waiting for observability topology." />
       </div>
     )
   }
 
   return (
-    <div className={styles.traceCanvas} role="img" aria-label="Distributed tracing graph">
+    <div className={shellClass} role="img" aria-label="Distributed tracing graph">
       <ReactEChartsCore
         echarts={echarts}
         option={option}
-        style={{ height: '100%', width: '100%', minHeight: 200 }}
+        style={{ height: '100%', width: '100%', minHeight: tall ? 420 : 200 }}
         opts={{ renderer: 'canvas' }}
         onEvents={{
           click: (params: { dataType?: string; data?: { raw?: TraceGraphNode } }) => {

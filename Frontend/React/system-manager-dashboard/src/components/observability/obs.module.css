@@ -574,6 +574,11 @@
   overflow: hidden;
 }
 
+.traceCanvasTall {
+  min-height: 420px;
+  height: 420px;
+}
+
 .traceNode {
   position: absolute;
   transform: translate(-50%, -50%);

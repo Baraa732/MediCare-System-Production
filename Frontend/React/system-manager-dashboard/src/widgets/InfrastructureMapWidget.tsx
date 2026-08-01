@@ -4,6 +4,7 @@ import { LiveIndicator } from '../components/observability'
 import HudGeoMap, { type HudArc, type HudMarker } from '../components/maps/HudGeoMap'
 import type { Clinic } from '../api/types'
 import { clinicsWithCoords } from '../pages/control-center/overviewModel'
+import mapStyles from '../components/maps/hudMap.module.css'
 
 function clinicStatus(status: string): HudMarker['status'] {
   const s = status.toUpperCase()
@@ -46,7 +47,7 @@ export default function InfrastructureMapWidget({
   }, [markers])
 
   return (
-    <DashboardCard minHeight={280} delay={delay}>
+    <DashboardCard minHeight={520} delay={delay}>
       <WidgetHeader
         title="Infrastructure Map"
         subtitle="Clinic fleet · live coordinates"
@@ -58,6 +59,7 @@ export default function InfrastructureMapWidget({
         title="CLINIC FLEET"
         subtitle="ACTIVE"
         emptyHint="No clinics with latitude/longitude yet"
+        heightClass={mapStyles.tall}
       />
     </DashboardCard>
   )
