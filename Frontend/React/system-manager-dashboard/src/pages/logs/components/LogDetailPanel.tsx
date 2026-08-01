@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Box, Chip, IconButton, Tab, Tabs, Typography } from '@mui/material'
 import { alpha, useTheme } from '@mui/material/styles'
-import { Braces, Fingerprint, GripVertical, Hash, Layers, Server, X } from 'lucide-react'
+import { Braces, GripVertical, X } from 'lucide-react'
 import type { PlatformLogEntry } from '../../../api/types'
 import {
   LOG_LEVEL_COLORS,
   LOG_LEVEL_LABELS,
   buildLogJsonDocument,
+  extractStructuredFields,
   formatFriendlyTimestamp,
+  formatLogTime,
   getTableLogDisplay,
-  humanizeLogMessage,
   isJsonLike,
 } from '../logUtils'
 import JsonLogViewer from './JsonLogViewer'
@@ -43,7 +44,7 @@ export default function LogDetailPanel({ entry, onClose }: LogDetailPanelProps) 
 
   const when = entry ? formatFriendlyTimestamp(entry.timestamp) : null
   const tableDisplay = entry ? getTableLogDisplay(entry) : null
-  const humanized = entry ? humanizeLogMessage(entry) : null
+  const structured = entry ? extractStructuredFields(entry) : null
   const fullDoc = useMemo(() => (entry ? buildLogJsonDocument(entry) : null), [entry])
 
   const tabContent = useMemo(() => {
@@ -232,7 +233,7 @@ export default function LogDetailPanel({ entry, onClose }: LogDetailPanelProps) 
             />
           </Box>
           <Typography sx={{ fontSize: 13, fontWeight: 700, lineHeight: 1.35, color: 'text.primary' }}>
-            {tableDisplay?.headline ?? humanized?.title}
+            {tableDisplay?.headline}
           </Typography>
           {tableDisplay?.subtitle && (
             <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.35 }}>
@@ -245,13 +246,19 @@ export default function LogDetailPanel({ entry, onClose }: LogDetailPanelProps) 
         </IconButton>
       </Box>
 
-      <Box sx={{ px: 1.5, py: 0.75, display: 'flex', flexWrap: 'wrap', gap: 0.5, borderBottom: 1, borderColor: 'divider', flexShrink: 0 }}>
-        <Chip icon={<Server size={12} />} label={entry.service} size="small" variant="outlined" sx={{ height: 24, fontSize: 11 }} />
-        {when && <Chip label={`${when.relative}`} size="small" variant="outlined" sx={{ height: 24, fontSize: 11 }} />}
-        {entry.traceId && <Chip icon={<Fingerprint size={12} />} label="trace" size="small" variant="outlined" sx={{ height: 24, fontSize: 11 }} />}
-        {entry.requestId && <Chip icon={<Hash size={12} />} label="request" size="small" variant="outlined" sx={{ height: 24, fontSize: 11 }} />}
-        {entry.spanId && <Chip icon={<Layers size={12} />} label="span" size="small" variant="outlined" sx={{ height: 24, fontSize: 11 }} />}
-      </Box>
+      {structured && (
+        <div className="logs-detail-fields">
+          <div><div className="logs-detail-field__key">Service</div><div className="logs-detail-field__val">{entry.service}</div></div>
+          <div><div className="logs-detail-field__key">Time</div><div className="logs-detail-field__val">{formatLogTime(entry.timestamp)}</div></div>
+          {structured.method && <div><div className="logs-detail-field__key">Method</div><div className="logs-detail-field__val">{structured.method}</div></div>}
+          {structured.path && <div><div className="logs-detail-field__key">Path</div><div className="logs-detail-field__val">{structured.path}</div></div>}
+          {structured.statusCode != null && <div><div className="logs-detail-field__key">Status</div><div className="logs-detail-field__val">{structured.statusCode}</div></div>}
+          {structured.durationMs != null && <div><div className="logs-detail-field__key">Duration</div><div className="logs-detail-field__val">{structured.durationMs}ms</div></div>}
+          {structured.error && <div style={{ gridColumn: '1 / -1' }}><div className="logs-detail-field__key">Error</div><div className="logs-detail-field__val">{structured.error}</div></div>}
+          {entry.traceId && <div><div className="logs-detail-field__key">Trace</div><div className="logs-detail-field__val">{entry.traceId}</div></div>}
+          {entry.requestId && <div><div className="logs-detail-field__key">Request</div><div className="logs-detail-field__val">{entry.requestId}</div></div>}
+        </div>
+      )}
 
       <Tabs
         value={tab}

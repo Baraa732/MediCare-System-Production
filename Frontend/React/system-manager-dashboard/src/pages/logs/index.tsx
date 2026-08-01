@@ -1,16 +1,15 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Alert, Box, Chip, Typography } from '@mui/material'
+import { Alert, Box } from '@mui/material'
 import { alpha } from '@mui/material/styles'
-import { AlertTriangle, FileText, ScrollText, Siren, Zap } from 'lucide-react'
-import { AdvancedPageHeader, AdvancedPanel, CommandMetric, ObservabilityPage, PbiGrid, StatusDot } from '../../components/advanced/AdvancedPage'
-import { MotionHeader, MotionMetricGridItem, MotionPanel, MotionToolbar } from '../../components/motion/AnimatedSections'
+import { FileText } from 'lucide-react'
+import { AdvancedPageHeader, AdvancedPanel, ObservabilityPage } from '../../components/advanced/AdvancedPage'
+import { MotionHeader, MotionPanel } from '../../components/motion/AnimatedSections'
 import { PageMotion } from '../../components/motion/PageMotion'
 import { usePlatformLogs } from '../../hooks/usePlatformLogs'
 import { notify } from '../../lib/toast'
 import { parseLogsSearchParams, useLogsFilterStore } from '../../store/logsFilterStore'
 import type { PlatformLogEntry, PlatformLogLevel } from '../../api/types'
-import LiveLogsStream from './components/LiveLogsStream'
 import LogDetailPanel from './components/LogDetailPanel'
 import LogsFilterBar from './components/LogsFilterBar'
 import LogsFilterHeader from './components/LogsFilterHeader'
@@ -26,6 +25,7 @@ import {
   type LogSortOrder,
   type LogViewDensity,
 } from './logUtils'
+import './logs.css'
 
 const LogsChartsRow = lazy(() => import('./components/LogsChartsRow'))
 
@@ -36,14 +36,13 @@ export default function LogsPage() {
   const [search, setSearch] = useState('')
   const [range, setRange] = useState('1h')
   const [live, setLive] = useState(true)
-  const [showLiveStream, setShowLiveStream] = useState(false)
   const [selectedServices, setSelectedServices] = useState<string[]>([])
   const [selectedLevels, setSelectedLevels] = useState<PlatformLogLevel[]>([])
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null)
   const [pinnedEntry, setPinnedEntry] = useState<PlatformLogEntry | null>(null)
   const [filtersBootstrapped, setFiltersBootstrapped] = useState(false)
   const [sortOrder, setSortOrder] = useState<LogSortOrder>('newest')
-  const [density, setDensity] = useState<LogViewDensity>('comfortable')
+  const [density, setDensity] = useState<LogViewDensity>('compact')
 
   const errorsOnly = selectedLevels.length === 1 && selectedLevels[0] === 'ERROR'
 
@@ -65,6 +64,7 @@ export default function LogsPage() {
   const searchQuery = search.trim()
   const apiServices = selectedServices.length ? selectedServices : undefined
   const apiLevels = selectedLevels.length ? selectedLevels : undefined
+  const hasClientFilters = Boolean(apiServices?.length || apiLevels?.length || searchQuery)
 
   const { data, rawEntries, entries, loading, isRefreshing, error, refresh } = usePlatformLogs({
     services: apiServices,
@@ -111,7 +111,7 @@ export default function LogsPage() {
       setSelectedEntryId(null)
       setPinnedEntry(null)
     }
-  }, [apiLevels, apiServices, range, searchQuery, selectedEntryId])
+  }, [apiLevels, apiServices, range, searchQuery, rawEntries, selectedEntryId])
 
   const facetBase = useMemo(
     () =>
@@ -122,15 +122,25 @@ export default function LogsPage() {
     [apiServices, rawEntries, searchQuery],
   )
 
-  const levelCounts = useMemo(() => countLevelsFromEntries(facetBase), [facetBase])
+  const levelCounts = useMemo(() => {
+    if (!hasClientFilters && data?.levels?.length) {
+      return data.levels.map((item) => ({
+        level: item.level as PlatformLogLevel,
+        count: item.count,
+      }))
+    }
+    return countLevelsFromEntries(facetBase)
+  }, [data?.levels, facetBase, hasClientFilters])
+
   const serviceOptions = useMemo(
     () => countServicesFromEntries(facetBase, data?.services?.map((service) => service.name) ?? []),
     [data?.services, facetBase],
   )
-  const chartHistogram = useMemo(
-    () => buildHistogramFromEntries(visibleEntries, range),
-    [range, visibleEntries],
-  )
+
+  const chartHistogram = useMemo(() => {
+    if (!hasClientFilters && data?.histogram?.length) return data.histogram
+    return buildHistogramFromEntries(visibleEntries, range)
+  }, [data?.histogram, hasClientFilters, range, visibleEntries])
 
   const metrics = useMemo(() => {
     const errors = visibleEntries.filter((entry) => entry.level === 'ERROR').length
@@ -138,36 +148,29 @@ export default function LogsPage() {
     const total = visibleEntries.length
     const errorServices = new Set(visibleEntries.filter((e) => e.level === 'ERROR').map((e) => e.service)).size
     const errorRate = total ? Math.round((errors / total) * 1000) / 10 : 0
-    const peakBucket = chartHistogram.reduce(
-      (best, bucket) => {
-        const sum = bucket.error + bucket.warn + bucket.info + bucket.debug + bucket.trace
-        return sum > best.sum ? { sum } : best
-      },
-      { sum: 0 },
-    )
-    return { total, errors, warns, errorRate, errorServices, peakBucket: peakBucket.sum }
-  }, [chartHistogram, visibleEntries])
+    return { total, errors, warns, errorRate, errorServices }
+  }, [visibleEntries])
 
   const filterChips = useMemo(() => {
     const chips: Array<{ key: string; label: string; onRemove: () => void }> = []
     for (const service of selectedServices) {
       chips.push({
         key: `service-${service}`,
-        label: `service:${service}`,
+        label: service.replace(/-service$/, ''),
         onRemove: () => setSelectedServices((prev) => prev.filter((s) => s !== service)),
       })
     }
     for (const level of selectedLevels) {
       chips.push({
         key: `level-${level}`,
-        label: `level:${level}`,
+        label: level,
         onRemove: () => setSelectedLevels((prev) => prev.filter((l) => l !== level)),
       })
     }
     if (searchQuery) {
       chips.push({
         key: 'search',
-        label: `search:"${searchQuery}"`,
+        label: `"${searchQuery}"`,
         onRemove: () => setSearch(''),
       })
     }
@@ -182,12 +185,11 @@ export default function LogsPage() {
     anchor.download = `medicare-logs-${new Date().toISOString()}.json`
     anchor.click()
     URL.revokeObjectURL(url)
-    notify.success(`Exported ${visibleEntries.length.toLocaleString()} log entries.`)
+    notify.success(`Exported ${visibleEntries.length.toLocaleString()} entries.`)
   }
 
   const handleRefresh = useCallback(() => {
     void refresh()
-    notify.success('Log stream refreshed.')
   }, [refresh])
 
   const clearAllFilters = () => {
@@ -200,165 +202,129 @@ export default function LogsPage() {
     setSelectedLevels(enabled ? ['ERROR'] : [])
   }
 
-  const statusLabel = metrics.errors > 0 ? 'Errors Detected' : live ? 'Live Stream' : 'Paused'
+  const statusLabel = metrics.errors > 0 ? `${metrics.errors} errors` : live ? 'Live' : 'Paused'
   const statusColor = metrics.errors > 0 ? LOG_LEVEL_COLORS.ERROR : '#10b981'
 
   return (
     <ObservabilityPage>
       <PageMotion motionKey="logs">
-      <MotionHeader>
-      <AdvancedPageHeader
-        title="Log Explorer"
-        eyebrow="Observability / Logs"
-        description="Structured logs with readable summaries and a JSON inspector panel."
-        icon={FileText}
-        color="#06b6d4"
-        status={statusLabel}
-        compact
-      >
-        <PbiGrid spacing={1}>
-          <MotionMetricGridItem index={0} size={{ xs: 6, sm: 4, md: 2.4 }}><CommandMetric label="Total Events" value={metrics.total.toLocaleString()} helper={`Window: ${range}`} color="#06b6d4" icon={ScrollText} /></MotionMetricGridItem>
-          <MotionMetricGridItem index={1} size={{ xs: 6, sm: 4, md: 2.4 }}><CommandMetric label="Errors" value={metrics.errors.toLocaleString()} helper={metrics.errors ? 'ERROR level only' : 'Clear'} color="#ef4444" icon={Siren} /></MotionMetricGridItem>
-          <MotionMetricGridItem index={2} size={{ xs: 6, sm: 4, md: 2.4 }}><CommandMetric label="Warnings" value={metrics.warns.toLocaleString()} helper="WARN level" color="#f59e0b" icon={AlertTriangle} /></MotionMetricGridItem>
-          <MotionMetricGridItem index={3} size={{ xs: 6, sm: 4, md: 2.4 }}><CommandMetric label="Error Rate" value={`${metrics.errorRate}%`} helper={`${metrics.errorServices} services`} color="#f97316" icon={Zap} /></MotionMetricGridItem>
-          <MotionMetricGridItem index={4} size={{ xs: 6, sm: 4, md: 2.4 }}><CommandMetric label="Peak Bucket" value={metrics.peakBucket.toLocaleString()} helper="Max / interval" color="#8b5cf6" icon={FileText} /></MotionMetricGridItem>
-        </PbiGrid>
-      </AdvancedPageHeader>
-      </MotionHeader>
-
-      {error && <Alert severity="error" sx={{ flexShrink: 0 }}>{error}</Alert>}
-      {data?.warning && <Alert severity="warning" sx={{ flexShrink: 0 }}>{data.warning}</Alert>}
-
-      <MotionPanel index={0}>
-      <Suspense fallback={<Box sx={{ height: 220, borderRadius: 1, bgcolor: 'action.hover' }} />}>
-        <LogsChartsRow histogram={chartHistogram} levels={levelCounts} />
-      </Suspense>
-      </MotionPanel>
-
-      <MotionPanel index={1}>
-      <AdvancedPanel
-        title="Log Stream"
-        caption={`${visibleEntries.length.toLocaleString()} events · ${data?.source ?? 'unknown'} source · filtered by log level`}
-        dense
-        bodySx={{ p: 0, display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}
-        actions={
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Chip
-              label={showLiveStream ? 'Hide tail' : 'Show tail'}
-              size="small"
-              variant="outlined"
-              onClick={() => setShowLiveStream((v) => !v)}
-              sx={{ height: 22, fontSize: 10, cursor: 'pointer' }}
+        <div className="logs-page">
+          <MotionHeader>
+            <AdvancedPageHeader
+              title="Logs"
+              eyebrow=""
+              description=""
+              icon={FileText}
+              color="#06b6d4"
+              status={statusLabel}
+              compact
+              actions={
+                <div className="logs-stats">
+                  <div className="logs-stat">
+                    <span className="logs-stat__value" style={{ color: '#06b6d4' }}>{metrics.total.toLocaleString()}</span>
+                    <span className="logs-stat__label">{range} total</span>
+                  </div>
+                  <div className="logs-stat">
+                    <span className="logs-stat__value" style={{ color: LOG_LEVEL_COLORS.ERROR }}>{metrics.errors}</span>
+                    <span className="logs-stat__label">errors</span>
+                  </div>
+                  <div className="logs-stat">
+                    <span className="logs-stat__value" style={{ color: LOG_LEVEL_COLORS.WARN }}>{metrics.warns}</span>
+                    <span className="logs-stat__label">warnings</span>
+                  </div>
+                  <div className="logs-stat">
+                    <span className="logs-stat__value">{metrics.errorRate}%</span>
+                    <span className="logs-stat__label">error rate</span>
+                  </div>
+                  <div className="logs-stat">
+                    <span className="logs-stat__value">{metrics.errorServices}</span>
+                    <span className="logs-stat__label">svc w/ errors</span>
+                  </div>
+                </div>
+              }
             />
-            <StatusDot color={statusColor} />
-            <Chip
-              label={live ? 'LIVE' : 'PAUSED'}
-              size="small"
-              sx={{ height: 22, fontSize: 10, fontWeight: 700, bgcolor: alpha(statusColor, 0.12), color: statusColor }}
-            />
-          </Box>
-        }
-      >
-        <Box sx={{ px: 1.5, pt: 1, flexShrink: 0 }}>
-          <MotionToolbar>
-          <LogsToolbar
-            search={search}
-            range={range}
-            live={live}
-            loading={loading}
-            isRefreshing={isRefreshing}
-            sortOrder={sortOrder}
-            density={density}
-            errorsOnly={errorsOnly}
-            source={data?.source}
-            onSearchChange={setSearch}
-            onRangeChange={setRange}
-            onLiveChange={setLive}
-            onSortOrderChange={setSortOrder}
-            onDensityChange={setDensity}
-            onErrorsOnlyChange={handleErrorsOnlyChange}
-            onRefresh={handleRefresh}
-            onDownload={handleDownload}
-          />
-          </MotionToolbar>
-        </Box>
+          </MotionHeader>
 
-        <LogsFilterHeader
-          services={serviceOptions}
-          levelCounts={levelCounts}
-          selectedServices={selectedServices}
-          selectedLevels={selectedLevels}
-          onServicesChange={setSelectedServices}
-          onLevelsChange={setSelectedLevels}
-        />
+          {error && <Alert severity="error" sx={{ flexShrink: 0 }}>{error}</Alert>}
+          {data?.warning && <Alert severity="warning" sx={{ flexShrink: 0 }}>{data.warning}</Alert>}
 
-        <LogsFilterBar filters={filterChips} onClearAll={clearAllFilters} />
+          <MotionPanel index={0}>
+            <Suspense fallback={<Box sx={{ height: 160, borderRadius: 1, bgcolor: 'action.hover' }} />}>
+              <LogsChartsRow histogram={chartHistogram} levels={levelCounts} totalEvents={metrics.total} />
+            </Suspense>
+          </MotionPanel>
 
-        <Box
-          sx={{
-            display: 'flex',
-            flex: 1,
-            minHeight: 0,
-            borderTop: 1,
-            borderColor: 'divider',
-            flexDirection: { xs: 'column', lg: 'row' },
-            overflow: { xs: 'auto', lg: 'hidden' },
-            alignItems: { lg: 'stretch' },
-          }}
-        >
-          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
-            {showLiveStream && (
-              <Box sx={{ flexShrink: 0 }}>
-                <LiveLogsStream
-                  entries={visibleEntries}
-                  live={live}
-                  onSelect={handleSelectEntry}
-                  selectedId={selectedEntryId}
+          <MotionPanel index={1}>
+            <AdvancedPanel
+              title="Stream"
+              caption={`${visibleEntries.length.toLocaleString()} events`}
+              dense
+              bodySx={{ p: 0, display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}
+              actions={
+                <Box
+                  sx={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    bgcolor: statusColor,
+                    boxShadow: live ? `0 0 8px ${alpha(statusColor, 0.6)}` : 'none',
+                  }}
                 />
-              </Box>
-            )}
+              }
+            >
+              <LogsToolbar
+                search={search}
+                range={range}
+                live={live}
+                loading={loading}
+                isRefreshing={isRefreshing}
+                sortOrder={sortOrder}
+                density={density}
+                errorsOnly={errorsOnly}
+                source={data?.source}
+                onSearchChange={setSearch}
+                onRangeChange={setRange}
+                onLiveChange={setLive}
+                onSortOrderChange={setSortOrder}
+                onDensityChange={setDensity}
+                onErrorsOnlyChange={handleErrorsOnlyChange}
+                onRefresh={handleRefresh}
+                onDownload={handleDownload}
+              />
 
-            {metrics.errors > 0 && (
+              <LogsFilterHeader
+                services={serviceOptions}
+                levelCounts={levelCounts}
+                selectedServices={selectedServices}
+                selectedLevels={selectedLevels}
+                onServicesChange={setSelectedServices}
+                onLevelsChange={setSelectedLevels}
+              />
+
+              <LogsFilterBar filters={filterChips} onClearAll={clearAllFilters} />
+
               <Box
                 sx={{
-                  px: 1.5,
-                  py: 0.6,
-                  borderBottom: 1,
-                  borderColor: alpha(LOG_LEVEL_COLORS.ERROR, 0.2),
-                  bgcolor: alpha(LOG_LEVEL_COLORS.ERROR, 0.05),
                   display: 'flex',
-                  alignItems: 'center',
-                  gap: 1,
-                  flexShrink: 0,
+                  flex: 1,
+                  minHeight: 0,
+                  flexDirection: { xs: 'column', lg: 'row' },
+                  overflow: { xs: 'auto', lg: 'hidden' },
                 }}
               >
-                <Siren size={14} color={LOG_LEVEL_COLORS.ERROR} />
-                <Typography sx={{ fontSize: 12, color: LOG_LEVEL_COLORS.ERROR, fontWeight: 600 }}>
-                  {metrics.errors} ERROR-level event{metrics.errors === 1 ? '' : 's'} in view
-                </Typography>
+                <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
+                  <LogsTable
+                    entries={visibleEntries}
+                    selectedId={selectedEntryId}
+                    density={density}
+                    onSelect={handleSelectEntry}
+                  />
+                </Box>
+                <LogDetailPanel entry={selectedEntry} onClose={handleCloseEntry} />
               </Box>
-            )}
-
-            {errorsOnly && metrics.errors === 0 && visibleEntries.length > 0 && (
-              <Box sx={{ px: 1.5, py: 0.6, borderBottom: 1, borderColor: 'divider', flexShrink: 0 }}>
-                <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
-                  No ERROR-level logs in this window. Warnings (4xx) are WARN level — use the WARN filter to inspect them.
-                </Typography>
-              </Box>
-            )}
-
-            <LogsTable
-              entries={visibleEntries}
-              selectedId={selectedEntryId}
-              density={density}
-              onSelect={handleSelectEntry}
-            />
-          </Box>
-
-          <LogDetailPanel entry={selectedEntry} onClose={handleCloseEntry} />
-        </Box>
-      </AdvancedPanel>
-      </MotionPanel>
+            </AdvancedPanel>
+          </MotionPanel>
+        </div>
       </PageMotion>
     </ObservabilityPage>
   )

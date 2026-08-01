@@ -301,6 +301,18 @@ export function displayLogMessage(entry: PlatformLogEntry): { title: string; hin
 export interface TableLogDisplay {
   headline: string
   subtitle: string | null
+  context: string | null
+}
+
+export interface StructuredLogFields {
+  method?: string
+  path?: string
+  statusCode?: number
+  durationMs?: number
+  error?: string
+  logger?: string
+  groupId?: string
+  broker?: string
 }
 
 function truncateText(value: string, max: number): string {
@@ -309,54 +321,212 @@ function truncateText(value: string, max: number): string {
   return `${trimmed.slice(0, max)}…`
 }
 
-function extractFriendlyFromJson(raw: string): string | null {
-  const parsed = tryParseJson(raw)
-  if (!parsed || typeof parsed !== 'object') return null
-  const obj = parsed as Record<string, unknown>
-  for (const key of ['message', 'msg', 'error', 'detail', 'description', 'reason']) {
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null
+}
+
+function readString(obj: Record<string, unknown>, ...keys: string[]): string | null {
+  for (const key of keys) {
     const val = obj[key]
     if (typeof val === 'string' && val.trim()) return val.trim()
   }
   return null
 }
 
+function readNumber(obj: Record<string, unknown>, ...keys: string[]): number | undefined {
+  for (const key of keys) {
+    const val = obj[key]
+    const num = typeof val === 'number' ? val : Number(val)
+    if (Number.isFinite(num)) return num
+  }
+  return undefined
+}
+
+/** Split Nest/Kafka style lines: `ERROR [Context] message {json}` */
+function splitNestStyleLine(raw: string): {
+  context: string | null
+  text: string
+  json: Record<string, unknown> | null
+} {
+  const trimmed = raw.trim()
+  const nest = trimmed.match(/^(?:ERROR|WARN|INFO|DEBUG|TRACE)\s+\[([^\]]+)\]\s+(.+)$/i)
+  if (!nest) {
+    const jsonOnly = tryParseJson(trimmed)
+    if (jsonOnly && asRecord(jsonOnly)) {
+      return { context: null, text: '', json: asRecord(jsonOnly) }
+    }
+    const jsonTail = trimmed.match(/^(.+?)\s+(\{[\s\S]+\})\s*$/)
+    if (jsonTail) {
+      const parsed = tryParseJson(jsonTail[2])
+      return {
+        context: null,
+        text: jsonTail[1].trim(),
+        json: asRecord(parsed),
+      }
+    }
+    return { context: null, text: trimmed, json: null }
+  }
+
+  let rest = nest[2].trim()
+  let json: Record<string, unknown> | null = null
+  const jsonTail = rest.match(/^(.+?)\s+(\{[\s\S]+\})\s*$/)
+  if (jsonTail) {
+    rest = jsonTail[1].trim()
+    json = asRecord(tryParseJson(jsonTail[2]))
+  }
+
+  return { context: nest[1], text: rest, json }
+}
+
+export function extractStructuredFields(entry: PlatformLogEntry): StructuredLogFields {
+  const raw = (entry.message || entry.raw || '').trim()
+  const parsed = tryParseJson(raw)
+  const obj = asRecord(parsed) ?? splitNestStyleLine(raw).json
+  if (!obj) return {}
+
+  return {
+    method: readString(obj, 'method', 'httpMethod') ?? undefined,
+    path: readString(obj, 'path', 'url', 'route') ?? undefined,
+    statusCode: readNumber(obj, 'status_code', 'statusCode', 'status'),
+    durationMs: readNumber(obj, 'duration_ms', 'durationMs', 'duration'),
+    error: readString(obj, 'error', 'message', 'msg', 'detail', 'description', 'reason') ?? undefined,
+    logger: readString(obj, 'logger') ?? undefined,
+    groupId: readString(obj, 'groupId', 'group_id') ?? undefined,
+    broker: readString(obj, 'broker') ?? undefined,
+  }
+}
+
+function formatHttpSummary(fields: StructuredLogFields): string | null {
+  const method = fields.method?.toUpperCase()
+  const path = fields.path
+  const status = fields.statusCode
+  if (!method && !path && status == null) return null
+
+  const left = [method, path].filter(Boolean).join(' ')
+  if (status != null) return left ? `${left} → ${status}` : `HTTP ${status}`
+  return left || null
+}
+
+function formatKafkaSummary(text: string, fields: StructuredLogFields): { headline: string; detail: string | null } {
+  const err = fields.error ?? ''
+  const lower = `${text} ${err}`.toLowerCase()
+
+  if (lower.includes('rebalancing') || lower.includes('re-join')) {
+    return {
+      headline: 'Consumer group rebalancing',
+      detail: truncateText(err || 'Kafka is reassigning partitions', 120),
+    }
+  }
+  if (lower.includes('heartbeat') && lower.includes('rejoin')) {
+    return {
+      headline: 'Heartbeat rejected during rebalance',
+      detail: truncateText(err || 'Temporary — consumer will rejoin', 120),
+    }
+  }
+  if (lower.includes('consumer has joined')) {
+    return {
+      headline: 'Consumer joined group',
+      detail: fields.groupId ? truncateText(fields.groupId, 80) : null,
+    }
+  }
+  if (text.toLowerCase().includes('response heartbeat')) {
+    return {
+      headline: 'Kafka heartbeat',
+      detail: truncateText(err || text.replace(/^Response\s+/i, ''), 120),
+    }
+  }
+
+  return {
+    headline: truncateText(text.replace(/^Response\s+/i, '') || 'Kafka event', 100),
+    detail: err ? truncateText(err, 120) : fields.groupId ? truncateText(fields.groupId, 80) : null,
+  }
+}
+
+function formatRequestLifecycle(text: string, fields: StructuredLogFields): { headline: string; detail: string | null } {
+  const http = formatHttpSummary(fields)
+  const lower = text.toLowerCase()
+
+  if (lower.includes('request completed with client error')) {
+    return {
+      headline: http ?? 'Client error response',
+      detail: fields.durationMs != null ? `${fields.durationMs}ms` : fields.error ?? null,
+    }
+  }
+  if (lower.includes('request completed')) {
+    return {
+      headline: http ?? 'Request completed',
+      detail: fields.durationMs != null ? `${fields.durationMs}ms` : null,
+    }
+  }
+  if (lower.includes('request started')) {
+    return {
+      headline: http ?? 'Request started',
+      detail: null,
+    }
+  }
+  return { headline: truncateText(text, 120), detail: null }
+}
+
 /** Short, readable summary for the logs table — never dumps raw JSON blobs. */
 export function getTableLogDisplay(entry: PlatformLogEntry): TableLogDisplay {
-  const humanized = humanizeLogMessage(entry)
   const raw = (entry.message || entry.raw || '').trim()
-  const fromJson = extractFriendlyFromJson(raw)
+  const fields = extractStructuredFields(entry)
+  const { context, text, json } = splitNestStyleLine(raw)
+  const mergedFields = { ...fields, ...Object.fromEntries(
+    Object.entries(json ?? {}).filter(([, v]) => v != null),
+  ) } as StructuredLogFields
 
-  // Prefer a readable title; keep enough of the real message so long errors remain useful.
-  // CSS line-clamping handles overflow — avoid aggressive truncation here.
-  const headline = truncateText(humanized.title || entry.service, 220)
-
+  const lower = `${text} ${raw}`.toLowerCase()
+  let headline = ''
   let subtitle: string | null = null
-  if (fromJson && !fromJson.toLowerCase().includes(headline.toLowerCase())) {
-    subtitle = truncateText(fromJson, 320)
-  } else if (humanized.subtitle && humanized.subtitle !== humanized.title) {
-    const clean = isJsonLike(humanized.subtitle)
-      ? summarizeJsonPreview(tryParseJson(humanized.subtitle) ?? humanized.subtitle)
-      : humanized.subtitle
-    if (!clean.toLowerCase().includes(headline.toLowerCase())) {
-      subtitle = truncateText(clean, 320)
-    }
+  let ctx = context
+
+  if (mergedFields.logger?.toLowerCase() === 'kafkajs' || lower.includes('kafkajs') || lower.includes('kafka.railway')) {
+    ctx = ctx ?? 'Kafka'
+    const kafka = formatKafkaSummary(text, mergedFields)
+    headline = kafka.headline
+    subtitle = kafka.detail
+  } else if (
+    lower.includes('request completed')
+    || lower.includes('request started')
+    || mergedFields.method
+    || mergedFields.statusCode != null
+  ) {
+    ctx = ctx ?? 'HTTP'
+    const http = formatRequestLifecycle(text || raw, mergedFields)
+    headline = http.headline
+    subtitle = http.detail
+  } else if (mergedFields.error && entry.level === 'ERROR') {
+    headline = truncateText(mergedFields.error, 140)
+    subtitle = text && !text.includes(mergedFields.error) ? truncateText(text, 100) : null
+  } else if (text) {
+    headline = truncateText(text, 140)
+    subtitle = mergedFields.error && mergedFields.error !== text
+      ? truncateText(mergedFields.error, 120)
+      : null
+  } else {
+    const humanized = humanizeLogMessage(entry)
+    headline = truncateText(humanized.title, 140)
+    subtitle = humanized.subtitle !== humanized.title ? truncateText(humanized.subtitle, 120) : null
   }
 
-  // For errors, surface the full message as headline when humanize collapsed it.
-  if (entry.level === 'ERROR' && humanized.title === 'Error reported' && raw) {
-    return {
-      headline: truncateText(raw, 320),
-      subtitle: null,
-    }
-  }
-  if (entry.level === 'ERROR' && humanized.title === 'Messaging pipeline signal' && raw) {
-    return {
-      headline: truncateText(raw, 320),
-      subtitle: null,
-    }
+  if (entry.level === 'WARN' && lower.includes('invalid') && lower.includes('token')) {
+    headline = 'Invalid or expired token'
+    subtitle = mergedFields.path ?? subtitle
+    ctx = ctx ?? 'Auth'
   }
 
-  return { headline, subtitle }
+  if (entry.level === 'ERROR' && !subtitle && mergedFields.broker) {
+    subtitle = truncateText(mergedFields.broker, 80)
+  }
+
+  return {
+    headline: headline || entry.service,
+    subtitle,
+    context: ctx,
+  }
 }
 
 export function humanizeLogMessage(entry: PlatformLogEntry): { title: string; subtitle: string } {

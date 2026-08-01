@@ -7,16 +7,15 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
-import { alpha, useTheme } from '@mui/material/styles'
+import { useTheme } from '@mui/material/styles'
 import { ChevronFirst, ChevronLast, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { PlatformLogEntry } from '../../../api/types'
 import {
   LOG_LEVEL_COLORS,
   LOG_LEVEL_LABELS,
   LOG_PAGE_SIZES,
-  formatFriendlyTimestamp,
+  formatLogTime,
   getTableLogDisplay,
-  groupLogsByTimeWindow,
   paginateItems,
   type LogViewDensity,
 } from '../logUtils'
@@ -27,8 +26,6 @@ interface LogsTableProps {
   density: LogViewDensity
   onSelect: (entry: PlatformLogEntry) => void
 }
-
-const GRID_COLS = '72px 112px 128px minmax(0, 1fr)'
 
 export default function LogsTable({ entries, selectedId, density, onSelect }: LogsTableProps) {
   const theme = useTheme()
@@ -41,8 +38,7 @@ export default function LogsTable({ entries, selectedId, density, onSelect }: Lo
   }, [entries.length, pageSize])
 
   const pagination = useMemo(() => paginateItems(entries, page, pageSize), [entries, page, pageSize])
-  const groups = useMemo(() => groupLogsByTimeWindow(pagination.items, 5), [pagination.items])
-  const rowPy = density === 'compact' ? 0.6 : 0.9
+  const compact = density === 'compact'
 
   const handlePageSizeChange = (size: number) => {
     setPageSize(size)
@@ -58,178 +54,84 @@ export default function LogsTable({ entries, selectedId, density, onSelect }: Lo
 
   return (
     <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}>
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: GRID_COLS,
-          px: 1.5,
-          py: 0.75,
-          alignItems: 'center',
-          borderBottom: 1,
-          borderColor: 'divider',
-          bgcolor: 'background.paper',
-          flexShrink: 0,
-        }}
-      >
-        {['Level', 'When', 'Service', 'Message'].map((label) => (
-          <Typography key={label} variant="caption2" sx={{ color: 'text.disabled', fontWeight: 700, fontSize: 10, letterSpacing: '0.06em' }}>
-            {label.toUpperCase()}
-          </Typography>
-        ))}
-      </Box>
+      <div className="logs-table-head">
+        <span>Level</span>
+        <span>Time</span>
+        <span>Service</span>
+        <span>Message</span>
+        <span>Ctx</span>
+      </div>
 
-      <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0, bgcolor: 'background.default' }}>
+      <div className="logs-table-wrap">
         {entries.length === 0 && (
-          <Box sx={{ minHeight: 220, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1, px: 2 }}>
-            <Typography variant="body2" sx={{ color: 'text.secondary', textAlign: 'center' }}>
-              No logs match your filters for this time range.
-            </Typography>
-            <Typography variant="caption2" sx={{ color: 'text.disabled', textAlign: 'center' }}>
-              Widen the time range, clear filters, or disable “Errors only”.
+          <Box sx={{ minHeight: 180, display: 'grid', placeItems: 'center', px: 2 }}>
+            <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: 12 }}>
+              No logs match filters for this window.
             </Typography>
           </Box>
         )}
 
-        {groups.map((group) => (
-          <Box key={group.key}>
-            <Box
-              sx={{
-                px: 1.5,
-                py: 0.5,
-                bgcolor: alpha(theme.palette.background.paper, 0.95),
-                borderBottom: 1,
-                borderColor: 'divider',
-                position: 'sticky',
-                top: 0,
-                zIndex: 1,
+        {pagination.items.map((log) => {
+          const selected = selectedId === log.id
+          const display = getTableLogDisplay(log)
+          const rowClass = [
+            'logs-table-row',
+            compact ? 'logs-table-row--compact' : '',
+            selected ? 'is-selected' : '',
+            log.level === 'ERROR' && !selected ? 'is-error' : '',
+          ].filter(Boolean).join(' ')
+
+          return (
+            <div
+              key={log.id}
+              className={rowClass}
+              onClick={() => onSelect(log)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  onSelect(log)
+                }
+              }}
+              style={{
+                borderLeft: selected ? `3px solid ${LOG_LEVEL_COLORS[log.level]}` : '3px solid transparent',
+                ['--logs-border' as string]: theme.palette.divider,
+                ['--logs-row-hover' as string]: theme.palette.action.hover,
+                ['--logs-row-selected' as string]: theme.palette.action.selected,
               }}
             >
-              <Typography variant="caption2" sx={{ color: 'primary.main', fontWeight: 700, fontSize: 11 }}>
-                {group.label}
-              </Typography>
-              <Typography component="span" variant="caption2" sx={{ color: 'text.disabled', ml: 1, fontSize: 11 }}>
-                · {group.entries.length} event{group.entries.length === 1 ? '' : 's'}
-              </Typography>
-            </Box>
+              <span
+                className="logs-level"
+                style={{ color: LOG_LEVEL_COLORS[log.level], borderColor: `${LOG_LEVEL_COLORS[log.level]}66` }}
+              >
+                {LOG_LEVEL_LABELS[log.level]}
+              </span>
 
-            {group.entries.map((log) => {
-              const selected = selectedId === log.id
-              const display = getTableLogDisplay(log)
-              const when = formatFriendlyTimestamp(log.timestamp)
+              <span className="logs-time">{formatLogTime(log.timestamp)}</span>
 
-              return (
-                <Box
-                  key={log.id}
-                  onClick={() => onSelect(log)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault()
-                      onSelect(log)
-                    }
-                  }}
-                  sx={{
-                    display: 'grid',
-                    gridTemplateColumns: GRID_COLS,
-                    alignItems: 'start',
-                    gap: 0.75,
-                    px: 1.5,
-                    py: rowPy,
-                    cursor: 'pointer',
-                    borderBottom: 1,
-                    borderColor: 'divider',
-                    bgcolor: selected ? 'background.selected' : 'transparent',
-                    borderLeft: selected ? `3px solid ${LOG_LEVEL_COLORS[log.level]}` : '3px solid transparent',
-                    transition: 'background-color 0.15s ease',
-                    '&:hover': { bgcolor: 'background.hover' },
-                    ...(log.level === 'ERROR' && !selected
-                      ? { bgcolor: alpha(LOG_LEVEL_COLORS.ERROR, 0.04) }
-                      : {}),
-                  }}
-                >
-                  <Box
-                    component="span"
-                    sx={{
-                      fontSize: 10,
-                      fontWeight: 800,
-                      color: LOG_LEVEL_COLORS[log.level],
-                      border: `1px solid ${alpha(LOG_LEVEL_COLORS[log.level], 0.4)}`,
-                      borderRadius: '4px',
-                      px: 0.75,
-                      py: 0.2,
-                      lineHeight: 1.2,
-                      width: 'fit-content',
-                    }}
-                  >
-                    {LOG_LEVEL_LABELS[log.level]}
-                  </Box>
+              <span className="logs-service" title={log.service}>
+                {log.service.replace(/-service$/, '')}
+              </span>
 
-                  <Box sx={{ minWidth: 0 }}>
-                    <Typography sx={{ color: 'text.primary', fontSize: 12, fontWeight: 600, lineHeight: 1.3 }}>
-                      {when.relative}
-                    </Typography>
-                    <Typography sx={{ color: 'text.disabled', fontFamily: theme.typography.mono?.fontFamily, fontSize: 10, lineHeight: 1.3 }}>
-                      {when.absolute}
-                    </Typography>
-                  </Box>
+              <div className="logs-message">
+                <div className="logs-message__title" title={display.headline}>
+                  {display.headline}
+                </div>
+                {!compact && display.subtitle && (
+                  <div className="logs-message__detail" title={display.subtitle}>
+                    {display.subtitle}
+                  </div>
+                )}
+              </div>
 
-                  <Typography
-                    sx={{
-                      color: 'text.secondary',
-                      fontSize: 11,
-                      lineHeight: 1.35,
-                      wordBreak: 'break-word',
-                      fontFamily: theme.typography.mono?.fontFamily,
-                    }}
-                  >
-                    {log.service}
-                  </Typography>
-
-                  <Box sx={{ minWidth: 0, overflow: 'hidden' }}>
-                    <Typography
-                      sx={{
-                        color: 'text.primary',
-                        fontSize: density === 'compact' ? 12 : 13,
-                        lineHeight: 1.45,
-                        fontWeight: 600,
-                        overflowWrap: 'anywhere',
-                        wordBreak: 'break-word',
-                        whiteSpace: 'pre-wrap',
-                        overflow: 'hidden',
-                        display: '-webkit-box',
-                        WebkitLineClamp: density === 'compact' ? 3 : 5,
-                        WebkitBoxOrient: 'vertical',
-                      }}
-                    >
-                      {display.headline}
-                    </Typography>
-                    {display.subtitle && (
-                      <Typography
-                        sx={{
-                          color: 'text.secondary',
-                          fontSize: 11,
-                          lineHeight: 1.4,
-                          mt: 0.25,
-                          overflowWrap: 'anywhere',
-                          wordBreak: 'break-word',
-                          whiteSpace: 'pre-wrap',
-                          overflow: 'hidden',
-                          display: '-webkit-box',
-                          WebkitLineClamp: density === 'compact' ? 2 : 3,
-                          WebkitBoxOrient: 'vertical',
-                        }}
-                      >
-                        {display.subtitle}
-                      </Typography>
-                    )}
-                  </Box>
-                </Box>
-              )
-            })}
-          </Box>
-        ))}
-      </Box>
+              <span className="logs-context" title={display.context ?? ''}>
+                {display.context ?? '—'}
+              </span>
+            </div>
+          )
+        })}
+      </div>
 
       <Box
         sx={{
@@ -238,7 +140,7 @@ export default function LogsTable({ entries, selectedId, density, onSelect }: Lo
           justifyContent: 'space-between',
           gap: 1,
           px: 1.5,
-          py: 0.75,
+          py: 0.6,
           borderTop: 1,
           borderColor: 'divider',
           bgcolor: 'background.paper',
@@ -247,48 +149,48 @@ export default function LogsTable({ entries, selectedId, density, onSelect }: Lo
         }}
       >
         <Typography variant="caption2" sx={{ color: 'text.secondary', fontSize: 11 }}>
-          Showing <strong>{pagination.start}–{pagination.end}</strong> of {pagination.total.toLocaleString()}
+          {pagination.start}–{pagination.end} of {pagination.total.toLocaleString()}
         </Typography>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
           <Select
             size="small"
             value={pageSize}
             onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-            sx={{ fontSize: 12, height: 30, minWidth: 96 }}
+            sx={{ fontSize: 11, height: 28, minWidth: 88 }}
           >
             {LOG_PAGE_SIZES.map((size) => (
-              <MenuItem key={size} value={size} sx={{ fontSize: 12 }}>
-                {size} / page
+              <MenuItem key={size} value={size} sx={{ fontSize: 11 }}>
+                {size}
               </MenuItem>
             ))}
           </Select>
 
           <IconButton size="small" disabled={pagination.page <= 1} onClick={() => setPage(1)}>
-            <ChevronFirst size={16} />
+            <ChevronFirst size={15} />
           </IconButton>
           <IconButton size="small" disabled={pagination.page <= 1} onClick={() => setPage((p) => p - 1)}>
-            <ChevronLeft size={16} />
+            <ChevronLeft size={15} />
           </IconButton>
 
-          <Typography variant="caption2" sx={{ color: 'text.secondary', minWidth: 80, textAlign: 'center', fontSize: 11, fontWeight: 600 }}>
-            {pagination.page} / {pagination.totalPages}
+          <Typography variant="caption2" sx={{ color: 'text.secondary', minWidth: 56, textAlign: 'center', fontSize: 11 }}>
+            {pagination.page}/{pagination.totalPages}
           </Typography>
 
           <IconButton size="small" disabled={pagination.page >= pagination.totalPages} onClick={() => setPage((p) => p + 1)}>
-            <ChevronRight size={16} />
+            <ChevronRight size={15} />
           </IconButton>
           <IconButton size="small" disabled={pagination.page >= pagination.totalPages} onClick={() => setPage(pagination.totalPages)}>
-            <ChevronLast size={16} />
+            <ChevronLast size={15} />
           </IconButton>
 
           <TextField
             size="small"
-            placeholder="Go to"
+            placeholder="#"
             value={jumpPage}
             onChange={(e) => setJumpPage(e.target.value.replace(/\D/g, ''))}
             onKeyDown={(e) => e.key === 'Enter' && handleJump()}
-            sx={{ width: 68, '& .MuiOutlinedInput-root': { height: 30, fontSize: 12 } }}
+            sx={{ width: 44, '& .MuiOutlinedInput-root': { height: 28, fontSize: 11 } }}
           />
         </Box>
       </Box>
