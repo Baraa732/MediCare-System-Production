@@ -1,11 +1,12 @@
-﻿import { useMemo } from 'react'
+﻿import { Suspense, lazy, useMemo } from 'react'
 import { DashboardCard, WidgetHeader } from '../components/ui'
 import { LiveIndicator } from '../components/observability'
-import HudGlobeMap from '../components/maps/HudGlobeMap'
 import type { HudMarker } from '../components/maps/HudGeoMap'
 import type { Clinic } from '../api/types'
 import { clinicsWithCoords } from '../pages/control-center/overviewModel'
 import styles from './infrastructureMap.module.css'
+
+const HudGlobeMap = lazy(() => import('../components/maps/HudGlobeMap'))
 
 function clinicStatus(status: string): HudMarker['status'] {
   const s = status.toUpperCase()
@@ -40,15 +41,21 @@ export default function InfrastructureMapWidget({
     <DashboardCard minHeight={600} delay={delay} className={styles.card}>
       <WidgetHeader
         title="Infrastructure Map"
-        subtitle="Clinic fleet · 3D globe · live coordinates"
+        subtitle="Clinic fleet · Three.js globe · dark map tiles · live coordinates"
         badge={<LiveIndicator />}
       />
-      <HudGlobeMap
-        markers={markers}
-        title="CLINIC FLEET"
-        subtitle="ACTIVE"
-        emptyHint="No clinics with latitude/longitude yet"
-      />
+      <Suspense
+        fallback={
+          <div className={styles.loading}>Loading 3D globe…</div>
+        }
+      >
+        <HudGlobeMap
+          markers={markers}
+          title="CLINIC FLEET"
+          subtitle="ACTIVE"
+          emptyHint="No clinics with latitude/longitude yet"
+        />
+      </Suspense>
     </DashboardCard>
   )
 }

@@ -1,23 +1,19 @@
-import { useEffect, useMemo, useRef } from 'react'
-import createGlobe, { type COBEOptions } from 'cobe'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import Globe, { type GlobeMethods } from 'react-globe.gl'
 import { usePrefersReducedMotion } from '../../hooks/usePrefersReducedMotion'
 import type { HudMarker } from './HudGeoMap'
 import styles from './hudGlobe.module.css'
 
-type GlobeOptions = COBEOptions & {
-  onRender?: (state: Record<string, unknown>) => void
-}
+const STATUS_COLOR = {
+  ok: '#10b981',
+  warn: '#f59e0b',
+  bad: '#ef4444',
+} as const
 
-const statusRgb = {
-  ok: [0.06, 0.72, 0.5] as [number, number, number],
-  warn: [0.96, 0.62, 0.05] as [number, number, number],
-  bad: [0.94, 0.27, 0.27] as [number, number, number],
-}
-
-function toMarkerSize(status: HudMarker['status']) {
-  if (status === 'bad') return 0.08
-  if (status === 'warn') return 0.06
-  return 0.045
+/** Slippy dark basemap tiles draped onto the 3D globe (map structure). */
+function darkMapTileUrl(x: number, y: number, l: number) {
+  const s = ['a', 'b', 'c', 'd'][(x + y) % 4]
+  return `https://${s}.basemaps.cartocdn.com/dark_all/${l}/${x}/${y}.png`
 }
 
 export default function HudGlobeMap({
@@ -31,18 +27,18 @@ export default function HudGlobeMap({
   subtitle?: string
   emptyHint?: string
 }) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const globeRef = useRef<GlobeMethods | undefined>(undefined)
   const stageRef = useRef<HTMLDivElement | null>(null)
-  const pointerRef = useRef({ x: 0, dragging: false, lastX: 0 })
   const reduced = usePrefersReducedMotion()
+  const [size, setSize] = useState({ width: 0, height: 0 })
 
-  const cobeMarkers = useMemo(
+  const points = useMemo(
     () =>
       markers.map((m) => ({
-        location: [m.lat, m.lng] as [number, number],
-        size: toMarkerSize(m.status),
-        color: statusRgb[m.status],
-        id: m.id,
+        ...m,
+        color: STATUS_COLOR[m.status],
+        altitude: m.status === 'bad' ? 0.08 : m.status === 'warn' ? 0.05 : 0.03,
+        radius: m.status === 'bad' ? 0.55 : 0.4,
       })),
     [markers],
   )
@@ -51,91 +47,56 @@ export default function HudGlobeMap({
     if (markers.length < 2) return []
     const hub = markers[0]
     return markers.slice(1, 8).map((m) => ({
-      from: [hub.lat, hub.lng] as [number, number],
-      to: [m.lat, m.lng] as [number, number],
-      color: statusRgb[m.status],
       id: `${hub.id}-${m.id}`,
+      startLat: hub.lat,
+      startLng: hub.lng,
+      endLat: m.lat,
+      endLng: m.lng,
+      color: [STATUS_COLOR[hub.status], STATUS_COLOR[m.status]],
     }))
   }, [markers])
 
+  const labels = useMemo(
+    () =>
+      markers.slice(0, 12).map((m) => ({
+        id: m.id,
+        lat: m.lat,
+        lng: m.lng,
+        text: m.label,
+        color: STATUS_COLOR[m.status],
+        size: 0.7,
+      })),
+    [markers],
+  )
+
   useEffect(() => {
-    const canvas = canvasRef.current
     const stage = stageRef.current
-    if (!canvas || !stage || !markers.length) return
-
-    let phi = 0.4
-    let globe: ReturnType<typeof createGlobe> | undefined
-
-    const syncSize = () => {
-      const width = stage.clientWidth
-      const height = stage.clientHeight
-      canvas.width = width * 2
-      canvas.height = height * 2
-      canvas.style.width = `${width}px`
-      canvas.style.height = `${height}px`
+    if (!stage) return
+    const sync = () => {
+      setSize({ width: stage.clientWidth, height: stage.clientHeight })
     }
-    syncSize()
-
-    const options: GlobeOptions = {
-      devicePixelRatio: 2,
-      width: canvas.width,
-      height: canvas.height,
-      phi: 0,
-      theta: 0.22,
-      dark: 1,
-      diffuse: 1.35,
-      mapSamples: 18000,
-      mapBrightness: 5.2,
-      baseColor: [0.07, 0.12, 0.22],
-      markerColor: [0.05, 0.78, 0.86],
-      glowColor: [0.08, 0.45, 0.65],
-      markers: cobeMarkers,
-      arcs,
-      arcColor: [0.05, 0.78, 0.86],
-      arcWidth: 0.35,
-      arcHeight: 0.28,
-      markerElevation: 0.02,
-      scale: 1.12,
-      offset: [0, 0],
-      onRender: (state) => {
-        state.width = canvas.width
-        state.height = canvas.height
-        if (!reduced && !pointerRef.current.dragging) {
-          phi += 0.0032
-        }
-        state.phi = phi + pointerRef.current.x
-      },
-    }
-
-    globe = createGlobe(canvas, options as COBEOptions)
-
-    const ro = new ResizeObserver(() => {
-      syncSize()
-    })
+    sync()
+    const ro = new ResizeObserver(sync)
     ro.observe(stage)
+    return () => ro.disconnect()
+  }, [])
 
-    return () => {
-      ro.disconnect()
-      globe?.destroy()
-    }
-  }, [arcs, cobeMarkers, markers.length, reduced])
+  useEffect(() => {
+    const globe = globeRef.current
+    if (!globe || !markers.length) return
 
-  const onPointerDown = (e: React.PointerEvent) => {
-    pointerRef.current.dragging = true
-    pointerRef.current.lastX = e.clientX
-    ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
-  }
+    const lat = markers.reduce((s, m) => s + m.lat, 0) / markers.length
+    const lng = markers.reduce((s, m) => s + m.lng, 0) / markers.length
+    globe.pointOfView({ lat, lng, altitude: 1.85 }, 0)
 
-  const onPointerMove = (e: React.PointerEvent) => {
-    if (!pointerRef.current.dragging) return
-    const dx = e.clientX - pointerRef.current.lastX
-    pointerRef.current.lastX = e.clientX
-    pointerRef.current.x += dx / 220
-  }
-
-  const onPointerUp = () => {
-    pointerRef.current.dragging = false
-  }
+    const controls = globe.controls()
+    controls.autoRotate = !reduced
+    controls.autoRotateSpeed = 0.55
+    controls.enableDamping = true
+    controls.dampingFactor = 0.08
+    controls.minDistance = 120
+    controls.maxDistance = 480
+  }, [markers, reduced, size.width, size.height])
 
   if (!markers.length) {
     return (
@@ -146,25 +107,69 @@ export default function HudGlobeMap({
   }
 
   return (
-    <div
-      className={styles.stage}
-      ref={stageRef}
-      role="img"
-      aria-label={title}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerLeave={onPointerUp}
-    >
-      <div className={styles.atmosphere} aria-hidden />
-      <canvas ref={canvasRef} className={styles.canvas} />
+    <div className={styles.stage} ref={stageRef} role="img" aria-label={title}>
+      <div className={styles.globeHost}>
+        {size.width > 0 && size.height > 0 ? (
+          <Globe
+            ref={globeRef}
+            width={size.width}
+            height={size.height}
+            backgroundColor="rgba(0,0,0,0)"
+            backgroundImageUrl="/globe/night-sky.png"
+            globeImageUrl="/globe/earth-night.jpg"
+            bumpImageUrl="/globe/earth-topology.png"
+            globeTileEngineUrl={darkMapTileUrl}
+            showAtmosphere
+            atmosphereColor="#06b6d4"
+            atmosphereAltitude={0.18}
+            showGraticules
+            pointsData={points}
+            pointLat="lat"
+            pointLng="lng"
+            pointColor="color"
+            pointAltitude="altitude"
+            pointRadius="radius"
+            pointLabel={(d: object) => {
+              const p = d as HudMarker
+              return `<div style="font:12px/1.35 Inter,system-ui,sans-serif">
+                <strong>${p.label}</strong>
+                ${p.meta ? `<div style="opacity:.75">${p.meta}</div>` : ''}
+              </div>`
+            }}
+            arcsData={arcs}
+            arcStartLat="startLat"
+            arcStartLng="startLng"
+            arcEndLat="endLat"
+            arcEndLng="endLng"
+            arcColor="color"
+            arcAltitudeAutoScale={0.35}
+            arcStroke={0.45}
+            arcDashLength={0.45}
+            arcDashGap={0.2}
+            arcDashAnimateTime={reduced ? 0 : 2800}
+            labelsData={labels}
+            labelLat="lat"
+            labelLng="lng"
+            labelText="text"
+            labelColor="color"
+            labelSize="size"
+            labelDotRadius={0.28}
+            labelAltitude={0.012}
+            labelResolution={2}
+            enablePointerInteraction
+          />
+        ) : null}
+      </div>
+
       <div className={styles.vignette} aria-hidden />
 
       <div className={`${styles.hud} ${styles.topLeft}`}>
         {title}
         <div className={styles.active}>{subtitle}</div>
       </div>
-      <div className={`${styles.hud} ${styles.topRight}`}>NODES {markers.length}</div>
+      <div className={`${styles.hud} ${styles.topRight}`}>
+        3D MAP · NODES {markers.length}
+      </div>
 
       <div className={styles.legend}>
         <span className={styles.legendItem}>
