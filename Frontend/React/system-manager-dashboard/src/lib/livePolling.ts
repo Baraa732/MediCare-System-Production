@@ -3,9 +3,9 @@ export const LIVE_POLL = {
   /** Log stream — most frequently updated. */
   logs: 10_000,
   /** Observability, APM, alerts, traces. */
-  observability: 20_000,
+  observability: 12_000,
   /** Platform KPI stats. */
-  stats: 20_000,
+  stats: 15_000,
   /** Incidents / alert state. */
   incidents: 20_000,
   /** Staff notification inbox. */

@@ -29,6 +29,8 @@ interface ApmService {
   p99: number | null;
   instances: number;
   series: number[];
+  errorSeries: number[];
+  seriesTimestamps: string[];
   cpuPercent?: number | null;
   memoryBytes?: number | null;
 }
@@ -80,7 +82,8 @@ const FALLBACK_EDGES: Array<[string, string]> = [
 @Injectable()
 export class PlatformObservabilityService {
   private overviewCache = new Map<string, { expiresAt: number; value: Awaited<ReturnType<PlatformObservabilityService['buildOverview']>> }>();
-  private readonly overviewCacheTtlMs = Number(process.env.PLATFORM_OVERVIEW_CACHE_MS || 20_000);
+  /** Short TTL so the dashboard stays near real-time under live polling. */
+  private readonly overviewCacheTtlMs = Number(process.env.PLATFORM_OVERVIEW_CACHE_MS || 8_000);
   private overviewInflight = new Map<string, Promise<Awaited<ReturnType<PlatformObservabilityService['buildOverview']>>>>();
 
   constructor(
@@ -131,7 +134,7 @@ export class PlatformObservabilityService {
     const entries = logs.entries;
     const promByService = new Map(promMetrics.map((m) => [m.serviceName, m]));
     const apm = services.map((service) =>
-      this.buildApmService(service, entries, health, promByService.get(service)),
+      this.buildApmService(service, entries, health, promByService.get(service), range),
     );
     const distributedTraces = this.otelTopologyService.buildTracesFromLogs(entries);
     const traces = this.buildTraces(distributedTraces, entries);
@@ -151,6 +154,7 @@ export class PlatformObservabilityService {
         services: apm,
         errors: this.buildErrors(entries),
         latencySeries: await this.buildLatencySeries(apm, promByService, range),
+        throughput: this.buildPlatformThroughput(apm, range),
         serviceMap,
       },
       traces: {
@@ -158,7 +162,7 @@ export class PlatformObservabilityService {
           total: traces.length,
           errors: traces.filter((t) => t.status === 'error').length,
           avgDuration: this.average(traces.map((t) => t.duration)),
-          throughput: entries.length,
+          throughput: Math.round(apm.reduce((sum, s) => sum + s.reqRate, 0) * 100) / 100,
         },
         items: traces,
       },
@@ -200,6 +204,7 @@ export class PlatformObservabilityService {
     entries: PlatformLogEntry[],
     health: Awaited<ReturnType<PlatformHealthService['getPlatformHealth']>>,
     prom?: Awaited<ReturnType<PrometheusTelemetryService['getServiceMetrics']>>[number],
+    range = '1h',
   ): ApmService {
     const serviceEntries = entries.filter((entry) => entry.service === service);
     const errorCount = serviceEntries.filter((entry) => entry.level === 'ERROR').length;
@@ -213,7 +218,18 @@ export class PlatformObservabilityService {
     const p50 = useProm && prom.p50 !== null ? prom.p50 : Math.round(logP50);
     const p95 = useProm && prom.p95 !== null ? prom.p95 : logP95 === null ? null : Math.round(logP95);
     const p99 = useProm && prom.p99 !== null ? prom.p99 : logP99 === null ? null : Math.round(logP99);
-    const reqRate = useProm ? prom.reqRate : serviceEntries.length;
+
+    const logBuckets = this.seriesFromEntries(serviceEntries, range);
+    const errorBuckets = this.seriesFromEntries(
+      serviceEntries.filter((e) => e.level === 'ERROR' || e.level === 'WARN'),
+      range,
+    );
+    const rangeSeconds = this.rangeSeconds(range);
+    const logReqRate = rangeSeconds > 0
+      ? Math.round((serviceEntries.length / rangeSeconds) * 100) / 100
+      : 0;
+
+    const reqRate = useProm ? prom.reqRate : logReqRate;
     const errorRate = useProm
       ? prom.errorRate
       : serviceEntries.length
@@ -229,10 +245,45 @@ export class PlatformObservabilityService {
       p95,
       p99,
       instances: SERVICE_CONTAINERS[service] ? 1 : 0,
-      series: useProm && prom.series.length ? prom.series : this.seriesFromEntries(serviceEntries),
+      series: useProm && prom.series.length ? prom.series : logBuckets.values,
+      errorSeries: useProm && prom.errorSeries?.length ? prom.errorSeries : errorBuckets.values,
+      seriesTimestamps: useProm && prom.timestamps?.length ? prom.timestamps : logBuckets.timestamps,
       cpuPercent: prom?.cpuPercent ?? null,
       memoryBytes: prom?.memoryBytes ?? null,
     };
+  }
+
+  private buildPlatformThroughput(apm: ApmService[], range: string) {
+    const timestamps = apm.find((s) => s.seriesTimestamps.length)?.seriesTimestamps
+      ?? this.seriesFromEntries([], range).timestamps;
+    const maxLen = Math.max(timestamps.length, ...apm.map((s) => s.series.length));
+    const total = Array.from({ length: maxLen }, (_, i) =>
+      Math.round(apm.reduce((sum, s) => sum + (s.series[i] ?? 0), 0) * 100) / 100,
+    );
+    const errors = Array.from({ length: maxLen }, (_, i) =>
+      Math.round(apm.reduce((sum, s) => sum + (s.errorSeries[i] ?? 0), 0) * 100) / 100,
+    );
+    const current = total[total.length - 1] ?? 0;
+    const peak = total.reduce((best, v) => (v > best ? v : best), 0);
+    const avg = total.length ? Math.round((total.reduce((a, b) => a + b, 0) / total.length) * 100) / 100 : 0;
+
+    return {
+      timestamps,
+      total,
+      errors,
+      current,
+      peak,
+      avg,
+      unit: 'req/s',
+      source: apm.some((s) => s.series.length && s.seriesTimestamps.length) ? 'live' : 'empty',
+    };
+  }
+
+  private rangeSeconds(range: string): number {
+    if (range === '15m') return 15 * 60;
+    if (range === '6h') return 6 * 60 * 60;
+    if (range === '24h') return 24 * 60 * 60;
+    return 60 * 60;
   }
 
   private buildTraces(
@@ -431,7 +482,7 @@ export class PlatformObservabilityService {
     const window = range === '24h' ? '1h' : '5m';
 
     return Promise.all(
-      services.slice(0, 4).map(async (service) => {
+      services.slice(0, 8).map(async (service) => {
         const prom = promByService.get(service.name);
         if (prom?.available) {
           const [p50Series, p95Series] = await Promise.all([
@@ -446,11 +497,11 @@ export class PlatformObservabilityService {
               60,
             ),
           ]);
-          if (p50Series.length || p95Series.length) {
+          if (p50Series.values.length || p95Series.values.length) {
             return {
               name: service.name,
-              p50: p50Series.length ? p50Series : this.expandSeries(service.p50, 60),
-              p95: p95Series.length ? p95Series : this.expandSeries(service.p95 ?? service.p50 * 2, 60),
+              p50: p50Series.values.length ? p50Series.values : this.expandSeries(service.p50, 60),
+              p95: p95Series.values.length ? p95Series.values : this.expandSeries(service.p95 ?? service.p50 * 2, 60),
             };
           }
         }
@@ -486,24 +537,36 @@ export class PlatformObservabilityService {
     };
   }
 
-  private seriesFromEntries(entries: PlatformLogEntry[]): number[] {
-    const buckets = Array.from({ length: 30 }, () => 0);
+  private seriesFromEntries(
+    entries: PlatformLogEntry[],
+    range = '1h',
+  ): { values: number[]; timestamps: string[] } {
+    const rangeSeconds = this.rangeSeconds(range);
+    const bucketCount = rangeSeconds <= 900 ? 30 : rangeSeconds <= 3600 ? 60 : 48;
     const now = Date.now();
-    const windowMs = 60 * 60 * 1000;
-    const bucketMs = windowMs / buckets.length;
+    const windowMs = rangeSeconds * 1000;
+    const bucketMs = windowMs / bucketCount;
+    const buckets = Array.from({ length: bucketCount }, () => 0);
+    const timestamps = Array.from({ length: bucketCount }, (_, i) =>
+      new Date(now - windowMs + i * bucketMs).toISOString(),
+    );
+
     for (const entry of entries) {
       const ts = new Date(entry.timestamp).getTime();
       if (Number.isNaN(ts) || ts < now - windowMs || ts > now) continue;
-      buckets[Math.min(buckets.length - 1, Math.floor((ts - (now - windowMs)) / bucketMs))] += 1;
+      buckets[Math.min(bucketCount - 1, Math.floor((ts - (now - windowMs)) / bucketMs))] += 1;
     }
-    return buckets;
+
+    // Convert event counts → approximate req/s for the bucket.
+    const bucketSeconds = bucketMs / 1000;
+    const values = buckets.map((count) => Math.round((count / bucketSeconds) * 100) / 100);
+    return { values, timestamps };
   }
 
+  /** Flat series from a real scalar — no synthetic sine waves. */
   private expandSeries(base: number, points: number): number[] {
-    return Array.from({ length: points }, (_, index) => {
-      const wave = Math.sin(index / 5) * 0.18;
-      return Math.max(0, Math.round(base + base * wave));
-    });
+    const value = Math.max(0, Math.round(base));
+    return Array.from({ length: points }, () => value);
   }
 
   private extractDuration(message: string): number {

@@ -183,8 +183,21 @@ export interface ApmService {
   p99: number | null
   instances: number
   series: number[]
+  errorSeries?: number[]
+  seriesTimestamps?: string[]
   cpuPercent?: number | null
   memoryBytes?: number | null
+}
+
+export interface PlatformThroughput {
+  timestamps: string[]
+  total: number[]
+  errors: number[]
+  current: number
+  peak: number
+  avg: number
+  unit: string
+  source: string
 }
 
 export interface OperationalTrace {
@@ -278,6 +291,7 @@ export interface PlatformObservability {
       lastSeen: string
     }>
     latencySeries: Array<{ name: string; p50: number[]; p95: number[] }>
+    throughput?: PlatformThroughput
     serviceMap: {
       simulated?: boolean
       nodes: Array<{ id: string; name: string; status: ObservabilityStatus; reqRate: number; errorRate: number }>

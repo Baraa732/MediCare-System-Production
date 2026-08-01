@@ -21,8 +21,11 @@ export function useObservabilityData(explicitRange?: string, live = true) {
     queryKey: queryKeys.observability(range),
     queryFn: ({ signal }) => getPlatformObservability(token!, range, signal),
     enabled: sessionReady && Boolean(token),
-    staleTime: LIVE_STALE_TIME,
+    staleTime: live ? 0 : LIVE_STALE_TIME,
     refetchInterval: live ? LIVE_POLL.observability : false,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+    structuralSharing: false,
     placeholderData: keepPreviousData,
   })
 

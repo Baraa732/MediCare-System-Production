@@ -216,6 +216,8 @@ export default function Dashboard() {
           errors={errors}
           healthScore={healthScore}
           availability={availability}
+          throughput={data?.apm.throughput}
+          live={live}
         />
       </DashboardEntrance>
 
@@ -258,7 +260,9 @@ export default function Dashboard() {
             <Box sx={{ mt: 2 }}>
               <SectionHeading title="Latency Heatmap" caption="p95 by service" />
               <Suspense fallback={<ChartFallback />}>
-                {services.length ? <LatencyHeatmapChart services={services} /> : <TelemetryPlaceholder label="No latency series yet." />}
+                {services.length
+                  ? <LatencyHeatmapChart services={services} latencySeries={data?.apm.latencySeries} />
+                  : <TelemetryPlaceholder label="No latency series yet." />}
               </Suspense>
             </Box>
           </Panel>

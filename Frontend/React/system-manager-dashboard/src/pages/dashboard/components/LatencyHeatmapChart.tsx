@@ -4,22 +4,32 @@ import ReactECharts from 'echarts-for-react'
 import type { ApmService } from '../../../api/types'
 import { chartBase } from '../../../lib/chartTheme'
 
-function LatencyHeatmapChart({ services }: { services: ApmService[] }) {
+interface LatencyHeatmapChartProps {
+  services: ApmService[]
+  latencySeries?: Array<{ name: string; p50: number[]; p95: number[] }>
+}
+
+function LatencyHeatmapChart({ services, latencySeries = [] }: LatencyHeatmapChartProps) {
   const theme = useTheme()
   const option = useMemo(() => {
+    const byName = new Map(latencySeries.map((row) => [row.name, row]))
     const rows = services.slice(0, 8)
-    const maxLen = Math.max(0, ...rows.map((s) => s.series?.length ?? 0))
-    const bucketCount = Math.min(12, maxLen || 12)
+    const sample = latencySeries.find((r) => r.p95.length)?.p95.length ?? 12
+    const bucketCount = Math.min(12, sample || 12)
     const yLabels = rows.map((s) => s.name)
-    const xLabels = Array.from({ length: bucketCount }, (_, i) => `-${bucketCount - i}m`)
+    const xLabels = Array.from({ length: bucketCount }, (_, i) => `-${bucketCount - i}`)
 
     const data: [number, number, number][] = []
     let maxVal = 1
     rows.forEach((service, yIndex) => {
-      const series = service.series ?? []
+      const latency = byName.get(service.name)
+      const series = latency?.p95?.length ? latency.p95 : null
       for (let x = 0; x < bucketCount; x += 1) {
-        const idx = Math.max(0, series.length - bucketCount + x)
-        const val = series[idx] ?? service.p95 ?? 0
+        let val = service.p95 ?? service.p50 ?? 0
+        if (series) {
+          const idx = Math.max(0, series.length - bucketCount + x)
+          val = series[idx] ?? val
+        }
         maxVal = Math.max(maxVal, val)
         data.push([x, yIndex, Math.round(val)])
       }
@@ -32,7 +42,7 @@ function LatencyHeatmapChart({ services }: { services: ApmService[] }) {
         ...chartBase(theme).tooltip,
         formatter: (params: { value: [number, number, number] }) => {
           const [x, y, val] = params.value
-          return `${yLabels[y]} · ${xLabels[x]}: ${val}ms`
+          return `${yLabels[y]} · ${xLabels[x]}: <b>${val} ms</b> p95`
         },
       },
       xAxis: {
@@ -66,7 +76,7 @@ function LatencyHeatmapChart({ services }: { services: ApmService[] }) {
         emphasis: { itemStyle: { shadowBlur: 6, shadowColor: 'rgba(0,0,0,0.3)' } },
       }],
     }
-  }, [services, theme])
+  }, [latencySeries, services, theme])
 
   if (!services.length) return null
 
