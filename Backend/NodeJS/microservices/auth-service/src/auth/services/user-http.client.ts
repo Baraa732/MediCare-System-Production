@@ -2,6 +2,7 @@ import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common'
 import axios, { AxiosError } from 'axios';
 import { CreateUserByAdminDto } from '../dto/auth.dto';
 import { createInternalAuthHeadersForUrl } from '../../internal-auth-shared/internal-http.signer';
+import { mapUserServiceHttpError } from '../../common/utils/user-service-error.util';
 
 export interface AuthUserProfile {
   id: string;
@@ -40,6 +41,12 @@ export class UserHttpClient {
       body,
       requestId ? { 'x-request-id': requestId } : undefined,
     );
+  }
+
+  private rethrowUserServiceClientError(error: unknown): void {
+    if (error instanceof AxiosError && error.response?.status && error.response.status < 500) {
+      mapUserServiceHttpError(error);
+    }
   }
 
   private handleError(context: string, error: unknown): never {
@@ -116,6 +123,7 @@ export class UserHttpClient {
       });
       return res.data;
     } catch (error) {
+      this.rethrowUserServiceClientError(error);
       if (error instanceof AxiosError && error.response?.status === 400) {
         throw error;
       }
@@ -139,6 +147,7 @@ export class UserHttpClient {
       });
       return res.data;
     } catch (error) {
+      this.rethrowUserServiceClientError(error);
       if (error instanceof AxiosError && error.response?.status === 400) {
         throw error;
       }
@@ -169,9 +178,7 @@ export class UserHttpClient {
       });
       return res.data;
     } catch (error) {
-      if (error instanceof AxiosError && error.response?.status === 400) {
-        throw error;
-      }
+      this.rethrowUserServiceClientError(error);
       this.handleError('completeStaffActivation', error);
     }
   }
@@ -185,6 +192,7 @@ export class UserHttpClient {
         headers: this.headers('POST', `/users/${userId}/reset-password-internal`, body),
       });
     } catch (error) {
+      this.rethrowUserServiceClientError(error);
       this.handleError('resetPassword', error);
     }
   }

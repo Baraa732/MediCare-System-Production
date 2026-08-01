@@ -1286,12 +1286,8 @@ export class AuthService implements OnModuleInit {
 
     try {
       await this.userHttp.completeStaffActivation(payload.sub, newPassword);
-    } catch (error: any) {
-      const msg = error.response?.data?.message;
-      if (msg) {
-        throw new BadRequestException(Array.isArray(msg) ? msg[0] : msg);
-      }
-      throw error;
+    } catch (error: unknown) {
+      mapUserServiceHttpError(error);
     }
 
     const userResponse = await this.userHttp.getUserById(payload.sub);

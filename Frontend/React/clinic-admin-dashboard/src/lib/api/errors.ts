@@ -21,6 +21,10 @@ const MESSAGE_MAP: Record<string, string> = {
     "This phone number already has a pending staff invite. Ask them to sign in with their temporary password, or try again to resend credentials.",
   "One or more fields are invalid.":
     "Please check the form — some fields are missing or invalid.",
+  "New password cannot be the same as any of your last 5 passwords":
+    "Choose a password you haven't used recently (not one of your last 5).",
+  "User service temporarily unavailable. Please try again.":
+    "The account service is busy. Wait a moment and try again.",
   "Failed to fetch":
     "We couldn't reach the server. Make sure you're online and the clinic system is running.",
 };
