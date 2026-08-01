@@ -24,7 +24,11 @@ const CLINICS = [
     city: 'Damascus',
     governorate: 'Damascus',
     address: 'Mazzeh Highway, Building 12',
-    admin: { firstName: 'Omar', lastName: 'Haddad', fullName: 'Omar Haddad', idNumber: 'DEMO-ADM-001' },
+    clinicType: 'private_clinic',
+    latitude: 33.5138,
+    longitude: 36.2765,
+    specialties: ['Cardiology'],
+    admin: { firstName: 'Omar', lastName: 'Haddad', fullName: 'Omar Haddad', idNumber: 'DEMO-ADM-001', dateOfBirth: '1985-03-12' },
     doctors: [
       { firstName: 'Layla', lastName: 'Khalil', specialization: 'Cardiology', licenseNumber: 'SY-CARD-001' },
     ],
@@ -34,7 +38,11 @@ const CLINICS = [
     city: 'Aleppo',
     governorate: 'Aleppo',
     address: 'Aziziyeh District, Street 5',
-    admin: { firstName: 'Rana', lastName: 'Mansour', fullName: 'Rana Mansour', idNumber: 'DEMO-ADM-002' },
+    clinicType: 'medical_center',
+    latitude: 36.2021,
+    longitude: 37.1343,
+    specialties: ['General Practice'],
+    admin: { firstName: 'Rana', lastName: 'Mansour', fullName: 'Rana Mansour', idNumber: 'DEMO-ADM-002', dateOfBirth: '1982-07-21' },
     doctors: [
       { firstName: 'Hassan', lastName: 'Youssef', specialization: 'General Practice', licenseNumber: 'SY-GP-001' },
     ],
@@ -44,7 +52,11 @@ const CLINICS = [
     city: 'Homs',
     governorate: 'Homs',
     address: 'Inshaat Neighborhood, Clinic 3',
-    admin: { firstName: 'Nadia', lastName: 'Saleh', fullName: 'Nadia Saleh', idNumber: 'DEMO-ADM-003' },
+    clinicType: 'dental_clinic',
+    latitude: 34.7268,
+    longitude: 36.7234,
+    specialties: ['Dentistry'],
+    admin: { firstName: 'Nadia', lastName: 'Saleh', fullName: 'Nadia Saleh', idNumber: 'DEMO-ADM-003', dateOfBirth: '1988-11-05' },
     doctors: [
       { firstName: 'Karim', lastName: 'Darwish', specialization: 'Dentistry', licenseNumber: 'SY-DENT-001' },
     ],
@@ -54,7 +66,11 @@ const CLINICS = [
     city: 'Latakia',
     governorate: 'Latakia',
     address: 'Corniche Street, Floor 2',
-    admin: { firstName: 'Fadi', lastName: 'Issa', fullName: 'Fadi Issa', idNumber: 'DEMO-ADM-004' },
+    clinicType: 'private_clinic',
+    latitude: 35.5312,
+    longitude: 35.7914,
+    specialties: ['Pediatrics'],
+    admin: { firstName: 'Fadi', lastName: 'Issa', fullName: 'Fadi Issa', idNumber: 'DEMO-ADM-004', dateOfBirth: '1979-01-30' },
     doctors: [
       { firstName: 'Rima', lastName: 'Abboud', specialization: 'Pediatrics', licenseNumber: 'SY-PED-001' },
     ],
@@ -64,7 +80,11 @@ const CLINICS = [
     city: 'Tartus',
     governorate: 'Tartus',
     address: 'Al-Basel Street 18',
-    admin: { firstName: 'Samer', lastName: 'Khoury', fullName: 'Samer Khoury', idNumber: 'DEMO-ADM-005' },
+    clinicType: 'medical_center',
+    latitude: 34.889,
+    longitude: 35.8866,
+    specialties: ['Dermatology'],
+    admin: { firstName: 'Samer', lastName: 'Khoury', fullName: 'Samer Khoury', idNumber: 'DEMO-ADM-005', dateOfBirth: '1984-09-18' },
     doctors: [
       { firstName: 'Hala', lastName: 'Nemeh', specialization: 'Dermatology', licenseNumber: 'SY-DERM-001' },
     ],
@@ -74,7 +94,11 @@ const CLINICS = [
     city: 'Hama',
     governorate: 'Hama',
     address: 'Al-Assi Square, Building 7',
-    admin: { firstName: 'Yara', lastName: 'Halabi', fullName: 'Yara Halabi', idNumber: 'DEMO-ADM-006' },
+    clinicType: 'private_clinic',
+    latitude: 35.1318,
+    longitude: 36.7578,
+    specialties: ['General Practice'],
+    admin: { firstName: 'Yara', lastName: 'Halabi', fullName: 'Yara Halabi', idNumber: 'DEMO-ADM-006', dateOfBirth: '1990-04-02' },
     doctors: [
       { firstName: 'Basel', lastName: 'Qassem', specialization: 'General Practice', licenseNumber: 'SY-GP-002' },
     ],
@@ -84,7 +108,11 @@ const CLINICS = [
     city: 'Daraa',
     governorate: 'Daraa',
     address: 'Main Street, Clinic Block A',
-    admin: { firstName: 'Mona', lastName: 'Shami', fullName: 'Mona Shami', idNumber: 'DEMO-ADM-007' },
+    clinicType: 'private_clinic',
+    latitude: 32.6189,
+    longitude: 36.1021,
+    specialties: ['Orthopedics'],
+    admin: { firstName: 'Mona', lastName: 'Shami', fullName: 'Mona Shami', idNumber: 'DEMO-ADM-007', dateOfBirth: '1987-12-14' },
     doctors: [
       { firstName: 'Walid', lastName: 'Farhat', specialization: 'Orthopedics', licenseNumber: 'SY-ORTH-001' },
     ],
@@ -94,7 +122,11 @@ const CLINICS = [
     city: 'Sweida',
     governorate: 'Sweida',
     address: 'Qanawat Road 4',
-    admin: { firstName: 'Rami', lastName: 'Jaber', fullName: 'Rami Jaber', idNumber: 'DEMO-ADM-008' },
+    clinicType: 'private_clinic',
+    latitude: 32.7089,
+    longitude: 36.5695,
+    specialties: ['Gynecology'],
+    admin: { firstName: 'Rami', lastName: 'Jaber', fullName: 'Rami Jaber', idNumber: 'DEMO-ADM-008', dateOfBirth: '1981-06-25' },
     doctors: [
       { firstName: 'Dina', lastName: 'Masri', specialization: 'Gynecology', licenseNumber: 'SY-GYN-001' },
     ],
@@ -104,7 +136,11 @@ const CLINICS = [
     city: 'Idlib',
     governorate: 'Idlib',
     address: 'Central District, Suite 9',
-    admin: { firstName: 'Lina', lastName: 'Othman', fullName: 'Lina Othman', idNumber: 'DEMO-ADM-009' },
+    clinicType: 'medical_center',
+    latitude: 35.9306,
+    longitude: 36.6339,
+    specialties: ['Internal Medicine'],
+    admin: { firstName: 'Lina', lastName: 'Othman', fullName: 'Lina Othman', idNumber: 'DEMO-ADM-009', dateOfBirth: '1986-08-09' },
     doctors: [
       { firstName: 'Amer', lastName: 'Zaki', specialization: 'Internal Medicine', licenseNumber: 'SY-IM-001' },
     ],
@@ -114,7 +150,11 @@ const CLINICS = [
     city: 'Quneitra',
     governorate: 'Quneitra',
     address: 'New Town Street 2',
-    admin: { firstName: 'Hiba', lastName: 'Rahal', fullName: 'Hiba Rahal', idNumber: 'DEMO-ADM-010' },
+    clinicType: 'private_clinic',
+    latitude: 33.1253,
+    longitude: 35.8247,
+    specialties: ['Family Medicine', 'ENT'],
+    admin: { firstName: 'Hiba', lastName: 'Rahal', fullName: 'Hiba Rahal', idNumber: 'DEMO-ADM-010', dateOfBirth: '1983-02-28' },
     doctors: [
       { firstName: 'Nour', lastName: 'Salem', specialization: 'Family Medicine', licenseNumber: 'SY-FM-001' },
       { firstName: 'Jad', lastName: 'Karam', specialization: 'ENT', licenseNumber: 'SY-ENT-001' },
@@ -148,15 +188,13 @@ function uuid() {
   return crypto.randomUUID();
 }
 
-async function api(method, path, body, headers = {}) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      ...headers,
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+/** Tiny 1×1 PNG used as placeholder verification documents for seed provisioning. */
+const SEED_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64',
+);
+
+async function parseJsonResponse(res, label) {
   const text = await res.text();
   let data;
   try {
@@ -166,9 +204,38 @@ async function api(method, path, body, headers = {}) {
   }
   if (!res.ok) {
     const msg = data.message || data.error || JSON.stringify(data);
-    throw new Error(`${method} ${path} → ${res.status}: ${typeof msg === 'string' ? msg : JSON.stringify(msg)}`);
+    throw new Error(`${label} → ${res.status}: ${typeof msg === 'string' ? msg : JSON.stringify(msg)}`);
   }
   return data;
+}
+
+async function api(method, path, body, headers = {}) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      ...headers,
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return parseJsonResponse(res, `${method} ${path}`);
+}
+
+/** Provision activation code with required document uploads (no WhatsApp). */
+async function provisionActivationCode(smToken, payload) {
+  const form = new FormData();
+  form.append('payload', JSON.stringify(payload));
+  const blob = new Blob([new Uint8Array(SEED_PNG)], { type: 'image/png' });
+  for (const field of ['nationalId', 'clinicLicense', 'governmentId']) {
+    form.append(field, blob, `${field}-seed.png`);
+  }
+
+  const res = await fetch(`${API_BASE}/system-manager/activation-codes/provision`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${smToken}` },
+    body: form,
+  });
+  return parseJsonResponse(res, 'POST /system-manager/activation-codes/provision');
 }
 
 function sleep(ms) {
@@ -280,15 +347,24 @@ async function seedClinic(clinicIndex, clinicDef, smToken) {
   console.log(`\n── Clinic ${clinicIndex + 1}/10: ${clinicDef.name} ──`);
   console.log(`   admin ${adminPhone} · secretary ${secretaryPhone}`);
 
-  const activation = await api('POST', '/system-manager/activation-code/generate', {
+  const activation = await provisionActivationCode(smToken, {
     idNumber: clinicDef.admin.idNumber,
     phoneNumber: adminPhone,
     fullName: clinicDef.admin.fullName,
-    clinicLocation: clinicDef.name,
+    whatsappNumber: adminPhone,
+    dateOfBirth: clinicDef.admin.dateOfBirth,
+    clinicName: clinicDef.name,
+    clinicType: clinicDef.clinicType,
+    registrationLicenseNumber: `DEMO-LIC-${String(clinicIndex + 1).padStart(3, '0')}`,
+    specialties: clinicDef.specialties,
+    latitude: clinicDef.latitude,
+    longitude: clinicDef.longitude,
+    address: clinicDef.address,
+    serviceRadiusKm: 15,
     price: 0,
     isCashPaymentDone: true,
     notes: 'Demo seed data — no WhatsApp',
-  }, { Authorization: `Bearer ${smToken}` });
+  });
 
   await api('POST', '/auth/clinic-admin/activate', {
     code: activation.code,
