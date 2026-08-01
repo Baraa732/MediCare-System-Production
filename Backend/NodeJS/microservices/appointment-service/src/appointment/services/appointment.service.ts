@@ -113,6 +113,10 @@ export class AppointmentService {
       scheduledAt.toISOString(),
       durationMinutes,
     );
+    // Patients request; clinic staff (secretary/admin) can book as confirmed.
+    const initialStatus =
+      actor.role === 'PATIENT' ? AppointmentStatus.REQUESTED : AppointmentStatus.CONFIRMED;
+
     const appointment = this.appointmentRepo.create({
       tenantId: dto.clinicId,
       doctorId: dto.doctorId,
@@ -120,7 +124,7 @@ export class AppointmentService {
       scheduledAt,
       durationMinutes,
       reason: dto.reason,
-      status: AppointmentStatus.CONFIRMED,
+      status: initialStatus,
       createdBy: actor.userId,
     });
     const saved = await this.saveAppointmentAtomic(

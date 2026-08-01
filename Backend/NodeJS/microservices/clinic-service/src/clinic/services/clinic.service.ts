@@ -617,7 +617,11 @@ export class ClinicService {
   }
 
   async listDoctorsEnriched(clinicId: string, actor: AuthUser) {
-    const staff = await this.listStaff(clinicId, actor, StaffRole.DOCTOR);
+    // Patients and staff can browse the clinic doctor directory.
+    await this.assertCanAccessClinic(clinicId, actor);
+    // Use internal ACTIVE assignments (not listStaff) so public doctor listing
+    // is not blocked by staff-profile enrichment failures.
+    const staff = await this.listStaffInternal(clinicId, StaffRole.DOCTOR);
     if (staff.length === 0) return [];
 
     const profiles = await this.userHttpClient.getPublicDoctors(staff.map((s) => s.userId));
@@ -626,11 +630,18 @@ export class ClinicService {
     return staff.map((s) => {
       const profile = profileMap.get(s.userId);
       return {
-        ...s,
+        userId: s.userId,
+        clinicId,
+        staffRole: s.staffRole,
+        status: s.status,
+        assignedAt: s.assignedAt,
         firstName: profile?.firstName,
         lastName: profile?.lastName,
-        fullName: profile ? `${profile.firstName} ${profile.lastName}`.trim() : undefined,
+        fullName: profile
+          ? `${profile.firstName ?? ''} ${profile.lastName ?? ''}`.trim() || undefined
+          : undefined,
         specialization: profile?.specialization,
+        yearsOfExperience: (profile as { yearsOfExperience?: number } | undefined)?.yearsOfExperience,
         profile: profile?.profile,
       };
     });
