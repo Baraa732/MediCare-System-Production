@@ -1,18 +1,51 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Globe, { type GlobeMethods } from 'react-globe.gl'
-import { usePrefersReducedMotion } from '../../hooks/usePrefersReducedMotion'
 import type { HudMarker } from './HudGeoMap'
 import styles from './hudGlobe.module.css'
 
+/** Matches patient-app map brand blue (`0xFF0B74FA`). */
+const CARE_BLUE = '#0B74FA'
+const CARE_AZURE = '#38BDF8'
+
 const STATUS_COLOR = {
-  ok: '#10b981',
+  ok: CARE_BLUE,
   warn: '#f59e0b',
   bad: '#ef4444',
 } as const
 
-const EARTH_NIGHT = `${import.meta.env.BASE_URL}globe/earth-night.jpg`
+const EARTH_DAY = `${import.meta.env.BASE_URL}globe/earth-day.jpg`
 const EARTH_TOPO = `${import.meta.env.BASE_URL}globe/earth-topology.png`
 const NIGHT_SKY = `${import.meta.env.BASE_URL}globe/night-sky.png`
+
+function buildPinElement(marker: HudMarker) {
+  const wrap = document.createElement('button')
+  wrap.type = 'button'
+  wrap.className = styles.pin
+  wrap.title = marker.meta ? `${marker.label} · ${marker.meta}` : marker.label
+  wrap.setAttribute('data-status', marker.status)
+
+  const head = document.createElement('span')
+  head.className = styles.pinHead
+
+  const pulse = document.createElement('span')
+  pulse.className = styles.pinPulse
+  pulse.setAttribute('aria-hidden', 'true')
+
+  const label = document.createElement('span')
+  label.className = styles.pinLabel
+  label.textContent = marker.label
+
+  const meta = document.createElement('span')
+  meta.className = styles.pinMeta
+  meta.textContent = marker.meta ?? marker.status
+
+  const card = document.createElement('span')
+  card.className = styles.pinCard
+  card.append(label, meta)
+
+  wrap.append(pulse, head, card)
+  return wrap
+}
 
 export default function HudGlobeMap({
   markers,
@@ -27,11 +60,10 @@ export default function HudGlobeMap({
 }) {
   const globeRef = useRef<GlobeMethods | undefined>(undefined)
   const stageRef = useRef<HTMLDivElement | null>(null)
-  const reduced = usePrefersReducedMotion()
   const [size, setSize] = useState({ width: 0, height: 0 })
-  /** Avoid React StrictMode first-pass WebGL teardown leaving a blank canvas. */
   const [mounted, setMounted] = useState(false)
   const [globeReady, setGlobeReady] = useState(false)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
 
   useEffect(() => {
     const id = window.requestAnimationFrame(() => setMounted(true))
@@ -58,42 +90,26 @@ export default function HudGlobeMap({
     return () => ro.disconnect()
   }, [mounted])
 
-  const points = useMemo(
+  const htmlMarkers = useMemo(
     () =>
       markers.map((m) => ({
         ...m,
-        color: STATUS_COLOR[m.status],
-        altitude: m.status === 'bad' ? 0.08 : m.status === 'warn' ? 0.05 : 0.03,
-        radius: m.status === 'bad' ? 0.55 : 0.4,
+        altitude: 0.02,
       })),
     [markers],
   )
 
-  const arcs = useMemo(() => {
-    if (markers.length < 2) return []
-    const hub = markers[0]
-    return markers.slice(1, 8).map((m) => ({
-      id: `${hub.id}-${m.id}`,
-      startLat: hub.lat,
-      startLng: hub.lng,
-      endLat: m.lat,
-      endLng: m.lng,
-      color: [STATUS_COLOR[hub.status], STATUS_COLOR[m.status]],
+  const rings = useMemo(() => {
+    const source = selectedId
+      ? markers.filter((m) => m.id === selectedId)
+      : markers.slice(0, 24)
+    return source.map((m) => ({
+      id: m.id,
+      lat: m.lat,
+      lng: m.lng,
+      color: m.id === selectedId ? CARE_AZURE : STATUS_COLOR[m.status],
     }))
-  }, [markers])
-
-  const labels = useMemo(
-    () =>
-      markers.slice(0, 12).map((m) => ({
-        id: m.id,
-        lat: m.lat,
-        lng: m.lng,
-        text: m.label,
-        color: STATUS_COLOR[m.status],
-        size: 0.7,
-      })),
-    [markers],
-  )
+  }, [markers, selectedId])
 
   const configureGlobe = useCallback(() => {
     const globe = globeRef.current
@@ -106,24 +122,25 @@ export default function HudGlobeMap({
       ? markers.reduce((s, m) => s + m.lng, 0) / markers.length
       : 36.3
 
-    globe.pointOfView({ lat, lng, altitude: 2.1 }, 0)
+    // Closer POV so continent detail and pins read clearly
+    globe.pointOfView({ lat, lng, altitude: markers.length ? 1.55 : 2.0 }, 0)
 
     try {
       const controls = globe.controls()
-      controls.autoRotate = !reduced
-      controls.autoRotateSpeed = 0.45
+      controls.autoRotate = false
       controls.enableZoom = true
       controls.enablePan = false
+      controls.enableDamping = true
+      controls.dampingFactor = 0.08
     } catch {
       // controls may not be ready yet
     }
 
     setGlobeReady(true)
-  }, [markers, reduced])
+  }, [markers])
 
   useEffect(() => {
     if (!mounted || !size.width || !size.height) return
-    // Re-apply POV when markers/size change after initial ready
     if (globeReady) configureGlobe()
   }, [configureGlobe, globeReady, mounted, size.height, size.width])
 
@@ -137,48 +154,46 @@ export default function HudGlobeMap({
             ref={globeRef}
             width={size.width}
             height={size.height}
-            backgroundColor="#03050a"
+            backgroundColor="#020617"
             backgroundImageUrl={NIGHT_SKY}
-            globeImageUrl={EARTH_NIGHT}
+            globeImageUrl={EARTH_DAY}
             bumpImageUrl={EARTH_TOPO}
+            globeCurvatureResolution={2}
             showAtmosphere
-            atmosphereColor="#38bdf8"
-            atmosphereAltitude={0.22}
-            showGraticules
+            atmosphereColor="#7dd3fc"
+            atmosphereAltitude={0.18}
+            showGraticules={false}
             onGlobeReady={configureGlobe}
-            pointsData={points}
-            pointLat="lat"
-            pointLng="lng"
-            pointColor="color"
-            pointAltitude="altitude"
-            pointRadius="radius"
-            pointLabel={(d: object) => {
-              const p = d as HudMarker
-              return `<div style="font:12px/1.35 system-ui,sans-serif;padding:2px 0">
-                <strong>${p.label}</strong>
-                ${p.meta ? `<div style="opacity:.75">${p.meta}</div>` : ''}
-              </div>`
+            htmlElementsData={htmlMarkers}
+            htmlLat="lat"
+            htmlLng="lng"
+            htmlAltitude="altitude"
+            htmlElement={(d) => {
+              const marker = d as HudMarker
+              const el = buildPinElement(marker)
+              el.addEventListener('pointerdown', (event) => {
+                event.stopPropagation()
+                setSelectedId(marker.id)
+                const globe = globeRef.current
+                if (!globe) return
+                globe.pointOfView(
+                  { lat: marker.lat, lng: marker.lng, altitude: 1.15 },
+                  700,
+                )
+              })
+              return el
             }}
-            arcsData={arcs}
-            arcStartLat="startLat"
-            arcStartLng="startLng"
-            arcEndLat="endLat"
-            arcEndLng="endLng"
-            arcColor="color"
-            arcAltitudeAutoScale={0.4}
-            arcStroke={0.4}
-            arcDashLength={0.4}
-            arcDashGap={0.2}
-            arcDashAnimateTime={reduced ? 0 : 2800}
-            labelsData={labels}
-            labelLat="lat"
-            labelLng="lng"
-            labelText="text"
-            labelColor="color"
-            labelSize="size"
-            labelDotRadius={0.28}
-            labelAltitude={0.012}
-            labelResolution={2}
+            htmlElementVisibilityModifier={(el, isVisible) => {
+              el.style.opacity = isVisible ? '1' : '0'
+              el.style.pointerEvents = isVisible ? 'auto' : 'none'
+            }}
+            ringsData={rings}
+            ringLat="lat"
+            ringLng="lng"
+            ringColor="color"
+            ringMaxRadius={2.4}
+            ringPropagationSpeed={1.4}
+            ringRepeatPeriod={1400}
             enablePointerInteraction
           />
         ) : (
@@ -193,7 +208,8 @@ export default function HudGlobeMap({
         <div className={styles.active}>{subtitle}</div>
       </div>
       <div className={`${styles.hud} ${styles.topRight}`}>
-        3D MAP · NODES {markers.length}
+        EARTH MAP · {markers.length} CLINICS
+        <div className={styles.hint}>Drag to rotate · scroll to zoom</div>
       </div>
 
       {!markers.length ? (
@@ -202,10 +218,10 @@ export default function HudGlobeMap({
 
       <div className={styles.legend}>
         <span className={styles.legendItem}>
-          <span className={`${styles.dot} ${styles.dotOk}`} /> Healthy
+          <span className={`${styles.dot} ${styles.dotClinic}`} /> Clinic pin
         </span>
         <span className={styles.legendItem}>
-          <span className={`${styles.dot} ${styles.dotWarn}`} /> Degraded
+          <span className={`${styles.dot} ${styles.dotWarn}`} /> Warning
         </span>
         <span className={styles.legendItem}>
           <span className={`${styles.dot} ${styles.dotBad}`} /> Critical

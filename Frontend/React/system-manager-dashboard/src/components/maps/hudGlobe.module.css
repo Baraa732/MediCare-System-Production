@@ -2,17 +2,17 @@
   position: relative;
   flex: 1;
   width: 100%;
-  min-height: 520px;
-  height: min(62vh, 640px);
+  min-height: 560px;
+  height: min(68vh, 720px);
   border-radius: 16px;
   overflow: hidden;
-  border: 0.5px solid rgba(6, 182, 212, 0.22);
+  border: 0.5px solid rgba(11, 116, 250, 0.28);
   background:
-    radial-gradient(ellipse 60% 70% at 50% 48%, rgba(6, 182, 212, 0.08), transparent 60%),
-    radial-gradient(ellipse 90% 100% at 50% 50%, #070b14 0%, #03050a 75%);
+    radial-gradient(ellipse 60% 70% at 50% 48%, rgba(11, 116, 250, 0.1), transparent 60%),
+    radial-gradient(ellipse 90% 100% at 50% 50%, #07111f 0%, #020617 78%);
   box-shadow:
-    inset 0 0 80px rgba(0, 0, 0, 0.45),
-    0 0 0 0.5px rgba(6, 182, 212, 0.08);
+    inset 0 0 80px rgba(0, 0, 0, 0.4),
+    0 0 0 0.5px rgba(11, 116, 250, 0.1);
   isolation: isolate;
 }
 
@@ -44,24 +44,111 @@
   inset: 0;
   z-index: 2;
   background:
-    radial-gradient(ellipse 78% 82% at 50% 50%, transparent 58%, rgba(3, 5, 10, 0.42) 100%);
+    radial-gradient(ellipse 80% 84% at 50% 50%, transparent 62%, rgba(2, 6, 23, 0.35) 100%);
 }
 
-.emptyOverlay {
+/* Google Maps–style clinic pin (matches patient-app hueBlue / #0B74FA) */
+.pin {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  transform: translateY(-100%);
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.45));
+}
+
+.pinHead {
+  width: 22px;
+  height: 22px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: linear-gradient(145deg, #38bdf8 0%, #0b74fa 55%, #0654c4 100%);
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 2px rgba(11, 116, 250, 0.25);
+}
+
+.pinHead::after {
+  content: '';
   position: absolute;
-  z-index: 4;
-  left: 50%;
-  bottom: 48px;
-  transform: translateX(-50%);
-  max-width: min(420px, 86%);
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: 0.5px solid rgba(6, 182, 212, 0.22);
-  background: rgba(8, 12, 20, 0.72);
-  color: #c4cad8;
-  font-size: 12px;
-  text-align: center;
+  inset: 5px;
+  border-radius: 50%;
+  background: #ffffff;
+}
+
+.pin[data-status='warn'] .pinHead {
+  background: linear-gradient(145deg, #fbbf24 0%, #f59e0b 60%, #d97706 100%);
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.28);
+}
+
+.pin[data-status='bad'] .pinHead {
+  background: linear-gradient(145deg, #f87171 0%, #ef4444 60%, #b91c1c 100%);
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.28);
+}
+
+.pinPulse {
+  position: absolute;
+  top: 2px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid rgba(11, 116, 250, 0.65);
+  animation: pinPulse 1.8s ease-out infinite;
   pointer-events: none;
+}
+
+.pin[data-status='warn'] .pinPulse { border-color: rgba(245, 158, 11, 0.65); }
+.pin[data-status='bad'] .pinPulse { border-color: rgba(239, 68, 68, 0.65); }
+
+@keyframes pinPulse {
+  0% { transform: scale(0.7); opacity: 0.85; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+
+.pinCard {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  min-width: 96px;
+  max-width: 160px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(11, 116, 250, 0.22);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+  text-align: left;
+}
+
+.pinLabel {
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1.2;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 144px;
+}
+
+.pinMeta {
+  font-size: 10px;
+  font-weight: 600;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 144px;
+}
+
+.pin:hover .pinCard,
+.pin:focus-visible .pinCard {
+  border-color: rgba(11, 116, 250, 0.55);
+  box-shadow: 0 10px 22px rgba(11, 116, 250, 0.22);
 }
 
 .hud {
@@ -72,11 +159,11 @@
   font-weight: 650;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: rgba(6, 182, 212, 0.9);
-  text-shadow: 0 0 10px rgba(6, 182, 212, 0.4);
+  color: rgba(125, 211, 252, 0.95);
+  text-shadow: 0 0 10px rgba(11, 116, 250, 0.35);
   padding: 6px 8px;
-  background: rgba(8, 12, 20, 0.45);
-  border: 0.5px solid rgba(6, 182, 212, 0.2);
+  background: rgba(8, 12, 20, 0.5);
+  border: 0.5px solid rgba(11, 116, 250, 0.25);
   backdrop-filter: blur(6px);
 }
 
@@ -84,8 +171,17 @@
 .topRight { top: 10px; right: 10px; text-align: right; }
 
 .active {
-  color: #10b981;
+  color: #34d399;
   margin-top: 2px;
+}
+
+.hint {
+  margin-top: 3px;
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  color: #94a3b8;
+  font-weight: 600;
 }
 
 .legend {
@@ -97,10 +193,10 @@
   gap: 10px;
   padding: 5px 9px;
   border-radius: 8px;
-  background: rgba(8, 12, 20, 0.55);
-  border: 0.5px solid rgba(6, 182, 212, 0.18);
+  background: rgba(8, 12, 20, 0.6);
+  border: 0.5px solid rgba(11, 116, 250, 0.2);
   font-size: 10px;
-  color: #8b93a8;
+  color: #cbd5e1;
   font-weight: 600;
 }
 
@@ -111,18 +207,43 @@
 }
 
 .dot {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
 }
 
-.dotOk { background: #10b981; box-shadow: 0 0 8px rgba(16, 185, 129, 0.55); }
+.dotClinic { background: #0b74fa; box-shadow: 0 0 8px rgba(11, 116, 250, 0.6); }
 .dotWarn { background: #f59e0b; box-shadow: 0 0 8px rgba(245, 158, 11, 0.5); }
 .dotBad { background: #ef4444; box-shadow: 0 0 8px rgba(239, 68, 68, 0.55); }
 
+.emptyOverlay {
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  bottom: 48px;
+  transform: translateX(-50%);
+  max-width: min(420px, 86%);
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 0.5px solid rgba(11, 116, 250, 0.25);
+  background: rgba(8, 12, 20, 0.78);
+  color: #e2e8f0;
+  font-size: 12px;
+  text-align: center;
+  pointer-events: none;
+}
+
 @media (max-width: 900px) {
   .stage {
-    min-height: 380px;
-    height: 48vh;
+    min-height: 420px;
+    height: 52vh;
   }
+
+  .pinCard {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pinPulse { animation: none; }
 }

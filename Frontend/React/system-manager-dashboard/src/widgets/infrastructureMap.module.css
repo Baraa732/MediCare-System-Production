@@ -19,8 +19,8 @@
 .loading {
   display: grid;
   place-items: center;
-  min-height: 520px;
-  height: min(62vh, 640px);
+  min-height: 560px;
+  height: min(68vh, 720px);
   border-radius: 16px;
   border: 0.5px solid rgba(6, 182, 212, 0.18);
   color: #8b93a8;

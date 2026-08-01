@@ -38,10 +38,10 @@ export default function InfrastructureMapWidget({
   )
 
   return (
-    <DashboardCard minHeight={600} delay={delay} className={styles.card}>
+    <DashboardCard minHeight={660} delay={delay} className={styles.card}>
       <WidgetHeader
         title="Infrastructure Map"
-        subtitle="Clinic fleet · Three.js globe · dark map tiles · live coordinates"
+        subtitle="High-res Earth globe · clinic pins · drag to rotate"
         badge={<LiveIndicator />}
       />
       <Suspense
