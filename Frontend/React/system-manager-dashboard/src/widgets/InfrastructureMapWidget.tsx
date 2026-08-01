@@ -1,12 +1,10 @@
-﻿import { Suspense, lazy, useMemo } from 'react'
+﻿import { useMemo } from 'react'
 import { DashboardCard, WidgetHeader } from '../components/ui'
 import { LiveIndicator } from '../components/observability'
-import type { HudMarker } from '../components/maps/HudGeoMap'
+import HudGeoMap, { type HudArc, type HudMarker } from '../components/maps/HudGeoMap'
 import type { Clinic } from '../api/types'
 import { clinicsWithCoords } from '../pages/control-center/overviewModel'
-import styles from './infrastructureMap.module.css'
-
-const HudGlobeMap = lazy(() => import('../components/maps/HudGlobeMap'))
+import mapStyles from '../components/maps/hudMap.module.css'
 
 function clinicStatus(status: string): HudMarker['status'] {
   const s = status.toUpperCase()
@@ -37,25 +35,32 @@ export default function InfrastructureMapWidget({
     [geo],
   )
 
+  const arcs: HudArc[] = useMemo(() => {
+    if (markers.length < 2) return []
+    const hub = markers[0]
+    return markers.slice(1, 8).map((m) => ({
+      id: `${hub.id}-${m.id}`,
+      from: [hub.lat, hub.lng] as [number, number],
+      to: [m.lat, m.lng] as [number, number],
+      tone: m.status === 'bad' ? 'bad' : m.status === 'warn' ? 'warn' : 'ok',
+    }))
+  }, [markers])
+
   return (
-    <DashboardCard minHeight={660} delay={delay} className={styles.card}>
+    <DashboardCard minHeight={520} delay={delay}>
       <WidgetHeader
         title="Infrastructure Map"
-        subtitle="High-res Earth globe · clinic pins · drag to rotate"
+        subtitle="Clinic fleet · live coordinates"
         badge={<LiveIndicator />}
       />
-      <Suspense
-        fallback={
-          <div className={styles.loading}>Loading 3D globe…</div>
-        }
-      >
-        <HudGlobeMap
-          markers={markers}
-          title="CLINIC FLEET"
-          subtitle="ACTIVE"
-          emptyHint="No clinics with latitude/longitude yet"
-        />
-      </Suspense>
+      <HudGeoMap
+        markers={markers}
+        arcs={arcs}
+        title="CLINIC FLEET"
+        subtitle="ACTIVE"
+        emptyHint="No clinics with latitude/longitude yet"
+        heightClass={mapStyles.tall}
+      />
     </DashboardCard>
   )
 }
