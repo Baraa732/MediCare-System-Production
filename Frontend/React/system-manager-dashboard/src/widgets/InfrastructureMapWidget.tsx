@@ -1,10 +1,11 @@
 ﻿import { useMemo } from 'react'
 import { DashboardCard, WidgetHeader } from '../components/ui'
 import { LiveIndicator } from '../components/observability'
-import HudGeoMap, { type HudArc, type HudMarker } from '../components/maps/HudGeoMap'
+import HudGlobeMap from '../components/maps/HudGlobeMap'
+import type { HudMarker } from '../components/maps/HudGeoMap'
 import type { Clinic } from '../api/types'
 import { clinicsWithCoords } from '../pages/control-center/overviewModel'
-import mapStyles from '../components/maps/hudMap.module.css'
+import styles from './infrastructureMap.module.css'
 
 function clinicStatus(status: string): HudMarker['status'] {
   const s = status.toUpperCase()
@@ -35,31 +36,18 @@ export default function InfrastructureMapWidget({
     [geo],
   )
 
-  const arcs: HudArc[] = useMemo(() => {
-    if (markers.length < 2) return []
-    const hub = markers[0]
-    return markers.slice(1, 8).map((m) => ({
-      id: `${hub.id}-${m.id}`,
-      from: [hub.lat, hub.lng] as [number, number],
-      to: [m.lat, m.lng] as [number, number],
-      tone: m.status === 'bad' ? 'bad' : m.status === 'warn' ? 'warn' : 'ok',
-    }))
-  }, [markers])
-
   return (
-    <DashboardCard minHeight={520} delay={delay}>
+    <DashboardCard minHeight={600} delay={delay} className={styles.card}>
       <WidgetHeader
         title="Infrastructure Map"
-        subtitle="Clinic fleet · live coordinates"
+        subtitle="Clinic fleet · 3D globe · live coordinates"
         badge={<LiveIndicator />}
       />
-      <HudGeoMap
+      <HudGlobeMap
         markers={markers}
-        arcs={arcs}
         title="CLINIC FLEET"
         subtitle="ACTIVE"
         emptyHint="No clinics with latitude/longitude yet"
-        heightClass={mapStyles.tall}
       />
     </DashboardCard>
   )

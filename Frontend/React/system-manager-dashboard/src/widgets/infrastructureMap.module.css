@@ -1,0 +1,17 @@
+.card {
+  border-width: 0.5px !important;
+  border-color: rgba(6, 182, 212, 0.2) !important;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.22) !important;
+  background: rgba(12, 16, 26, 0.72) !important;
+}
+
+.card:hover {
+  border-color: rgba(6, 182, 212, 0.28) !important;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.28) !important;
+  transform: none !important;
+}
+
+.card :global(.cardBody),
+.card > div {
+  padding-bottom: 10px;
+}

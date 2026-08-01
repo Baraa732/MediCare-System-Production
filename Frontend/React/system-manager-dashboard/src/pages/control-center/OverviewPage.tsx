@@ -59,7 +59,6 @@ import {
   RecentEventsWidget,
   ResourceUsageWidget,
   SecurityOverviewWidget,
-  SystemLogsWidget,
   SystemOverviewWidget,
   TopServicesWidget,
 } from '../../widgets'
@@ -197,13 +196,14 @@ export default function OverviewPage() {
       <SectionHeader title="Operations grid" meta="Wired to platform APIs" />
 
       <div className={styles.grid}>
-        <div className={styles.span4}>
+        <div className={styles.span12}>
           <SystemOverviewWidget delay={0.05} rows={serviceRows} loading={obs.loading} />
         </div>
-        <div className={styles.span4}>
+
+        <div className={styles.span6}>
           <LiveSystemLoadWidget delay={0.08} load={load} />
         </div>
-        <div className={styles.span4}>
+        <div className={styles.span6}>
           <ActiveAlertsWidget delay={0.11} alerts={alerts} />
         </div>
 
@@ -211,58 +211,59 @@ export default function OverviewPage() {
           <InfrastructureMapWidget delay={0.14} clinics={clinics} />
         </div>
 
-        <div className={styles.span4}>
-          <ResourceUsageWidget delay={0.16} observability={obs.data} />
-        </div>
-        <div className={styles.span4}>
-          <TopServicesWidget delay={0.18} observability={obs.data} />
-        </div>
-        <div className={styles.span4}>
-          <ErrorRateWidget delay={0.2} observability={obs.data} />
+        <div className={styles.span12}>
+          <ErrorRateWidget delay={0.16} observability={obs.data} />
         </div>
 
         <div className={styles.span6}>
-          <RecentDeploymentsWidget delay={0.22} deployments={deploymentsQ.data} />
+          <ResourceUsageWidget delay={0.18} observability={obs.data} />
         </div>
         <div className={styles.span6}>
-          <SystemLogsWidget delay={0.24} logs={logsQ.data} />
+          <TopServicesWidget delay={0.2} observability={obs.data} />
         </div>
 
         <div className={styles.span12}>
-          <DistributedTracingWidget delay={0.26} observability={obs.data} />
+          <DistributedTracingWidget delay={0.22} observability={obs.data} />
         </div>
 
-        <div className={styles.span4}>
+        <div className={styles.span12}>
+          <SecurityOverviewWidget delay={0.24} security={securityQ.data} />
+        </div>
+
+        <div className={styles.span6}>
+          <QueueOverviewWidget delay={0.26} queues={queuesQ.data} />
+        </div>
+        <div className={styles.span6}>
           <DatabaseOverviewWidget delay={0.28} health={healthQ.health} />
         </div>
-        <div className={styles.span4}>
-          <QueueOverviewWidget delay={0.3} queues={queuesQ.data} />
-        </div>
-        <div className={styles.span4}>
-          <SecurityOverviewWidget delay={0.32} security={securityQ.data} />
+
+        <div className={styles.span12}>
+          <PlatformActivityWidget delay={0.3} security={securityQ.data} />
         </div>
 
-        <div className={styles.span3}>
-          <RecentEventsWidget delay={0.34} incidents={incidents} logs={logsQ.data} />
+        <div className={styles.span12}>
+          <AuditTimelineWidget delay={0.32} security={securityQ.data} />
         </div>
-        <div className={styles.span3}>
-          <PlatformActivityWidget delay={0.36} security={securityQ.data} />
+
+        <div className={styles.span6}>
+          <RecentDeploymentsWidget delay={0.34} deployments={deploymentsQ.data} />
         </div>
-        <div className={styles.span3}>
-          <NetworkTrafficWidget delay={0.38} observability={obs.data} />
-        </div>
-        <div className={styles.span3}>
-          <AiInsightsWidget delay={0.4} insights={insights} />
+        <div className={styles.span6}>
+          <DeploymentHistoryWidget delay={0.36} deployments={deploymentsQ.data} />
         </div>
 
         <div className={styles.span4}>
-          <IncidentTimelineWidget delay={0.42} incidents={incidents} />
+          <RecentEventsWidget delay={0.38} incidents={incidents} logs={logsQ.data} />
         </div>
         <div className={styles.span4}>
-          <DeploymentHistoryWidget delay={0.44} deployments={deploymentsQ.data} />
+          <NetworkTrafficWidget delay={0.4} observability={obs.data} />
         </div>
         <div className={styles.span4}>
-          <AuditTimelineWidget delay={0.46} security={securityQ.data} />
+          <AiInsightsWidget delay={0.42} insights={insights} />
+        </div>
+
+        <div className={styles.span12}>
+          <IncidentTimelineWidget delay={0.44} incidents={incidents} />
         </div>
       </div>
     </div>
