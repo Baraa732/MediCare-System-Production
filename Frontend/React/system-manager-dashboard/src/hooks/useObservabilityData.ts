@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { getPlatformObservability } from '../api/systemManager'
 import { normalizeError } from '../api/errors'
@@ -16,18 +17,32 @@ export function useObservabilityData(explicitRange?: string, live = true) {
   const range: DashboardTimeRange = explicitRange ? normalizeTimeRange(explicitRange) : storeRange
   const token = resolveSessionToken(storeToken)
   const sessionReady = hasHydrated || Boolean(token)
+  const enabled = sessionReady && Boolean(token)
 
   const query = useQuery({
     queryKey: queryKeys.observability(range),
     queryFn: ({ signal }) => getPlatformObservability(token!, range, signal),
-    enabled: sessionReady && Boolean(token),
+    enabled,
     staleTime: live ? 0 : LIVE_STALE_TIME,
+    gcTime: 5 * 60_000,
     refetchInterval: live ? LIVE_POLL.observability : false,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
     structuralSharing: false,
     placeholderData: keepPreviousData,
   })
+
+  const refetch = query.refetch
+
+  // Explicit timer — React Query refetchInterval alone has been unreliable here.
+  useEffect(() => {
+    if (!live || !enabled) return
+    const id = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void refetch()
+    }, LIVE_POLL.observability)
+    return () => window.clearInterval(id)
+  }, [live, enabled, refetch, range])
 
   return {
     data: query.data ?? null,
@@ -35,5 +50,6 @@ export function useObservabilityData(explicitRange?: string, live = true) {
     fetching: query.isFetching,
     error: query.error ? normalizeError(query.error, 'Could not load observability data.') : null,
     refresh: () => query.refetch(),
+    dataUpdatedAt: query.dataUpdatedAt,
   }
 }

@@ -1,4 +1,4 @@
-import { memo } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { alpha, useTheme } from '@mui/material/styles'
 import { Box, Button, Chip, Switch, Typography } from '@mui/material'
 import { RefreshCw } from 'lucide-react'
@@ -28,10 +28,18 @@ function DashboardLiveBar({
   fetching,
 }: DashboardLiveBarProps) {
   const theme = useTheme()
+  // Tick so "Updated Xs ago" advances even between syncs.
+  const [, setNowTick] = useState(0)
+  useEffect(() => {
+    if (!live) return undefined
+    const id = window.setInterval(() => setNowTick((n) => n + 1), 1_000)
+    return () => window.clearInterval(id)
+  }, [live])
+
   const syncLabel = lastSyncAt
-    ? `Last update ${dayjs(lastSyncAt).fromNow()}`
+    ? `Updated ${dayjs(lastSyncAt).fromNow()}`
     : live
-      ? 'Waiting for first update'
+      ? 'Connecting…'
       : 'Manual refresh only'
 
   return (
@@ -56,13 +64,13 @@ function DashboardLiveBar({
         {live && mode !== 'off' && (
           <Chip
             size="small"
-            label={mode === 'sse' ? 'SSE live' : 'Polling live'}
-            color={mode === 'sse' ? 'success' : 'default'}
+            label={mode === 'sse' ? 'LIVE · SSE' : 'LIVE · auto'}
+            color="success"
             sx={{ height: 20, fontSize: 10, fontWeight: 700 }}
           />
         )}
         {fetching && (
-          <Chip size="small" label="Updating…" color="default" variant="outlined" sx={{ height: 20, fontSize: 10 }} />
+          <Chip size="small" label="Syncing…" color="info" variant="outlined" sx={{ height: 20, fontSize: 10 }} />
         )}
       </Box>
 

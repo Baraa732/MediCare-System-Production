@@ -82,8 +82,8 @@ const FALLBACK_EDGES: Array<[string, string]> = [
 @Injectable()
 export class PlatformObservabilityService {
   private overviewCache = new Map<string, { expiresAt: number; value: Awaited<ReturnType<PlatformObservabilityService['buildOverview']>> }>();
-  /** Short TTL so the dashboard stays near real-time under live polling. */
-  private readonly overviewCacheTtlMs = Number(process.env.PLATFORM_OVERVIEW_CACHE_MS || 8_000);
+  /** Short TTL so forced live refetch always sees fresh data. */
+  private readonly overviewCacheTtlMs = Number(process.env.PLATFORM_OVERVIEW_CACHE_MS || 3_000);
   private overviewInflight = new Map<string, Promise<Awaited<ReturnType<PlatformObservabilityService['buildOverview']>>>>();
 
   constructor(
@@ -107,7 +107,7 @@ export class PlatformObservabilityService {
     const pending = this.buildOverview(cacheKey)
       .then((value) => {
         this.overviewCache.set(cacheKey, {
-          expiresAt: Date.now() + Math.max(5_000, this.overviewCacheTtlMs),
+          expiresAt: Date.now() + Math.max(1_000, this.overviewCacheTtlMs),
           value,
         });
         return value;

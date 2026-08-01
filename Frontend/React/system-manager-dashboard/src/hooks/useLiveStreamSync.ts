@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { getLiveStreamClient } from '../lib/liveStream'
 import { LIVE_POLL } from '../lib/livePolling'
-import { invalidateDashboardQueries, queryKeys } from '../lib/queryClient'
+import { refetchDashboardQueries, queryKeys } from '../lib/queryClient'
 import { resolveSessionToken } from '../lib/sessionToken'
 import { useAuthStore } from '../store/authStore'
 import { useDashboardStore } from '../store/dashboardStore'
@@ -27,20 +27,10 @@ export function useLiveStreamSync() {
     return client.subscribe((event) => {
       if (event.type === 'heartbeat') return
 
-      if (event.type === 'observability') {
-        void queryClient.invalidateQueries({ queryKey: queryKeys.observability(range) })
-        void queryClient.invalidateQueries({ queryKey: queryKeys.platformStats() })
-        void queryClient.invalidateQueries({ predicate: (q) => q.queryKey[0] === 'platform-data' })
-        void queryClient.invalidateQueries({ queryKey: queryKeys.platformHealth() })
-      }
-
-      if (event.type === 'logs') {
-        void queryClient.invalidateQueries({ predicate: (q) => q.queryKey[0] === 'platform-logs' })
-      }
-
-      if (event.type === 'alerts') {
-        void queryClient.invalidateQueries({ queryKey: queryKeys.platformIncidents() })
-        void invalidateDashboardQueries()
+      // Force network refetch — invalidate alone can leave stale UI if queries look fresh.
+      if (event.type === 'observability' || event.type === 'logs' || event.type === 'alerts') {
+        void refetchDashboardQueries()
+        void queryClient.refetchQueries({ queryKey: queryKeys.observability(range), type: 'active' })
       }
     })
   }, [liveEnabled, queryClient, range, token])

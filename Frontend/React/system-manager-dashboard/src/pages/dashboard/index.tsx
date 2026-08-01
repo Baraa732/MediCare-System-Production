@@ -12,7 +12,7 @@ import { useObservabilityData } from '../../hooks/useObservabilityData'
 import { usePlatformData } from '../../hooks/usePlatformData'
 import { usePlatformStats } from '../../hooks/usePlatformStats'
 import { useDashboardStore } from '../../store/dashboardStore'
-import { invalidateDashboardQueries } from '../../lib/queryClient'
+import { refetchDashboardQueries } from '../../lib/queryClient'
 import KpiStrip from './components/KpiStrip'
 import type { KpiItem } from './components/KpiStrip'
 import AIOpsCommandCenter from './components/AIOpsCommandCenter'
@@ -67,7 +67,7 @@ export default function Dashboard() {
   } = useObservabilityData(undefined, live)
 
   const handleRefresh = useCallback(async () => {
-    await invalidateDashboardQueries()
+    await refetchDashboardQueries()
   }, [])
 
   const services = data?.apm.services ?? []

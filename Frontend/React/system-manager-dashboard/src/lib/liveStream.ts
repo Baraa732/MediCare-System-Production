@@ -1,4 +1,4 @@
-/** Live streaming abstraction — SSE/WebSocket with polling fallback. */
+/** Live streaming abstraction — SSE with polling fallback. */
 
 export type LiveStreamEvent =
   | { type: 'observability'; range: string }
@@ -9,9 +9,7 @@ export type LiveStreamEvent =
 export type LiveStreamListener = (event: LiveStreamEvent) => void
 
 export interface LiveStreamOptions {
-  /** Target interval when using polling fallback (ms). */
   pollIntervalMs?: number
-  /** Throttle burst events (ms). */
   throttleMs?: number
   getToken?: () => string | null
 }
@@ -24,7 +22,8 @@ export class LiveStreamClient {
   private pollTimer: ReturnType<typeof setInterval> | null = null
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null
-  private lastEmit = 0
+  /** Per-event-type throttle so logs/observability/alerts don't cancel each other. */
+  private lastEmitByType = new Map<string, number>()
   private disposed = false
   private mode: 'sse' | 'poll' = 'poll'
   private reconnectAttempt = 0
@@ -45,7 +44,6 @@ export class LiveStreamClient {
 
   private connect() {
     if (this.disposed) return
-    // Always keep a poll heartbeat so UI updates even if SSE auth fails.
     this.fallbackToPoll()
     this.trySse()
   }
@@ -58,7 +56,6 @@ export class LiveStreamClient {
       return
     }
 
-    // Close previous EventSource without touching the poll timer.
     if (this.eventSource) {
       this.eventSource.close()
       this.eventSource = null
@@ -71,7 +68,6 @@ export class LiveStreamClient {
       this.eventSource.onopen = () => {
         this.mode = 'sse'
         this.reconnectAttempt = 0
-        // SSE is healthy — poll is still useful as a soft backup; keep it.
         this.startHeartbeat()
       }
       this.eventSource.onmessage = (evt) => {
@@ -100,29 +96,24 @@ export class LiveStreamClient {
   private fallbackToPoll() {
     if (this.disposed || this.pollTimer) return
     this.mode = 'poll'
-    const interval = this.options.pollIntervalMs ?? 15_000
-    // Emit immediately so the UI refreshes as soon as we fall back.
-    this.emit({ type: 'logs' })
+    const interval = this.options.pollIntervalMs ?? 12_000
+    this.emitAll()
+    this.pollTimer = setInterval(() => this.emitAll(), interval)
+  }
+
+  private emitAll() {
     this.emit({ type: 'observability', range: '1h' })
+    this.emit({ type: 'logs' })
     this.emit({ type: 'alerts' })
-    this.pollTimer = setInterval(() => {
-      this.emit({ type: 'observability', range: '1h' })
-      this.emit({ type: 'logs' })
-      this.emit({ type: 'alerts' })
-    }, interval)
   }
 
   private scheduleReconnect() {
     if (this.disposed || this.reconnectTimer) return
-    // Back off harder so we do not thrash the gateway with 401s.
     const delay = Math.min(60_000, 5_000 * 2 ** Math.min(this.reconnectAttempt, 3))
     this.reconnectAttempt += 1
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null
-      if (this.listeners.size > 0) {
-        // Keep poll running while we retry SSE — do NOT clearPoll here.
-        this.trySse()
-      }
+      if (this.listeners.size > 0) this.trySse()
     }, delay)
   }
 
@@ -136,8 +127,11 @@ export class LiveStreamClient {
   private emit(event: LiveStreamEvent) {
     const throttle = this.options.throttleMs ?? 400
     const now = Date.now()
-    if (event.type !== 'heartbeat' && now - this.lastEmit < throttle) return
-    if (event.type !== 'heartbeat') this.lastEmit = now
+    if (event.type !== 'heartbeat') {
+      const last = this.lastEmitByType.get(event.type) ?? 0
+      if (now - last < throttle) return
+      this.lastEmitByType.set(event.type, now)
+    }
     for (const listener of this.listeners) listener(event)
   }
 
@@ -167,7 +161,15 @@ export class LiveStreamClient {
     }
   }
 
-  getMode() {
+  isDisposed() {
+    return this.disposed
+  }
+
+  updateOptions(options: LiveStreamOptions) {
+    Object.assign(this.options, options)
+  }
+
+  getMode(): 'sse' | 'poll' {
     return this.mode
   }
 }
@@ -175,11 +177,10 @@ export class LiveStreamClient {
 let sharedClient: LiveStreamClient | null = null
 
 export function getLiveStreamClient(options?: LiveStreamOptions): LiveStreamClient {
-  if (!sharedClient || sharedClient['disposed']) {
+  if (!sharedClient || sharedClient.isDisposed()) {
     sharedClient = new LiveStreamClient(options)
-  } else if (options?.getToken) {
-    // Refresh token getter on the shared client.
-    sharedClient['options'] = { ...sharedClient['options'], ...options }
+  } else if (options) {
+    sharedClient.updateOptions(options)
   }
   return sharedClient
 }

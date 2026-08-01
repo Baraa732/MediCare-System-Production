@@ -56,11 +56,14 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     method,
     headers: {
       'Content-Type': 'application/json',
+      'Cache-Control': 'no-cache',
+      Pragma: 'no-cache',
       ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
       ...headers,
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,
     credentials: 'include',
+    cache: 'no-store',
     signal,
   })
 

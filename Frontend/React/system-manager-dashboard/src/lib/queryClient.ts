@@ -35,5 +35,24 @@ export function invalidateDashboardQueries() {
         || key === 'platform-incidents'
       )
     },
+    refetchType: 'active',
+  })
+}
+
+/** Force an immediate network refetch of active dashboard queries. */
+export function refetchDashboardQueries() {
+  return queryClient.refetchQueries({
+    predicate: (query) => {
+      const key = query.queryKey[0]
+      return (
+        key === 'platform-observability'
+        || key === 'platform-stats'
+        || key === 'platform-data'
+        || key === 'platform-health'
+        || key === 'platform-logs'
+        || key === 'platform-incidents'
+      )
+    },
+    type: 'active',
   })
 }

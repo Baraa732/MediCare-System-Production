@@ -1,16 +1,18 @@
-import { useEffect, useRef, useState } from 'react'
-import { invalidateDashboardQueries } from '../lib/queryClient'
+import { useEffect, useState } from 'react'
 import { getLiveStreamClient } from '../lib/liveStream'
 import { LIVE_POLL } from '../lib/livePolling'
 import { resolveSessionToken } from '../lib/sessionToken'
 import { useAuthStore } from '../store/authStore'
+import { useForcedLiveRefresh } from './useForcedLiveRefresh'
 
-/** Subscribes to platform SSE stream and softly invalidates cached queries (no remount). */
+/**
+ * Dashboard live mode:
+ * 1) Forced timer refetch (always works — does not depend on SSE)
+ * 2) Shared stream client only for LIVE mode indicator
+ */
 export function useDashboardLive(enabled = true) {
-  const storeToken = useAuthStore((s) => s.token)
   const [mode, setMode] = useState<'sse' | 'poll' | 'off'>('off')
-  const [lastSyncAt, setLastSyncAt] = useState<number | null>(null)
-  const lastInvalidateRef = useRef(0)
+  const { lastSyncAt } = useForcedLiveRefresh(enabled, LIVE_POLL.observability)
 
   useEffect(() => {
     if (!enabled) {
@@ -18,33 +20,29 @@ export function useDashboardLive(enabled = true) {
       return undefined
     }
 
-    const token = resolveSessionToken(storeToken)
     const client = getLiveStreamClient({
-      getToken: () => token,
+      getToken: () => resolveSessionToken(useAuthStore.getState().token),
       pollIntervalMs: LIVE_POLL.streamFallback,
-      throttleMs: LIVE_POLL.streamThrottle,
-    })
-
-    const softRefresh = () => {
-      const now = Date.now()
-      if (now - lastInvalidateRef.current < LIVE_POLL.streamThrottle) return
-      lastInvalidateRef.current = now
-      void invalidateDashboardQueries()
-      setLastSyncAt(now)
-    }
-
-    const unsubscribe = client.subscribe((event) => {
-      if (event.type === 'heartbeat') {
-        setMode(client.getMode())
-        return
-      }
-      softRefresh()
-      setMode(client.getMode())
+      throttleMs: 500,
     })
 
     setMode(client.getMode())
-    return unsubscribe
-  }, [enabled, storeToken])
+    const unsubscribe = client.subscribe(() => {
+      setMode(client.getMode())
+    })
 
-  return { mode, lastSyncAt, live: enabled }
+    return unsubscribe
+  }, [enabled])
+
+  const resolvedMode: 'sse' | 'poll' | 'off' = !enabled
+    ? 'off'
+    : mode === 'off'
+      ? 'poll'
+      : mode
+
+  return {
+    mode: resolvedMode,
+    lastSyncAt,
+    live: enabled,
+  }
 }
