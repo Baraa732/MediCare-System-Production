@@ -1,10 +1,12 @@
 import { useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Activity,
   AlertTriangle,
   CheckCircle2,
   Clock3,
   Gauge,
+  KeyRound,
   Server,
   Zap,
 } from 'lucide-react'
@@ -84,6 +86,7 @@ const kpiColors: Record<string, string> = {
 }
 
 export default function OverviewPage() {
+  const navigate = useNavigate()
   const timeRange = useDashboardStore((s) => s.timeRange)
   const setTimeRange = useDashboardStore((s) => s.setTimeRange)
   const { live, lastSyncAt, mode } = useDashboardLive(true)
@@ -143,6 +146,10 @@ export default function OverviewPage() {
             value={timeRangeLabel(timeRange)}
             onChange={(v) => setTimeRange(normalizeTimeRange(v))}
           />
+          <AnimatedButton onClick={() => navigate('/activation-codes')}>
+            <KeyRound size={14} style={{ marginRight: 6 }} />
+            Activation Codes
+          </AnimatedButton>
           <AnimatedButton
             onClick={() => {
               void obs.refresh()
