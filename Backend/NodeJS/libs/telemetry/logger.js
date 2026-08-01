@@ -6,6 +6,7 @@ const { getRequestContext } = require('./request-context');
 const { getRuntimeContext } = require('./runtime-context');
 const { parseStackTrace } = require('./stack-parser');
 const { classifyErrorClass, classifyBusinessImpact } = require('./log-error-classifier');
+const { normalizeLogMessage } = require('./log-message-normalizer');
 
 const LEVELS = new Set(['DEBUG', 'INFO', 'WARN', 'ERROR', 'CRITICAL']);
 
@@ -97,6 +98,7 @@ function emit(serviceName, level, message, extra = {}) {
   const normalized = normalizeLevel(level);
   const cleaned = sanitizeExtra(extra);
   const runtime = getRuntimeContext(serviceName);
+  const normalizedMessage = normalizeLogMessage(message, cleaned);
 
   const record = {
     timestamp: new Date().toISOString(),
@@ -104,11 +106,15 @@ function emit(serviceName, level, message, extra = {}) {
     host: runtime.host,
     level: normalized,
     service: serviceName,
-    message: String(message ?? ''),
+    message: normalizedMessage.message,
     trace_id: cleaned.trace_id ?? cleaned.traceId ?? reqCtx.trace_id ?? ctx.trace_id ?? null,
     span_id: cleaned.span_id ?? cleaned.spanId ?? reqCtx.span_id ?? ctx.span_id ?? null,
     request_id: cleaned.request_id ?? cleaned.requestId ?? cleaned.correlation_id ?? reqCtx.request_id ?? null,
   };
+
+  if (normalizedMessage.detail) record.detail = normalizedMessage.detail;
+  if (normalizedMessage.context) record.context = normalizedMessage.context;
+  if (normalizedMessage.raw_message) record.raw_message = normalizedMessage.raw_message;
 
   if (runtime.container_id) record.container_id = runtime.container_id;
   if (runtime.pod_name) record.pod_name = runtime.pod_name;
@@ -133,8 +139,12 @@ function emit(serviceName, level, message, extra = {}) {
   enrichErrorRecord(record, cleaned, normalized);
 
   const metadata = cleaned.metadata ?? cleaned.meta;
-  if (metadata && typeof metadata === 'object') {
-    record.metadata = metadata;
+  const mergedMetadata = {
+    ...(normalizedMessage.metadata && typeof normalizedMessage.metadata === 'object' ? normalizedMessage.metadata : {}),
+    ...(metadata && typeof metadata === 'object' ? metadata : {}),
+  };
+  if (Object.keys(mergedMetadata).length) {
+    record.metadata = mergedMetadata;
   }
 
   const reserved = new Set([

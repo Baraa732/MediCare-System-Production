@@ -1,5 +1,13 @@
 import type { PlatformLogLevel } from './platform-logs.service';
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { normalizeLogMessage } = require('@medicare/telemetry/log-message-normalizer') as {
+  normalizeLogMessage: (
+    message: string,
+    extra?: Record<string, unknown>,
+  ) => { message: string; detail?: string; context?: string; raw_message?: string };
+};
+
 export interface ParsedLogLine {
   timestamp: string;
   level: PlatformLogLevel;
@@ -66,12 +74,13 @@ export function parseLogLine(raw: string, service: string, nanoTs?: string): Par
     ? resolveStructuredLogLevel(json, cleaned)
     : detectLevel(cleaned);
   const normalizedService = normalizeServiceLabel(String(json?.service ?? service));
+  const friendly = normalizeLogMessage(message, json ?? {});
 
   return {
     timestamp,
     level,
     service: normalizedService,
-    message: stripAnsi(message) || cleaned,
+    message: stripAnsi(friendly.message) || cleaned,
     raw: cleaned,
     traceId: pickId(json, cleaned, ['trace_id', 'traceId', 'traceID']),
     spanId: pickId(json, cleaned, ['span_id', 'spanId', 'spanID']),

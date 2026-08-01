@@ -15,6 +15,7 @@ const { setupMedicareLogging, logServiceReady, createMedicareNestLogger, overrid
 const { registerPrometheusRoute } = require('./prometheus-metrics');
 const { getRequestContext, mergeRequestContext, runWithRequestContext } = require('./request-context');
 const { isRailwayRuntime, resolveLokiBaseUrl, resolveLokiPushUrl } = require('./loki-url');
+const { normalizeLogMessage } = require('./log-message-normalizer');
 
 module.exports = {
   initTelemetry,
@@ -49,4 +50,5 @@ module.exports = {
   isRailwayRuntime,
   resolveLokiBaseUrl,
   resolveLokiPushUrl,
+  normalizeLogMessage,
 };

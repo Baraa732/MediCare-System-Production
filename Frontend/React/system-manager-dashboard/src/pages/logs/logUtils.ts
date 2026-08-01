@@ -63,14 +63,25 @@ export interface LogJsonDocument {
 }
 
 export function buildLogJsonDocument(entry: PlatformLogEntry): LogJsonDocument {
-  for (const candidate of [entry.message, entry.raw]) {
+  const display = getTableLogDisplay(entry)
+
+  for (const candidate of [entry.raw, entry.message]) {
     const parsed = tryParseJson(candidate)
-    if (parsed !== null) {
-      const formatted = JSON.stringify(parsed, null, 2)
+    if (parsed !== null && typeof parsed === 'object') {
+      const friendly: Record<string, unknown> = {
+        ...(parsed as Record<string, unknown>),
+        message: display.headline,
+        ...(display.subtitle ? { detail: display.subtitle } : {}),
+      }
+      const originalMessage = (parsed as Record<string, unknown>).message
+      if (typeof originalMessage === 'string' && originalMessage !== display.headline) {
+        friendly.raw_message = originalMessage
+      }
+      const formatted = JSON.stringify(friendly, null, 2)
       return {
         formatted,
         isNativeJson: true,
-        preview: summarizeJsonPreview(parsed),
+        preview: summarizeJsonPreview(friendly),
       }
     }
   }
@@ -80,13 +91,15 @@ export function buildLogJsonDocument(entry: PlatformLogEntry): LogJsonDocument {
     timestamp: entry.timestamp,
     level: entry.level,
     service: entry.service,
-    message: tryParseJson(entry.message) ?? entry.message,
+    message: display.headline,
   }
 
+  if (display.subtitle) document.detail = display.subtitle
   if (entry.traceId) document.traceId = entry.traceId
   if (entry.spanId) document.spanId = entry.spanId
   if (entry.requestId) document.requestId = entry.requestId
-  if (entry.raw) document.raw = tryParseJson(entry.raw) ?? entry.raw
+  if (entry.raw && entry.raw !== entry.message) document.raw = tryParseJson(entry.raw) ?? entry.raw
+  if (entry.message && entry.message !== display.headline) document.raw_message = entry.message
 
   const formatted = JSON.stringify(document, null, 2)
   return {
@@ -381,17 +394,20 @@ function splitNestStyleLine(raw: string): {
 }
 
 export function extractStructuredFields(entry: PlatformLogEntry): StructuredLogFields {
-  const raw = (entry.message || entry.raw || '').trim()
-  const parsed = tryParseJson(raw)
-  const obj = asRecord(parsed) ?? splitNestStyleLine(raw).json
-  if (!obj) return {}
+  const rawLine = (entry.raw || entry.message || '').trim()
+  const record = asRecord(tryParseJson(rawLine))
+  const messageText = record
+    ? String(record.message ?? entry.message)
+    : entry.message
+  const nest = splitNestStyleLine(messageText)
+  const obj: Record<string, unknown> = { ...(record ?? {}), ...(nest.json ?? {}) }
 
   return {
     method: readString(obj, 'method', 'httpMethod') ?? undefined,
-    path: readString(obj, 'path', 'url', 'route') ?? undefined,
+    path: readString(obj, 'endpoint', 'path', 'url', 'route') ?? undefined,
     statusCode: readNumber(obj, 'status_code', 'statusCode', 'status'),
     durationMs: readNumber(obj, 'duration_ms', 'durationMs', 'duration'),
-    error: readString(obj, 'error', 'message', 'msg', 'detail', 'description', 'reason') ?? undefined,
+    error: readString(obj, 'error', 'detail', 'description', 'reason') ?? undefined,
     logger: readString(obj, 'logger') ?? undefined,
     groupId: readString(obj, 'groupId', 'group_id') ?? undefined,
     broker: readString(obj, 'broker') ?? undefined,
@@ -483,7 +499,7 @@ export function getTableLogDisplay(entry: PlatformLogEntry): TableLogDisplay {
   let subtitle: string | null = null
   let ctx = context
 
-  if (mergedFields.logger?.toLowerCase() === 'kafkajs' || lower.includes('kafkajs') || lower.includes('kafka.railway')) {
+  if (mergedFields.logger?.toLowerCase() === 'kafkajs' || lower.includes('kafkajs') || lower.includes('kafka.railway') || context === 'Connection' || context === 'Runner' || context === 'ConsumerGroup') {
     ctx = ctx ?? 'Kafka'
     const kafka = formatKafkaSummary(text, mergedFields)
     headline = kafka.headline
