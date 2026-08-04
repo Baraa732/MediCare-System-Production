@@ -15,7 +15,7 @@ import { normalizeError } from '../../api/errors'
 import { useAuthStore } from '../../store/authStore'
 import { notify } from '../../lib/toast'
 import { AdvancedPageHeader, CommandMetric } from '../../components/advanced/AdvancedPage'
-import { MotionHeader, MotionMetricGridItem, MotionPanel } from '../../components/motion/AnimatedSections'
+import { MotionHeader, MotionPanel } from '../../components/motion/AnimatedSections'
 import { PageMotion } from '../../components/motion/PageMotion'
 
 const ACCENT = '#06b6d4'
@@ -103,18 +103,10 @@ export default function BroadcastNotification() {
               gap: 1.5,
             }}
           >
-            <MotionMetricGridItem>
-              <CommandMetric label="Patients queued" value={String(result.queued)} color="#06b6d4" />
-            </MotionMetricGridItem>
-            <MotionMetricGridItem>
-              <CommandMetric label="Inbox saved" value={String(result.inboxSaved)} color="#22c55e" />
-            </MotionMetricGridItem>
-            <MotionMetricGridItem>
-              <CommandMetric label="Push delivered" value={String(result.pushSuccess)} color="#22c55e" />
-            </MotionMetricGridItem>
-            <MotionMetricGridItem>
-              <CommandMetric label="Push failed" value={String(result.pushFailed)} color="#f59e0b" />
-            </MotionMetricGridItem>
+            <CommandMetric label="Patients queued" value={String(result.queued)} color="#06b6d4" />
+            <CommandMetric label="Inbox saved" value={String(result.inboxSaved)} color="#22c55e" />
+            <CommandMetric label="Push delivered" value={String(result.pushSuccess)} color="#22c55e" />
+            <CommandMetric label="Push failed" value={String(result.pushFailed)} color="#f59e0b" />
           </Box>
         ) : null}
 
