@@ -11,6 +11,12 @@ export interface PushPayload {
 export interface PushSendOptions {
   androidChannelId?: string;
   deepLink?: string;
+  /**
+   * Patient Flutter apps need data-only Android messages so the background
+   * isolate can draw a tray notification when the app is swiped away / killed.
+   * System notification payloads are often dropped by OEM battery savers.
+   */
+  androidDataOnly?: boolean;
 }
 
 @Injectable()
@@ -73,7 +79,6 @@ export class FirebasePushService implements OnModuleInit {
     };
   }
 
-  /** Public Android/iOS client config for Flutter Firebase.initializeApp (safe to expose). */
   getMobileConfig(): Record<string, string> | null {
     const projectId = process.env.FIREBASE_PROJECT_ID;
     const messagingSenderId = process.env.FIREBASE_MESSAGING_SENDER_ID;
@@ -118,22 +123,51 @@ export class FirebasePushService implements OnModuleInit {
 
     const androidChannelId = options?.androidChannelId ?? 'medicare_secretary';
     const deepLink = options?.deepLink ?? payload.data?.deepLink ?? '/dashboard';
+    const androidDataOnly =
+      options?.androidDataOnly === true || androidChannelId === 'medicare_patient';
+
+    const stringData: Record<string, string> = {
+      title: payload.title,
+      body: payload.body,
+      deepLink,
+      androidChannelId,
+      click_action: 'FLUTTER_NOTIFICATION_CLICK',
+    };
+    for (const [key, value] of Object.entries(payload.data ?? {})) {
+      if (value !== undefined && value !== null) {
+        stringData[key] = String(value);
+      }
+    }
 
     const chunkSize = 500;
     for (let i = 0; i < unique.length; i += chunkSize) {
       const chunk = unique.slice(i, i + chunkSize);
       try {
-        const response = await admin.messaging().sendEachForMulticast({
+        const message: admin.messaging.MulticastMessage = {
           tokens: chunk,
-          notification: {
-            title: payload.title,
-            body: payload.body,
-            imageUrl: payload.imageUrl,
-          },
-          data: {
-            ...(payload.data ?? {}),
-            title: payload.title,
-            body: payload.body,
+          data: stringData,
+          android: {
+            priority: 'high',
+            ttl: 86400000,
+            // Data-only: omit android.notification so Flutter background isolate
+            // always runs and can post a local tray notification when killed.
+            ...(androidDataOnly
+              ? {}
+              : {
+                  notification: {
+                    channelId: androidChannelId,
+                    priority: 'max' as const,
+                    defaultSound: true,
+                    defaultVibrateTimings: true,
+                    visibility: 'public' as const,
+                    clickAction: 'FLUTTER_NOTIFICATION_CLICK',
+                    tag:
+                      payload.data?.category ||
+                      payload.data?.notificationId ||
+                      'medicare',
+                    notificationCount: 1,
+                  },
+                }),
           },
           webpush: {
             headers: {
@@ -152,29 +186,6 @@ export class FirebasePushService implements OnModuleInit {
               link: deepLink,
             },
           },
-          // High-priority notification payload is required for delivery when the
-          // patient app is fully killed (Flutter process not running).
-          android: {
-            priority: 'high',
-            ttl: 86400000,
-            notification: {
-              channelId: androidChannelId,
-              priority: 'max',
-              defaultSound: true,
-              defaultVibrateTimings: true,
-              visibility: 'public',
-              clickAction: 'FLUTTER_NOTIFICATION_CLICK',
-              tag: payload.data?.category || payload.data?.notificationId || 'medicare',
-              // Sticky heads-up on many OEMs when app is not in foreground.
-              notificationCount: 1,
-            },
-            data: {
-              ...(payload.data ?? {}),
-              title: payload.title,
-              body: payload.body,
-              click_action: 'FLUTTER_NOTIFICATION_CLICK',
-            },
-          },
           apns: {
             headers: {
               'apns-priority': '10',
@@ -190,7 +201,19 @@ export class FirebasePushService implements OnModuleInit {
               },
             },
           },
-        });
+        };
+
+        // System tray notification for non-patient clients (web/secretary).
+        // Patient Android uses data-only (handled in Flutter background isolate).
+        if (!androidDataOnly) {
+          message.notification = {
+            title: payload.title,
+            body: payload.body,
+            imageUrl: payload.imageUrl,
+          };
+        }
+
+        const response = await admin.messaging().sendEachForMulticast(message);
 
         successCount += response.successCount;
         failureCount += response.failureCount;
@@ -198,6 +221,9 @@ export class FirebasePushService implements OnModuleInit {
         response.responses.forEach((res, idx) => {
           if (!res.success) {
             const code = res.error?.code;
+            this.logger.warn(
+              `FCM token failed [${code ?? 'unknown'}]: ${res.error?.message ?? 'n/a'}`,
+            );
             if (
               code === 'messaging/invalid-registration-token' ||
               code === 'messaging/registration-token-not-registered'
@@ -206,6 +232,11 @@ export class FirebasePushService implements OnModuleInit {
             }
           }
         });
+
+        this.logger.log(
+          `FCM chunk sent mode=${androidDataOnly ? 'android-data-only' : 'notification'} ` +
+            `ok=${response.successCount} fail=${response.failureCount}`,
+        );
       } catch (error: any) {
         failureCount += chunk.length;
         this.logger.error(`FCM multicast failed: ${error?.message}`);

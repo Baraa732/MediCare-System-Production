@@ -16,6 +16,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart'
     show NotificationResponse;
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Handles push for all app modes:
@@ -37,6 +38,7 @@ class PushNotificationService with WidgetsBindingObserver {
 
   static const _tokenKey = 'medicare_fcm_token';
   static const _registeredTokenKey = 'medicare_fcm_token_registered';
+  static const _batteryPromptKey = 'medicare_battery_opt_prompted';
 
   final NotificationApiService _notificationApi;
   final NotificationLocalStore _localStore;
@@ -153,6 +155,7 @@ class PushNotificationService with WidgetsBindingObserver {
         deviceLabel: '${Platform.operatingSystem} patient-app',
       );
       await _prefs.setString(_registeredTokenKey, token);
+      await _requestUnrestrictedBatteryIfNeeded();
 
       if (kDebugMode) {
         debugPrint(
@@ -196,6 +199,29 @@ class PushNotificationService with WidgetsBindingObserver {
     } catch (e) {
       if (kDebugMode) {
         debugPrint('Pending read sync failed: $e');
+      }
+    }
+  }
+
+  /// Samsung/OEM "sleeping apps" after swipe-from-Recents blocks FCM.
+  Future<void> _requestUnrestrictedBatteryIfNeeded() async {
+    if (!Platform.isAndroid) return;
+    if (_prefs.getBool(_batteryPromptKey) == true) return;
+
+    try {
+      final status = await Permission.ignoreBatteryOptimizations.status;
+      if (status.isGranted) {
+        await _prefs.setBool(_batteryPromptKey, true);
+        return;
+      }
+      final result = await Permission.ignoreBatteryOptimizations.request();
+      await _prefs.setBool(_batteryPromptKey, true);
+      if (kDebugMode) {
+        debugPrint('Battery optimization exemption: $result');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('Battery optimization prompt skipped: $e');
       }
     }
   }

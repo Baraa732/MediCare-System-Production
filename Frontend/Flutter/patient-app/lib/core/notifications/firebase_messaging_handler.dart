@@ -10,7 +10,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 const _bgCacheKey = 'medicare_notification_inbox_cache';
 
-/// Background/killed-state FCM handler — must stay a top-level function.
+/// Runs when app is backgrounded OR fully killed (swiped from Recents).
+/// Must stay a top-level function.
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,16 +27,16 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       }
     }
 
-    // Data-only messages need an explicit tray notification. If FCM already
-    // included a notification payload, the OS shows it automatically.
-    await NotificationDisplay.showFromRemoteMessage(message);
-
+    // Always draw the tray notification from the background isolate.
+    // Patient pushes are data-only so this path runs even when the app is killed.
+    await NotificationDisplay.ensureInitialized();
+    await NotificationDisplay.showFromRemoteMessage(message, force: true);
     await _cacheRemoteMessage(message);
 
     if (kDebugMode) {
       debugPrint(
-        'Background FCM handled: ${message.messageId} '
-        'hasNotification=${message.notification != null} data=${message.data}',
+        'Background/killed FCM shown: ${message.messageId} '
+        'title=${message.data['title'] ?? message.notification?.title}',
       );
     }
   } catch (e, stack) {
@@ -81,7 +82,5 @@ Future<void> _cacheRemoteMessage(RemoteMessage message) async {
       list.removeRange(80, list.length);
     }
     await prefs.setString(_bgCacheKey, jsonEncode(list));
-  } catch (_) {
-    // Best-effort cache for offline/killed reopen.
-  }
+  } catch (_) {}
 }

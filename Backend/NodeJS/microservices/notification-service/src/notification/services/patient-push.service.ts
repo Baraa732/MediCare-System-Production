@@ -332,6 +332,7 @@ export class PatientPushService {
       {
         androidChannelId: 'medicare_patient',
         deepLink: stringData.deepLink,
+        androidDataOnly: true,
       },
     );
 
