@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
-  Bell,
   CheckSquare,
   MessageSquare,
   Settings,
 } from 'lucide-react'
 import { SearchInput, TopbarAction } from '../../components/ui'
 import { fadeIn, pulseDot } from '../../animations/variants'
+import NotificationPanel from './NotificationPanel'
 import styles from './shell.module.css'
 
 export default function Topbar() {
@@ -59,9 +59,7 @@ export default function Topbar() {
           Live
         </div>
         <span className={styles.clock}>{timeLabel}</span>
-        <TopbarAction label="Notifications" badge={12} ring>
-          <Bell size={16} />
-        </TopbarAction>
+        <NotificationPanel />
         <TopbarAction label="Messages" badge={3}>
           <MessageSquare size={16} />
         </TopbarAction>

@@ -35,6 +35,7 @@ type NotificationContextValue = {
   permission: NotificationPermissionState;
   pushEnabled: boolean;
   isLoading: boolean;
+  lastError: string | null;
   refreshInbox: () => Promise<void>;
   markRead: (id: string) => Promise<void>;
   markAllRead: () => Promise<void>;
@@ -71,6 +72,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [permission, setPermission] = useState<NotificationPermissionState>("default");
   const [pushEnabled, setPushEnabled] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [lastError, setLastError] = useState<string | null>(null);
 
   const fcmTokenRef = useRef<string | null>(null);
   const firebaseAppRef = useRef<FirebaseApp | null>(null);
@@ -83,6 +85,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       const inbox = await fetchStaffInbox(accessToken, { page: 1, limit: 30 });
       setItems(inbox.items);
       setUnreadCount(inbox.unreadCount);
+      setLastError(null);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to load notifications";
+      setLastError(message);
     } finally {
       setIsLoading(false);
     }
@@ -196,6 +203,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       setItems([]);
       setUnreadCount(0);
       setPushEnabled(false);
+      setLastError(null);
       return;
     }
 
@@ -242,6 +250,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       permission,
       pushEnabled,
       isLoading,
+      lastError,
       refreshInbox,
       markRead,
       markAllRead,
@@ -253,6 +262,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       permission,
       pushEnabled,
       isLoading,
+      lastError,
       refreshInbox,
       markRead,
       markAllRead,

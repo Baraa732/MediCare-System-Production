@@ -160,6 +160,8 @@ class EntityMappers {
         return 'Rescheduled';
       case 'LATE_ARRIVAL':
         return 'Alert';
+      case 'SYSTEM':
+        return 'Update';
       default:
         return 'Update';
     }

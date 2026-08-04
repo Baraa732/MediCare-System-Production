@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import { Bell, CheckCheck, Loader2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import {
@@ -9,13 +10,32 @@ import { Button } from "@/components/ui/button";
 import { useNotifications } from "./NotificationProvider";
 import { cn } from "@/lib/utils";
 
+const FILTERS = [
+  { id: "all", label: "All" },
+  { id: "unread", label: "Unread" },
+  { id: "APPOINTMENT_CREATED", label: "Created" },
+  { id: "APPOINTMENT_UPDATED", label: "Updated" },
+  { id: "APPOINTMENT_CANCELLED", label: "Cancelled" },
+  { id: "APPOINTMENT_REQUESTED", label: "Requested" },
+] as const;
+
+function categoryTone(category: string) {
+  if (category.includes("CANCEL")) return "border-l-red-500";
+  if (category.includes("REQUEST") || category.includes("UPDATE"))
+    return "border-l-amber-500";
+  if (category.includes("CREATE")) return "border-l-emerald-500";
+  return "border-l-blue-500";
+}
+
 export function NotificationBell() {
+  const [filter, setFilter] = useState<(typeof FILTERS)[number]["id"]>("all");
   const {
     items,
     unreadCount,
     permission,
     pushEnabled,
     isLoading,
+    lastError,
     refreshInbox,
     markRead,
     markAllRead,
@@ -24,6 +44,12 @@ export function NotificationBell() {
 
   const needsPermission =
     permission === "default" || (permission === "granted" && !pushEnabled);
+
+  const filtered = useMemo(() => {
+    if (filter === "all") return items;
+    if (filter === "unread") return items.filter((i) => !i.readAt);
+    return items.filter((i) => i.category === filter);
+  }, [filter, items]);
 
   return (
     <Popover onOpenChange={(open) => open && void refreshInbox()}>
@@ -42,12 +68,13 @@ export function NotificationBell() {
         </button>
       </PopoverTrigger>
 
-      <PopoverContent align="end" className="w-96 p-0 overflow-hidden">
+      <PopoverContent align="end" className="w-[26rem] p-0 overflow-hidden">
         <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">
           <div>
             <p className="text-sm font-semibold text-neutral-900">Notifications</p>
             <p className="text-[11px] text-neutral-500">
-              Real-time alerts for appointments
+              Inbox · push · live polling
+              {pushEnabled ? " · FCM on" : " · push off"}
             </p>
           </div>
           {unreadCount > 0 ? (
@@ -67,8 +94,8 @@ export function NotificationBell() {
         {needsPermission ? (
           <div className="px-4 py-3 bg-blue-50 border-b border-blue-100">
             <p className="text-xs text-blue-900 mb-2">
-              Enable browser notifications to receive alerts when this tab is in the
-              background, minimized, or your screen is locked.
+              Enable browser notifications for alerts when this tab is backgrounded,
+              minimized, or the screen is locked.
             </p>
             <Button
               type="button"
@@ -81,26 +108,51 @@ export function NotificationBell() {
           </div>
         ) : null}
 
+        {lastError ? (
+          <div className="px-4 py-2 bg-red-50 border-b border-red-100 text-xs text-red-700">
+            {lastError}
+          </div>
+        ) : null}
+
+        <div className="flex flex-wrap gap-1.5 px-3 py-2 border-b border-neutral-100">
+          {FILTERS.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => setFilter(f.id)}
+              className={cn(
+                "px-2 py-1 rounded-full text-[11px] border transition-colors",
+                filter === f.id
+                  ? "bg-blue-50 border-blue-200 text-blue-700"
+                  : "border-neutral-200 text-neutral-500 hover:bg-neutral-50",
+              )}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
         <div className="max-h-80 overflow-y-auto">
           {isLoading && items.length === 0 ? (
             <div className="flex items-center justify-center gap-2 py-10 text-neutral-400 text-xs">
               <Loader2 className="w-4 h-4 animate-spin" />
               Loading...
             </div>
-          ) : items.length === 0 ? (
+          ) : filtered.length === 0 ? (
             <p className="py-10 text-center text-xs text-neutral-400">
-              No notifications yet
+              No notifications in this view
             </p>
           ) : (
             <ul className="divide-y divide-neutral-100">
-              {items.map((item) => {
+              {filtered.map((item) => {
                 const unread = !item.readAt;
                 return (
                   <li key={item.id}>
                     <button
                       type="button"
                       className={cn(
-                        "w-full text-left px-4 py-3 hover:bg-neutral-50 transition-colors",
+                        "w-full text-left px-4 py-3 hover:bg-neutral-50 transition-colors border-l-2",
+                        categoryTone(item.category),
                         unread && "bg-blue-50/40",
                       )}
                       onClick={() => unread && void markRead(item.id)}
@@ -117,7 +169,10 @@ export function NotificationBell() {
                         {item.body}
                       </p>
                       <p className="text-[10px] text-neutral-400 mt-1">
-                        {formatDistanceToNow(new Date(item.createdAt), { addSuffix: true })}
+                        {item.category.replace(/_/g, " ").toLowerCase()} ·{" "}
+                        {formatDistanceToNow(new Date(item.createdAt), {
+                          addSuffix: true,
+                        })}
                       </p>
                     </button>
                   </li>

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   Box,
   Typography,
@@ -8,10 +8,22 @@ import {
   Divider,
   Button,
   CircularProgress,
+  Chip,
+  Stack,
 } from '@mui/material'
 import { Bell, CheckCheck } from 'lucide-react'
 import { useTheme } from '@mui/material/styles'
 import { useNotifications } from '../../features/notifications/NotificationProvider'
+
+const FILTERS = [
+  { id: 'all', label: 'All' },
+  { id: 'unread', label: 'Unread' },
+  { id: 'APPOINTMENT_CREATED', label: 'Created' },
+  { id: 'APPOINTMENT_UPDATED', label: 'Updated' },
+  { id: 'APPOINTMENT_CANCELLED', label: 'Cancelled' },
+  { id: 'APPOINTMENT_REQUESTED', label: 'Requested' },
+  { id: 'SYSTEM', label: 'System' },
+] as const
 
 function formatRelativeTime(iso: string) {
   const diffMs = Date.now() - new Date(iso).getTime()
@@ -27,12 +39,14 @@ function formatRelativeTime(iso: string) {
 export default function NotificationBell() {
   const theme = useTheme()
   const [anchor, setAnchor] = useState<HTMLElement | null>(null)
+  const [filter, setFilter] = useState<(typeof FILTERS)[number]['id']>('all')
   const {
     items,
     unreadCount,
     permission,
     pushEnabled,
     isLoading,
+    lastError,
     refreshInbox,
     markRead,
     markAllRead,
@@ -41,6 +55,12 @@ export default function NotificationBell() {
 
   const needsPermission =
     permission === 'default' || (permission === 'granted' && !pushEnabled)
+
+  const filtered = useMemo(() => {
+    if (filter === 'all') return items
+    if (filter === 'unread') return items.filter((i) => !i.readAt)
+    return items.filter((i) => i.category === filter)
+  }, [filter, items])
 
   return (
     <>
@@ -67,13 +87,13 @@ export default function NotificationBell() {
         onClose={() => setAnchor(null)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-        slotProps={{ paper: { sx: { width: 360, mt: 0.5 } } }}
+        slotProps={{ paper: { sx: { width: 380, mt: 0.5 } } }}
       >
         <Box sx={{ px: 2, py: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Box>
             <Typography variant="h4">Notifications</Typography>
             <Typography variant="caption2" sx={{ color: 'text.secondary' }}>
-              Platform alerts via Firebase
+              Inbox · push · polling{pushEnabled ? ' · FCM on' : ''}
             </Typography>
           </Box>
           {unreadCount > 0 ? (
@@ -100,19 +120,41 @@ export default function NotificationBell() {
           </Box>
         ) : null}
 
+        {lastError ? (
+          <Box sx={{ px: 2, py: 1, bgcolor: 'rgba(239,68,68,0.08)', borderBottom: 1, borderColor: 'divider' }}>
+            <Typography variant="caption2" sx={{ color: '#f87171' }}>
+              {lastError}
+            </Typography>
+          </Box>
+        ) : null}
+
+        <Stack direction="row" flexWrap="wrap" gap={0.75} sx={{ px: 1.5, py: 1, borderBottom: 1, borderColor: 'divider' }}>
+          {FILTERS.map((f) => (
+            <Chip
+              key={f.id}
+              size="small"
+              label={f.label}
+              onClick={() => setFilter(f.id)}
+              color={filter === f.id ? 'primary' : 'default'}
+              variant={filter === f.id ? 'filled' : 'outlined'}
+              sx={{ height: 24, fontSize: 11 }}
+            />
+          ))}
+        </Stack>
+
         <Box sx={{ maxHeight: 320, overflowY: 'auto' }}>
           {isLoading && items.length === 0 ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
               <CircularProgress size={20} />
             </Box>
-          ) : items.length === 0 ? (
+          ) : filtered.length === 0 ? (
             <Box sx={{ px: 2, py: 3 }}>
               <Typography variant="body2" sx={{ color: theme.palette.text.secondary, textAlign: 'center' }}>
-                No notifications yet
+                No notifications in this view
               </Typography>
             </Box>
           ) : (
-            items.map((item) => {
+            filtered.map((item) => {
               const unread = !item.readAt
               return (
                 <Box
@@ -140,7 +182,7 @@ export default function NotificationBell() {
                     {item.body}
                   </Typography>
                   <Typography variant="caption2" sx={{ color: 'text.disabled', mt: 0.5, display: 'block', fontSize: 10 }}>
-                    {formatRelativeTime(item.createdAt)}
+                    {item.category.replace(/_/g, ' ')} · {formatRelativeTime(item.createdAt)}
                   </Typography>
                 </Box>
               )
