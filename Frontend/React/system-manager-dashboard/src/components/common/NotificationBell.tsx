@@ -9,7 +9,6 @@ import {
   Button,
   CircularProgress,
   Chip,
-  Stack,
 } from '@mui/material'
 import { Bell, CheckCheck } from 'lucide-react'
 import { useTheme } from '@mui/material/styles'
@@ -128,7 +127,17 @@ export default function NotificationBell() {
           </Box>
         ) : null}
 
-        <Stack direction="row" flexWrap="wrap" gap={0.75} sx={{ px: 1.5, py: 1, borderBottom: 1, borderColor: 'divider' }}>
+        <Box
+          sx={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 0.75,
+            px: 1.5,
+            py: 1,
+            borderBottom: 1,
+            borderColor: 'divider',
+          }}
+        >
           {FILTERS.map((f) => (
             <Chip
               key={f.id}
@@ -140,7 +149,7 @@ export default function NotificationBell() {
               sx={{ height: 24, fontSize: 11 }}
             />
           ))}
-        </Stack>
+        </Box>
 
         <Box sx={{ maxHeight: 320, overflowY: 'auto' }}>
           {isLoading && items.length === 0 ? (
