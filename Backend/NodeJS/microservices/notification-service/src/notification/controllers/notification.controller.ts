@@ -44,6 +44,17 @@ export class NotificationController {
     return { success: true, configured: true, config };
   }
 
+  /** Public Firebase mobile config for Flutter patient/staff apps (safe to expose). */
+  @Get('push/mobile-config')
+  @SkipTenantGuard()
+  getMobilePushConfig() {
+    const config = this.firebasePushService.getMobileConfig();
+    if (!config) {
+      return { success: false, configured: false, config: null };
+    }
+    return { success: true, configured: true, config };
+  }
+
   @Post('patient/push/register')
   @SkipTenantGuard()
   @UseGuards(JwtAuthGuard, RolesGuard)

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "YOUR_MESSAGING_SENDER_ID",
+    "project_id": "YOUR_FIREBASE_PROJECT_ID",
+    "storage_bucket": "YOUR_PROJECT_ID.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:YOUR_SENDER_ID:android:YOUR_ANDROID_APP_ID",
+        "android_client_info": {
+          "package_name": "com.example.cms"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "YOUR_ANDROID_API_KEY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

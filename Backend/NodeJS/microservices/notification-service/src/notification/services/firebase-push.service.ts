@@ -73,6 +73,31 @@ export class FirebasePushService implements OnModuleInit {
     };
   }
 
+  /** Public Android/iOS client config for Flutter Firebase.initializeApp (safe to expose). */
+  getMobileConfig(): Record<string, string> | null {
+    const projectId = process.env.FIREBASE_PROJECT_ID;
+    const messagingSenderId = process.env.FIREBASE_MESSAGING_SENDER_ID;
+    const apiKey =
+      process.env.FIREBASE_ANDROID_API_KEY ||
+      process.env.FIREBASE_WEB_API_KEY;
+    const appId =
+      process.env.FIREBASE_ANDROID_APP_ID ||
+      process.env.FIREBASE_WEB_APP_ID;
+    const storageBucket = process.env.FIREBASE_STORAGE_BUCKET || '';
+
+    if (!projectId || !messagingSenderId || !apiKey || !appId) {
+      return null;
+    }
+
+    return {
+      apiKey,
+      appId,
+      projectId,
+      messagingSenderId,
+      storageBucket,
+    };
+  }
+
   async sendToTokens(
     tokens: string[],
     payload: PushPayload,
@@ -105,7 +130,11 @@ export class FirebasePushService implements OnModuleInit {
             body: payload.body,
             imageUrl: payload.imageUrl,
           },
-          data: payload.data ?? {},
+          data: {
+            ...(payload.data ?? {}),
+            title: payload.title,
+            body: payload.body,
+          },
           webpush: {
             headers: {
               Urgency: 'high',
@@ -125,19 +154,35 @@ export class FirebasePushService implements OnModuleInit {
           },
           android: {
             priority: 'high',
+            ttl: 86400000,
             notification: {
               channelId: androidChannelId,
               priority: 'high',
               defaultSound: true,
+              defaultVibrateTimings: true,
+              visibility: 'public',
+              clickAction: 'FLUTTER_NOTIFICATION_CLICK',
+              tag: payload.data?.category || payload.data?.notificationId || 'medicare',
+            },
+            data: {
+              ...(payload.data ?? {}),
+              title: payload.title,
+              body: payload.body,
+              click_action: 'FLUTTER_NOTIFICATION_CLICK',
             },
           },
           apns: {
-            headers: { 'apns-priority': '10' },
+            headers: {
+              'apns-priority': '10',
+              'apns-push-type': 'alert',
+            },
             payload: {
               aps: {
                 alert: { title: payload.title, body: payload.body },
                 sound: 'default',
+                badge: 1,
                 'content-available': 1,
+                'mutable-content': 1,
               },
             },
           },

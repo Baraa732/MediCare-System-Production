@@ -99,6 +99,7 @@ const PRODUCTION_PUBLIC_PATHS = new Set([
   '/api/auth/clinic-admin/onboarding-status',
   '/api/system-manager/login',
   '/api/notifications/push/web-config',
+  '/api/notifications/push/mobile-config',
   '/health',
   '/health/live',
   '/health/ready',
