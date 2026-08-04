@@ -330,9 +330,11 @@ export class PatientPushService {
         data: stringData,
       },
       {
+        // notification+data: Play Services draws the tray when the app is killed.
+        // Data-only relied on the Flutter isolate, which Samsung often blocks.
         androidChannelId: 'medicare_patient',
         deepLink: stringData.deepLink,
-        androidDataOnly: true,
+        androidDataOnly: false,
       },
     );
 

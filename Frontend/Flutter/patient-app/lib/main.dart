@@ -67,9 +67,13 @@ class MyApp extends StatelessWidget {
       title: 'CMS',
       navigatorKey: appNavigatorKey,
       theme: ThemeData(primarySwatch: Colors.blue),
-      initialRoute: '/splash',
+      // Use `home` instead of `initialRoute: '/splash'`.
+      // With initialRoute '/splash', Flutter also pushes '/', which hit the
+      // default case and showed "Page not found" under the splash.
+      home: const SplashScreen(),
       onGenerateRoute: (settings) {
         switch (settings.name) {
+          case '/':
           case '/splash':
             return AppPageRoute(
               settings: settings,

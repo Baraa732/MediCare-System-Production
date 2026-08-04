@@ -20,9 +20,9 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Handles push for all app modes:
-/// - foreground (heads-up local notification)
-/// - background / swiped away
-/// - fully killed (after stopping `flutter run`) via FCM + Android system tray
+/// - foreground: heads-up via local notifications
+/// - background / killed: FCM notification payload → Android system tray
+///   (does not require the Flutter process to be running)
 class PushNotificationService with WidgetsBindingObserver {
   PushNotificationService({
     required NotificationApiService notificationApi,

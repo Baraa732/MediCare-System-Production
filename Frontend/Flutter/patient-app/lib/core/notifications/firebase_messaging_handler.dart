@@ -27,10 +27,11 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       }
     }
 
-    // Always draw the tray notification from the background isolate.
-    // Patient pushes are data-only so this path runs even when the app is killed.
+    // Data-only messages: draw the tray ourselves.
+    // notification+data messages: Android already shows the system tray when
+    // backgrounded/killed — skip local show to avoid duplicates (force: false).
     await NotificationDisplay.ensureInitialized();
-    await NotificationDisplay.showFromRemoteMessage(message, force: true);
+    await NotificationDisplay.showFromRemoteMessage(message);
     await _cacheRemoteMessage(message);
 
     if (kDebugMode) {

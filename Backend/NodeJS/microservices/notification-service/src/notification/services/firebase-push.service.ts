@@ -12,9 +12,10 @@ export interface PushSendOptions {
   androidChannelId?: string;
   deepLink?: string;
   /**
-   * Patient Flutter apps need data-only Android messages so the background
-   * isolate can draw a tray notification when the app is swiped away / killed.
-   * System notification payloads are often dropped by OEM battery savers.
+   * Prefer false (default). Data-only Android messages require the Flutter
+   * background isolate to wake and draw a local notification — that often
+   * fails on Samsung/OEM devices after swipe-from-Recents. Notification+data
+   * lets Google Play Services show the tray even when the app process is dead.
    */
   androidDataOnly?: boolean;
 }
@@ -123,8 +124,9 @@ export class FirebasePushService implements OnModuleInit {
 
     const androidChannelId = options?.androidChannelId ?? 'medicare_secretary';
     const deepLink = options?.deepLink ?? payload.data?.deepLink ?? '/dashboard';
-    const androidDataOnly =
-      options?.androidDataOnly === true || androidChannelId === 'medicare_patient';
+    // Default to notification+data so killed/swiped apps still get a system tray
+    // item via Play Services. Opt into data-only only when explicitly requested.
+    const androidDataOnly = options?.androidDataOnly === true;
 
     const stringData: Record<string, string> = {
       title: payload.title,
@@ -149,8 +151,6 @@ export class FirebasePushService implements OnModuleInit {
           android: {
             priority: 'high',
             ttl: 86400000,
-            // Data-only: omit android.notification so Flutter background isolate
-            // always runs and can post a local tray notification when killed.
             ...(androidDataOnly
               ? {}
               : {
@@ -203,8 +203,8 @@ export class FirebasePushService implements OnModuleInit {
           },
         };
 
-        // System tray notification for non-patient clients (web/secretary).
-        // Patient Android uses data-only (handled in Flutter background isolate).
+        // Include top-level notification so Android/iOS show a tray item even
+        // when the Flutter process is not running (killed / swiped from Recents).
         if (!androidDataOnly) {
           message.notification = {
             title: payload.title,
