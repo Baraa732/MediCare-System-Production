@@ -29,6 +29,8 @@ import { AuthHttpClient } from './services/auth-http.client';
 import { PlatformSecurityService } from './services/platform-security.service';
 import { PlatformQueuesService } from './services/platform-queues.service';
 import { PlatformDeploymentsService } from './services/platform-deployments.service';
+import { NotificationHttpClient } from './services/notification-http.client';
+import { PlatformBroadcastService } from './services/platform-broadcast.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { InternalServiceGuard } from './guards/internal-service.guard';
 
@@ -81,6 +83,8 @@ import { InternalServiceGuard } from './guards/internal-service.guard';
     PlatformDataService,
     UserHttpClient,
     AuthHttpClient,
+    NotificationHttpClient,
+    PlatformBroadcastService,
     PlatformSecurityService,
     PlatformQueuesService,
     PlatformDeploymentsService,

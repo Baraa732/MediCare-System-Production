@@ -21,6 +21,7 @@ import {
   TracingPage,
 } from './pages/control-center/placeholderRoutes'
 import ActivationCodes from './pages/platform/ActivationCodes'
+import BroadcastNotification from './pages/notifications/BroadcastNotification'
 import Clinics from './pages/platform/Clinics'
 import PlatformUsers from './pages/platform/PlatformUsers'
 import Administrators from './pages/platform/Administrators'
@@ -53,6 +54,7 @@ export default function App() {
                     <Route path="/" element={<OverviewPage />} />
                     <Route path="/bi" element={<BusinessIntelligence />} />
                     <Route path="/activation-codes" element={<ActivationCodes />} />
+                    <Route path="/notifications/broadcast" element={<BroadcastNotification />} />
                     <Route path="/clinics" element={<Clinics />} />
                     <Route path="/users" element={<PlatformUsers />} />
                     <Route path="/administrators" element={<Administrators />} />

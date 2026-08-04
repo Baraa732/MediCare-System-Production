@@ -166,6 +166,66 @@ export class PatientPushService {
     });
   }
 
+  /**
+   * Platform broadcast: write SYSTEM inbox rows + FCM push for each patient.
+   * Used by system-manager-service for manual all-patient announcements.
+   */
+  async broadcastSystemMessage(
+    userIds: string[],
+    title: string,
+    body: string,
+  ): Promise<{
+    recipients: number;
+    inboxSaved: number;
+    pushSuccess: number;
+    pushFailed: number;
+  }> {
+    const uniqueIds = [...new Set(userIds.filter(Boolean))];
+    let inboxSaved = 0;
+    let pushSuccess = 0;
+    let pushFailed = 0;
+
+    const concurrency = 25;
+    for (let i = 0; i < uniqueIds.length; i += concurrency) {
+      const chunk = uniqueIds.slice(i, i + concurrency);
+      const results = await Promise.allSettled(
+        chunk.map((userId) =>
+          this.deliverToPatient(userId, {
+            category: PatientNotificationCategory.SYSTEM,
+            title,
+            body,
+            data: {
+              category: PatientNotificationCategory.SYSTEM,
+              deepLink: '/notifications',
+              source: 'platform_broadcast',
+            },
+          }),
+        ),
+      );
+
+      for (const result of results) {
+        if (result.status === 'fulfilled') {
+          inboxSaved += 1;
+          pushSuccess += result.value.pushSuccess;
+          pushFailed += result.value.pushFailed;
+        } else {
+          this.logger.warn(`Broadcast deliver failed: ${result.reason}`);
+        }
+      }
+    }
+
+    this.logger.log(
+      `Platform broadcast to ${uniqueIds.length} patients: inbox=${inboxSaved}, pushOk=${pushSuccess}, pushFail=${pushFailed}`,
+    );
+
+    return {
+      recipients: uniqueIds.length,
+      inboxSaved,
+      pushSuccess,
+      pushFailed,
+    };
+  }
+
   private mapCategory(
     type: NotificationType,
     status: string,
@@ -229,7 +289,7 @@ export class PatientPushService {
       clinicId?: string;
       data: Record<string, unknown>;
     },
-  ): Promise<void> {
+  ): Promise<{ pushSuccess: number; pushFailed: number }> {
     const inbox = await this.inboxRepo.save(
       this.inboxRepo.create({
         userId,
@@ -245,7 +305,9 @@ export class PatientPushService {
     const tokens = await this.tokenRepo.find({
       where: { userId, enabled: true, tenantId: IsNull() },
     });
-    if (!tokens.length) return;
+    if (!tokens.length) {
+      return { pushSuccess: 0, pushFailed: 0 };
+    }
 
     const stringData: Record<string, string> = {
       notificationId: inbox.id,
@@ -280,5 +342,10 @@ export class PatientPushService {
     this.logger.log(
       `Patient push ${userId}: ${result.successCount} ok, ${result.failureCount} failed`,
     );
+
+    return {
+      pushSuccess: result.successCount,
+      pushFailed: result.failureCount,
+    };
   }
 }

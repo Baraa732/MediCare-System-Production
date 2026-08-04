@@ -1,4 +1,13 @@
-import { IsNotEmpty, IsString, IsUUID, IsOptional } from 'class-validator';
+import {
+  ArrayMaxSize,
+  ArrayNotEmpty,
+  IsArray,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+} from 'class-validator';
 
 export class RegisterPushDeviceDto {
   @IsString()
@@ -55,4 +64,22 @@ export class AppointmentReminderDto {
   @IsUUID()
   @IsOptional()
   tenantId?: string;
+}
+
+export class BroadcastPatientsDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(80)
+  title: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(500)
+  body: string;
+
+  @IsArray()
+  @ArrayNotEmpty()
+  @ArrayMaxSize(500)
+  @IsUUID('4', { each: true })
+  userIds: string[];
 }

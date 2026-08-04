@@ -15,6 +15,7 @@ import { PlatformDataService } from '../services/platform-data.service';
 import { PlatformSecurityService } from '../services/platform-security.service';
 import { PlatformQueuesService } from '../services/platform-queues.service';
 import { PlatformDeploymentsService } from '../services/platform-deployments.service';
+import { PlatformBroadcastService } from '../services/platform-broadcast.service';
 import { SystemManagerLoginDto, CreateSystemManagerDto, CreateClinicAdminDto } from '../dto/system-manager.dto';
 import { ValidateActivationCodeDto, RevokeActivationCodeDto, CreateActivationCodeDto } from '../dto/clinic-admin-activation.dto';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
@@ -59,6 +60,7 @@ export class SystemManagerController {
     private readonly platformSecurityService: PlatformSecurityService,
     private readonly platformQueuesService: PlatformQueuesService,
     private readonly platformDeploymentsService: PlatformDeploymentsService,
+    private readonly platformBroadcastService: PlatformBroadcastService,
   ) {}
 
   @Post('login')
@@ -296,6 +298,22 @@ export class SystemManagerController {
     return this.platformDataService.listUsers(
       Math.max(parseInt(page, 10) || 1, 1),
       Math.min(parseInt(limit, 10) || 20, 100),
+    );
+  }
+
+  /** Manual platform broadcast — inbox + FCM push to every patient. */
+  @UseGuards(JwtAuthGuard)
+  @Post('platform/notifications/broadcast')
+  async broadcastToPatients(
+    @Request() req,
+    @Body() body: { title?: string; body?: string },
+  ) {
+    if (req.user.role !== 'SYSTEM_MANAGER') {
+      throw new ForbiddenException('Only system managers can broadcast notifications');
+    }
+    return this.platformBroadcastService.broadcastToAllPatients(
+      body?.title ?? '',
+      body?.body ?? '',
     );
   }
 
