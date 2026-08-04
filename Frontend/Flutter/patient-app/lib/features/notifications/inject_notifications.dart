@@ -4,6 +4,7 @@ import 'package:cms/core/notifications/notification_local_store.dart';
 import 'package:cms/core/notifications/notification_sync_coordinator.dart';
 import 'package:cms/core/notifications/push_notification_service.dart';
 import 'package:cms/injection_container.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'presentation/cubit/notifications_cubit.dart';
 
 injectNotifications() {
@@ -15,6 +16,7 @@ injectNotifications() {
       notificationApi: getIt<NotificationApiService>(),
       localStore: getIt<NotificationLocalStore>(),
       sessionStorage: getIt<SessionStorage>(),
+      prefs: getIt<SharedPreferences>(),
     ),
   );
   getIt.registerLazySingleton<NotificationSyncCoordinator>(

@@ -13,27 +13,41 @@ import 'package:cms/core/storage/session_storage.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart'
     show NotificationResponse;
+import 'package:shared_preferences/shared_preferences.dart';
 
-class PushNotificationService {
+/// Handles push for all app modes:
+/// - foreground (heads-up local notification)
+/// - background / swiped away
+/// - fully killed (after stopping `flutter run`) via FCM + Android system tray
+class PushNotificationService with WidgetsBindingObserver {
   PushNotificationService({
     required NotificationApiService notificationApi,
     required NotificationLocalStore localStore,
     required SessionStorage sessionStorage,
+    required SharedPreferences prefs,
     Connectivity? connectivity,
   })  : _notificationApi = notificationApi,
         _localStore = localStore,
         _sessionStorage = sessionStorage,
+        _prefs = prefs,
         _connectivity = connectivity ?? Connectivity();
+
+  static const _tokenKey = 'medicare_fcm_token';
+  static const _registeredTokenKey = 'medicare_fcm_token_registered';
 
   final NotificationApiService _notificationApi;
   final NotificationLocalStore _localStore;
   final SessionStorage _sessionStorage;
+  final SharedPreferences _prefs;
   final Connectivity _connectivity;
 
   final StreamController<NotificationItem> _incomingController =
       StreamController<NotificationItem>.broadcast();
+
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
 
   Stream<NotificationItem> get onNotificationReceived =>
       _incomingController.stream;
@@ -44,30 +58,55 @@ class PushNotificationService {
   Future<void> initialize() async {
     if (_initialized) return;
 
+    WidgetsBinding.instance.addObserver(this);
     NotificationDisplay.onTap = _onLocalNotificationTap;
     await NotificationDisplay.ensureInitialized();
     await NotificationDisplay.requestPermissions();
+
+    _currentFcmToken = _prefs.getString(_tokenKey);
 
     if (FirebaseBootstrap.ready) {
       await _wireFirebaseMessaging();
     } else if (kDebugMode) {
       debugPrint(
-        'Push disabled: Firebase not ready. Add google-services.json or '
-        'FIREBASE_* dart-defines / mobile-config.',
+        'Push disabled: Firebase not ready. Add google-services.json first.',
       );
     }
 
+    _connectivitySub = _connectivity.onConnectivityChanged.listen((results) {
+      if (!results.contains(ConnectivityResult.none)) {
+        unawaited(ensureDeviceRegistered(reason: 'connectivity'));
+      }
+    });
+
     _initialized = true;
+
+    if (kDebugMode) {
+      debugPrint(
+        'Push ready for killed-state delivery: '
+        'firebase=${FirebaseBootstrap.ready} '
+        'token=${_currentFcmToken != null} '
+        'loggedIn=${_sessionStorage.isLoggedIn}',
+      );
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(ensureDeviceRegistered(reason: 'resume'));
+    }
   }
 
   Future<void> onUserAuthenticated() async {
     if (!_sessionStorage.isLoggedIn) return;
-    await registerDeviceWithBackend();
+    await ensureDeviceRegistered(reason: 'login');
     await flushPendingReadSync();
   }
 
   Future<void> onUserLoggedOut() async {
     await unregisterDeviceFromBackend();
+    await _prefs.remove(_registeredTokenKey);
     await _localStore.clear();
   }
 
@@ -76,33 +115,66 @@ class PushNotificationService {
     return !result.contains(ConnectivityResult.none);
   }
 
-  Future<void> registerDeviceWithBackend() async {
-    if (!_sessionStorage.isLoggedIn ||
-        !FirebaseBootstrap.ready ||
-        _currentFcmToken == null) {
-      return;
-    }
+  /// Ensures FCM token exists and is stored on the backend.
+  /// Required once while the app is open; after that, closed-app push works
+  /// through Google Play Services even when Flutter is not running.
+  Future<void> ensureDeviceRegistered({String reason = 'manual'}) async {
+    if (!FirebaseBootstrap.ready) return;
 
     try {
+      final messaging = FirebaseMessaging.instance;
+      final token = await messaging.getToken();
+      if (token == null || token.isEmpty) {
+        if (kDebugMode) {
+          debugPrint('FCM token missing ($reason)');
+        }
+        return;
+      }
+
+      final tokenChanged = token != _currentFcmToken;
+      _currentFcmToken = token;
+      await _prefs.setString(_tokenKey, token);
+
+      if (!_sessionStorage.isLoggedIn) {
+        if (kDebugMode) {
+          debugPrint('FCM token ready but user not logged in ($reason)');
+        }
+        return;
+      }
+
+      final alreadyRegistered = _prefs.getString(_registeredTokenKey) == token;
+      if (!tokenChanged && alreadyRegistered && reason != 'login') {
+        return;
+      }
+
       await _notificationApi.registerPushDevice(
-        fcmToken: _currentFcmToken!,
+        fcmToken: token,
         platform: Platform.isIOS ? 'ios' : 'android',
         deviceLabel: '${Platform.operatingSystem} patient-app',
       );
+      await _prefs.setString(_registeredTokenKey, token);
+
       if (kDebugMode) {
-        debugPrint('FCM token registered with backend');
+        debugPrint(
+          'FCM token registered ($reason). '
+          'Closed-app / killed push is now enabled for this device.',
+        );
       }
     } catch (e) {
       if (kDebugMode) {
-        debugPrint('Push registration failed: $e');
+        debugPrint('FCM register failed ($reason): $e');
       }
     }
   }
 
+  Future<void> registerDeviceWithBackend() =>
+      ensureDeviceRegistered(reason: 'explicit');
+
   Future<void> unregisterDeviceFromBackend() async {
-    if (_currentFcmToken == null) return;
+    final token = _currentFcmToken ?? _prefs.getString(_tokenKey);
+    if (token == null) return;
     try {
-      await _notificationApi.unregisterPushDevice(fcmToken: _currentFcmToken!);
+      await _notificationApi.unregisterPushDevice(fcmToken: token);
     } catch (_) {}
   }
 
@@ -151,39 +223,37 @@ class PushNotificationService {
       debugPrint('Notification permission: ${settings.authorizationStatus}');
     }
 
-    // Android 13+ tray permission (separate from FCM authorization).
     await NotificationDisplay.requestPermissions();
-
     await messaging.setAutoInitEnabled(true);
-
-    _currentFcmToken = await messaging.getToken();
-    if (kDebugMode) {
-      debugPrint('FCM token: ${_currentFcmToken != null ? 'ok' : 'null'}');
-    }
 
     messaging.onTokenRefresh.listen((token) async {
       _currentFcmToken = token;
-      await registerDeviceWithBackend();
+      await _prefs.setString(_tokenKey, token);
+      await _prefs.remove(_registeredTokenKey);
+      await ensureDeviceRegistered(reason: 'token-refresh');
     });
 
-    // App open / foreground — OS does not show tray; we draw it ourselves.
+    // Foreground — draw tray ourselves.
     FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
 
-    // User tapped a system notification while app was backgrounded.
+    // Background → user tapped system notification.
     FirebaseMessaging.onMessageOpenedApp.listen(_handleOpenedMessage);
 
-    // App was killed; user opened it from a notification.
+    // Fully killed → user opened app from a system notification.
     final initial = await messaging.getInitialMessage();
     if (initial != null) {
       await _handleOpenedMessage(initial);
       openNotificationsFromPush();
     }
 
-    final launch = await NotificationDisplay.plugin.getNotificationAppLaunchDetails();
+    final launch =
+        await NotificationDisplay.plugin.getNotificationAppLaunchDetails();
     if (launch?.didNotificationLaunchApp == true &&
         launch?.notificationResponse != null) {
       _onLocalNotificationTap(launch!.notificationResponse!);
     }
+
+    await ensureDeviceRegistered(reason: 'init');
   }
 
   Future<void> _handleForegroundMessage(RemoteMessage message) async {
@@ -192,7 +262,6 @@ class PushNotificationService {
     if (!_incomingController.isClosed) {
       _incomingController.add(item);
     }
-    // Force tray banner while app is open (BeeOrder-style heads-up).
     await NotificationDisplay.showFromRemoteMessage(message, force: true);
   }
 
@@ -245,6 +314,8 @@ class PushNotificationService {
   }
 
   Future<void> dispose() async {
+    WidgetsBinding.instance.removeObserver(this);
+    await _connectivitySub?.cancel();
     await _incomingController.close();
   }
 }

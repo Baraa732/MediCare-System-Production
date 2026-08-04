@@ -152,17 +152,21 @@ export class FirebasePushService implements OnModuleInit {
               link: deepLink,
             },
           },
+          // High-priority notification payload is required for delivery when the
+          // patient app is fully killed (Flutter process not running).
           android: {
             priority: 'high',
             ttl: 86400000,
             notification: {
               channelId: androidChannelId,
-              priority: 'high',
+              priority: 'max',
               defaultSound: true,
               defaultVibrateTimings: true,
               visibility: 'public',
               clickAction: 'FLUTTER_NOTIFICATION_CLICK',
               tag: payload.data?.category || payload.data?.notificationId || 'medicare',
+              // Sticky heads-up on many OEMs when app is not in foreground.
+              notificationCount: 1,
             },
             data: {
               ...(payload.data ?? {}),
