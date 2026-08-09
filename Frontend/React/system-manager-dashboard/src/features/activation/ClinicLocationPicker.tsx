@@ -24,7 +24,6 @@ import {
 import { Copy, LocateFixed, MapPin, Search } from 'lucide-react'
 import 'leaflet/dist/leaflet.css'
 import './clinicLocationMap.css'
-import { useUIStore } from '../../store/uiStore'
 import { notify } from '../../lib/toast'
 import { AdvancedPanel } from '../../components/advanced/AdvancedPage'
 import {
@@ -45,6 +44,7 @@ import {
   searchPlaces,
   type NominatimPlace,
 } from './nominatim'
+import { consoleFieldSx, consoleMenuProps } from './console/formFieldSx'
 
 export type ClinicMapSelection = {
   latitude: number
@@ -104,7 +104,6 @@ export default function ClinicLocationPicker({
   onRadiusChange,
 }: ClinicLocationPickerProps) {
   const theme = useTheme()
-  const isDark = useUIStore((s) => s.themeMode) === 'dark'
 
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<NominatimPlace[]>([])
@@ -251,11 +250,12 @@ export default function ClinicLocationPicker({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onFocus={() => searchResults.length > 0 && setShowDropdown(true)}
+            sx={consoleFieldSx}
             slotProps={{
               input: {
                 startAdornment: (
-                  <InputAdornment position="start">
-                    {searchLoading ? <CircularProgress size={14} /> : <Search size={14} />}
+                  <InputAdornment position="start" sx={{ color: '#8aa0b8' }}>
+                    {searchLoading ? <CircularProgress size={14} sx={{ color: '#22d3ee' }} /> : <Search size={14} />}
                   </InputAdornment>
                 ),
               },
@@ -285,18 +285,26 @@ export default function ClinicLocationPicker({
           <Button
             size="small"
             variant="outlined"
-            startIcon={geoLoading ? <CircularProgress size={12} /> : <LocateFixed size={14} />}
+            startIcon={geoLoading ? <CircularProgress size={12} sx={{ color: '#22d3ee' }} /> : <LocateFixed size={14} />}
             onClick={handleUseCurrentLocation}
             disabled={geoLoading}
+            sx={{
+              borderColor: 'rgba(34, 211, 238, 0.35)',
+              color: '#a5f3fc',
+              textTransform: 'none',
+              fontWeight: 700,
+              borderRadius: '10px',
+              '&:hover': { borderColor: '#22d3ee', bgcolor: 'rgba(34, 211, 238, 0.08)' },
+            }}
           >
             Use Current Location
           </Button>
-          <Typography variant="caption" className="clinic-map-hint" sx={{ alignSelf: 'center' }}>
+          <Typography variant="caption" className="clinic-map-hint" sx={{ alignSelf: 'center', color: '#8aa0b8' }}>
             Click the map or drag the pin for exact placement.
           </Typography>
         </Box>
 
-        <Box className={`clinic-map-shell${isDark ? ' clinic-map-shell--dark' : ''}`}>
+        <Box className="clinic-map-shell clinic-map-shell--dark">
           <MapContainer
             center={mapCenter}
             zoom={mapZoom}
@@ -344,6 +352,7 @@ export default function ClinicLocationPicker({
             value={latitude ?? ''}
             slotProps={{ input: { readOnly: true } }}
             placeholder="—"
+            sx={consoleFieldSx}
           />
           <TextField
             size="small"
@@ -351,6 +360,7 @@ export default function ClinicLocationPicker({
             value={longitude ?? ''}
             slotProps={{ input: { readOnly: true } }}
             placeholder="—"
+            sx={consoleFieldSx}
           />
           <Button
             size="small"
@@ -358,7 +368,16 @@ export default function ClinicLocationPicker({
             startIcon={<Copy size={13} />}
             onClick={copyCoordinates}
             disabled={latitude == null || longitude == null}
-            sx={{ mt: { xs: 0, sm: 0.25 }, minWidth: 120 }}
+            sx={{
+              mt: { xs: 0, sm: 0.25 },
+              minWidth: 120,
+              borderColor: 'rgba(34, 211, 238, 0.35)',
+              color: '#a5f3fc',
+              textTransform: 'none',
+              fontWeight: 700,
+              borderRadius: '10px',
+              '&:hover': { borderColor: '#22d3ee', bgcolor: 'rgba(34, 211, 238, 0.08)' },
+            }}
           >
             Copy
           </Button>
@@ -373,24 +392,26 @@ export default function ClinicLocationPicker({
             placeholder={geocodeLoading ? 'Resolving address…' : 'Auto-filled from map pin'}
             multiline
             minRows={2}
+            sx={consoleFieldSx}
             slotProps={{
               input: {
                 endAdornment: geocodeLoading ? (
                   <InputAdornment position="end">
-                    <CircularProgress size={14} />
+                    <CircularProgress size={14} sx={{ color: '#22d3ee' }} />
                   </InputAdornment>
                 ) : undefined,
               },
             }}
           />
 
-          <FormControl size="small" fullWidth>
+          <FormControl size="small" fullWidth sx={consoleFieldSx}>
             <InputLabel id="clinic-radius-label">Service radius</InputLabel>
             <Select
               labelId="clinic-radius-label"
               label="Service radius"
               value={serviceRadiusKm}
               onChange={(e) => onRadiusChange(Number(e.target.value))}
+              MenuProps={consoleMenuProps}
             >
               {SERVICE_RADIUS_OPTIONS_KM.map((km) => (
                 <MenuItem key={km} value={km}>
@@ -402,8 +423,8 @@ export default function ClinicLocationPicker({
         </Box>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <MapPin size={14} color={theme.palette.primary.main} />
-          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+          <MapPin size={14} color="#22d3ee" />
+          <Typography variant="caption" sx={{ color: '#8aa0b8' }}>
             Coverage: {serviceRadiusKm} km radius
             {latitude != null && longitude != null
               ? ` · ${formatCoordinates(latitude, longitude)}`

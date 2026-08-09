@@ -7,6 +7,7 @@ import { normalizeError } from '../../../api/errors'
 import { notify } from '../../../lib/toast'
 import type { ActivationCodeStatus } from '../../../api/types'
 import { CLINIC_TYPES, DOCUMENT_FIELD_META } from '../activationConstants'
+import { consoleFieldSx } from './formFieldSx'
 
 const statusColor: Record<ActivationCodeStatus['status'], 'warning' | 'success' | 'error' | 'default'> = {
   pending: 'warning',
@@ -68,10 +69,10 @@ export default function CodeLookupStudio({ token }: CodeLookupStudioProps) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
     >
-      <Typography sx={{ fontWeight: 750, fontSize: 20, letterSpacing: '-0.02em', mb: 0.5 }}>
+      <Typography sx={{ fontWeight: 750, fontSize: 20, letterSpacing: '-0.02em', mb: 0.5, color: '#e8f1ff' }}>
         Code intelligence
       </Typography>
-      <Typography sx={{ color: 'text.secondary', fontSize: 13.5, mb: 2, lineHeight: 1.5 }}>
+      <Typography sx={{ color: '#8aa0b8', fontSize: 13.5, mb: 2, lineHeight: 1.5 }}>
         Inspect lifecycle state, metadata, and revoke pending codes before they are claimed.
       </Typography>
 
@@ -87,7 +88,7 @@ export default function CodeLookupStudio({ token }: CodeLookupStudioProps) {
               borderRadius: 10,
               background: 'rgba(251,113,133,0.1)',
               border: '1px solid rgba(251,113,133,0.28)',
-              color: '#be123c',
+              color: '#fda4af',
               fontSize: 13,
             }}
           >
@@ -106,10 +107,15 @@ export default function CodeLookupStudio({ token }: CodeLookupStudioProps) {
           onKeyDown={(e) => {
             if (e.key === 'Enter') void onLookup()
           }}
+          sx={consoleFieldSx}
           slotProps={{
             input: {
-              sx: { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', letterSpacing: '0.18em', borderRadius: '12px' },
-              startAdornment: <Search size={14} style={{ marginRight: 8, opacity: 0.55 }} />,
+              sx: {
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                letterSpacing: '0.22em',
+                fontWeight: 700,
+              },
+              startAdornment: <Search size={14} style={{ marginRight: 8, color: '#8aa0b8' }} />,
             },
           }}
         />
@@ -128,7 +134,7 @@ export default function CodeLookupStudio({ token }: CodeLookupStudioProps) {
             exit={{ opacity: 0, y: -8 }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <Typography sx={{ fontWeight: 750 }}>Dossier</Typography>
+              <Typography sx={{ fontWeight: 750, color: '#e8f1ff' }}>Dossier</Typography>
               <Chip
                 size="small"
                 label={status.status}
@@ -150,7 +156,7 @@ export default function CodeLookupStudio({ token }: CodeLookupStudioProps) {
             {status.whatsappNumber && <Row label="WhatsApp" value={status.whatsappNumber} />}
             {status.expiresAt && (
               <>
-                <Divider sx={{ my: 1.25 }} />
+                <Divider sx={{ my: 1.25, borderColor: 'rgba(125, 211, 252, 0.12)' }} />
                 <Row label="Expires" value={new Date(status.expiresAt).toLocaleString()} />
               </>
             )}
@@ -167,7 +173,12 @@ export default function CodeLookupStudio({ token }: CodeLookupStudioProps) {
                     size="small"
                     variant="outlined"
                     label={DOCUMENT_FIELD_META[key as keyof typeof DOCUMENT_FIELD_META]?.label ?? key}
-                    sx={{ borderRadius: '8px' }}
+                    sx={{
+                      borderRadius: '8px',
+                      borderColor: 'rgba(34, 211, 238, 0.28)',
+                      color: '#a5f3fc',
+                      bgcolor: 'rgba(34, 211, 238, 0.06)',
+                    }}
                   />
                 ))}
               </div>
@@ -178,7 +189,7 @@ export default function CodeLookupStudio({ token }: CodeLookupStudioProps) {
                 className="ac-btn"
                 disabled={loading}
                 onClick={() => void onRevoke()}
-                style={{ marginTop: 16, background: 'rgba(251,113,133,0.12)', color: '#be123c', border: '1px solid rgba(251,113,133,0.3)' }}
+                style={{ marginTop: 16, background: 'rgba(251,113,133,0.12)', color: '#fda4af', border: '1px solid rgba(251,113,133,0.3)' }}
               >
                 <Ban size={14} />
                 Revoke code
@@ -194,8 +205,8 @@ export default function CodeLookupStudio({ token }: CodeLookupStudioProps) {
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '5px 0' }}>
-      <span style={{ fontSize: 12, color: '#64748b', fontWeight: 650 }}>{label}</span>
-      <span style={{ fontSize: 12, color: '#0f172a', fontWeight: 650, textAlign: 'right' }}>{value}</span>
+      <span style={{ fontSize: 12, color: '#8aa0b8', fontWeight: 650 }}>{label}</span>
+      <span style={{ fontSize: 12, color: '#e8f1ff', fontWeight: 650, textAlign: 'right' }}>{value}</span>
     </div>
   )
 }

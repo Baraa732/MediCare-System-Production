@@ -8,36 +8,38 @@ type ConsoleModeSwitchProps = {
   onChange: (mode: ConsoleMode) => void
 }
 
+const OPTIONS: Array<{ id: ConsoleMode; label: string; icon: typeof ShieldCheck }> = [
+  { id: 'provision', label: 'Provision', icon: ShieldCheck },
+  { id: 'manage', label: 'Manage', icon: KeyRound },
+]
+
 export default function ConsoleModeSwitch({ mode, onChange }: ConsoleModeSwitchProps) {
   return (
     <div className="ac-mode" role="tablist" aria-label="Activation console mode">
-      <motion.div
-        className="ac-mode-thumb"
-        animate={{ x: mode === 'provision' ? 0 : '100%' }}
-        transition={{ type: 'spring', stiffness: 380, damping: 32 }}
-      />
-      <button
-        type="button"
-        className="ac-mode-btn"
-        role="tab"
-        aria-selected={mode === 'provision'}
-        data-active={mode === 'provision'}
-        onClick={() => onChange('provision')}
-      >
-        <ShieldCheck size={15} />
-        Provision
-      </button>
-      <button
-        type="button"
-        className="ac-mode-btn"
-        role="tab"
-        aria-selected={mode === 'manage'}
-        data-active={mode === 'manage'}
-        onClick={() => onChange('manage')}
-      >
-        <KeyRound size={15} />
-        Manage
-      </button>
+      {OPTIONS.map(({ id, label, icon: Icon }) => {
+        const active = mode === id
+        return (
+          <button
+            key={id}
+            type="button"
+            className="ac-mode-btn"
+            role="tab"
+            aria-selected={active}
+            data-active={active}
+            onClick={() => onChange(id)}
+          >
+            {active && (
+              <motion.span
+                layoutId="ac-mode-pill"
+                className="ac-mode-pill"
+                transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+              />
+            )}
+            <Icon size={15} />
+            <span>{label}</span>
+          </button>
+        )
+      })}
     </div>
   )
 }

@@ -55,10 +55,10 @@ export default function ProvisionStudio({ token, onGenerated }: ProvisionStudioP
 
       <section className="ac-stage">
         <header className="ac-stage-head">
-          <Typography sx={{ fontWeight: 750, fontSize: 18, letterSpacing: '-0.02em' }}>
+          <Typography className="ac-stage-title" component="h2">
             {p.currentStep.label}
           </Typography>
-          <Typography sx={{ color: 'text.secondary', fontSize: 13, mt: 0.25 }}>
+          <Typography className="ac-stage-caption">
             {p.currentStep.caption}
           </Typography>
           <div className="ac-progress-track">
@@ -80,7 +80,7 @@ export default function ProvisionStudio({ token, onGenerated }: ProvisionStudioP
                 borderRadius: 10,
                 background: 'rgba(251,113,133,0.1)',
                 border: '1px solid rgba(251,113,133,0.28)',
-                color: '#be123c',
+                color: '#fda4af',
                 fontSize: 13,
               }}
             >

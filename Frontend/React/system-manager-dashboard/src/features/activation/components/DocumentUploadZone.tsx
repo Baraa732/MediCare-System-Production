@@ -1,8 +1,6 @@
 import { useRef, useState } from 'react'
 import { Box, Button, Chip, Typography } from '@mui/material'
-import { alpha, useTheme } from '@mui/material/styles'
 import { FileText, Image as ImageIcon, Upload, X } from 'lucide-react'
-import { ACTIVATION_ACCENT, ACTIVATION_SECONDARY } from '../activationConstants'
 
 type DocumentUploadZoneProps = {
   label: string
@@ -21,7 +19,6 @@ export default function DocumentUploadZone({
   value,
   onChange,
 }: DocumentUploadZoneProps) {
-  const theme = useTheme()
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragOver, setDragOver] = useState(false)
 
@@ -52,31 +49,44 @@ export default function DocumentUploadZone({
         pickFile(e.dataTransfer.files?.[0] ?? null)
       }}
       sx={{
-        p: 1.5,
-        borderRadius: '5px',
+        p: 1.75,
+        borderRadius: '14px',
         border: '1px dashed',
-        borderColor: dragOver ? ACTIVATION_SECONDARY : alpha(theme.palette.divider, 0.95),
-        bgcolor: dragOver ? alpha(ACTIVATION_SECONDARY, 0.06) : alpha(theme.palette.background.elevated, 0.45),
-        transition: 'border-color 0.2s ease, background-color 0.2s ease',
+        borderColor: dragOver ? 'rgba(34, 211, 238, 0.65)' : 'rgba(125, 211, 252, 0.22)',
+        bgcolor: dragOver ? 'rgba(34, 211, 238, 0.1)' : 'rgba(7, 17, 31, 0.45)',
+        boxShadow: dragOver ? '0 0 0 3px rgba(34, 211, 238, 0.12)' : 'none',
+        transition: 'border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease',
         height: '100%',
+        minHeight: 148,
       }}
     >
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1, mb: 1 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1, mb: 1.25 }}>
         <Box>
-          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+          <Typography variant="body2" sx={{ fontWeight: 700, color: '#e8f1ff' }}>
             {label}
             {required && (
-              <Typography component="span" sx={{ color: ACTIVATION_ACCENT, ml: 0.5 }}>
+              <Typography component="span" sx={{ color: '#22d3ee', ml: 0.5 }}>
                 *
               </Typography>
             )}
           </Typography>
-          <Typography variant="caption2" sx={{ color: 'text.secondary', display: 'block', mt: 0.25 }}>
+          <Typography variant="caption" sx={{ color: '#8aa0b8', display: 'block', mt: 0.35, lineHeight: 1.4 }}>
             {helper}
           </Typography>
         </Box>
         {value && (
-          <Button size="small" color="inherit" onClick={() => onChange(null)} startIcon={<X size={12} />}>
+          <Button
+            size="small"
+            onClick={() => onChange(null)}
+            startIcon={<X size={12} />}
+            sx={{
+              color: '#94a3b8',
+              textTransform: 'none',
+              fontWeight: 650,
+              minWidth: 0,
+              '&:hover': { color: '#fda4af', bgcolor: 'rgba(251, 113, 133, 0.08)' },
+            }}
+          >
             Remove
           </Button>
         )}
@@ -90,30 +100,46 @@ export default function DocumentUploadZone({
               src={previewUrl}
               alt={value.name}
               onLoad={() => URL.revokeObjectURL(previewUrl)}
-              sx={{ width: 56, height: 56, objectFit: 'cover', borderRadius: '4px', border: `1px solid ${theme.palette.divider}` }}
+              sx={{
+                width: 56,
+                height: 56,
+                objectFit: 'cover',
+                borderRadius: '10px',
+                border: '1px solid rgba(125, 211, 252, 0.22)',
+              }}
             />
           ) : (
             <Box
               sx={{
                 width: 56,
                 height: 56,
-                borderRadius: '4px',
+                borderRadius: '10px',
                 display: 'grid',
                 placeItems: 'center',
-                bgcolor: alpha(ACTIVATION_SECONDARY, 0.1),
-                color: ACTIVATION_SECONDARY,
+                bgcolor: 'rgba(34, 211, 238, 0.12)',
+                color: '#67e8f9',
+                border: '1px solid rgba(34, 211, 238, 0.22)',
               }}
             >
               <FileText size={20} />
             </Box>
           )}
           <Box sx={{ minWidth: 0 }}>
-            <Typography variant="body2" noWrap>{value.name}</Typography>
+            <Typography variant="body2" noWrap sx={{ color: '#e8f1ff', fontWeight: 600 }}>
+              {value.name}
+            </Typography>
             <Chip
               size="small"
               icon={isImage ? <ImageIcon size={12} /> : <FileText size={12} />}
               label={`${(value.size / 1024).toFixed(0)} KB`}
-              sx={{ mt: 0.5, height: 22 }}
+              sx={{
+                mt: 0.6,
+                height: 24,
+                bgcolor: 'rgba(34, 211, 238, 0.12)',
+                color: '#a5f3fc',
+                border: '1px solid rgba(34, 211, 238, 0.22)',
+                '& .MuiChip-icon': { color: '#67e8f9' },
+              }}
             />
           </Box>
         </Box>
@@ -123,7 +149,20 @@ export default function DocumentUploadZone({
           size="small"
           startIcon={<Upload size={14} />}
           onClick={() => inputRef.current?.click()}
-          sx={{ borderStyle: 'dashed' }}
+          sx={{
+            borderStyle: 'dashed',
+            borderColor: 'rgba(34, 211, 238, 0.35)',
+            color: '#a5f3fc',
+            textTransform: 'none',
+            fontWeight: 700,
+            borderRadius: '10px',
+            px: 1.5,
+            '&:hover': {
+              borderColor: '#22d3ee',
+              bgcolor: 'rgba(34, 211, 238, 0.08)',
+              borderStyle: 'dashed',
+            },
+          }}
         >
           Upload image or PDF
         </Button>

@@ -22,6 +22,13 @@ import {
   REQUIRED_ACTIVATION_DOCUMENTS,
   type ActivationDocumentField,
 } from '../activationConstants'
+import {
+  consoleAutocompleteSx,
+  consoleCheckboxSx,
+  consoleFieldSx,
+  consoleFormLabelSx,
+  consoleMenuProps,
+} from '../console/formFieldSx'
 import DocumentUploadZone from './DocumentUploadZone'
 
 const ClinicLocationPicker = lazy(() => import('../ClinicLocationPicker'))
@@ -66,17 +73,25 @@ export default function ProvisionStepPanels(props: ProvisionStepPanelsProps) {
   switch (stepId) {
     case 'clinic':
       return (
-        <Grid container spacing={2}>
+        <Grid container spacing={2.25}>
           <Grid size={{ xs: 12, md: 6 }}>
             <Controller name="clinicName" control={control} render={({ field }) => (
-              <TextField {...field} fullWidth size="small" label="Official clinic name" error={!!errors.clinicName} helperText={errors.clinicName?.message} />
+              <TextField
+                {...field}
+                fullWidth
+                size="small"
+                label="Official clinic name"
+                error={!!errors.clinicName}
+                helperText={errors.clinicName?.message}
+                sx={consoleFieldSx}
+              />
             )} />
           </Grid>
           <Grid size={{ xs: 12, md: 6 }}>
             <Controller name="clinicType" control={control} render={({ field }) => (
-              <FormControl fullWidth size="small">
+              <FormControl fullWidth size="small" sx={consoleFieldSx}>
                 <InputLabel>Clinic type</InputLabel>
-                <Select {...field} label="Clinic type">
+                <Select {...field} label="Clinic type" MenuProps={consoleMenuProps}>
                   {CLINIC_TYPES.map((type) => (
                     <MenuItem key={type.value} value={type.value}>{type.label}</MenuItem>
                   ))}
@@ -86,12 +101,28 @@ export default function ProvisionStepPanels(props: ProvisionStepPanelsProps) {
           </Grid>
           <Grid size={{ xs: 12, md: 6 }}>
             <Controller name="registrationLicenseNumber" control={control} render={({ field }) => (
-              <TextField {...field} fullWidth size="small" label="Registration / license number" error={!!errors.registrationLicenseNumber} helperText={errors.registrationLicenseNumber?.message} />
+              <TextField
+                {...field}
+                fullWidth
+                size="small"
+                label="Registration / license number"
+                error={!!errors.registrationLicenseNumber}
+                helperText={errors.registrationLicenseNumber?.message}
+                sx={consoleFieldSx}
+              />
             )} />
           </Grid>
           <Grid size={{ xs: 12, md: 6 }}>
             <Controller name="establishmentDate" control={control} render={({ field }) => (
-              <TextField {...field} fullWidth size="small" type="date" label="Establishment date (optional)" slotProps={{ inputLabel: { shrink: true } }} />
+              <TextField
+                {...field}
+                fullWidth
+                size="small"
+                type="date"
+                label="Establishment date (optional)"
+                slotProps={{ inputLabel: { shrink: true } }}
+                sx={consoleFieldSx}
+              />
             )} />
           </Grid>
           <Grid size={{ xs: 12 }}>
@@ -102,8 +133,35 @@ export default function ProvisionStepPanels(props: ProvisionStepPanelsProps) {
                 getOptionLabel={(value) => MEDICAL_SPECIALTY_OPTIONS.find((item) => item.value === value)?.label ?? value}
                 value={field.value}
                 onChange={(_, value) => field.onChange(value)}
+                slotProps={{
+                  paper: {
+                    sx: {
+                      mt: 0.75,
+                      borderRadius: '12px',
+                      bgcolor: '#0d1a2b',
+                      color: '#e8f1ff',
+                      border: '1px solid rgba(125, 211, 252, 0.16)',
+                      backgroundImage: 'none',
+                      boxShadow: '0 18px 40px -20px rgba(0,0,0,0.65)',
+                      '& .MuiAutocomplete-option': {
+                        fontSize: 13.5,
+                        borderRadius: '8px',
+                        mx: 0.5,
+                        '&[aria-selected="true"]': { bgcolor: 'rgba(34, 211, 238, 0.16)' },
+                        '&.Mui-focused': { bgcolor: 'rgba(34, 211, 238, 0.1)' },
+                      },
+                    },
+                  },
+                }}
                 renderInput={(params) => (
-                  <TextField {...params} size="small" label="Specialties" error={!!errors.specialties} helperText={errors.specialties?.message} />
+                  <TextField
+                    {...params}
+                    size="small"
+                    label="Specialties"
+                    error={!!errors.specialties}
+                    helperText={errors.specialties?.message}
+                    sx={consoleAutocompleteSx}
+                  />
                 )}
               />
             )} />
@@ -113,35 +171,45 @@ export default function ProvisionStepPanels(props: ProvisionStepPanelsProps) {
 
     case 'admin':
       return (
-        <Grid container spacing={2}>
+        <Grid container spacing={2.25}>
           <Grid size={{ xs: 12, md: 6 }}>
             <Controller name="fullName" control={control} render={({ field }) => (
-              <TextField {...field} fullWidth size="small" label="Full name" error={!!errors.fullName} helperText={errors.fullName?.message} />
+              <TextField {...field} fullWidth size="small" label="Full name" error={!!errors.fullName} helperText={errors.fullName?.message} sx={consoleFieldSx} />
             )} />
           </Grid>
           <Grid size={{ xs: 12, md: 6 }}>
             <Controller name="idNumber" control={control} render={({ field }) => (
-              <TextField {...field} fullWidth size="small" label="ID number" error={!!errors.idNumber} helperText={errors.idNumber?.message} />
+              <TextField {...field} fullWidth size="small" label="ID number" error={!!errors.idNumber} helperText={errors.idNumber?.message} sx={consoleFieldSx} />
             )} />
           </Grid>
           <Grid size={{ xs: 12, md: 4 }}>
             <Controller name="phoneNumber" control={control} render={({ field }) => (
-              <TextField {...field} fullWidth size="small" label="Phone number" error={!!errors.phoneNumber} helperText={errors.phoneNumber?.message} />
+              <TextField {...field} fullWidth size="small" label="Phone number" error={!!errors.phoneNumber} helperText={errors.phoneNumber?.message} sx={consoleFieldSx} />
             )} />
           </Grid>
           <Grid size={{ xs: 12, md: 4 }}>
             <Controller name="whatsappNumber" control={control} render={({ field }) => (
-              <TextField {...field} fullWidth size="small" label="WhatsApp number" error={!!errors.whatsappNumber} helperText={errors.whatsappNumber?.message} />
+              <TextField {...field} fullWidth size="small" label="WhatsApp number" error={!!errors.whatsappNumber} helperText={errors.whatsappNumber?.message} sx={consoleFieldSx} />
             )} />
           </Grid>
           <Grid size={{ xs: 12, md: 4 }}>
             <Controller name="email" control={control} render={({ field }) => (
-              <TextField {...field} fullWidth size="small" label="Email (optional)" error={!!errors.email} helperText={errors.email?.message} />
+              <TextField {...field} fullWidth size="small" label="Email (optional)" error={!!errors.email} helperText={errors.email?.message} sx={consoleFieldSx} />
             )} />
           </Grid>
           <Grid size={{ xs: 12, md: 4 }}>
             <Controller name="dateOfBirth" control={control} render={({ field }) => (
-              <TextField {...field} fullWidth size="small" type="date" label="Date of birth" slotProps={{ inputLabel: { shrink: true } }} error={!!errors.dateOfBirth} helperText={errors.dateOfBirth?.message} />
+              <TextField
+                {...field}
+                fullWidth
+                size="small"
+                type="date"
+                label="Date of birth"
+                slotProps={{ inputLabel: { shrink: true } }}
+                error={!!errors.dateOfBirth}
+                helperText={errors.dateOfBirth?.message}
+                sx={consoleFieldSx}
+              />
             )} />
           </Grid>
         </Grid>
@@ -149,7 +217,7 @@ export default function ProvisionStepPanels(props: ProvisionStepPanelsProps) {
 
     case 'legal':
       return (
-        <Grid container spacing={1.5}>
+        <Grid container spacing={1.75}>
           {(['nationalId', 'clinicLicense', 'governmentId', 'commercialRegistry'] as ActivationDocumentField[]).map((field) => (
             <Grid key={field} size={{ xs: 12, md: 6 }}>
               <DocumentUploadZone
@@ -163,7 +231,18 @@ export default function ProvisionStepPanels(props: ProvisionStepPanelsProps) {
           ))}
           {!documentsReady && (
             <Grid size={{ xs: 12 }}>
-              <Alert severity="warning">National ID, clinic license, and government ID are required.</Alert>
+              <Alert
+                severity="warning"
+                sx={{
+                  borderRadius: '12px',
+                  bgcolor: 'rgba(251, 191, 36, 0.08)',
+                  color: '#fde68a',
+                  border: '1px solid rgba(251, 191, 36, 0.28)',
+                  '& .MuiAlert-icon': { color: '#fbbf24' },
+                }}
+              >
+                National ID, clinic license, and government ID are required.
+              </Alert>
             </Grid>
           )}
         </Grid>
@@ -171,7 +250,7 @@ export default function ProvisionStepPanels(props: ProvisionStepPanelsProps) {
 
     case 'doctor':
       return (
-        <Grid container spacing={2}>
+        <Grid container spacing={2.25}>
           <Grid size={{ xs: 12, md: 4 }}>
             <Controller name="yearsOfExperience" control={control} render={({ field }) => (
               <TextField
@@ -182,6 +261,7 @@ export default function ProvisionStepPanels(props: ProvisionStepPanelsProps) {
                 label="Years of experience (optional)"
                 value={field.value ?? ''}
                 onChange={(e) => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+                sx={consoleFieldSx}
               />
             )} />
           </Grid>
@@ -201,7 +281,7 @@ export default function ProvisionStepPanels(props: ProvisionStepPanelsProps) {
 
     case 'location':
       return (
-        <Suspense fallback={<Box className="clinic-map-skeleton" sx={{ borderRadius: '6px' }} />}>
+        <Suspense fallback={<Box className="clinic-map-skeleton" sx={{ borderRadius: '12px', minHeight: 280 }} />}>
           <ClinicLocationPicker
             latitude={mapLatitude}
             longitude={mapLongitude}
@@ -221,7 +301,7 @@ export default function ProvisionStepPanels(props: ProvisionStepPanelsProps) {
     case 'review': {
       const data = getValues()
       return (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.25 }}>
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1.5 }}>
             <ReviewCard title="Clinic" lines={[
               data.clinicName || '—',
@@ -246,28 +326,57 @@ export default function ProvisionStepPanels(props: ProvisionStepPanelsProps) {
             ]} />
           </Box>
 
-          <Grid container spacing={2}>
+          <Grid container spacing={2.25}>
             <Grid size={{ xs: 12, md: 4 }}>
               <Controller name="price" control={control} render={({ field }) => (
-                <TextField {...field} fullWidth size="small" type="number" label="Price"
+                <TextField
+                  {...field}
+                  fullWidth
+                  size="small"
+                  type="number"
+                  label="Price"
                   onChange={(e) => field.onChange(e.target.value === '' ? 0 : Number(e.target.value))}
-                  error={!!errors.price} helperText={errors.price?.message} />
+                  error={!!errors.price}
+                  helperText={errors.price?.message}
+                  sx={consoleFieldSx}
+                />
               )} />
             </Grid>
             <Grid size={{ xs: 12 }}>
               <Controller name="notes" control={control} render={({ field }) => (
-                <TextField {...field} fullWidth size="small" label="Internal notes (optional)" multiline minRows={2} />
+                <TextField {...field} fullWidth size="small" label="Internal notes (optional)" multiline minRows={2} sx={consoleFieldSx} />
               )} />
             </Grid>
             <Grid size={{ xs: 12 }}>
               <Controller name="isCashPaymentDone" control={control} render={({ field }) => (
-                <FormControlLabel control={<Checkbox checked={field.value} onChange={(e) => field.onChange(e.target.checked)} />} label="Cash payment received" />
+                <FormControlLabel
+                  sx={consoleFormLabelSx}
+                  control={
+                    <Checkbox
+                      checked={field.value}
+                      onChange={(e) => field.onChange(e.target.checked)}
+                      sx={consoleCheckboxSx}
+                    />
+                  }
+                  label="Cash payment received"
+                />
               )} />
             </Grid>
           </Grid>
 
           {!hasMapPin && (
-            <Alert severity="warning">Clinic location is required before generating activation code.</Alert>
+            <Alert
+              severity="warning"
+              sx={{
+                borderRadius: '12px',
+                bgcolor: 'rgba(251, 191, 36, 0.08)',
+                color: '#fde68a',
+                border: '1px solid rgba(251, 191, 36, 0.28)',
+                '& .MuiAlert-icon': { color: '#fbbf24' },
+              }}
+            >
+              Clinic location is required before generating activation code.
+            </Alert>
           )}
         </Box>
       )
@@ -284,19 +393,23 @@ function ReviewCard({ title, lines }: { title: string; lines: string[] }) {
       sx={{
         p: 1.75,
         borderRadius: '14px',
-        border: '1px solid rgba(15,23,42,0.08)',
-        bgcolor: '#fff',
-        boxShadow: '0 10px 24px -20px rgba(15,23,42,0.35)',
+        border: '1px solid rgba(34, 211, 238, 0.16)',
+        bgcolor: 'rgba(7, 17, 31, 0.45)',
+        transition: 'border-color 0.2s ease, background 0.2s ease',
+        '&:hover': {
+          borderColor: 'rgba(34, 211, 238, 0.32)',
+          bgcolor: 'rgba(7, 17, 31, 0.6)',
+        },
       }}
     >
       <Typography
         variant="caption"
-        sx={{ color: '#0891b2', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}
+        sx={{ color: '#67e8f9', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}
       >
         {title}
       </Typography>
       {lines.map((line) => (
-        <Typography key={`${title}-${line}`} variant="body2" sx={{ mt: 0.75, color: 'text.secondary' }}>
+        <Typography key={`${title}-${line}`} variant="body2" sx={{ mt: 0.75, color: '#94a3b8', fontWeight: 500 }}>
           {line}
         </Typography>
       ))}
