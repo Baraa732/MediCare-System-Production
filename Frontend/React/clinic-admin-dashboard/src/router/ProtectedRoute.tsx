@@ -4,9 +4,6 @@ import { AuthFlowShell } from "@/components/auth/AuthFlowShell";
 import { useAuthHydration } from "@/hooks/useAuthHydration";
 import { useAuthStore } from "@/stores/authStore";
 
-const WRONG_PORTAL_FLASH =
-  "This portal is for clinic administrators only. Please sign in with a clinic admin account.";
-
 function isClinicAdminRole(role: string | null | undefined): boolean {
   return role === "CLINIC_ADMIN";
 }
@@ -34,13 +31,7 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
   }
 
   if (!accessToken || wrongRole) {
-    return (
-      <Navigate
-        to="/auth/login"
-        replace
-        state={wrongRole ? { flash: WRONG_PORTAL_FLASH } : undefined}
-      />
-    );
+    return <Navigate to="/auth/login" replace />;
   }
 
   return children;
@@ -69,15 +60,8 @@ export function GuestRoute({ children }: { children: ReactNode }) {
     );
   }
 
-  // Stale / wrong-role tokens must not block the login page.
   if (wrongRole) {
-    return (
-      <Navigate
-        to="/auth/login"
-        replace
-        state={{ flash: WRONG_PORTAL_FLASH }}
-      />
-    );
+    return <Navigate to="/auth/login" replace />;
   }
 
   if (canEnterApp) {

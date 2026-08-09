@@ -9,10 +9,7 @@ import { isMfaRequired, login } from "@/lib/api/auth";
 import { toLoginErrorMessage } from "@/lib/api/errors";
 import { fetchOnboardingStatus, clearActivationProgress } from "@/lib/onboarding";
 import { normalizeSyrianPhone } from "@/lib/phone";
-import { AuthEntryLinks } from "@/components/auth/AuthEntryLinks";
-import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/stores/authStore";
-import { useOnboardingStore } from "@/stores/onboardingStore";
 
 const schema = z.object({
   phoneNumber: z.string().min(8, "Enter a valid phone number"),
@@ -21,24 +18,28 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
+const INVALID_CREDENTIALS =
+  "Incorrect phone number or password. Please try again.";
+
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const flash = (location.state as { flash?: string } | null)?.flash;
   const setSession = useAuthStore((s) => s.setSession);
   const setPendingMfa = useAuthStore((s) => s.setPendingMfa);
-  const activatedPhone = useOnboardingStore((s) => s.activatedPhone);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(flash ?? null);
   const [loading, setLoading] = useState(false);
-  const [pendingRegistration, setPendingRegistration] = useState(false);
-  const [accountReady, setAccountReady] = useState(false);
+
+  // Drop one-shot router flash after reading (keeps URL state clean).
+  useEffect(() => {
+    if ((location.state as { flash?: string } | null)?.flash) {
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.pathname, location.state, navigate]);
 
   const {
     register,
     handleSubmit,
-    watch,
     setValue,
     formState: { errors },
   } = useForm<FormValues>({
@@ -46,15 +47,21 @@ export function LoginPage() {
     defaultValues: { phoneNumber: "", password: "" },
   });
 
-  const watchedPhone = watch("phoneNumber");
-
   // Browser autofill fills the DOM but skips react-hook-form — sync on load.
   useEffect(() => {
     const syncAutofill = () => {
-      const phoneEl = document.getElementById("phoneNumber") as HTMLInputElement | null;
-      const passwordEl = document.getElementById("password") as HTMLInputElement | null;
-      if (phoneEl?.value) setValue("phoneNumber", phoneEl.value, { shouldValidate: true });
-      if (passwordEl?.value) setValue("password", passwordEl.value, { shouldValidate: true });
+      const phoneEl = document.getElementById(
+        "phoneNumber",
+      ) as HTMLInputElement | null;
+      const passwordEl = document.getElementById(
+        "password",
+      ) as HTMLInputElement | null;
+      if (phoneEl?.value) {
+        setValue("phoneNumber", phoneEl.value, { shouldValidate: true });
+      }
+      if (passwordEl?.value) {
+        setValue("password", passwordEl.value, { shouldValidate: true });
+      }
     };
     syncAutofill();
     const t1 = window.setTimeout(syncAutofill, 100);
@@ -65,73 +72,9 @@ export function LoginPage() {
     };
   }, [setValue]);
 
-  useEffect(() => {
-    if (!activatedPhone) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const status = await fetchOnboardingStatus(activatedPhone);
-        if (cancelled) return;
-        setPendingRegistration(status.canRegister);
-        setAccountReady(status.canLogin);
-        if (status.canLogin) {
-          clearActivationProgress();
-        }
-      } catch {
-        // ignore — typed phone check may still run
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [activatedPhone]);
-
-  useEffect(() => {
-    const digits = watchedPhone.replace(/\D/g, "");
-    let cancelled = false;
-    const timer = setTimeout(() => {
-      (async () => {
-        try {
-          const phoneToCheck =
-            digits.length >= 9 ? watchedPhone : activatedPhone;
-          if (!phoneToCheck) {
-            if (!cancelled) {
-              setPendingRegistration(false);
-              setAccountReady(false);
-            }
-            return;
-          }
-
-          const status = await fetchOnboardingStatus(phoneToCheck);
-          if (cancelled) return;
-
-          setPendingRegistration(status.canRegister);
-          setAccountReady(status.canLogin);
-          if (status.canRegister && digits.length >= 9) {
-            setInfo(
-              "This phone is activated but your admin account isn’t complete yet. Finish registration or sign in after you’re done.",
-            );
-          } else if (status.canLogin) {
-            clearActivationProgress();
-            setInfo(null);
-          } else {
-            setAccountReady(false);
-          }
-        } catch {
-          if (!cancelled) setPendingRegistration(false);
-        }
-      })();
-    }, 500);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [watchedPhone, activatedPhone]);
-
   const submitLogin = handleSubmit(async (data) => {
     setLoading(true);
     setError(null);
-    setInfo(null);
     try {
       let formattedPhone = data.phoneNumber;
       try {
@@ -140,19 +83,26 @@ export function LoginPage() {
         // backend will validate
       }
 
-      const status = await fetchOnboardingStatus(formattedPhone);
-      if (!status.dashboardActivated) {
-        setError(
-          "Your clinic dashboard isn’t activated yet. Use your MediCare activation code first.",
-        );
-        return;
-      }
-      if (!status.registered) {
-        setError(
-          "No account found for this phone yet. Complete your admin registration first.",
-        );
-        setPendingRegistration(true);
-        return;
+      // Soft onboarding gate — only when phone clearly isn't ready to log in.
+      try {
+        const status = await fetchOnboardingStatus(formattedPhone);
+        if (!status.dashboardActivated && !status.registered) {
+          setError(
+            "This clinic isn’t activated yet. Use your MediCare activation code first.",
+          );
+          return;
+        }
+        if (status.dashboardActivated && !status.registered) {
+          setError(
+            "Finish creating your administrator account before signing in.",
+          );
+          return;
+        }
+        if (status.canLogin) {
+          clearActivationProgress();
+        }
+      } catch {
+        // Fall through to auth — credentials check is the source of truth.
       }
 
       const response = await login(formattedPhone, data.password);
@@ -166,9 +116,8 @@ export function LoginPage() {
         return;
       }
       if (response.role !== "CLINIC_ADMIN") {
-        setError(
-          "This portal is for clinic administrators only. Use the correct MediCare dashboard for your role.",
-        );
+        // Same copy as bad credentials — don’t lecture about “wrong dashboard”.
+        setError(INVALID_CREDENTIALS);
         return;
       }
       setSession(response);
@@ -182,8 +131,12 @@ export function LoginPage() {
 
   const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const phoneEl = document.getElementById("phoneNumber") as HTMLInputElement | null;
-    const passwordEl = document.getElementById("password") as HTMLInputElement | null;
+    const phoneEl = document.getElementById(
+      "phoneNumber",
+    ) as HTMLInputElement | null;
+    const passwordEl = document.getElementById(
+      "password",
+    ) as HTMLInputElement | null;
     if (phoneEl?.value) {
       setValue("phoneNumber", phoneEl.value, { shouldValidate: true });
     }
@@ -194,41 +147,13 @@ export function LoginPage() {
   };
 
   return (
-    <div className="px-6 pb-5 pt-1 sm:px-8 sm:pb-6">
-      <div className="mb-5">
+    <div className="px-6 pb-6 pt-1 sm:px-8 sm:pb-7">
+      <div className="mb-6">
         <h1 className="font-semibold text-2xl text-[#1A1B1E]">Sign in</h1>
         <p className="text-[#929296] mt-1 text-sm">
-          Welcome back — manage your clinic staff, schedule, and operations.
+          Enter your clinic administrator phone and password.
         </p>
       </div>
-
-      {accountReady && (
-        <p className="mb-3 text-sm text-green-800 bg-green-50 border border-green-200 rounded-xl px-3 py-2">
-          Your clinic admin account is ready — sign in with your phone and password.
-        </p>
-      )}
-
-      {info && !pendingRegistration && !accountReady && (
-        <p className="mb-3 text-sm text-[#0066ff] bg-[#ecf3ff] border border-[#0066ff]/20 rounded-xl px-3 py-2">
-          {info}
-        </p>
-      )}
-
-      {pendingRegistration && (
-        <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-900">
-          <p className="font-medium">Finish setting up your account</p>
-          <p className="text-xs mt-0.5 text-amber-800/90">
-            Your clinic is activated — complete your admin profile to sign in.
-          </p>
-          <Button
-            asChild
-            size="sm"
-            className="mt-2 h-8 rounded-lg bg-[#0066ff] hover:bg-[#0052cc] text-white"
-          >
-            <Link to="/auth/register">Continue registration</Link>
-          </Button>
-        </div>
-      )}
 
       <form onSubmit={onSubmit} className="space-y-4">
         <div className="space-y-2">
@@ -286,6 +211,7 @@ export function LoginPage() {
               type="button"
               onClick={() => setShowPassword((v) => !v)}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400"
+              aria-label={showPassword ? "Hide password" : "Show password"}
             >
               {showPassword ? (
                 <EyeOff className="w-5 h-5" />
@@ -299,7 +225,14 @@ export function LoginPage() {
           )}
         </div>
 
-        {error && <p className="text-sm text-red-500">{error}</p>}
+        {error && (
+          <div
+            role="alert"
+            className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700"
+          >
+            {error}
+          </div>
+        )}
 
         <button
           type="submit"
@@ -310,13 +243,26 @@ export function LoginPage() {
         </button>
       </form>
 
-      <AuthEntryLinks
-        registerHint={
-          pendingRegistration
-            ? "Your clinic is ready — complete your administrator profile to start signing in."
-            : undefined
-        }
-      />
+      <div className="mt-6 pt-5 border-t border-neutral-100 space-y-2 text-center text-sm text-[#929296]">
+        <p>
+          New clinic?{" "}
+          <Link
+            to="/auth/activate-code"
+            className="font-semibold text-[#0066ff] hover:underline"
+          >
+            Activate with your code
+          </Link>
+        </p>
+        <p>
+          Already activated?{" "}
+          <Link
+            to="/auth/register"
+            className="font-semibold text-[#0066ff] hover:underline"
+          >
+            Complete admin registration
+          </Link>
+        </p>
+      </div>
     </div>
   );
 }

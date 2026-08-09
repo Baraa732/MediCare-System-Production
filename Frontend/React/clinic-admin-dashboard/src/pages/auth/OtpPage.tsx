@@ -135,10 +135,9 @@ export function OtpPage() {
         }
         if (isAuthSession(res)) {
           if (res.role !== "CLINIC_ADMIN") {
-            setError(
-              "This portal is for clinic administrators only. Use the correct MediCare dashboard for your role.",
-            );
+            setError("Incorrect verification or account. Please sign in again.");
             clearPendingFlow();
+            navigate("/auth/login", { replace: true });
             return;
           }
           setSession(res);
@@ -157,10 +156,9 @@ export function OtpPage() {
         }
         if (isAuthSession(res)) {
           if (res.role !== "CLINIC_ADMIN") {
-            setError(
-              "This portal is for clinic administrators only. Use the correct MediCare dashboard for your role.",
-            );
+            setError("Incorrect verification or account. Please sign in again.");
             clearPendingFlow();
+            navigate("/auth/login", { replace: true });
             return;
           }
           setSession(res);

@@ -2,7 +2,7 @@ import { ApiError } from "./types";
 
 const MESSAGE_MAP: Record<string, string> = {
   "Invalid credentials":
-    "The phone number or password doesn't look right. If you haven't registered yet, complete your admin account first.",
+    "Incorrect phone number or password. Please try again.",
   "Please activate your dashboard before logging in":
     "Your account isn't activated yet. Use your 6-digit activation code first.",
   "You must activate your dashboard code before registering.":
@@ -26,7 +26,7 @@ const MESSAGE_MAP: Record<string, string> = {
   "User service temporarily unavailable. Please try again.":
     "The account service is busy. Wait a moment and try again.",
   "Failed to fetch":
-    "We couldn't reach the server. Make sure you're online and the clinic system is running.",
+    "We couldn't reach the server. Check your connection and try again.",
 };
 
 export function toLoginErrorMessage(err: unknown): string {
