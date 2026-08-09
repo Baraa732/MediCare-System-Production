@@ -497,17 +497,18 @@ class _ClinicDetailView extends StatelessWidget {
                                 Text(
                                   state.errorMessage?.isNotEmpty == true
                                       ? state.errorMessage!
-                                      : 'No doctors listed for this clinic yet.',
+                                      : 'No doctors listed for this clinic yet. Ask the clinic admin to add a doctor from the staff page.',
                                   style: FontHeading.bodySmall.copyWith(
                                     color: AppColors.CustomgrayDark,
                                   ),
                                 ),
-                                TextButton(
-                                  onPressed: () => context
-                                      .read<ClinicDetailCubit>()
-                                      .load(clinic.id, initialClinic: clinic),
-                                  child: const Text('Retry'),
-                                ),
+                                if (state.errorMessage?.isNotEmpty == true)
+                                  TextButton(
+                                    onPressed: () => context
+                                        .read<ClinicDetailCubit>()
+                                        .load(clinic.id, initialClinic: clinic),
+                                    child: const Text('Retry'),
+                                  ),
                               ],
                             ),
                           )

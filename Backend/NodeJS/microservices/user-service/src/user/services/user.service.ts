@@ -476,6 +476,9 @@ export class UserService {
       firstName: user.firstName,
       lastName: user.lastName,
       specialization: user.specialization,
+      yearsOfExperience:
+        typeof raw.yearsOfExperience === 'number' ? raw.yearsOfExperience : undefined,
+      status: user.status,
       profile,
     };
   }
@@ -513,14 +516,16 @@ export class UserService {
   async getPublicDoctorProfiles(userIds: string[]) {
     if (!userIds.length) return [];
     const unique = [...new Set(userIds)];
-    const ctxTenant = this.tenantContext.getTenantId();
-    const where: Record<string, unknown> = {
-      id: In(unique),
-      role: UserRole.DOCTOR,
-      status: UserStatus.ACTIVE,
-    };
-    if (ctxTenant) where.tenantId = ctxTenant;
-    const users = await this.userRepository.find({ where });
+    // Lookup by explicit IDs — do not apply ambient tenant filters (they can
+    // hide doctors whose legacy tenant_id is null/mismatched). Include
+    // PENDING_ACTIVATION so clinic directories show newly invited doctors.
+    const users = await this.userRepository.find({
+      where: {
+        id: In(unique),
+        role: UserRole.DOCTOR,
+        status: In([UserStatus.ACTIVE, UserStatus.PENDING_ACTIVATION]),
+      },
+    });
     return users.map((u) => this.toPublicDoctorProfile(u));
   }
 

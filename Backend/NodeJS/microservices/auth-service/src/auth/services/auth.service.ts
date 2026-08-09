@@ -1183,6 +1183,11 @@ export class AuthService implements OnModuleInit {
     const staffRoleHint = this.staffRoleHint(user.role);
     if (!staffRoleHint) return;
 
+    // Heal PENDING memberships whenever an activated staff member signs in.
+    if (user.status === 'ACTIVE') {
+      await this.clinicHttp.activatePendingMemberships(user.id);
+    }
+
     const resolved = await this.clinicHttp.resolveStaffClinic(user.id);
     if (resolved.clinicId) {
       user.clinicId = resolved.clinicId;

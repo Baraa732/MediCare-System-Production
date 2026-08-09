@@ -619,21 +619,36 @@ export class ClinicService {
   async listDoctorsEnriched(clinicId: string, actor: AuthUser) {
     // Patients and staff can browse the clinic doctor directory.
     await this.assertCanAccessClinic(clinicId, actor);
-    // Use internal ACTIVE assignments (not listStaff) so public doctor listing
-    // is not blocked by staff-profile enrichment failures.
-    const staff = await this.listStaffInternal(clinicId, StaffRole.DOCTOR);
+    // Include PENDING invites so patients see doctors as soon as clinic admin
+    // creates them (membership flips to ACTIVE after first staff activation).
+    const staff = await this.listDoctorDirectoryAssignments(clinicId);
     if (staff.length === 0) return [];
 
+    // Heal stuck PENDING rows when the doctor account is already ACTIVE
+    // (e.g. activation succeeded but membership activate call failed).
     const profiles = await this.userHttpClient.getPublicDoctors(staff.map((s) => s.userId));
     const profileMap = new Map(profiles.map((p) => [p.id, p]));
+    const healIds = staff
+      .filter(
+        (s) =>
+          s.status === AssignmentStatus.PENDING &&
+          profileMap.get(s.userId)?.status === 'ACTIVE',
+      )
+      .map((s) => s.userId);
+    if (healIds.length > 0) {
+      await Promise.all(healIds.map((userId) => this.activatePendingMembershipsForUser(userId)));
+    }
 
     return staff.map((s) => {
       const profile = profileMap.get(s.userId);
+      const years =
+        (profile as { yearsOfExperience?: number } | undefined)?.yearsOfExperience ??
+        (profile?.profile as { yearsOfExperience?: number } | undefined)?.yearsOfExperience;
       return {
         userId: s.userId,
         clinicId,
         staffRole: s.staffRole,
-        status: s.status,
+        status: healIds.includes(s.userId) ? AssignmentStatus.ACTIVE : s.status,
         assignedAt: s.assignedAt,
         firstName: profile?.firstName,
         lastName: profile?.lastName,
@@ -641,10 +656,31 @@ export class ClinicService {
           ? `${profile.firstName ?? ''} ${profile.lastName ?? ''}`.trim() || undefined
           : undefined,
         specialization: profile?.specialization,
-        yearsOfExperience: (profile as { yearsOfExperience?: number } | undefined)?.yearsOfExperience,
+        yearsOfExperience: years,
         profile: profile?.profile,
       };
     });
+  }
+
+  /** Patient/staff doctor directory — ACTIVE + PENDING DOCTOR memberships. */
+  private async listDoctorDirectoryAssignments(clinicId: string) {
+    const assignments = await this.assignmentRepo.find({
+      where: {
+        tenantId: clinicId,
+        staffRole: StaffRole.DOCTOR,
+        status: In([AssignmentStatus.ACTIVE, AssignmentStatus.PENDING]),
+      },
+      order: { assignedAt: 'ASC' },
+    });
+
+    return assignments.map((a) => ({
+      id: a.id,
+      userId: a.userId,
+      staffRole: a.staffRole,
+      status: a.status,
+      assignedAt: a.assignedAt,
+      assignedBy: a.assignedBy,
+    }));
   }
 
   /** All clinics where a user is assigned — supports multi-clinic doctors. */
