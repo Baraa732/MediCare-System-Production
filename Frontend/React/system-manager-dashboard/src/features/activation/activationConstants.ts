@@ -8,8 +8,9 @@ import {
   UserRound,
 } from 'lucide-react'
 
-export const ACTIVATION_ACCENT = '#3b82f6'
-export const ACTIVATION_SECONDARY = '#06b6d4'
+export const ACTIVATION_ACCENT = '#0ea5e9'
+export const ACTIVATION_SECONDARY = '#14b8a6'
+export const ACTIVATION_INK = '#0f172a'
 
 export const CLINIC_TYPES = [
   { value: 'private_clinic', label: 'Private Clinic' },

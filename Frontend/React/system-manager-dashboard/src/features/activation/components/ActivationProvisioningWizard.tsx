@@ -1,5 +1,5 @@
 import { Box, Button, Typography } from '@mui/material'
-import { alpha, useTheme } from '@mui/material/styles'
+import { alpha } from '@mui/material/styles'
 import { ChevronLeft, ChevronRight, KeyRound, Shield } from 'lucide-react'
 import { MotionPanel } from '../../../components/motion/AnimatedSections'
 import { ACTIVATION_ACCENT, WIZARD_STEPS } from '../activationConstants'
@@ -19,7 +19,6 @@ export default function ActivationProvisioningWizard({
   token,
   onGenerated,
 }: ActivationProvisioningWizardProps) {
-  const theme = useTheme()
   const provisioning = useActivationProvisioning(token, onGenerated)
   const {
     form,
@@ -51,50 +50,32 @@ export default function ActivationProvisioningWizard({
   return (
     <MotionPanel index={0}>
       <Box
-        className="provision-workspace-glow"
         sx={{
           position: 'relative',
-          borderRadius: '5px',
-          border: `1px solid ${theme.palette.divider}`,
-          bgcolor: 'background.paper',
+          borderRadius: '14px',
+          border: '1px solid rgba(148, 163, 184, 0.22)',
+          bgcolor: '#fff',
           overflow: 'hidden',
         }}
       >
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 1.25,
-            px: 2,
-            py: 1.5,
-            borderBottom: `1px solid ${theme.palette.divider}`,
-            bgcolor: alpha(theme.palette.background.elevated, 0.35),
-          }}
-        >
-          <Box
-            sx={{
-              width: 36,
-              height: 36,
-              borderRadius: '4px',
-              display: 'grid',
-              placeItems: 'center',
-              bgcolor: alpha(ACTIVATION_ACCENT, 0.12),
-              color: ACTIVATION_ACCENT,
-            }}
-          >
+        <Box className="provision-workspace-header">
+          <Box className="provision-icon-tile" sx={{ width: 40, height: 40, borderRadius: '11px' }}>
             <Shield size={18} />
           </Box>
-          <Box sx={{ flex: 1 }}>
-            <Typography variant="caption" sx={{ color: ACTIVATION_ACCENT, fontWeight: 700, letterSpacing: '0.08em' }}>
-              CLINIC PROVISIONING
-            </Typography>
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              Secure activation code workflow
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Box className="provision-badge" sx={{ mb: 0.5 }}>
+              Secure workflow
+            </Box>
+            <Typography sx={{ fontWeight: 700, fontSize: 15, letterSpacing: '-0.01em', color: '#0f172a' }}>
+              Clinic provisioning pipeline
             </Typography>
           </Box>
+          <Typography sx={{ fontSize: 12, fontWeight: 700, color: ACTIVATION_ACCENT }}>
+            {Math.round(progress)}%
+          </Typography>
         </Box>
 
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'minmax(240px, 300px) 1fr' } }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'minmax(250px, 300px) 1fr' } }}>
           <Box sx={{ display: { xs: 'none', lg: 'block' } }}>
             <ProvisionContextPanel
               step={currentStep}
@@ -114,9 +95,9 @@ export default function ActivationProvisioningWizard({
                     key={step.id}
                     sx={{
                       flex: 1,
-                      height: 4,
-                      borderRadius: 1,
-                      bgcolor: alpha(theme.palette.divider, 0.9),
+                      height: 5,
+                      borderRadius: '4px',
+                      bgcolor: 'rgba(148,163,184,0.2)',
                       overflow: 'hidden',
                     }}
                   >
@@ -125,7 +106,7 @@ export default function ActivationProvisioningWizard({
                       sx={{
                         height: '100%',
                         width: index <= activeStep ? '100%' : '0%',
-                        borderRadius: 1,
+                        borderRadius: '4px',
                         bgcolor: index < activeStep ? ACTIVATION_ACCENT : undefined,
                         transition: 'width 0.35s ease',
                       }}
@@ -133,22 +114,34 @@ export default function ActivationProvisioningWizard({
                   </Box>
                 ))}
               </Box>
-              <Typography variant="caption2" sx={{ color: 'text.secondary', mt: 0.75, display: 'block' }}>
-                {Math.round(progress)}% complete — {currentStep.caption}
+              <Typography sx={{ color: 'text.secondary', mt: 0.85, display: 'block', fontSize: 12 }}>
+                {currentStep.caption}
               </Typography>
             </Box>
 
             <Box sx={{ px: { xs: 1.5, sm: 2 }, pb: 1.5 }}>
-              <Box sx={{ mb: 1.5 }}>
-                <Typography variant="h4">{currentStep.label}</Typography>
-                <Typography variant="caption2" sx={{ color: 'text.secondary' }}>
+              <Box sx={{ mb: 1.75 }}>
+                <Typography sx={{ fontWeight: 700, fontSize: 20, letterSpacing: '-0.02em', color: '#0f172a' }}>
+                  {currentStep.label}
+                </Typography>
+                <Typography sx={{ color: 'text.secondary', fontSize: 13, mt: 0.25 }}>
                   {currentStep.caption}
                 </Typography>
               </Box>
 
               {submitError && (
-                <Box sx={{ mb: 1.5, p: 1.25, borderRadius: '4px', bgcolor: alpha(theme.palette.error.main, 0.08), border: `1px solid ${alpha(theme.palette.error.main, 0.25)}` }}>
-                  <Typography variant="body2" sx={{ color: 'error.main' }}>{submitError}</Typography>
+                <Box
+                  sx={{
+                    mb: 1.5,
+                    p: 1.35,
+                    borderRadius: '10px',
+                    bgcolor: alpha('#ef4444', 0.08),
+                    border: `1px solid ${alpha('#ef4444', 0.25)}`,
+                  }}
+                >
+                  <Typography variant="body2" sx={{ color: 'error.main' }}>
+                    {submitError}
+                  </Typography>
                 </Box>
               )}
 
@@ -172,22 +165,13 @@ export default function ActivationProvisioningWizard({
               </Box>
             </Box>
 
-            <Box
-              sx={{
-                px: { xs: 1.5, sm: 2 },
-                py: 1.5,
-                display: 'flex',
-                justifyContent: 'space-between',
-                gap: 1,
-                borderTop: `1px solid ${theme.palette.divider}`,
-                bgcolor: alpha(theme.palette.background.default, 0.4),
-              }}
-            >
+            <Box className="provision-footer-bar">
               <Button
                 variant="outlined"
                 startIcon={<ChevronLeft size={14} />}
                 onClick={goBack}
                 disabled={activeStep === 0 || submitting}
+                sx={{ borderRadius: '10px', textTransform: 'none', fontWeight: 700 }}
               >
                 Back
               </Button>
@@ -195,12 +179,16 @@ export default function ActivationProvisioningWizard({
               {currentStep.id === 'review' ? (
                 <Button
                   variant="contained"
-                  color="primary"
                   endIcon={<KeyRound size={14} />}
                   onClick={() => void submit()}
                   disabled={submitting || !token || !hasMapPin || !documentsReady}
                   sx={{
+                    borderRadius: '10px',
+                    textTransform: 'none',
+                    fontWeight: 700,
+                    px: 2.5,
                     bgcolor: ACTIVATION_ACCENT,
+                    boxShadow: '0 10px 24px -14px rgba(14,165,233,0.9)',
                     '&:hover': { bgcolor: alpha(ACTIVATION_ACCENT, 0.88) },
                   }}
                 >
@@ -211,6 +199,13 @@ export default function ActivationProvisioningWizard({
                   variant="contained"
                   endIcon={<ChevronRight size={14} />}
                   onClick={() => void goNext()}
+                  sx={{
+                    borderRadius: '10px',
+                    textTransform: 'none',
+                    fontWeight: 700,
+                    bgcolor: ACTIVATION_ACCENT,
+                    '&:hover': { bgcolor: alpha(ACTIVATION_ACCENT, 0.88) },
+                  }}
                 >
                   Continue
                 </Button>
