@@ -64,7 +64,7 @@ export class AppointmentController {
     const appointments = await this.appointmentService.findAll(req.user, query);
     return {
       success: true,
-      appointments: appointments.map((a) => this.appointmentService.toPublic(a)),
+      appointments: await this.appointmentService.toPublicEnrichedMany(appointments),
     };
   }
 
@@ -72,7 +72,7 @@ export class AppointmentController {
   @SkipTenantGuard()
   @SkipTenantAuthorization()
   @UseGuards(RolesGuard)
-  @Roles('PATIENT', 'SECRETARY', 'CLINIC_ADMIN', 'SYSTEM_MANAGER')
+  @Roles('PATIENT', 'SECRETARY', 'CLINIC_ADMIN', 'DOCTOR', 'SYSTEM_MANAGER')
   async findOne(@Param('id', ParseUUIDPipe) id: string, @Request() req) {
     const appointment = await this.appointmentService.findOne(id, req.user);
     return {
@@ -85,7 +85,7 @@ export class AppointmentController {
   @SkipTenantGuard()
   @SkipTenantAuthorization()
   @UseGuards(RolesGuard)
-  @Roles('PATIENT', 'SECRETARY', 'CLINIC_ADMIN', 'SYSTEM_MANAGER')
+  @Roles('PATIENT', 'SECRETARY', 'CLINIC_ADMIN', 'DOCTOR', 'SYSTEM_MANAGER')
   async update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateAppointmentDto,

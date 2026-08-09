@@ -47,7 +47,7 @@ export class ScheduleController {
 
   @Post('blocked')
   @UseGuards(RolesGuard)
-  @Roles('CLINIC_ADMIN', 'SECRETARY', 'SYSTEM_MANAGER')
+  @Roles('CLINIC_ADMIN', 'SECRETARY', 'DOCTOR', 'SYSTEM_MANAGER')
   async createBlock(@Body() dto: CreateBlockDto, @Request() req) {
     const block = await this.scheduleService.createBlock(dto, req.user);
     return { success: true, block };

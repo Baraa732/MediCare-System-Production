@@ -101,7 +101,16 @@ export class ScheduleService {
   }
 
   async createBlock(dto: CreateBlockDto, actor: AuthUser) {
-    await this.assertCanManageClinic(dto.clinicId, actor);
+    if (actor.role === 'DOCTOR') {
+      const ok = await this.clinicHttp.checkClinicAccess(dto.clinicId, actor.userId, actor.role);
+      if (!ok) {
+        throw new ForbiddenException('You do not have access to this clinic');
+      }
+      // Doctors may only block their own calendar (leave / personal unavailability).
+      dto.doctorId = actor.userId;
+    } else {
+      await this.assertCanManageClinic(dto.clinicId, actor);
+    }
     const startsAt = new Date(dto.startsAt);
     const endsAt = new Date(dto.endsAt);
     if (endsAt <= startsAt) throw new BadRequestException('endsAt must be after startsAt');

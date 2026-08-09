@@ -1,0 +1,122 @@
+import 'package:cms_doctor_app/core/api/api_client.dart';
+import 'package:cms_doctor_app/core/storage/session_storage.dart';
+import 'package:cms_doctor_app/core/utils/phone_utils.dart';
+import 'package:dio/dio.dart';
+
+class LoginResult {
+  final AuthSession? session;
+  final bool requiresMfa;
+  final String? mfaToken;
+  final String? errorCode;
+
+  const LoginResult({
+    this.session,
+    this.requiresMfa = false,
+    this.mfaToken,
+    this.errorCode,
+  });
+}
+
+class AuthApiService {
+  AuthApiService(this._client, this._session);
+
+  final ApiClient _client;
+  final SessionStorage _session;
+
+  Future<LoginResult> login({
+    required String phoneNumber,
+    required String password,
+  }) async {
+    final response = await _client.post(
+      '/auth/login',
+      data: {
+        'phoneNumber': formatPhoneForApi(phoneNumber),
+        'password': password,
+      },
+      options: Options(extra: {'skipAuth': true}),
+    );
+    final data = response.data as Map<String, dynamic>;
+    if (data['requiresMfa'] == true) {
+      return LoginResult(
+        requiresMfa: true,
+        mfaToken: data['mfaToken'] as String?,
+      );
+    }
+    final session = AuthSession.fromJson(data);
+    if (session.role != 'DOCTOR') {
+      await _session.clearSession();
+      return const LoginResult(errorCode: 'NOT_DOCTOR');
+    }
+    if (session.clinicId == null || session.clinicId!.isEmpty) {
+      return const LoginResult(errorCode: 'NO_CLINIC');
+    }
+    await _session.saveSession(session);
+    return LoginResult(session: session);
+  }
+
+  Future<AuthSession> verifyMfa({
+    required String mfaToken,
+    required String otp,
+  }) async {
+    final response = await _client.post(
+      '/auth/verify-mfa',
+      data: {'mfaToken': mfaToken, 'otp': otp},
+      options: Options(extra: {'skipAuth': true}),
+    );
+    final session = AuthSession.fromJson(response.data as Map<String, dynamic>);
+    if (session.role != 'DOCTOR') {
+      throw Exception('This app is for doctors only');
+    }
+    if (session.clinicId == null || session.clinicId!.isEmpty) {
+      throw Exception('No clinic access');
+    }
+    await _session.saveSession(session);
+    return session;
+  }
+
+  Future<void> forgotPasswordSendOtp(String phoneNumber) async {
+    await _client.post(
+      '/auth/forgot-password/send-otp',
+      data: {'phoneNumber': formatPhoneForApi(phoneNumber)},
+      options: Options(extra: {'skipAuth': true}),
+    );
+  }
+
+  Future<String> forgotPasswordVerifyOtp({
+    required String phoneNumber,
+    required String otp,
+  }) async {
+    final response = await _client.post(
+      '/auth/forgot-password/verify-otp',
+      data: {
+        'phoneNumber': formatPhoneForApi(phoneNumber),
+        'otp': otp,
+      },
+      options: Options(extra: {'skipAuth': true}),
+    );
+    final data = response.data as Map<String, dynamic>;
+    return data['resetToken']?.toString() ?? data['token']?.toString() ?? '';
+  }
+
+  Future<void> resetPassword({
+    required String resetToken,
+    required String newPassword,
+  }) async {
+    await _client.post(
+      '/auth/reset-password',
+      data: {
+        'resetToken': resetToken,
+        'newPassword': newPassword,
+        'password': newPassword,
+      },
+      options: Options(extra: {'skipAuth': true}),
+    );
+  }
+
+  Future<void> logout() async {
+    try {
+      await _client.post('/auth/logout');
+    } catch (_) {}
+    await _session.clearSession();
+  }
+}

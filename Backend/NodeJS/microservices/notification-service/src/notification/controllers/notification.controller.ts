@@ -117,7 +117,7 @@ export class NotificationController {
 
   @Get('staff/inbox')
   @UseGuards(JwtAuthGuard, RolesGuard, TenantGuard, TenantAuthorizationGuard)
-  @Roles('SECRETARY', 'CLINIC_ADMIN', 'SYSTEM_MANAGER')
+  @Roles('SECRETARY', 'CLINIC_ADMIN', 'DOCTOR', 'SYSTEM_MANAGER')
   async getStaffInbox(
     @Request() req: { user: { userId: string } },
     @Query('page') page = '1',
@@ -133,7 +133,7 @@ export class NotificationController {
 
   @Patch('staff/inbox/:id/read')
   @UseGuards(JwtAuthGuard, RolesGuard, TenantGuard, TenantAuthorizationGuard)
-  @Roles('SECRETARY', 'CLINIC_ADMIN', 'SYSTEM_MANAGER')
+  @Roles('SECRETARY', 'CLINIC_ADMIN', 'DOCTOR', 'SYSTEM_MANAGER')
   @HttpCode(HttpStatus.OK)
   async markStaffInboxRead(
     @Request() req: { user: { userId: string } },
@@ -145,7 +145,7 @@ export class NotificationController {
 
   @Patch('staff/inbox/read-all')
   @UseGuards(JwtAuthGuard, RolesGuard, TenantGuard, TenantAuthorizationGuard)
-  @Roles('SECRETARY', 'CLINIC_ADMIN', 'SYSTEM_MANAGER')
+  @Roles('SECRETARY', 'CLINIC_ADMIN', 'DOCTOR', 'SYSTEM_MANAGER')
   @HttpCode(HttpStatus.OK)
   async markAllStaffInboxRead(@Request() req: { user: { userId: string } }) {
     await this.staffPushService.markAllRead(req.user.userId);

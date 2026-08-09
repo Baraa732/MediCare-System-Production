@@ -35,7 +35,15 @@ export class UserHttpClient {
     );
   }
 
-  async getUserById(userId: string): Promise<{ id: string; role: string }> {
+  async getUserById(userId: string): Promise<{
+    id: string;
+    role: string;
+    firstName?: string;
+    lastName?: string;
+    gender?: string;
+    birthDate?: string;
+    phoneNumber?: string;
+  }> {
     try {
       const path = `/users/internal/by-id/${userId}`;
       const res = await axios.get(`${this.baseUrl}${path}`, {
@@ -45,12 +53,45 @@ export class UserHttpClient {
       if (!res.data?.success || !res.data?.user) {
         throw new BadRequestException('User not found');
       }
-      return { id: res.data.user.id, role: res.data.user.role };
+      const user = res.data.user;
+      return {
+        id: user.id,
+        role: user.role,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        gender: user.gender,
+        birthDate: user.birthDate,
+        phoneNumber: user.phoneNumber,
+      };
     } catch (error) {
       if (error instanceof BadRequestException) throw error;
       this.logger.error(`getUserById failed: ${error}`);
       throw new ServiceUnavailableException('User service temporarily unavailable');
     }
+  }
+
+  async getPublicPatients(userIds: string[]): Promise<
+    Array<{
+      id: string;
+      firstName?: string;
+      lastName?: string;
+      gender?: string;
+      birthDate?: string;
+      phoneNumber?: string;
+    }>
+  > {
+    if (!userIds.length) return [];
+    const unique = [...new Set(userIds)];
+    const results = await Promise.all(
+      unique.map(async (id) => {
+        try {
+          return await this.getUserById(id);
+        } catch {
+          return { id };
+        }
+      }),
+    );
+    return results;
   }
 
   async getPublicDoctors(userIds: string[]): Promise<PublicDoctorProfile[]> {

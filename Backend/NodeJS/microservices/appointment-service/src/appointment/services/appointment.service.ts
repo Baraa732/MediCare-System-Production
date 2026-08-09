@@ -498,9 +498,10 @@ export class AppointmentService {
 
   async toPublicEnriched(appointment: Appointment) {
     const base = this.toPublic(appointment);
-    const [clinic, doctors] = await Promise.all([
+    const [clinic, doctors, patient] = await Promise.all([
       this.clinicHttpClient.getClinicById(appointment.clinicId),
       this.userHttpClient.getPublicDoctors([appointment.doctorId]),
+      this.userHttpClient.getUserById(appointment.patientId).catch(() => null),
     ]);
     const doctor = doctors[0];
     return {
@@ -512,6 +513,12 @@ export class AppointmentService {
       clinicPhone: clinic?.phone,
       doctorName: doctor ? `${doctor.firstName} ${doctor.lastName}`.trim() : undefined,
       doctorSpecialization: doctor?.specialization,
+      patientName: patient
+        ? `${patient.firstName ?? ''} ${patient.lastName ?? ''}`.trim() || undefined
+        : undefined,
+      patientGender: patient?.gender,
+      patientBirthDate: patient?.birthDate,
+      patientPhone: patient?.phoneNumber,
     };
   }
 
@@ -520,19 +527,23 @@ export class AppointmentService {
 
     const clinicIds = [...new Set(appointments.map((a) => a.clinicId))];
     const doctorIds = [...new Set(appointments.map((a) => a.doctorId))];
+    const patientIds = [...new Set(appointments.map((a) => a.patientId))];
 
-    const [clinics, doctors] = await Promise.all([
+    const [clinics, doctors, patients] = await Promise.all([
       this.clinicHttpClient.getClinicsByIds(clinicIds),
       this.userHttpClient.getPublicDoctors(doctorIds),
+      this.userHttpClient.getPublicPatients(patientIds),
     ]);
 
     const clinicMap = new Map(clinics.map((c) => [c.id, c]));
     const doctorMap = new Map(doctors.map((d) => [d.id, d]));
+    const patientMap = new Map(patients.map((p) => [p.id, p]));
 
     return appointments.map((appointment) => {
       const base = this.toPublic(appointment);
       const clinic = clinicMap.get(appointment.clinicId);
       const doctor = doctorMap.get(appointment.doctorId);
+      const patient = patientMap.get(appointment.patientId);
       return {
         ...base,
         clinicName: clinic?.name,
@@ -542,6 +553,12 @@ export class AppointmentService {
         clinicPhone: clinic?.phone,
         doctorName: doctor ? `${doctor.firstName} ${doctor.lastName}`.trim() : undefined,
         doctorSpecialization: doctor?.specialization,
+        patientName: patient
+          ? `${patient.firstName ?? ''} ${patient.lastName ?? ''}`.trim() || undefined
+          : undefined,
+        patientGender: patient?.gender,
+        patientBirthDate: patient?.birthDate,
+        patientPhone: patient?.phoneNumber,
       };
     });
   }
@@ -692,7 +709,7 @@ export class AppointmentService {
     if (
       actor.role === 'DOCTOR' &&
       actor.userId === appointment.doctorId &&
-      [AppointmentStatus.COMPLETED, AppointmentStatus.NO_SHOW].includes(nextStatus)
+      [AppointmentStatus.COMPLETED, AppointmentStatus.NO_SHOW, AppointmentStatus.CONFIRMED].includes(nextStatus)
     ) {
       return;
     }
@@ -707,6 +724,9 @@ export class AppointmentService {
       const allowed = await this.clinicHttpClient.checkClinicAccess(appointment.clinicId, actor.userId, actor.role);
       if (allowed) return;
     }
+    if (actor.role === 'DOCTOR' && actor.userId === appointment.doctorId) {
+      return;
+    }
     throw new ForbiddenException('You cannot modify this appointment');
   }
 
@@ -717,8 +737,17 @@ export class AppointmentService {
     appointment: Appointment,
   ) {
     const allowed: Record<AppointmentStatus, AppointmentStatus[]> = {
-      [AppointmentStatus.REQUESTED]: [AppointmentStatus.CONFIRMED, AppointmentStatus.CANCELLED],
-      [AppointmentStatus.CONFIRMED]: [AppointmentStatus.CANCELLED, AppointmentStatus.COMPLETED, AppointmentStatus.NO_SHOW],
+      [AppointmentStatus.REQUESTED]: [
+        AppointmentStatus.CONFIRMED,
+        AppointmentStatus.CANCELLED,
+        AppointmentStatus.COMPLETED,
+        AppointmentStatus.NO_SHOW,
+      ],
+      [AppointmentStatus.CONFIRMED]: [
+        AppointmentStatus.CANCELLED,
+        AppointmentStatus.COMPLETED,
+        AppointmentStatus.NO_SHOW,
+      ],
       [AppointmentStatus.CANCELLED]: [],
       [AppointmentStatus.COMPLETED]: [],
       [AppointmentStatus.NO_SHOW]: [],
