@@ -1,0 +1,10 @@
+# Ignore absolutely everything by default
+*
+
+# Except for the .gitignore file itself (highly recommended)
+!.gitignore
+
+
+# Allow the lib directory and everything inside it
+!lib/
+!lib/**

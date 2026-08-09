@@ -101,6 +101,34 @@ export class PatientSyncService {
     return this.findLink(userId, tenantId);
   }
 
+  async getLinksByUserId(userId: string): Promise<PatientEmrLink[]> {
+    return this.linkRepository.find({
+      where: { userId },
+      order: { updatedAt: 'DESC' },
+    });
+  }
+
+  /**
+   * Resolve the EMR link a patient should see.
+   * Prefer explicit tenant, then SYNCED links, then newest link.
+   */
+  async resolvePatientLink(
+    userId: string,
+    preferredTenantId?: string | null,
+  ): Promise<PatientEmrLink | null> {
+    if (preferredTenantId) {
+      return this.findLink(userId, preferredTenantId);
+    }
+
+    const links = await this.getLinksByUserId(userId);
+    if (links.length === 0) return null;
+
+    const synced = links.find(
+      (link) => link.syncStatus === EmrSyncStatus.SYNCED && !!link.openemrPatientId,
+    );
+    return synced ?? links[0];
+  }
+
   private async findLink(userId: string, tenantId: string): Promise<PatientEmrLink | null> {
     return this.linkRepository.findOne({ where: { userId, tenantId } });
   }

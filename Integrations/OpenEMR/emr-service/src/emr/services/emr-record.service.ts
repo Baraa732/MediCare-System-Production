@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
-import { EmrSyncStatus } from '../entities/patient-emr-link.entity';
+import { EmrSyncStatus, PatientEmrLink } from '../entities/patient-emr-link.entity';
 import { PatientEmrChart } from '../types/patient-emr.types';
 import { OpenEmrChartService } from './openemr-chart.service';
 import { PatientSyncService } from './patient-sync.service';
@@ -14,6 +14,17 @@ export interface PatientSyncStatusResponse {
   synced: boolean;
   openemrPatientId: string | null;
   syncStatus: EmrSyncStatus;
+  lastError: string | null;
+  updatedAt: string;
+  tenantId?: string | null;
+}
+
+export interface PatientEmrLinkSummary {
+  tenantId: string | null;
+  clinicId: string | null;
+  synced: boolean;
+  syncStatus: EmrSyncStatus;
+  openemrPatientId: string | null;
   lastError: string | null;
   updatedAt: string;
 }
@@ -58,10 +69,7 @@ export class EmrRecordService {
     }
   }
 
-  async getSyncStatus(userId: string, actor: AuthUser): Promise<PatientSyncStatusResponse> {
-    const tenantId = this.requireTenantId();
-    await this.assertActorAccess(actor, tenantId, userId);
-    const link = await this.patientSyncService.getLinkByUserId(userId, tenantId);
+  private toSyncStatus(link: PatientEmrLink | null, userId: string): PatientSyncStatusResponse {
     if (!link) {
       return {
         medicareUserId: userId,
@@ -70,6 +78,7 @@ export class EmrRecordService {
         syncStatus: EmrSyncStatus.PENDING,
         lastError: null,
         updatedAt: new Date().toISOString(),
+        tenantId: null,
       };
     }
 
@@ -80,11 +89,103 @@ export class EmrRecordService {
       syncStatus: link.syncStatus,
       lastError: link.lastError,
       updatedAt: link.updatedAt.toISOString(),
+      tenantId: link.tenantId,
     };
   }
 
-  async getPatientEmr(userId: string, actor: AuthUser): Promise<PatientEmrChart> {
-    const tenantId = this.requireTenantId();
+  async listMyLinks(actor: AuthUser): Promise<{ links: PatientEmrLinkSummary[] }> {
+    if (actor.role !== 'PATIENT') {
+      throw new ForbiddenException('Only patients can list their EMR links');
+    }
+    const links = await this.patientSyncService.getLinksByUserId(actor.userId);
+    return {
+      links: links.map((link) => ({
+        tenantId: link.tenantId,
+        clinicId: link.tenantId,
+        synced: link.syncStatus === EmrSyncStatus.SYNCED && !!link.openemrPatientId,
+        syncStatus: link.syncStatus,
+        openemrPatientId: link.openemrPatientId,
+        lastError: link.lastError,
+        updatedAt: link.updatedAt.toISOString(),
+      })),
+    };
+  }
+
+  async getMySyncStatus(
+    actor: AuthUser,
+    preferredTenantId?: string | null,
+  ): Promise<PatientSyncStatusResponse> {
+    if (actor.role !== 'PATIENT') {
+      throw new ForbiddenException('Only patients can use /me/sync-status');
+    }
+    const link = await this.patientSyncService.resolvePatientLink(
+      actor.userId,
+      preferredTenantId,
+    );
+    if (link?.tenantId) {
+      await this.assertActorAccess(actor, link.tenantId, actor.userId);
+    }
+    return this.toSyncStatus(link, actor.userId);
+  }
+
+  async getMyEmr(
+    actor: AuthUser,
+    preferredTenantId?: string | null,
+  ): Promise<PatientEmrChart> {
+    if (actor.role !== 'PATIENT') {
+      throw new ForbiddenException('Only patients can use /me');
+    }
+
+    const link = await this.patientSyncService.resolvePatientLink(
+      actor.userId,
+      preferredTenantId,
+    );
+
+    if (!link || !link.tenantId) {
+      throw new NotFoundException({
+        message: 'No EMR record linked to this user yet',
+        medicareUserId: actor.userId,
+        syncStatus: EmrSyncStatus.PENDING,
+      });
+    }
+
+    return this.getPatientEmr(actor.userId, actor, link.tenantId);
+  }
+
+  async getSyncStatus(
+    userId: string,
+    actor: AuthUser,
+    preferredTenantId?: string | null,
+  ): Promise<PatientSyncStatusResponse> {
+    if (actor.role === 'PATIENT') {
+      if (actor.userId !== userId) {
+        throw new ForbiddenException('You can only access your own EMR sync status');
+      }
+      return this.getMySyncStatus(actor, preferredTenantId);
+    }
+
+    const tenantId = preferredTenantId || this.requireTenantId();
+    await this.assertActorAccess(actor, tenantId, userId);
+    const link = await this.patientSyncService.getLinkByUserId(userId, tenantId);
+    return this.toSyncStatus(link, userId);
+  }
+
+  async getPatientEmr(
+    userId: string,
+    actor: AuthUser,
+    preferredTenantId?: string | null,
+  ): Promise<PatientEmrChart> {
+    const tenantId =
+      preferredTenantId ||
+      this.tenantContext.getTenantId() ||
+      (actor.role === 'PATIENT'
+        ? (await this.patientSyncService.resolvePatientLink(userId))?.tenantId
+        : null);
+
+    if (!tenantId) {
+      throw new ForbiddenException('Tenant context is required');
+    }
+
     try {
       await this.assertActorAccess(actor, tenantId, userId);
       const link = await this.patientSyncService.getLinkByUserId(userId, tenantId);
@@ -107,13 +208,21 @@ export class EmrRecordService {
         });
       }
 
-      const chart = await this.chartService.getPatientChart({
-        tenantId,
-        openemrPatientId: link.openemrPatientId,
-        medicareUserId: link.userId,
-        syncStatus: link.syncStatus,
-        lastSyncAt: link.updatedAt.toISOString(),
-      });
+      const chart = await this.tenantContext.run(
+        {
+          tenantId,
+          userId: actor.userId,
+          service: process.env.SERVICE_NAME || 'emr-service',
+        },
+        async () =>
+          this.chartService.getPatientChart({
+            tenantId,
+            openemrPatientId: link.openemrPatientId!,
+            medicareUserId: link.userId,
+            syncStatus: link.syncStatus,
+            lastSyncAt: link.updatedAt.toISOString(),
+          }),
+      );
 
       this.phiAudit.emit({
         action: PhiAuditAction.EMR_CHART_READ,

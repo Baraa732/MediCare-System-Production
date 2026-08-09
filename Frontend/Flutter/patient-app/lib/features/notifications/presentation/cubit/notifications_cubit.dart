@@ -36,7 +36,7 @@ class NotificationsCubit extends Cubit<NotificationsState> {
       emit(state.copyWith(
         isLoading: false,
         allNotifications: result.items,
-        filteredNotifications: _applyFilter(result.items, state.selectedFilter),
+        filteredNotifications: result.items,
         unreadCount: result.unreadCount,
         isOffline: result.isOffline,
         isFromCache: result.fromCache,
@@ -54,18 +54,14 @@ class NotificationsCubit extends Cubit<NotificationsState> {
 
   Future<void> _handleIncoming(NotificationItem item) async {
     await _syncCoordinator.mergeIncoming(item);
-    final updated = [item, ...state.allNotifications.where((n) => n.id != item.id)];
+    final updated = [
+      item,
+      ...state.allNotifications.where((n) => n.id != item.id),
+    ];
     emit(state.copyWith(
       allNotifications: updated,
-      filteredNotifications: _applyFilter(updated, state.selectedFilter),
+      filteredNotifications: updated,
       unreadCount: updated.where((n) => n.isUnread).length,
-    ));
-  }
-
-  void setFilter(String filter) {
-    emit(state.copyWith(
-      selectedFilter: filter,
-      filteredNotifications: _applyFilter(state.allNotifications, filter),
     ));
   }
 
@@ -74,7 +70,7 @@ class NotificationsCubit extends Cubit<NotificationsState> {
     final updated = state.allNotifications.map((n) => n.markReadNow()).toList();
     emit(state.copyWith(
       allNotifications: updated,
-      filteredNotifications: _applyFilter(updated, state.selectedFilter),
+      filteredNotifications: updated,
       unreadCount: 0,
     ));
   }
@@ -87,15 +83,20 @@ class NotificationsCubit extends Cubit<NotificationsState> {
     }).toList();
     emit(state.copyWith(
       allNotifications: updated,
-      filteredNotifications: _applyFilter(updated, state.selectedFilter),
+      filteredNotifications: updated,
       unreadCount: updated.where((n) => n.isUnread).length,
     ));
   }
 
-  List<NotificationItem> _applyFilter(List<NotificationItem> items, String filter) {
-    if (filter == 'All') return items;
-    if (filter == 'Unread') return items.where((n) => n.isUnread).toList();
-    return items.where((n) => n.typeText == filter).toList();
+  Future<void> dismiss(String id) async {
+    await _syncCoordinator.dismiss(id);
+    final updated =
+        state.allNotifications.where((n) => n.id != id).toList(growable: false);
+    emit(state.copyWith(
+      allNotifications: updated,
+      filteredNotifications: updated,
+      unreadCount: updated.where((n) => n.isUnread).length,
+    ));
   }
 
   @override

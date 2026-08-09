@@ -10,6 +10,7 @@ import 'package:cms/features/clinic/presentation/cubit/clinic_detail_cubit.dart'
 import 'package:cms/features/clinic/presentation/cubit/clinic_detail_state.dart';
 import 'package:cms/features/map/presentation/screens/map_test_screen.dart';
 import 'package:cms/injection_container.dart';
+import 'package:cms/core/animations/app_page_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -298,7 +299,7 @@ class _ClinicDetailView extends StatelessWidget {
                                     onPressed: () {
                                       Navigator.push(
                                         context,
-                                        MaterialPageRoute(
+                                        AppPageRoute(
                                           builder: (context) =>
                                               MapTestScreen(clinic: clinic),
                                         ),
@@ -341,6 +342,25 @@ class _ClinicDetailView extends StatelessWidget {
                                       ),
                                       infoWindow:
                                           InfoWindow(title: clinic.name),
+                                      icon: BitmapDescriptor
+                                          .defaultMarkerWithHue(
+                                        BitmapDescriptor.hueBlue,
+                                      ),
+                                    ),
+                                  },
+                                  circles: {
+                                    Circle(
+                                      circleId: const CircleId('clinic_radius'),
+                                      center: LatLng(
+                                        clinic.latitude!,
+                                        clinic.longitude!,
+                                      ),
+                                      radius: 400,
+                                      fillColor: const Color(0xFF0B74FA)
+                                          .withValues(alpha: 0.12),
+                                      strokeColor: const Color(0xFF0B74FA)
+                                          .withValues(alpha: 0.85),
+                                      strokeWidth: 2,
                                     ),
                                   },
                                   myLocationEnabled: false,

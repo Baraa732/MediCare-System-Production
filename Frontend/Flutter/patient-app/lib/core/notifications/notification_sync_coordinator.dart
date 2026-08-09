@@ -125,4 +125,9 @@ class NotificationSyncCoordinator {
   Future<void> mergeIncoming(NotificationItem item) async {
     await _localStore.upsertNotification(item);
   }
+
+  /// Local dismiss (no backend delete endpoint yet).
+  Future<void> dismiss(String id) async {
+    await _localStore.removeById(id);
+  }
 }

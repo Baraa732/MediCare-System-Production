@@ -4,6 +4,7 @@ import 'package:cms/core/entities/appointment.dart';
 import 'package:cms/core/theme/app_colors.dart';
 import 'package:cms/core/widgets/safe_google_map.dart';
 import 'package:cms/features/map/presentation/screens/map_test_screen.dart';
+import 'package:cms/core/animations/app_page_route.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
@@ -324,7 +325,7 @@ class AppointmentDetailScreen extends StatelessWidget {
                                 onPressed: () {
                                   Navigator.push(
                                     context,
-                                    MaterialPageRoute(
+                                    AppPageRoute(
                                       builder: (context) => MapTestScreen(
                                         clinic:
                                             null, // Pass clinic if available

@@ -17,6 +17,12 @@ export class UserKafkaCorroborator implements KafkaTenantCorroborator {
     tenantId: string,
     payload: Record<string, unknown>,
   ): Promise<boolean> {
+    if (topic === 'appointment.created' || topic === 'appointment.completed') {
+      const patientId = payload.patientId;
+      if (typeof patientId !== 'string') return false;
+      return this.patientBelongsToClinic(patientId, tenantId);
+    }
+
     if (topic !== 'user.created') return true;
 
     const userId = payload.userId;
@@ -52,6 +58,45 @@ export class UserKafkaCorroborator implements KafkaTenantCorroborator {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.error(`User corroboration failed for ${userId}: ${message}`);
       return false;
+    }
+  }
+
+  async fetchUserProfile(userId: string): Promise<{
+    phoneNumber?: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    gender?: string;
+    birthDate?: string;
+  } | null> {
+    try {
+      const path = `/users/internal/by-id/${userId}`;
+      const url = `${this.userBaseUrl}${path}`;
+      const headers = createInternalAuthHeadersForUrl(
+        this.serviceName,
+        this.signingSecret,
+        'GET',
+        path,
+      );
+      const response = await axios.get(url, {
+        headers,
+        timeout: 5000,
+        validateStatus: () => true,
+      });
+      if (response.status !== 200 || !response.data?.user) return null;
+      const user = response.data.user as Record<string, unknown>;
+      return {
+        phoneNumber: typeof user.phoneNumber === 'string' ? user.phoneNumber : undefined,
+        firstName: typeof user.firstName === 'string' ? user.firstName : undefined,
+        lastName: typeof user.lastName === 'string' ? user.lastName : undefined,
+        email: typeof user.email === 'string' ? user.email : undefined,
+        gender: typeof user.gender === 'string' ? user.gender : undefined,
+        birthDate: typeof user.birthDate === 'string' ? user.birthDate : undefined,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`User profile fetch failed for ${userId}: ${message}`);
+      return null;
     }
   }
 

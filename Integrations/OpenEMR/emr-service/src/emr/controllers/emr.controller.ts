@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Get,
   Param,
+  Query,
   Request,
   UseGuards,
 } from '@nestjs/common';
@@ -13,6 +14,10 @@ import { TenantGuard } from '../../tenant-shared/tenant.guard';
 import { TenantAuthorizationGuard } from '../../tenant-shared/tenant-authorization.guard';
 import { DoctorPatientAccessGuard } from '../../tenant-shared/doctor-patient-access.guard';
 import { DoctorPatientParam } from '../../tenant-shared/tenant.decorators';
+import {
+  SkipTenantAuthorization,
+  SkipTenantGuard,
+} from '../../tenant-shared/tenant.decorators';
 import { EmrRecordService } from '../services/emr-record.service';
 
 const STAFF_ROLES = ['DOCTOR', 'CLINIC_ADMIN', 'SYSTEM_MANAGER'];
@@ -27,19 +32,70 @@ interface AuthUser {
 export class EmrController {
   constructor(private emrRecordService: EmrRecordService) {}
 
+  private preferredTenant(
+    query: { tenantId?: string; clinicId?: string },
+  ): string | undefined {
+    return query.tenantId || query.clinicId || undefined;
+  }
+
+  /** Patient self-chart — FHIR-aligned patient portal entry. */
   @Get('me')
+  @SkipTenantGuard()
+  @SkipTenantAuthorization()
   @UseGuards(RolesGuard)
   @Roles('PATIENT')
-  async getMyEmr(@Request() req: { user: AuthUser }) {
-    return this.emrRecordService.getPatientEmr(req.user.userId, req.user);
+  async getMyEmr(
+    @Request() req: { user: AuthUser },
+    @Query() query: { tenantId?: string; clinicId?: string },
+  ) {
+    return this.emrRecordService.getMyEmr(req.user, this.preferredTenant(query));
+  }
+
+  /** Docs / client alias for GET /me */
+  @Get('my-chart')
+  @SkipTenantGuard()
+  @SkipTenantAuthorization()
+  @UseGuards(RolesGuard)
+  @Roles('PATIENT')
+  async getMyChart(
+    @Request() req: { user: AuthUser },
+    @Query() query: { tenantId?: string; clinicId?: string },
+  ) {
+    return this.emrRecordService.getMyEmr(req.user, this.preferredTenant(query));
   }
 
   @Get('me/sync-status')
-  async getMySyncStatus(@Request() req: { user: AuthUser }) {
-    if (req.user.role !== 'PATIENT') {
-      throw new ForbiddenException('Only patients can use /me/sync-status');
-    }
-    return this.emrRecordService.getSyncStatus(req.user.userId, req.user);
+  @SkipTenantGuard()
+  @SkipTenantAuthorization()
+  @UseGuards(RolesGuard)
+  @Roles('PATIENT')
+  async getMySyncStatus(
+    @Request() req: { user: AuthUser },
+    @Query() query: { tenantId?: string; clinicId?: string },
+  ) {
+    return this.emrRecordService.getMySyncStatus(req.user, this.preferredTenant(query));
+  }
+
+  /** Docs / client alias for GET /me/sync-status */
+  @Get('sync-status')
+  @SkipTenantGuard()
+  @SkipTenantAuthorization()
+  @UseGuards(RolesGuard)
+  @Roles('PATIENT')
+  async getSyncStatusAlias(
+    @Request() req: { user: AuthUser },
+    @Query() query: { tenantId?: string; clinicId?: string },
+  ) {
+    return this.emrRecordService.getMySyncStatus(req.user, this.preferredTenant(query));
+  }
+
+  @Get('me/links')
+  @SkipTenantGuard()
+  @SkipTenantAuthorization()
+  @UseGuards(RolesGuard)
+  @Roles('PATIENT')
+  async listMyLinks(@Request() req: { user: AuthUser }) {
+    return this.emrRecordService.listMyLinks(req.user);
   }
 
   @Get('patients/:userId')
@@ -48,6 +104,7 @@ export class EmrController {
   async getPatientEmr(
     @Param('userId') userId: string,
     @Request() req: { user: AuthUser },
+    @Query() query: { tenantId?: string; clinicId?: string },
   ) {
     const isStaff = STAFF_ROLES.includes(req.user.role);
     const isOwnRecord = req.user.role === 'PATIENT' && req.user.userId === userId;
@@ -56,7 +113,15 @@ export class EmrController {
       throw new ForbiddenException('You can only access your own EMR record');
     }
 
-    return this.emrRecordService.getPatientEmr(userId, req.user);
+    if (isOwnRecord) {
+      return this.emrRecordService.getMyEmr(req.user, this.preferredTenant(query));
+    }
+
+    return this.emrRecordService.getPatientEmr(
+      userId,
+      req.user,
+      this.preferredTenant(query),
+    );
   }
 
   @Get('patients/:userId/sync-status')
@@ -65,6 +130,7 @@ export class EmrController {
   async getPatientSyncStatus(
     @Param('userId') userId: string,
     @Request() req: { user: AuthUser },
+    @Query() query: { tenantId?: string; clinicId?: string },
   ) {
     const isStaff = STAFF_ROLES.includes(req.user.role);
     const isOwnRecord = req.user.role === 'PATIENT' && req.user.userId === userId;
@@ -73,6 +139,10 @@ export class EmrController {
       throw new ForbiddenException('You can only access your own EMR sync status');
     }
 
-    return this.emrRecordService.getSyncStatus(userId, req.user);
+    return this.emrRecordService.getSyncStatus(
+      userId,
+      req.user,
+      this.preferredTenant(query),
+    );
   }
 }

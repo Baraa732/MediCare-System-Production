@@ -49,6 +49,11 @@ class NotificationLocalStore {
     await saveInbox(current);
   }
 
+  Future<void> removeById(String id) async {
+    final current = loadInbox()..removeWhere((n) => n.id == id);
+    await saveInbox(current);
+  }
+
   Future<void> queueMarkRead(String id) async {
     final pending = pendingReadIds.toSet()..add(id);
     await _prefs.setStringList(_pendingReadKey, pending.toList());

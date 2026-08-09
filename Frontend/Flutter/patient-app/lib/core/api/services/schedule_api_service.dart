@@ -6,22 +6,26 @@ class ScheduleApiService {
   final ApiClient _client;
 
   /// Returns available slot start times (UTC ISO strings) for a doctor on [date] (yyyy-MM-dd).
+  /// Omits [durationMinutes] when using the server default (30) so query validation stays clean.
   Future<List<DateTime>> getAvailableSlots({
     required String clinicId,
     required String doctorId,
     required DateTime date,
-    int durationMinutes = 30,
+    int? durationMinutes,
   }) async {
     final dateKey =
         '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    final query = <String, dynamic>{
+      'clinicId': clinicId,
+      'doctorId': doctorId,
+      'date': dateKey,
+    };
+    if (durationMinutes != null) {
+      query['durationMinutes'] = durationMinutes;
+    }
     final response = await _client.get(
       '/schedule/slots',
-      queryParameters: {
-        'clinicId': clinicId,
-        'doctorId': doctorId,
-        'date': dateKey,
-        'durationMinutes': durationMinutes,
-      },
+      queryParameters: query,
     );
     final data = response.data as Map<String, dynamic>;
     final list = data['slots'] as List<dynamic>? ?? [];

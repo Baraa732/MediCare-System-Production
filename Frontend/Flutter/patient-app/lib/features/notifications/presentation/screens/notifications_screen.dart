@@ -13,65 +13,16 @@ class NotificationsScreen extends StatelessWidget {
 
   const NotificationsScreen({super.key});
 
-  final List<String> _filters = const [
-    'All',
-    'Unread',
-    'Confirmed',
-    'Cancelled',
-    'Rescheduled',
-    'Reminder',
-    'Alert',
-    'Update',
-  ];
-
   @override
   Widget build(BuildContext context) {
+    final top = MediaQuery.paddingOf(context).top;
     return BlocProvider(
-      create: (context) => getIt<NotificationsCubit>(),
+      create: (_) => getIt<NotificationsCubit>(),
       child: Scaffold(
-        backgroundColor: AppColors.lightGray,
+        backgroundColor: const Color(0xFFF5F7FB),
         body: Column(
           children: [
-            // ---- Custom Blue Header ----
-            _buildBlueHeader(context),
-            const SizedBox(height: 16),
-            BlocBuilder<NotificationsCubit, NotificationsState>(
-              builder: (context, state) {
-                if (!state.isOffline && !state.isFromCache) {
-                  return const SizedBox.shrink();
-                }
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: state.isOffline
-                          ? Colors.orange.shade50
-                          : Colors.blue.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      state.isOffline
-                          ? 'Offline — showing saved notifications. Will sync when back online.'
-                          : 'Showing cached notifications. Pull to refresh when online.',
-                      style: FontHeading.bodySmall.copyWith(
-                        color: AppColors.CustomgrayDark,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 8),
-            // ---- Filter Chips ----
-            _buildFilterChips(context),
-            const SizedBox(height: 16),
-            // ---- Notifications List ----
+            _Header(topInset: top),
             Expanded(
               child: BlocBuilder<NotificationsCubit, NotificationsState>(
                 builder: (context, state) {
@@ -80,65 +31,93 @@ class NotificationsScreen extends StatelessWidget {
                   }
 
                   if (state.errorMessage != null &&
-                      state.filteredNotifications.isEmpty) {
+                      state.allNotifications.isEmpty) {
                     return Center(
                       child: Padding(
                         padding: const EdgeInsets.all(24),
                         child: Text(
                           state.errorMessage!,
                           textAlign: TextAlign.center,
-                          style: const TextStyle(color: AppColors.customGray),
+                          style: FontHeading.body.copyWith(
+                            color: AppColors.customGray,
+                          ),
                         ),
                       ),
                     );
                   }
 
-                  if (state.filteredNotifications.isEmpty) {
-                    return const Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.notifications_off_outlined,
-                            size: 64,
-                            color: AppColors.customGray,
-                          ),
-                          SizedBox(height: 16),
-                          Text(
-                            'No notifications',
-                            style: TextStyle(
-                              color: AppColors.customGray,
-                              fontSize: 16,
+                  if (state.allNotifications.isEmpty) {
+                    return FadeSlideIn(
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              width: 88,
+                              height: 88,
+                              decoration: BoxDecoration(
+                                color: AppColors.main_background_blue
+                                    .withValues(alpha: 0.1),
+                                borderRadius: const BorderRadius.only(
+                                  topLeft: Radius.circular(28),
+                                  topRight: Radius.circular(12),
+                                  bottomLeft: Radius.circular(12),
+                                  bottomRight: Radius.circular(28),
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.notifications_none_rounded,
+                                size: 40,
+                                color: AppColors.main_background_blue,
+                              ),
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 16),
+                            Text(
+                              'All caught up',
+                              style: FontHeading.heading4,
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'New updates will appear here',
+                              style: FontHeading.bodySmall.copyWith(
+                                color: AppColors.customGray,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     );
                   }
 
                   return FadeSlideIn(
                     child: RefreshIndicator(
-                    onRefresh: () =>
-                        context.read<NotificationsCubit>().loadNotifications(),
-                    child: ListView.builder(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: state.filteredNotifications.length,
-                      itemBuilder: (context, index) {
-                        final notification = state.filteredNotifications[index];
-                        return GestureDetector(
-                          onTap: () {
-                            context.read<NotificationsCubit>().markAsRead(
-                              notification.id,
-                            );
-                          },
-                          child: Padding(
+                      color: AppColors.main_background_blue,
+                      onRefresh: () => context
+                          .read<NotificationsCubit>()
+                          .loadNotifications(),
+                      child: ListView.builder(
+                        physics: const AlwaysScrollableScrollPhysics(
+                          parent: BouncingScrollPhysics(),
+                        ),
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+                        itemCount: state.allNotifications.length,
+                        itemBuilder: (context, index) {
+                          final item = state.allNotifications[index];
+                          return Padding(
                             padding: const EdgeInsets.only(bottom: 12),
-                            child: _buildNotificationCard(notification),
-                          ),
-                        );
-                      },
-                    ),
+                            child: _SwipeDeleteTile(
+                              key: ValueKey(item.id),
+                              item: item,
+                              onTap: () => context
+                                  .read<NotificationsCubit>()
+                                  .markAsRead(item.id),
+                              onDelete: () => context
+                                  .read<NotificationsCubit>()
+                                  .dismiss(item.id),
+                            ),
+                          );
+                        },
+                      ),
                     ),
                   );
                 },
@@ -149,93 +128,67 @@ class NotificationsScreen extends StatelessWidget {
       ),
     );
   }
+}
 
-  // ============================================================
-  //  BLUE HEADER (Custom curved header)
-  // ============================================================
-  Widget _buildBlueHeader(BuildContext context) {
+class _Header extends StatelessWidget {
+  const _Header({required this.topInset});
+  final double topInset;
+
+  @override
+  Widget build(BuildContext context) {
     return BlocBuilder<NotificationsCubit, NotificationsState>(
       builder: (context, state) {
-        final unreadCount = state.unreadCount > 0
-            ? state.unreadCount
-            : state.allNotifications.where((n) => n.isUnread).length;
-
         return Container(
           width: double.infinity,
-          decoration: BoxDecoration(
-            color: AppColors.main_background_blue,
-            borderRadius: const BorderRadius.only(
-              bottomLeft: Radius.circular(24),
-              bottomRight: Radius.circular(24),
+          padding: EdgeInsets.fromLTRB(16, topInset + 12, 16, 22),
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF0B74FA), Color(0xFF0858C7)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.only(
+              bottomLeft: Radius.circular(28),
+              bottomRight: Radius.circular(28),
             ),
           ),
-          padding: const EdgeInsets.fromLTRB(20, 30, 20, 20),
           child: Row(
             children: [
-              // ---- Back Button ----
-              GestureDetector(
-                onTap: () => Navigator.pop(context),
-                child: const Row(
+              IconButton(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.arrow_back, color: Colors.white, size: 22),
-                    SizedBox(width: 4),
                     Text(
-                      'Back',
-                      style: TextStyle(
+                      'Notifications',
+                      style: FontHeading.heading1.copyWith(
                         color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w400,
+                        fontSize: 22,
+                      ),
+                    ),
+                    Text(
+                      state.unreadCount > 0
+                          ? '${state.unreadCount} unread'
+                          : 'Swipe left to delete',
+                      style: FontHeading.bodySmall.copyWith(
+                        color: Colors.white70,
                       ),
                     ),
                   ],
                 ),
               ),
-              const Spacer(),
-              // ---- Title + Badge ----
-              Row(
-                children: [
-                  Text(
-                    'Notifications',
-                    style: FontHeading.heading1.copyWith(
-                      color: Colors.white,
-                      fontSize: 18,
-                    ),
-                  ),
-                  if (unreadCount > 0) ...[
-                    const SizedBox(width: 8),
-                    Container(
-                      width: 22,
-                      height: 22,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: Text(
-                          unreadCount.toString(),
-                          style: FontHeading.bodySmall.copyWith(
-                            color: AppColors.main_background_blue,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-              const Spacer(),
-              // ---- Mark all as read ----
-              if (unreadCount > 0)
-                GestureDetector(
-                  onTap: () {
-                    context.read<NotificationsCubit>().markAllAsRead();
-                  },
+              if (state.unreadCount > 0)
+                TextButton(
+                  onPressed: () =>
+                      context.read<NotificationsCubit>().markAllAsRead(),
                   child: Text(
-                    'Mark all as read',
+                    'Read all',
                     style: FontHeading.bodySmall.copyWith(
-                      color: Colors.white70,
-                      fontSize: 13,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
@@ -245,219 +198,148 @@ class NotificationsScreen extends StatelessWidget {
       },
     );
   }
+}
 
-  // ============================================================
-  //  FILTER CHIPS
-  // ============================================================
-  Widget _buildFilterChips(BuildContext context) {
-    return BlocBuilder<NotificationsCubit, NotificationsState>(
-      builder: (context, state) {
-        return SizedBox(
-          height: 40,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: _filters.length,
-            itemBuilder: (context, index) {
-              final filter = _filters[index];
-              final bool isSelected = state.selectedFilter == filter;
-              return Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: GestureDetector(
-                  onTap: () {
-                    context.read<NotificationsCubit>().setFilter(filter);
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? AppColors.main_background_blue
-                          : AppColors.main_background_blue.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(117),
-                    ),
-                    child: Center(
-                      child: Text(
-                        filter,
-                        style: FontHeading.bodySmall.copyWith(
-                          color: isSelected
-                              ? Colors.white
-                              : AppColors.main_background_blue,
-                          fontWeight: isSelected
-                              ? FontWeight.w600
-                              : FontWeight.w400,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            },
+class _SwipeDeleteTile extends StatelessWidget {
+  const _SwipeDeleteTile({
+    super.key,
+    required this.item,
+    required this.onTap,
+    required this.onDelete,
+  });
+
+  final NotificationItem item;
+  final VoidCallback onTap;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return Dismissible(
+      key: ValueKey('dismiss-${item.id}'),
+      direction: DismissDirection.endToStart,
+      onDismissed: (_) => onDelete(),
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 22),
+        decoration: const BoxDecoration(
+          color: Color(0xFFE11D48),
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(22),
+            topRight: Radius.circular(10),
+            bottomLeft: Radius.circular(10),
+            bottomRight: Radius.circular(22),
           ),
-        );
-      },
-    );
-  }
-
-  // ============================================================
-  //  NOTIFICATION CARD (Color-coded)
-  // ============================================================
-  Widget _buildNotificationCard(NotificationItem notification) {
-    // Color theme based on notification type
-    Color iconBgColor;
-    Color iconColor;
-    Color metadataColor;
-    Color titleColor;
-
-    switch (notification.type) {
-      case NotificationType.alert:
-        iconBgColor = const Color(0xFFFFF0F0);
-        iconColor = Colors.red.shade400;
-        metadataColor = Colors.red.shade400;
-        titleColor = const Color(0xFF550000);
-        break;
-      case NotificationType.success:
-        iconBgColor = const Color(0xFFE8F5E9);
-        iconColor = AppColors.green;
-        metadataColor = AppColors.green;
-        titleColor = const Color(0xFF1B5E20);
-        break;
-      case NotificationType.warning:
-        iconBgColor = const Color(0xFFFFFDE7);
-        iconColor = const Color(0xFFF57F17);
-        metadataColor = const Color(0xFFF57F17);
-        titleColor = const Color(0xFF4E342E);
-        break;
-      case NotificationType.system:
-        iconBgColor = const Color(0xFFE3F2FD);
-        iconColor = AppColors.main_background_blue;
-        metadataColor = AppColors.main_background_blue;
-        titleColor = const Color(0xFF0D47A1);
-        break;
-      case NotificationType.read:
-        iconBgColor = Colors.grey.shade100;
-        iconColor = AppColors.customGray;
-        metadataColor = AppColors.customGray;
-        titleColor = AppColors.CustomgrayDark;
-        break;
-    }
-
-    final bool showBadge = notification.isUnread;
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.shade100,
-            blurRadius: 6,
-            offset: const Offset(0, 3),
-          ),
-        ],
+        ),
+        child: const Icon(Icons.delete_outline_rounded, color: Colors.white),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ---- Category Icon Circle (with clock + "!" badge) ----
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: iconBgColor,
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  // ---- Clock Icon ----
-                  Icon(Icons.access_time_rounded, color: iconColor, size: 28),
-                  // ---- "!" Badge (on the icon, bottom-right) ----
-                  if (showBadge)
-                    Positioned(
-                      bottom: -1,
-                      right: -2,
-                      child: Container(
-                        width: 14,
-                        height: 14,
-                        decoration: BoxDecoration(
-                          color: iconBgColor,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Center(
-                          child: Text(
-                            '!',
-                            style: TextStyle(
-                              color: iconColor,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(22),
+            topRight: Radius.circular(10),
+            bottomLeft: Radius.circular(10),
+            bottomRight: Radius.circular(22),
           ),
-          const SizedBox(width: 14),
-          // ---- Text Content Column ----
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // ---- Metadata Row (Type + Time) ----
-                Row(
-                  children: [
-                    Text(
-                      notification.typeText,
-                      style: FontHeading.bodySmall.copyWith(
-                        color: metadataColor,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      notification.time,
-                      style: FontHeading.bodySmall.copyWith(
-                        color: AppColors.customGray,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                // ---- Title ----
-                Text(
-                  notification.title,
-                  style: FontHeading.body.copyWith(
-                    color: titleColor,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                // ---- Body ----
-                Text(
-                  notification.body,
-                  style: FontHeading.bodySmall.copyWith(
-                    color: AppColors.CustomgrayDark,
-                    fontSize: 13,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+          child: Ink(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(22),
+                topRight: Radius.circular(10),
+                bottomLeft: Radius.circular(10),
+                bottomRight: Radius.circular(22),
+              ),
+              border: Border.all(
+                color: item.isUnread
+                    ? AppColors.main_background_blue.withValues(alpha: 0.35)
+                    : const Color(0xFFEEF1F6),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
                 ),
               ],
             ),
+            child: Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: AppColors.main_background_blue
+                        .withValues(alpha: item.isUnread ? 0.16 : 0.08),
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(16),
+                      topRight: Radius.circular(8),
+                      bottomLeft: Radius.circular(8),
+                      bottomRight: Radius.circular(16),
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.notifications_active_rounded,
+                    color: AppColors.main_background_blue
+                        .withValues(alpha: item.isUnread ? 1 : 0.65),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              item.title.isEmpty ? 'MediCare' : item.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: FontHeading.body.copyWith(
+                                fontWeight: item.isUnread
+                                    ? FontWeight.w700
+                                    : FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            item.time,
+                            style: FontHeading.caption.copyWith(
+                              color: AppColors.customGray,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        item.body,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: FontHeading.bodySmall.copyWith(
+                          color: AppColors.CustomgrayDark,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (item.isUnread) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: AppColors.main_background_blue,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
-        ],
+        ),
       ),
     );
   }

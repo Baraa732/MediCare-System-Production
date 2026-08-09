@@ -17,6 +17,7 @@ import 'package:cms/features/booking/presentation/screens/booking_form_screen.da
 import 'package:cms/features/booking/presentation/screens/booking_screen.dart';
 import 'package:cms/features/booking/presentation/screens/booking_success_screen.dart';
 import 'package:cms/features/clinic/presentation/screens/clinic_detail_screen.dart';
+import 'package:cms/features/emr/presentation/screens/emr_screen.dart';
 import 'package:cms/features/home/presentation/screens/home_screen.dart';
 import 'package:cms/features/map/presentation/screens/map_screen.dart';
 import 'package:cms/features/map/presentation/screens/map_test_screen.dart';
@@ -184,6 +185,11 @@ class MyApp extends StatelessWidget {
             return AppPageRoute(
               settings: settings,
               builder: (_) => const NotificationsScreen(),
+            );
+          case EmrScreen.routeName:
+            return AppPageRoute(
+              settings: settings,
+              builder: (_) => const EmrScreen(),
             );
           case BookingFormScreen.routeName:
             final clinic = settings.arguments as Clinic?;
