@@ -134,6 +134,13 @@ export function OtpPage() {
           return;
         }
         if (isAuthSession(res)) {
+          if (res.role !== "CLINIC_ADMIN") {
+            setError(
+              "This portal is for clinic administrators only. Use the correct MediCare dashboard for your role.",
+            );
+            clearPendingFlow();
+            return;
+          }
           setSession(res);
           await uploadPendingRegistrationImages(res);
           navigate("/dashboard", { replace: true });
@@ -149,6 +156,13 @@ export function OtpPage() {
           return;
         }
         if (isAuthSession(res)) {
+          if (res.role !== "CLINIC_ADMIN") {
+            setError(
+              "This portal is for clinic administrators only. Use the correct MediCare dashboard for your role.",
+            );
+            clearPendingFlow();
+            return;
+          }
           setSession(res);
           await uploadPendingRegistrationImages(res);
           navigate("/dashboard", { replace: true });

@@ -1,13 +1,29 @@
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { Navigate } from "react-router";
 import { AuthFlowShell } from "@/components/auth/AuthFlowShell";
 import { useAuthHydration } from "@/hooks/useAuthHydration";
 import { useAuthStore } from "@/stores/authStore";
 
+const WRONG_PORTAL_FLASH =
+  "This portal is for clinic administrators only. Please sign in with a clinic admin account.";
+
+function isClinicAdminRole(role: string | null | undefined): boolean {
+  return role === "CLINIC_ADMIN";
+}
+
 export function ProtectedRoute({ children }: { children: ReactNode }) {
   const hydrated = useAuthHydration();
   const accessToken = useAuthStore((s) => s.accessToken);
   const role = useAuthStore((s) => s.role);
+  const logout = useAuthStore((s) => s.logout);
+
+  const wrongRole = Boolean(accessToken && role && !isClinicAdminRole(role));
+
+  useEffect(() => {
+    if (wrongRole) {
+      logout();
+    }
+  }, [wrongRole, logout]);
 
   if (!hydrated) {
     return (
@@ -17,20 +33,13 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
     );
   }
 
-  if (!accessToken) {
-    return <Navigate to="/auth/login" replace />;
-  }
-
-  if (role && role !== "CLINIC_ADMIN") {
+  if (!accessToken || wrongRole) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-neutral-50 p-6">
-        <div className="max-w-md text-center space-y-2">
-          <p className="text-lg font-semibold text-[#1A1B1E]">Wrong dashboard</p>
-          <p className="text-[#929296]">
-            This portal is for clinic administrators only.
-          </p>
-        </div>
-      </div>
+      <Navigate
+        to="/auth/login"
+        replace
+        state={wrongRole ? { flash: WRONG_PORTAL_FLASH } : undefined}
+      />
     );
   }
 
@@ -40,6 +49,17 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
 export function GuestRoute({ children }: { children: ReactNode }) {
   const hydrated = useAuthHydration();
   const accessToken = useAuthStore((s) => s.accessToken);
+  const role = useAuthStore((s) => s.role);
+  const logout = useAuthStore((s) => s.logout);
+
+  const wrongRole = Boolean(accessToken && role && !isClinicAdminRole(role));
+  const canEnterApp = Boolean(accessToken && isClinicAdminRole(role));
+
+  useEffect(() => {
+    if (wrongRole) {
+      logout();
+    }
+  }, [wrongRole, logout]);
 
   if (!hydrated) {
     return (
@@ -49,7 +69,18 @@ export function GuestRoute({ children }: { children: ReactNode }) {
     );
   }
 
-  if (accessToken) {
+  // Stale / wrong-role tokens must not block the login page.
+  if (wrongRole) {
+    return (
+      <Navigate
+        to="/auth/login"
+        replace
+        state={{ flash: WRONG_PORTAL_FLASH }}
+      />
+    );
+  }
+
+  if (canEnterApp) {
     return <Navigate to="/dashboard" replace />;
   }
 

@@ -165,6 +165,12 @@ export function LoginPage() {
         navigate("/auth/otp", { replace: true });
         return;
       }
+      if (response.role !== "CLINIC_ADMIN") {
+        setError(
+          "This portal is for clinic administrators only. Use the correct MediCare dashboard for your role.",
+        );
+        return;
+      }
       setSession(response);
       navigate("/dashboard", { replace: true });
     } catch (err) {
