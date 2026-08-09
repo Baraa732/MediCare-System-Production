@@ -1192,6 +1192,14 @@ export class AuthService implements OnModuleInit {
     if (resolved.clinicId) {
       user.clinicId = resolved.clinicId;
       (user as AuthUserProfile & { tenantId?: string }).tenantId = resolved.clinicId;
+      return;
+    }
+
+    // Fallback to profile clinic/tenant stamped at invite time.
+    const legacy = user.clinicId ?? user.tenantId;
+    if (legacy) {
+      (user as AuthUserProfile & { tenantId?: string }).tenantId = legacy;
+      user.clinicId = legacy;
     }
   }
 

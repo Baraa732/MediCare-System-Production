@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cms_doctor_app/features/auth/activate_account_screen.dart';
 import 'package:cms_doctor_app/features/auth/no_clinic_access_screen.dart';
 import 'package:cms_doctor_app/features/schedule/day_view_screen.dart';
 import 'package:cms_doctor_app/injection.dart';
@@ -31,6 +32,7 @@ class _VerificationCodeScreenState extends State<VerificationCodeScreen> {
   int _seconds = 60;
   Timer? _timer;
   bool _loading = false;
+  bool _otpConsumed = false;
 
   @override
   void initState() {
@@ -76,20 +78,42 @@ class _VerificationCodeScreenState extends State<VerificationCodeScreen> {
       showSnack(context, 'Please enter the full 6-digit code');
       return;
     }
+    if (_otpConsumed) {
+      showSnack(context, 'Code already used. Sign in again to get a new code.');
+      return;
+    }
     setState(() => _loading = true);
     try {
-      final session = await authApi.verifyMfa(
+      final result = await authApi.verifyMfa(
         mfaToken: widget.mfaToken,
         otp: _otp,
       );
       if (!mounted) return;
-      if (session.clinicId == null || session.clinicId!.isEmpty) {
+      _otpConsumed = true;
+
+      if (result.requiresPasswordChange) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ActivateAccountScreen(
+              activationToken: result.activationToken ?? '',
+            ),
+          ),
+        );
+        return;
+      }
+
+      final session = result.session;
+      if (session == null ||
+          session.clinicId == null ||
+          session.clinicId!.isEmpty) {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const NoClinicAccessScreen()),
         );
         return;
       }
+
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const DayViewScreen()),

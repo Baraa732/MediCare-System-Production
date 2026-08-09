@@ -7,13 +7,27 @@ class LoginResult {
   final AuthSession? session;
   final bool requiresMfa;
   final String? mfaToken;
+  final bool requiresPasswordChange;
   final String? errorCode;
 
   const LoginResult({
     this.session,
     this.requiresMfa = false,
     this.mfaToken,
+    this.requiresPasswordChange = false,
     this.errorCode,
+  });
+}
+
+class MfaVerifyResult {
+  final AuthSession? session;
+  final bool requiresPasswordChange;
+  final String? activationToken;
+
+  const MfaVerifyResult({
+    this.session,
+    this.requiresPasswordChange = false,
+    this.activationToken,
   });
 }
 
@@ -40,6 +54,7 @@ class AuthApiService {
       return LoginResult(
         requiresMfa: true,
         mfaToken: data['mfaToken'] as String?,
+        requiresPasswordChange: data['requiresPasswordChange'] == true,
       );
     }
     final session = AuthSession.fromJson(data);
@@ -54,13 +69,49 @@ class AuthApiService {
     return LoginResult(session: session);
   }
 
-  Future<AuthSession> verifyMfa({
+  Future<MfaVerifyResult> verifyMfa({
     required String mfaToken,
     required String otp,
   }) async {
     final response = await _client.post(
       '/auth/verify-mfa',
       data: {'mfaToken': mfaToken, 'otp': otp},
+      options: Options(extra: {'skipAuth': true}),
+    );
+    final data = response.data as Map<String, dynamic>;
+
+    if (data['requiresPasswordChange'] == true) {
+      final activationToken = data['activationToken']?.toString() ?? '';
+      if (activationToken.isEmpty) {
+        throw Exception('Activation token missing. Please sign in again.');
+      }
+      return MfaVerifyResult(
+        requiresPasswordChange: true,
+        activationToken: activationToken,
+      );
+    }
+
+    final session = AuthSession.fromJson(data);
+    if (session.role != 'DOCTOR') {
+      throw Exception('This app is for doctors only');
+    }
+    if (session.clinicId == null || session.clinicId!.isEmpty) {
+      throw Exception('No clinic access');
+    }
+    await _session.saveSession(session);
+    return MfaVerifyResult(session: session);
+  }
+
+  Future<AuthSession> completeStaffActivation({
+    required String activationToken,
+    required String newPassword,
+  }) async {
+    final response = await _client.post(
+      '/auth/staff/complete-activation',
+      data: {
+        'activationToken': activationToken,
+        'newPassword': newPassword,
+      },
       options: Options(extra: {'skipAuth': true}),
     );
     final session = AuthSession.fromJson(response.data as Map<String, dynamic>);

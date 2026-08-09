@@ -354,13 +354,23 @@ export class ClinicService {
       return { tenantId: primary.tenantId, clinicId: primary.tenantId, source: 'primary' };
     }
 
-    const assignments = await this.assignmentRepo.find({
+    const active = await this.assignmentRepo.find({
       where: { userId, status: AssignmentStatus.ACTIVE },
       order: { startedAt: 'ASC', assignedAt: 'ASC' },
     });
-    if (assignments.length > 0) {
-      const tenantId = assignments[0].tenantId;
+    if (active.length > 0) {
+      const tenantId = active[0].tenantId;
       return { tenantId, clinicId: tenantId, source: 'assignment' };
+    }
+
+    // Invited staff (PENDING_ACTIVATION) keep PENDING memberships until password setup.
+    const pending = await this.assignmentRepo.find({
+      where: { userId, status: AssignmentStatus.PENDING },
+      order: { assignedAt: 'ASC' },
+    });
+    if (pending.length > 0) {
+      const tenantId = pending[0].tenantId;
+      return { tenantId, clinicId: tenantId, source: 'pending_assignment' };
     }
 
     const user = await this.userHttpClient.getUserById(userId);
