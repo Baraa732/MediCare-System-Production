@@ -166,7 +166,7 @@ export default function ActivationCodes() {
                   >
                     ACTIVATION CODE ISSUED
                   </Typography>
-                  <Typography className="provision-code-digits" sx={{ fontFamily: theme.typography.mono.fontFamily, mt: 0.75 }}>
+                  <Typography className="provision-code-digits" sx={{ fontFamily: theme.typography.mono?.fontFamily, mt: 0.75 }}>
                     {generated.code}
                   </Typography>
                   <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 0.5 }}>
@@ -266,7 +266,7 @@ export default function ActivationCodes() {
                       slotProps={{
                         input: {
                           sx: {
-                            fontFamily: theme.typography.mono.fontFamily,
+                            fontFamily: theme.typography.mono?.fontFamily,
                             letterSpacing: '0.18em',
                             borderRadius: '10px',
                           },
