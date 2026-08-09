@@ -61,14 +61,19 @@ export function useActivationProvisioning(token: string | null, onGenerated: (re
     [documents],
   )
 
+  const clinicName = form.watch('clinicName')
+  const specialties = form.watch('specialties')
+  const fullName = form.watch('fullName')
+  const phoneNumber = form.watch('phoneNumber')
+
   const completionChecks = useMemo(
     () => [
-      { label: 'Clinic profile', done: Boolean(form.watch('clinicName') && form.watch('specialties')?.length) },
-      { label: 'Admin details', done: Boolean(form.watch('fullName') && form.watch('phoneNumber')) },
+      { label: 'Clinic profile', done: Boolean(clinicName && specialties?.length) },
+      { label: 'Admin details', done: Boolean(fullName && phoneNumber) },
       { label: 'Legal documents', done: documentsReady },
       { label: 'Map location', done: hasMapPin },
     ],
-    [documentsReady, form, hasMapPin],
+    [clinicName, specialties, fullName, phoneNumber, documentsReady, hasMapPin],
   )
 
   const resetAll = () => {

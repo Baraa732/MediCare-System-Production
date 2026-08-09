@@ -13,7 +13,6 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
-import { alpha, useTheme } from '@mui/material/styles'
 import { Controller, type UseFormReturn } from 'react-hook-form'
 import type { ActivationProvisioningForm } from '../activationSchema'
 import {
@@ -280,17 +279,20 @@ export default function ProvisionStepPanels(props: ProvisionStepPanelsProps) {
 }
 
 function ReviewCard({ title, lines }: { title: string; lines: string[] }) {
-  const theme = useTheme()
   return (
     <Box
       sx={{
-        p: 1.5,
-        borderRadius: '5px',
-        border: `1px solid ${theme.palette.divider}`,
-        bgcolor: alpha(theme.palette.background.elevated, 0.55),
+        p: 1.75,
+        borderRadius: '14px',
+        border: '1px solid rgba(15,23,42,0.08)',
+        bgcolor: '#fff',
+        boxShadow: '0 10px 24px -20px rgba(15,23,42,0.35)',
       }}
     >
-      <Typography variant="caption" sx={{ color: 'primary.main', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+      <Typography
+        variant="caption"
+        sx={{ color: '#0891b2', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}
+      >
         {title}
       </Typography>
       {lines.map((line) => (
