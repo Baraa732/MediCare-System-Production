@@ -10,4 +10,7 @@ RUN npm install baileys@7.0.0-rc13 --no-save --omit=dev \
 
 COPY Integrations/WhatsApp/evolution-api/manager/index.html /evolution/manager/dist/index.html
 
+# Railway injects PORT and healthchecks that port. Evolution reads SERVER_PORT.
+ENV SERVER_PORT=8080
 EXPOSE 8080
+CMD ["sh", "-c", "export SERVER_PORT=${PORT:-${SERVER_PORT:-8080}}; exec node dist/main"]
