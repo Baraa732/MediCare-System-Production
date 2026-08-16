@@ -10,6 +10,8 @@ export interface AuthUserProfile {
   role: string;
   tenantId?: string;
   clinicId?: string;
+  firstName?: string;
+  lastName?: string;
   isDashboardActivated?: boolean;
   status?: string;
   mustChangePassword?: boolean;

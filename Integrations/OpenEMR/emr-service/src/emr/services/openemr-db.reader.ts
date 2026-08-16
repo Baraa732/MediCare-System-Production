@@ -444,6 +444,40 @@ export class OpenEmrDbReader {
     });
   }
 
+  async insertClinicalNote(input: {
+    pid: string;
+    content: string;
+    type?: string;
+    author?: string;
+  }): Promise<ClinicalNoteRecord> {
+    return this.withConnection(async (connection) => {
+      const now = new Date();
+      const author = input.author?.trim() || 'doctor';
+      const type = input.type?.trim() || 'Clinical note';
+      const [result] = await connection.execute(
+        `INSERT INTO form_clinical_notes
+          (date, pid, encounter, user, groupname, authorized, activity, code, codetext, description)
+         VALUES (?, ?, 0, ?, 'Default', 1, 1, ?, ?, ?)`,
+        [
+          now,
+          input.pid,
+          author,
+          'medicare-visit-note',
+          type,
+          input.content,
+        ],
+      );
+      const insertId = String((result as any)?.insertId ?? Date.now());
+      return {
+        id: insertId,
+        date: this.formatDateTime(now),
+        author,
+        type,
+        content: input.content,
+      };
+    });
+  }
+
   async getDocuments(pid: string): Promise<DocumentRecord[]> {
     return this.withConnection(async (connection) => {
       const [rows] = await connection.execute(

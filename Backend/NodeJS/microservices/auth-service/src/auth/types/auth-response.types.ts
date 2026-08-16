@@ -6,6 +6,8 @@ export interface AuthIdentityFields {
   role: string;
   tenantId?: string;
   clinicId?: string;
+  firstName?: string;
+  lastName?: string;
 }
 
 export interface AuthSessionResponse extends AuthIdentityFields {
@@ -29,5 +31,7 @@ export function toAuthIdentity(user: AuthUserProfile & { clinicId?: string | nul
     identity.tenantId = tenantId;
     identity.clinicId = tenantId;
   }
+  if (user.firstName) identity.firstName = user.firstName;
+  if (user.lastName) identity.lastName = user.lastName;
   return identity;
 }

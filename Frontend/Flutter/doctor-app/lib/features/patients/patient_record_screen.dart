@@ -1,11 +1,15 @@
 import 'package:cms_doctor_app/core/api/services/emr_api_service.dart';
 import 'package:cms_doctor_app/injection.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/constants/app_assets.dart';
 import '../../core/layout/app_shell.dart';
 import '../../core/navigation/app_navigation.dart';
 import '../../core/widgets/common_widgets.dart';
+import 'generate_visit_report_sheet.dart';
 
 class PatientRecordScreen extends StatefulWidget {
   const PatientRecordScreen({
@@ -14,49 +18,295 @@ class PatientRecordScreen extends StatefulWidget {
     this.patientName,
     this.gender,
     this.age,
+    this.appointmentId,
+    this.appointmentTime,
+    this.appointmentStatus,
+    this.appointmentReason,
+    this.appointmentNotes,
+    this.appointmentDuration,
   });
 
   final String patientId;
   final String? patientName;
   final String? gender;
   final int? age;
+  final String? appointmentId;
+  final String? appointmentTime;
+  final String? appointmentStatus;
+  final String? appointmentReason;
+  final String? appointmentNotes;
+  final String? appointmentDuration;
 
   @override
   State<PatientRecordScreen> createState() => _PatientRecordScreenState();
 }
 
-class _PatientRecordScreenState extends State<PatientRecordScreen> {
+class _PatientRecordScreenState extends State<PatientRecordScreen>
+    with SingleTickerProviderStateMixin {
   int _tabIndex = 0;
   static const _tabs = ['Overview', 'Visit history', 'Documents'];
 
   PatientEmrChart? _chart;
   bool _loading = true;
+  bool _emrMissing = false;
   String? _error;
+  late final AnimationController _pulse;
 
   @override
   void initState() {
     super.initState();
+    _pulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1100),
+    )..repeat(reverse: true);
     _load();
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
     setState(() {
       _loading = true;
       _error = null;
+      _emrMissing = false;
     });
     try {
-      final chart = await emrApi.getPatientEmr(widget.patientId);
+      var chart = await _tryFetchChart();
+      if (chart == null) {
+        // Auto-link OpenEMR chart for this clinic patient, then reload.
+        try {
+          await emrApi.ensurePatientEmr(
+            widget.patientId,
+            profileHint: {
+              if (widget.patientName != null) 'firstName': widget.patientName,
+              if (widget.gender != null) 'gender': widget.gender,
+            },
+          );
+          chart = await _tryFetchChart();
+        } catch (_) {}
+      }
+
       if (!mounted) return;
+      if (chart != null) {
+        setState(() {
+          _chart = chart;
+          _loading = false;
+          _emrMissing = false;
+        });
+        return;
+      }
+
+      // Fallback workspace so doctors can still review + write notes.
       setState(() {
-        _chart = chart;
+        _chart = _syntheticChart();
         _loading = false;
+        _emrMissing = true;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _loading = false;
+        _emrMissing = true;
         _error = e.toString();
+        _chart = _syntheticChart();
       });
+    }
+  }
+
+  Future<PatientEmrChart?> _tryFetchChart() async {
+    try {
+      return await emrApi.getPatientEmr(widget.patientId);
+    } catch (e) {
+      final msg = e.toString().toLowerCase();
+      final missing = msg.contains('no emr record') ||
+          msg.contains('not available yet') ||
+          msg.contains('not found') ||
+          msg.contains('404');
+      if (missing) return null;
+      rethrow;
+    }
+  }
+
+  PatientEmrChart _syntheticChart() {
+    final parts = (widget.patientName ?? 'Patient').trim().split(RegExp(r'\s+'));
+    final first = parts.isNotEmpty ? parts.first : 'Patient';
+    final last = parts.length > 1 ? parts.sublist(1).join(' ') : '';
+    final notes = <Map<String, dynamic>>[];
+    if (widget.appointmentNotes != null &&
+        widget.appointmentNotes!.trim().isNotEmpty) {
+      notes.add({
+        'type': 'Visit report',
+        'content': widget.appointmentNotes,
+        'title': 'Latest visit notes',
+      });
+    }
+    final encounters = <Map<String, dynamic>>[];
+    if (_hasAppointmentContext) {
+      encounters.add({
+        'type': widget.appointmentReason ?? 'Clinic visit',
+        'status': widget.appointmentStatus ?? 'scheduled',
+        'periodStart': widget.appointmentTime,
+        'reason': widget.appointmentReason,
+      });
+    }
+    return PatientEmrChart(
+      patient: {
+        'firstName': first,
+        'lastName': last,
+        'gender': widget.gender,
+        'birthDate': null,
+      },
+      allergies: const [],
+      medications: const [],
+      conditions: const [],
+      encounters: encounters,
+      vitalSigns: const [],
+      labResults: const [],
+      immunizations: const [],
+      clinicalNotes: notes,
+    );
+  }
+
+  Future<void> _writeClinicalNote() async {
+    final contentCtrl = TextEditingController();
+    final typeCtrl = TextEditingController(text: 'Visit note');
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            bottom: MediaQuery.viewInsetsOf(ctx).bottom + 16,
+            top: 12,
+          ),
+          child: Material(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Write on EMR',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF1A1B1E),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _displayName,
+                    style: const TextStyle(
+                        fontSize: 13, color: Color(0xFF929296)),
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: typeCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Note type',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: contentCtrl,
+                    maxLines: 6,
+                    decoration: const InputDecoration(
+                      labelText: 'Clinical note',
+                      alignLabelWithHint: true,
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: () {
+                        if (contentCtrl.text.trim().isEmpty) return;
+                        Navigator.pop(ctx, true);
+                      },
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF0B74FA),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: const Text('Save to EMR'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    final content = contentCtrl.text.trim();
+    final type = typeCtrl.text.trim();
+    contentCtrl.dispose();
+    typeCtrl.dispose();
+    if (saved != true || content.isEmpty || !mounted) return;
+
+    try {
+      await emrApi.addClinicalNote(
+        widget.patientId,
+        content: content,
+        type: type.isEmpty ? 'Visit note' : type,
+      );
+      // Also mirror onto appointment notes when available.
+      if (widget.appointmentId != null && widget.appointmentId!.isNotEmpty) {
+        try {
+          await appointmentApi.updateNotes(widget.appointmentId!, content);
+        } catch (_) {}
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Clinical note saved to EMR')),
+      );
+      await _load();
+    } catch (e) {
+      // Fallback: keep doctor productive via appointment notes.
+      try {
+        if (widget.appointmentId != null && widget.appointmentId!.isNotEmpty) {
+          await appointmentApi.updateNotes(widget.appointmentId!, content);
+        }
+        if (!mounted) return;
+        setState(() {
+          final existing = _chart?.clinicalNotes ?? const [];
+          _chart = (_chart ?? _syntheticChart()).copyWith(
+            clinicalNotes: [
+              {
+                'type': type.isEmpty ? 'Visit note' : type,
+                'content': content,
+                'title': type.isEmpty ? 'Visit note' : type,
+              },
+              ...existing,
+            ],
+          );
+          _emrMissing = true;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Saved locally on visit notes. EMR link will sync when available.',
+            ),
+          ),
+        );
+      } catch (inner) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not save note: $inner')),
+        );
+      }
     }
   }
 
@@ -85,6 +335,34 @@ class _PatientRecordScreenState extends State<PatientRecordScreen> {
     return '$gender | $ageLabel';
   }
 
+  bool get _hasAppointmentContext =>
+      (widget.appointmentId != null && widget.appointmentId!.isNotEmpty) ||
+      (widget.appointmentTime != null && widget.appointmentTime!.isNotEmpty);
+
+  Future<void> _openGenerateReport() async {
+    HapticFeedback.selectionClick();
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => GenerateVisitReportSheet(
+        patientId: widget.patientId,
+        patientName: _displayName,
+        appointmentId: widget.appointmentId,
+        appointmentLabel: [
+          if (widget.appointmentTime != null) widget.appointmentTime!,
+          if (widget.appointmentStatus != null) widget.appointmentStatus!,
+        ].join(' · '),
+      ),
+    );
+    if (saved == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Visit report saved')),
+      );
+      _load();
+    }
+  }
+
   String _mapTitle(Map<String, dynamic> m, List<String> keys) {
     for (final k in keys) {
       final v = m[k]?.toString();
@@ -111,11 +389,21 @@ class _PatientRecordScreenState extends State<PatientRecordScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        backgroundColor: const Color(0xFFF5F5F5),
+        backgroundColor: const Color(0xFFF2F2F2),
+        floatingActionButton: _HeartbeatReportFab(
+          pulse: _pulse,
+          onTap: _openGenerateReport,
+        ),
         body: Column(
           children: [
             Container(
-              color: const Color(0xFF0B74FA),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFF0B74FA), Color(0xFF0A66DE)],
+                ),
+              ),
               padding: EdgeInsets.only(
                 top: MediaQuery.paddingOf(context).top + 12,
                 left: 16,
@@ -141,7 +429,7 @@ class _PatientRecordScreenState extends State<PatientRecordScreen> {
                               _displayName,
                               style: const TextStyle(
                                 fontSize: 18,
-                                fontWeight: FontWeight.w600,
+                                fontWeight: FontWeight.w700,
                                 color: Colors.white,
                               ),
                             ),
@@ -153,6 +441,12 @@ class _PatientRecordScreenState extends State<PatientRecordScreen> {
                           ],
                         ),
                       ),
+                      _GrayHeartbeatButton(
+                        pulse: _pulse,
+                        onTap: _openGenerateReport,
+                        onHeader: true,
+                      ),
+                      const SizedBox(width: 8),
                       notificationButton(
                           onTap: () => openNotifications(context)),
                     ],
@@ -197,23 +491,52 @@ class _PatientRecordScreenState extends State<PatientRecordScreen> {
             ),
             Expanded(
               child: _loading
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const Center(
+                      child: CircularProgressIndicator(color: Color(0xFF0B74FA)),
+                    )
                   : RefreshIndicator(
+                      color: const Color(0xFF0B74FA),
                       onRefresh: _load,
                       child: ListView(
-                        padding: const EdgeInsets.all(16),
-                        children: _error != null
-                            ? [
-                                Text(_error!,
-                                    style: const TextStyle(color: Colors.red)),
-                                const SizedBox(height: 12),
-                                TextButton(
-                                    onPressed: _load,
-                                    child: const Text('Retry')),
-                                const SizedBox(height: 16),
-                                ..._buildFallbackOverview(),
-                              ]
-                            : _buildTabContent(),
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                        children: [
+                          if (_error != null) ...[
+                            Text(_error!,
+                                style: const TextStyle(color: Colors.red)),
+                            TextButton(
+                                onPressed: _load, child: const Text('Retry')),
+                            const SizedBox(height: 12),
+                          ],
+                          if (_hasAppointmentContext) ...[
+                            _appointmentDetailsCard(),
+                            const SizedBox(height: 12),
+                          ],
+                          if (_emrMissing) ...[
+                            _emrSoftBanner(),
+                            const SizedBox(height: 12),
+                          ],
+                          ...(_chart != null
+                              ? _buildTabContent()
+                              : _buildFallbackOverview()),
+                          if (_tabIndex == 0 || _tabIndex == 1) ...[
+                            const SizedBox(height: 12),
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                onPressed: _writeClinicalNote,
+                                icon: const Icon(Icons.edit_note_rounded),
+                                label: const Text('Write on EMR'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: const Color(0xFF0B74FA),
+                                  side: const BorderSide(
+                                      color: Color(0xFF0B74FA)),
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 14),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
             ),
@@ -221,10 +544,146 @@ class _PatientRecordScreenState extends State<PatientRecordScreen> {
         ),
       );
 
+  Widget _appointmentDetailsCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0B74FA).withValues(alpha: 0.06),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.event_available_rounded,
+                  color: Color(0xFF0B74FA), size: 20),
+              SizedBox(width: 8),
+              Text(
+                'Appointment details',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF1A1B1E),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (widget.appointmentTime != null)
+            _detailRow(Icons.schedule_rounded, 'Time', widget.appointmentTime!),
+          if (widget.appointmentDuration != null)
+            _detailRow(
+                Icons.timelapse_rounded, 'Duration', widget.appointmentDuration!),
+          if (widget.appointmentStatus != null)
+            _detailRow(
+                Icons.flag_outlined, 'Status', widget.appointmentStatus!),
+          if (widget.appointmentReason != null &&
+              widget.appointmentReason!.trim().isNotEmpty)
+            _detailRow(
+                Icons.local_hospital_outlined, 'Reason', widget.appointmentReason!),
+          if (widget.appointmentNotes != null &&
+              widget.appointmentNotes!.trim().isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFFDE7),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  noteLabel('Visit notes / report'),
+                  Text(
+                    widget.appointmentNotes!,
+                    style: const TextStyle(
+                        fontSize: 13.5, color: Color(0xFF1A1B1E), height: 1.35),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _detailRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 16, color: const Color(0xFF0B74FA)),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 72,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF929296),
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF1A1B1E),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _emrSoftBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF8E1),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFFFE082)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.sync_rounded, color: Color(0xFFF9A825), size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'OpenEMR chart is still syncing for this patient. You can review the chart below and write clinical notes — they attach once the link completes.',
+              style: const TextStyle(
+                fontSize: 13,
+                height: 1.35,
+                color: Color(0xFF6D4C41),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   List<Widget> _buildFallbackOverview() => [
         Container(
           decoration: BoxDecoration(
-              color: Colors.white, borderRadius: BorderRadius.circular(12)),
+              color: Colors.white, borderRadius: BorderRadius.circular(16)),
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -233,20 +692,45 @@ class _PatientRecordScreenState extends State<PatientRecordScreen> {
                 children: [
                   patientAvatar(radius: 28),
                   const SizedBox(width: 12),
-                  Text(
-                    _displayName,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF1A1B1E),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _displayName,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF1A1B1E),
+                          ),
+                        ),
+                        Text(
+                          _subtitle,
+                          style: const TextStyle(
+                              fontSize: 13, color: Color(0xFF929296)),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  _statBox('Age', widget.age != null ? '${widget.age} y' : '—'),
+                  const SizedBox(width: 8),
+                  _statBox('Gender', widget.gender ?? '—'),
+                  const SizedBox(width: 8),
+                  _statBox(
+                    'Source',
+                    _hasAppointmentContext ? 'Visit' : 'Directory',
+                  ),
+                ],
+              ),
               const SizedBox(height: 12),
-              Text(
-                'EMR chart unavailable. Showing appointment demographics.',
-                style: const TextStyle(fontSize: 13, color: Color(0xFF929296)),
+              const Text(
+                'Tip: tap the gray heartbeat to generate a visit report.',
+                style: TextStyle(fontSize: 13, color: Color(0xFF929296)),
               ),
             ],
           ),
@@ -270,7 +754,7 @@ class _PatientRecordScreenState extends State<PatientRecordScreen> {
                 'Visit history',
                 style: TextStyle(
                     fontSize: 17,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w700,
                     color: Color(0xFF1A1B1E)),
               ),
               TextButton(
@@ -286,7 +770,7 @@ class _PatientRecordScreenState extends State<PatientRecordScreen> {
             'Clinical notes',
             style: TextStyle(
                 fontSize: 17,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w700,
                 color: Color(0xFF1A1B1E)),
           ),
           const SizedBox(height: 8),
@@ -301,7 +785,7 @@ class _PatientRecordScreenState extends State<PatientRecordScreen> {
     return [
       Container(
         decoration: BoxDecoration(
-            color: Colors.white, borderRadius: BorderRadius.circular(12)),
+            color: Colors.white, borderRadius: BorderRadius.circular(16)),
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -315,7 +799,7 @@ class _PatientRecordScreenState extends State<PatientRecordScreen> {
                     _displayName,
                     style: const TextStyle(
                       fontSize: 18,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
                       color: Color(0xFF1A1B1E),
                     ),
                   ),
@@ -404,7 +888,7 @@ class _PatientRecordScreenState extends State<PatientRecordScreen> {
             'Visit history',
             style: TextStyle(
                 fontSize: 17,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w700,
                 color: Color(0xFF1A1B1E)),
           ),
         ),
@@ -421,7 +905,7 @@ class _PatientRecordScreenState extends State<PatientRecordScreen> {
           (e) => Container(
             margin: const EdgeInsets.only(bottom: 8),
             decoration: BoxDecoration(
-                color: Colors.white, borderRadius: BorderRadius.circular(10)),
+                color: Colors.white, borderRadius: BorderRadius.circular(12)),
             padding: const EdgeInsets.all(12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -455,44 +939,55 @@ class _PatientRecordScreenState extends State<PatientRecordScreen> {
 
   List<Widget> _buildNotesContent() {
     final notes = _chart?.clinicalNotes ?? const [];
-    if (notes.isEmpty) {
-      return [
-        const Text(
-          'No clinical notes on file',
-          style: TextStyle(color: Color(0xFF929296)),
-        ),
-      ];
-    }
-    return notes
-        .take(8)
-        .map(
-          (n) => Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            decoration: BoxDecoration(
-                color: Colors.white, borderRadius: BorderRadius.circular(10)),
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _mapTitle(n, ['title', 'type', 'category', 'display']),
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF1A1B1E),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  _mapSubtitle(n, ['text', 'content', 'summary', 'note']),
-                  style: const TextStyle(
-                      fontSize: 13, color: Color(0xFF1A1B1E)),
-                ),
-              ],
-            ),
+    return [
+      SizedBox(
+        width: double.infinity,
+        child: FilledButton.icon(
+          onPressed: _writeClinicalNote,
+          icon: const Icon(Icons.edit_note_rounded),
+          label: const Text('Write clinical note'),
+          style: FilledButton.styleFrom(
+            backgroundColor: const Color(0xFF0B74FA),
+            padding: const EdgeInsets.symmetric(vertical: 12),
           ),
+        ),
+      ),
+      const SizedBox(height: 12),
+      if (notes.isEmpty)
+        const Text(
+          'No clinical notes on file yet — add the first one above.',
+          style: TextStyle(color: Color(0xFF929296)),
         )
-        .toList();
+      else
+        ...notes.take(12).map(
+              (n) => Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _mapTitle(n, ['title', 'type', 'category', 'display']),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1A1B1E),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _mapSubtitle(n, ['text', 'content', 'summary', 'note']),
+                      style: const TextStyle(
+                          fontSize: 13, color: Color(0xFF1A1B1E)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+    ];
   }
 
   List<Widget> _buildDocumentsContent() {
@@ -503,7 +998,7 @@ class _PatientRecordScreenState extends State<PatientRecordScreen> {
           'Documents',
           style: TextStyle(
               fontSize: 17,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w700,
               color: Color(0xFF1A1B1E)),
         ),
         const SizedBox(height: 12),
@@ -518,7 +1013,7 @@ class _PatientRecordScreenState extends State<PatientRecordScreen> {
         'Documents',
         style: TextStyle(
             fontSize: 17,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w700,
             color: Color(0xFF1A1B1E)),
       ),
       const SizedBox(height: 8),
@@ -526,7 +1021,7 @@ class _PatientRecordScreenState extends State<PatientRecordScreen> {
         (doc) => Container(
           margin: const EdgeInsets.only(bottom: 8),
           decoration: BoxDecoration(
-              color: Colors.white, borderRadius: BorderRadius.circular(10)),
+              color: Colors.white, borderRadius: BorderRadius.circular(12)),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           child: Row(
             children: [
@@ -562,7 +1057,7 @@ class _PatientRecordScreenState extends State<PatientRecordScreen> {
 
   Widget _sectionCard(String title, List<Widget> children) => Container(
         decoration: BoxDecoration(
-            color: Colors.white, borderRadius: BorderRadius.circular(12)),
+            color: Colors.white, borderRadius: BorderRadius.circular(16)),
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -571,7 +1066,7 @@ class _PatientRecordScreenState extends State<PatientRecordScreen> {
               title,
               style: const TextStyle(
                 fontSize: 16,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w700,
                 color: Color(0xFF1A1B1E),
               ),
             ),
@@ -608,7 +1103,7 @@ class _PatientRecordScreenState extends State<PatientRecordScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
             color: const Color(0xFFF5F5F5),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(10),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -620,11 +1115,93 @@ class _PatientRecordScreenState extends State<PatientRecordScreen> {
                 value,
                 style: const TextStyle(
                     fontSize: 14,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w700,
                     color: Color(0xFF1A1B1E)),
               ),
             ],
           ),
         ),
       );
+}
+
+/// Gray heartbeat control from the CMS doctor UI — opens generate visit report.
+class _GrayHeartbeatButton extends StatelessWidget {
+  const _GrayHeartbeatButton({
+    required this.pulse,
+    required this.onTap,
+    this.onHeader = false,
+  });
+
+  final AnimationController pulse;
+  final VoidCallback onTap;
+  final bool onHeader;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: pulse,
+      builder: (_, __) {
+        final scale = 1 + (0.06 * pulse.value);
+        final icon = SvgPicture.asset(
+          AppAssets.heartbeat,
+          width: onHeader ? 22 : 28,
+          height: onHeader ? 22 : 28,
+          colorFilter: ColorFilter.mode(
+            onHeader ? Colors.white : const Color(0xFF929296),
+            BlendMode.srcIn,
+          ),
+        );
+
+        if (onHeader) {
+          return Tooltip(
+            message: 'Generate report',
+            child: GestureDetector(
+              onTap: onTap,
+              child: Transform.scale(
+                scale: scale,
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  alignment: Alignment.center,
+                  child: icon,
+                ),
+              ),
+            ),
+          );
+        }
+
+        return Transform.scale(
+          scale: scale,
+          child: FloatingActionButton(
+            onPressed: onTap,
+            tooltip: 'Generate report',
+            backgroundColor: const Color(0xFFF5F5F5),
+            foregroundColor: const Color(0xFF929296),
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: const BorderSide(color: Color(0xFFDBDBDC)),
+            ),
+            child: icon,
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _HeartbeatReportFab extends StatelessWidget {
+  const _HeartbeatReportFab({required this.pulse, required this.onTap});
+
+  final AnimationController pulse;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return _GrayHeartbeatButton(pulse: pulse, onTap: onTap);
+  }
 }

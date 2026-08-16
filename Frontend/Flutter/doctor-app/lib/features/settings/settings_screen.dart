@@ -17,18 +17,33 @@ class SettingsScreen extends StatefulWidget {
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
-  int _navIndex = 3;
+class _SettingsScreenState extends State<SettingsScreen>
+    with SingleTickerProviderStateMixin {
+  final int _navIndex = 3;
   bool _loggingOut = false;
+  late final AnimationController _shimmer;
+
+  @override
+  void initState() {
+    super.initState();
+    _shimmer = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2600),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _shimmer.dispose();
+    super.dispose();
+  }
 
   Future<void> _signOut() async {
     if (_loggingOut) return;
     setState(() => _loggingOut = true);
     try {
       await authApi.logout();
-    } catch (_) {
-      // Still clear local session via logout's finally path / clear below
-    }
+    } catch (_) {}
     if (!mounted) return;
     Navigator.pushAndRemoveUntil(
       context,
@@ -38,136 +53,225 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-        backgroundColor: const Color(0xFFF5F5F5),
-        body: Column(
-          children: [
-            Container(
-              color: const Color(0xFF0B74FA),
-              padding: EdgeInsets.only(
-                top: MediaQuery.paddingOf(context).top + 12,
-                left: 16,
-                right: 16,
-                bottom: 16,
-              ),
-              child: Row(
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'Settings',
-                      style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white),
-                    ),
-                  ),
-                  notificationButton(onTap: () => openNotifications(context)),
-                ],
+  Widget build(BuildContext context) {
+    final top = MediaQuery.paddingOf(context).top;
+    return Scaffold(
+      backgroundColor: const Color(0xFFF2F2F2),
+      body: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.fromLTRB(16, top + 12, 16, 22),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF0B74FA), Color(0xFF0A66DE)],
               ),
             ),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  Container(
-                    decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.all(14),
-                    child: Row(
-                      children: [
-                        const CircleAvatar(
-                          radius: 28,
-                          backgroundColor: Color(0xFFDBDBDC),
-                          backgroundImage: AssetImage(AppAssets.doctorPic),
+            child: Stack(
+              children: [
+                Positioned(
+                  right: -30,
+                  top: -20,
+                  child: AnimatedBuilder(
+                    animation: _shimmer,
+                    builder: (_, __) => Transform.rotate(
+                      angle: _shimmer.value * 0.4,
+                      child: Container(
+                        width: 140,
+                        height: 140,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white.withValues(alpha: 0.08),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Dr. ${sessionStorage.displayName}',
-                                style: const TextStyle(
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF1A1B1E),
-                                ),
-                              ),
-                              Row(
-                                children: [
-                                  SvgPicture.asset(AppAssets.dentist,
-                                      width: 12, height: 12),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    sessionStorage.clinicId == null
-                                        ? 'Doctor'
-                                        : 'Clinic doctor',
-                                    style: const TextStyle(
-                                        fontSize: 14,
-                                        color: Color(0xFF929296)),
-                                  ),
-                                ],
-                              ),
-                            ],
+                      ),
+                    ),
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Settings',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                              letterSpacing: -0.4,
+                            ),
                           ),
+                        ),
+                        notificationButton(
+                          onTap: () => openNotifications(context),
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  _sectionLabel('Application'),
-                  _settingsGroup([
-                    SettingRow(
-                      icon: Icons.notifications_outlined,
-                      label: 'Notifications',
-                      onTap: () => openNotifications(context),
-                    ),
-                    SettingRow(
-                      icon: Icons.translate_outlined,
-                      label: 'App Language',
-                      hasArrow: false,
-                      hasDropdown: true,
-                      onTap: () => showLanguagePicker(context),
-                    ),
-                    SettingRow(
-                      icon: Icons.lock_outline,
-                      label: 'Password & Security',
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => const ForgotPasswordScreen()),
-                      ),
-                    ),
-                  ]),
-                  const SizedBox(height: 16),
-                  _sectionLabel('Support'),
-                  _settingsGroup([
-                    SettingRow(
-                      icon: Icons.list_alt_outlined,
-                      label: 'About Us',
-                      onTap: () => showAboutUsDialog(context),
-                    ),
-                    SettingRow(
-                      icon: Icons.help_outline,
-                      label: 'Help Center & FAQ',
-                      onTap: () => showHelpDialog(context),
-                    ),
-                    SettingRow(
-                      icon: Icons.phone_outlined,
-                      label: 'Contact Us',
-                      onTap: () => showContactDialog(context),
-                    ),
-                  ]),
-                  const SizedBox(height: 16),
-                  GestureDetector(
-                    onTap: _loggingOut ? null : _signOut,
-                    child: Container(
-                      height: 52,
+                    const SizedBox(height: 18),
+                    Container(
+                      padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFFF1F1),
-                        borderRadius: BorderRadius.circular(12),
+                        color: Colors.white.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.2),
+                        ),
                       ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(3),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.5),
+                              ),
+                            ),
+                            child: const CircleAvatar(
+                              radius: 26,
+                              backgroundColor: Color(0xFFDBDBDC),
+                              backgroundImage: AssetImage(AppAssets.doctorPic),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Dr. ${sessionStorage.displayName}',
+                                  style: const TextStyle(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    SvgPicture.asset(
+                                      AppAssets.dentist,
+                                      width: 12,
+                                      height: 12,
+                                      colorFilter: const ColorFilter.mode(
+                                        Colors.white70,
+                                        BlendMode.srcIn,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 5),
+                                    Text(
+                                      sessionStorage.clinicId == null
+                                          ? 'Doctor account'
+                                          : 'Clinic doctor',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color:
+                                            Colors.white.withValues(alpha: 0.85),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.18),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: const Text(
+                              'Active',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+              children: [
+                _sectionLabel('Workspace'),
+                _settingsGroup([
+                  _ModernSettingTile(
+                    icon: Icons.notifications_outlined,
+                    accent: const Color(0xFF0B74FA),
+                    label: 'Notifications',
+                    subtitle: 'Alerts for visits and clinic updates',
+                    onTap: () => openNotifications(context),
+                  ),
+                  _ModernSettingTile(
+                    icon: Icons.translate_outlined,
+                    accent: const Color(0xFF2E7D32),
+                    label: 'App language',
+                    subtitle: 'Choose your preferred language',
+                    trailing: const Icon(Icons.keyboard_arrow_down_rounded,
+                        color: Color(0xFF929296)),
+                    onTap: () => showLanguagePicker(context),
+                  ),
+                  _ModernSettingTile(
+                    icon: Icons.lock_outline_rounded,
+                    accent: const Color(0xFFE65C00),
+                    label: 'Password & security',
+                    subtitle: 'Reset password and protect your account',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ForgotPasswordScreen(),
+                      ),
+                    ),
+                  ),
+                ]),
+                const SizedBox(height: 18),
+                _sectionLabel('Support'),
+                _settingsGroup([
+                  _ModernSettingTile(
+                    icon: Icons.info_outline_rounded,
+                    accent: const Color(0xFF5C6BC0),
+                    label: 'About MediCare',
+                    subtitle: 'Product story and clinic mission',
+                    onTap: () => showAboutUsDialog(context),
+                  ),
+                  _ModernSettingTile(
+                    icon: Icons.help_outline_rounded,
+                    accent: const Color(0xFF00897B),
+                    label: 'Help center & FAQ',
+                    subtitle: 'Quick answers for daily workflows',
+                    onTap: () => showHelpDialog(context),
+                  ),
+                  _ModernSettingTile(
+                    icon: Icons.phone_in_talk_outlined,
+                    accent: const Color(0xFF0B74FA),
+                    label: 'Contact support',
+                    subtitle: 'Reach the MediCare care team',
+                    onTap: () => showContactDialog(context),
+                  ),
+                ]),
+                const SizedBox(height: 22),
+                Material(
+                  color: const Color(0xFFFFF1F1),
+                  borderRadius: BorderRadius.circular(16),
+                  child: InkWell(
+                    onTap: _loggingOut ? null : _signOut,
+                    borderRadius: BorderRadius.circular(16),
+                    child: SizedBox(
+                      height: 54,
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -178,14 +282,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           else ...[
-                            const Icon(Icons.logout,
+                            const Icon(Icons.logout_rounded,
                                 color: Color(0xFFE53935), size: 20),
                             const SizedBox(width: 8),
                             const Text(
                               'Sign out',
                               style: TextStyle(
                                 fontSize: 16,
-                                fontWeight: FontWeight.w600,
+                                fontWeight: FontWeight.w800,
                                 color: Color(0xFFE53935),
                               ),
                             ),
@@ -194,68 +298,101 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      bottomNavigationBar: buildBottomNav(
+        _navIndex,
+        (i) => switchMainTab(context, _navIndex, i),
+      ),
+    );
+  }
+
+  Widget _sectionLabel(String label) => Padding(
+        padding: const EdgeInsets.only(bottom: 8, left: 4),
+        child: Text(
+          label.toUpperCase(),
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF929296),
+            letterSpacing: 0.8,
+          ),
+        ),
+      );
+
+  Widget _settingsGroup(List<Widget> items) => Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 14,
+              offset: const Offset(0, 6),
             ),
           ],
         ),
-        bottomNavigationBar: buildBottomNav(
-            _navIndex, (i) => switchMainTab(context, _navIndex, i)),
-      );
-
-  Widget _sectionLabel(String label) => Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Text(
-          label,
-          style: const TextStyle(
-              fontSize: 13, color: Color(0xFF929296), letterSpacing: 0.3),
-        ),
-      );
-
-  Widget _settingsGroup(List<SettingRow> items) => Container(
-        decoration: BoxDecoration(
-            color: Colors.white, borderRadius: BorderRadius.circular(12)),
         child: Column(
-          children: items.asMap().entries.map((e) {
-            final isLast = e.key == items.length - 1;
-            return Column(
-              children: [
-                e.value,
-                if (!isLast) const Divider(height: 1, indent: 52),
-              ],
-            );
-          }).toList(),
+          children: [
+            for (var i = 0; i < items.length; i++) ...[
+              items[i],
+              if (i < items.length - 1)
+                const Divider(height: 1, indent: 68, endIndent: 16),
+            ],
+          ],
         ),
       );
 }
 
-class SettingRow extends StatelessWidget {
-  const SettingRow({
-    super.key,
+class _ModernSettingTile extends StatelessWidget {
+  const _ModernSettingTile({
     required this.icon,
+    required this.accent,
     required this.label,
-    this.hasArrow = true,
-    this.hasDropdown = false,
-    this.onTap,
+    required this.subtitle,
+    required this.onTap,
+    this.trailing,
   });
 
   final IconData icon;
+  final Color accent;
   final String label;
-  final bool hasArrow;
-  final bool hasDropdown;
-  final VoidCallback? onTap;
+  final String subtitle;
+  final VoidCallback onTap;
+  final Widget? trailing;
 
   @override
-  Widget build(BuildContext context) => ListTile(
-        leading: Icon(icon, color: const Color(0xFF1A1B1E), size: 22),
-        title: Text(label,
-            style: const TextStyle(fontSize: 15, color: Color(0xFF1A1B1E))),
-        trailing: hasArrow
-            ? const Icon(Icons.chevron_right, color: Color(0xFF929296))
-            : hasDropdown
-                ? const Icon(Icons.keyboard_arrow_down,
-                    color: Color(0xFF929296))
-                : null,
-        onTap: onTap,
-      );
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      leading: Container(
+        width: 42,
+        height: 42,
+        decoration: BoxDecoration(
+          color: accent.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(icon, color: accent, size: 22),
+      ),
+      title: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w700,
+          color: Color(0xFF1A1B1E),
+        ),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: const TextStyle(fontSize: 12.5, color: Color(0xFF929296)),
+      ),
+      trailing: trailing ??
+          const Icon(Icons.chevron_right_rounded, color: Color(0xFF929296)),
+      onTap: onTap,
+    );
+  }
 }

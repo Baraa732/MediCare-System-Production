@@ -66,6 +66,7 @@ class AuthApiService {
       return const LoginResult(errorCode: 'NO_CLINIC');
     }
     await _session.saveSession(session);
+    await refreshProfileNames();
     return LoginResult(session: session);
   }
 
@@ -99,6 +100,7 @@ class AuthApiService {
       throw Exception('No clinic access');
     }
     await _session.saveSession(session);
+    await refreshProfileNames();
     return MfaVerifyResult(session: session);
   }
 
@@ -122,7 +124,25 @@ class AuthApiService {
       throw Exception('No clinic access');
     }
     await _session.saveSession(session);
+    await refreshProfileNames();
     return session;
+  }
+
+  /// Loads the signed-in doctor's real name from `/users/:id`.
+  Future<void> refreshProfileNames() async {
+    final userId = _session.userId;
+    if (userId == null || userId.isEmpty) return;
+    try {
+      final response = await _client.get('/users/$userId');
+      final data = response.data;
+      if (data is! Map) return;
+      final map = Map<String, dynamic>.from(data);
+      final first = map['firstName']?.toString();
+      final last = map['lastName']?.toString();
+      await _session.updateNames(firstName: first, lastName: last);
+    } catch (_) {
+      // Keep whatever name we already have from auth/session.
+    }
   }
 
   Future<void> forgotPasswordSendOtp(String phoneNumber) async {

@@ -1,7 +1,9 @@
 import 'package:cms_doctor_app/core/api/services/appointment_api_service.dart';
 import 'package:cms_doctor_app/injection.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
+import '../../core/constants/app_assets.dart';
 import '../../core/layout/app_shell.dart';
 import '../../core/navigation/app_navigation.dart';
 import '../../core/widgets/common_widgets.dart';
@@ -208,8 +210,15 @@ class _PatientsScreenState extends State<PatientsScreen> {
                                     ),
                                   ],
                                 ),
-                                trailing: const Icon(Icons.chevron_right,
-                                    color: Color(0xFF929296)),
+                                trailing: SvgPicture.asset(
+                                  AppAssets.heartbeat,
+                                  width: 24,
+                                  height: 24,
+                                  colorFilter: const ColorFilter.mode(
+                                    Color(0xFF929296),
+                                    BlendMode.srcIn,
+                                  ),
+                                ),
                                 onTap: () => Navigator.push(
                                   context,
                                   MaterialPageRoute(

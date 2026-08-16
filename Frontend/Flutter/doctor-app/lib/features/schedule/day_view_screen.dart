@@ -1,12 +1,15 @@
 import 'package:cms_doctor_app/core/utils/date_format.dart';
 import 'package:cms_doctor_app/injection.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
-import '../../core/constants/app_assets.dart';
 import '../../core/layout/app_shell.dart';
 import '../../core/navigation/app_navigation.dart';
 import 'complete_visit_sheet.dart';
 import 'models/appointment.dart';
+import 'widgets/schedule_chrome.dart';
+import 'widgets/schedule_filter.dart';
+import 'widgets/schedule_workspace.dart';
 
 class DayViewScreen extends StatefulWidget {
   const DayViewScreen({super.key, this.showEmpty = false});
@@ -17,12 +20,13 @@ class DayViewScreen extends StatefulWidget {
 }
 
 class _DayViewScreenState extends State<DayViewScreen> {
-  int _navIndex = 0;
+  final int _navIndex = 0;
   DateTime _selectedDate = DateTime.now();
-  String? _statusFilter;
+  AdvancedScheduleFilter _filter = AdvancedScheduleFilter.empty;
   List<Appointment> _appointments = [];
   bool _loading = true;
   String? _error;
+  int _orbitIndex = 0;
 
   @override
   void initState() {
@@ -47,6 +51,7 @@ class _DayViewScreenState extends State<DayViewScreen> {
       setState(() {
         _appointments = list.map(Appointment.fromDoctor).toList();
         _loading = false;
+        _orbitIndex = 0;
       });
     } catch (e) {
       if (!mounted) return;
@@ -58,12 +63,31 @@ class _DayViewScreenState extends State<DayViewScreen> {
     }
   }
 
-  List<Appointment> get _visibleAppointments {
-    if (_statusFilter == null) return _appointments;
-    if (_statusFilter == 'Pending') {
-      return _appointments.where((a) => a.status == null).toList();
-    }
-    return _appointments.where((a) => a.status == _statusFilter).toList();
+  List<Appointment> get _visibleAppointments => _filter.apply(_appointments);
+
+  int get _completedCount =>
+      _appointments.where((a) => a.status == 'Completed').length;
+  int get _pendingCount =>
+      _appointments.where((a) => a.status == null || a.status == 'Pending').length;
+  int get _arrivedCount =>
+      _appointments.where((a) => a.status == 'Arrived').length;
+
+  Map<String, int> get _statusCounts => {
+        'Pending': _pendingCount,
+        'Arrived': _arrivedCount,
+        'Completed': _completedCount,
+      };
+
+  List<DateTime> get _stripDays {
+    final base = DateTime(
+      _selectedDate.year,
+      _selectedDate.month,
+      _selectedDate.day,
+    );
+    return List.generate(
+      14,
+      (i) => base.subtract(const Duration(days: 3)).add(Duration(days: i)),
+    );
   }
 
   void _goToPreviousDay() {
@@ -81,45 +105,15 @@ class _DayViewScreenState extends State<DayViewScreen> {
     _load();
   }
 
-  void _showFilterSheet() {
-    const options = ['All', 'Completed', 'Arrived', 'Pending'];
-    showModalBottomSheet<void>(
+  Future<void> _openFilter() async {
+    final result = await showAdvancedScheduleFilterSheet(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text(
-                'Filter appointments',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-              ),
-            ),
-            ...options.map((option) {
-              final selected = option == 'All'
-                  ? _statusFilter == null
-                  : _statusFilter == option;
-              return ListTile(
-                title: Text(option),
-                trailing: selected
-                    ? const Icon(Icons.check, color: Color(0xFF0B74FA))
-                    : null,
-                onTap: () {
-                  setState(() {
-                    _statusFilter = option == 'All' ? null : option;
-                  });
-                  Navigator.pop(context);
-                },
-              );
-            }),
-          ],
-        ),
-      ),
+      initial: _filter,
+      statusCounts: _statusCounts,
     );
+    if (result != null && mounted) {
+      setState(() => _filter = result);
+    }
   }
 
   Future<void> _markCompleted(Appointment apt, String notes) async {
@@ -173,275 +167,231 @@ class _DayViewScreenState extends State<DayViewScreen> {
     }
   }
 
+  Color _accentFor(Appointment a) {
+    if (a.status == 'Completed') return const Color(0xFF2E7D32);
+    if (a.status == 'Arrived') return const Color(0xFF0B74FA);
+    if (a.rawStatus == 'REQUESTED' || a.status == 'Pending') {
+      return const Color(0xFFE65C00);
+    }
+    return const Color(0xFF0B74FA);
+  }
+
   @override
   Widget build(BuildContext context) {
     final visible = _visibleAppointments;
     final showEmpty = !_loading && (_error != null || visible.isEmpty);
+    final isToday = isSameDay(_selectedDate, DateTime.now());
+    final total = _appointments.length;
+    final doneProgress = total == 0 ? 0.0 : _completedCount / total;
+    final pendingProgress = total == 0 ? 0.0 : _pendingCount / total;
+    final arrivedProgress = total == 0 ? 0.0 : _arrivedCount / total;
+    final safeOrbit =
+        visible.isEmpty ? 0 : _orbitIndex.clamp(0, visible.length - 1);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF2F2F2),
-      body: Column(
-        children: [
-          Container(
-            color: const Color(0xFF0B74FA),
-            padding: EdgeInsets.only(
-              top: MediaQuery.paddingOf(context).top + 12,
-              left: 16,
-              right: 16,
-              bottom: 16,
-            ),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 24,
-                  backgroundColor: Colors.white.withValues(alpha: 0.3),
-                  backgroundImage: const AssetImage(AppAssets.doctorPic),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Dr. ${sessionStorage.displayName}',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
-                      ),
-                      Text(
-                        '${_appointments.length} Patients today',
-                        style: const TextStyle(
-                            fontSize: 14, color: Color(0xFFDBDBDC)),
-                      ),
-                    ],
-                  ),
-                ),
-                notificationButton(onTap: () => openNotifications(context)),
-              ],
-            ),
+      body: ScheduleWorkspace(
+        activeTab: 0,
+        boardCaption: total == 0
+            ? 'Your care board is ready — no visits yet.'
+            : '$total patients lined up for this day.',
+        onNotificationTap: () => openNotifications(context),
+        onRefresh: _load,
+        metrics: [
+          ScheduleMetric(
+            label: 'Pending',
+            value: '$_pendingCount',
+            progress: pendingProgress,
+            icon: Icons.hourglass_top_rounded,
+            accent: const Color(0xFFE65C00),
           ),
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Column(
-              children: [
-                Container(
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF2F2F2),
-                    borderRadius: BorderRadius.circular(44),
+          ScheduleMetric(
+            label: 'Arrived',
+            value: '$_arrivedCount',
+            progress: arrivedProgress,
+            icon: Icons.login_rounded,
+          ),
+          ScheduleMetric(
+            label: 'Done',
+            value: '$_completedCount',
+            progress: doneProgress,
+            icon: Icons.verified_outlined,
+            accent: const Color(0xFF2E7D32),
+          ),
+        ],
+        slivers: [
+          SliverToBoxAdapter(
+            child: ExpandingPanel(
+              child: Column(
+                children: [
+                  ScheduleCommandBar(
+                    title: formatScheduleDate(_selectedDate),
+                    subtitle:
+                        '${visible.length} on board${_filter.isActive ? ' · filtered' : ''}',
+                    onPrev: _goToPreviousDay,
+                    onNext: _goToNextDay,
+                    onCenter: _goToToday,
+                    centerLabel: isToday ? 'Jump to now' : 'Back to today',
+                    centerActive: isToday,
+                    filter: _filter,
+                    onOpenFilter: _openFilter,
+                    onClearFilter: () =>
+                        setState(() => _filter = AdvancedScheduleFilter.empty),
                   ),
-                  child: Row(
-                    children: [
-                      _buildTab('Day', 0, icon: Icons.view_list),
-                      _buildTab('Week', 1, icon: Icons.grid_view),
-                      _buildTab('Month', 2, icon: Icons.calendar_month_outlined),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    const Icon(Icons.calendar_today_outlined,
-                        size: 22, color: Color(0xFF1A1B1E)),
-                    const SizedBox(width: 8),
-                    Expanded(
+                  const SizedBox(height: 14),
+                  FadeSlideIn(
+                    child: Container(
+                      padding: const EdgeInsets.fromLTRB(12, 14, 12, 14),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(22),
+                        boxShadow: [
+                          BoxShadow(
+                            color:
+                                const Color(0xFF0B74FA).withValues(alpha: 0.08),
+                            blurRadius: 18,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            formatScheduleDate(_selectedDate),
-                            style: const TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF1A1B1E),
-                            ),
+                          Row(
+                            children: [
+                              const Text(
+                                'Appointment date',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF1A1B1E),
+                                ),
+                              ),
+                              const Spacer(),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 7,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFEEF4FF),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Text(
+                                      DateFormat.MMMM().format(_selectedDate),
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF0B74FA),
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    const Icon(
+                                      Icons.expand_more_rounded,
+                                      size: 18,
+                                      color: Color(0xFF0B74FA),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
-                          Text(
-                            '${visible.length} Patients',
-                            style: const TextStyle(
-                                fontSize: 14, color: Color(0xFF929296)),
+                          const SizedBox(height: 12),
+                          PremiumDateStrip(
+                            days: _stripDays,
+                            selected: _selectedDate,
+                            onSelect: (d) {
+                              setState(() => _selectedDate = d);
+                              _load();
+                            },
                           ),
                         ],
                       ),
                     ),
-                    GestureDetector(
-                      onTap: _showFilterSheet,
-                      child: Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          border: Border.all(color: const Color(0xFFDBDBDC)),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Icon(
-                          _statusFilter == null
-                              ? Icons.filter_list
-                              : Icons.filter_list_alt,
-                          color: const Color(0xFF0B74FA),
-                          size: 18,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    _circleBtn(Icons.chevron_left, onTap: _goToPreviousDay),
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: _goToToday,
-                        child: Container(
-                          height: 40,
-                          margin: const EdgeInsets.symmetric(horizontal: 8),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: const Color(0xFFDBDBDC)),
-                            borderRadius: BorderRadius.circular(44),
-                          ),
-                          child: Center(
-                            child: Text(
-                              isSameDay(_selectedDate, DateTime.now())
-                                  ? 'Today'
-                                  : 'Back to today',
-                              style: const TextStyle(
-                                  fontSize: 18, color: Color(0xFF1A1B1E)),
+                  ),
+                  if (!_loading && visible.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    FadeSlideIn(
+                      delay: const Duration(milliseconds: 60),
+                      child: DayOrbitRing(
+                        selectedIndex: safeOrbit,
+                        onSelect: (i) => setState(() => _orbitIndex = i),
+                        appointments: [
+                          for (final a in visible)
+                            (
+                              label: a.patient,
+                              time: a.time,
+                              color: _accentFor(a),
+                              done: a.status == 'Completed',
                             ),
-                          ),
-                        ),
+                        ],
                       ),
                     ),
-                    _circleBtn(Icons.chevron_right, onTap: _goToNextDay),
                   ],
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-          Expanded(
-            child: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : RefreshIndicator(
-                    onRefresh: _load,
-                    child: showEmpty
-                        ? ListView(
-                            children: [
-                              SizedBox(
-                                height: MediaQuery.sizeOf(context).height * 0.4,
-                                child: _buildEmpty(),
-                              ),
-                            ],
-                          )
-                        : ListView.builder(
-                            padding: const EdgeInsets.all(16),
-                            itemCount: visible.length,
-                            itemBuilder: (_, i) {
-                              final apt = visible[i];
-                              return AppointmentCard(
-                                appointment: apt,
-                                onComplete: () =>
-                                    _showCompleteVisitDialog(context, apt),
-                                onReschedule: () => _reschedule(apt),
-                                onMarkArrived: () => _markArrived(apt),
-                              );
-                            },
-                          ),
-                  ),
-          ),
+          if (_loading)
+            const SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(
+                child: CircularProgressIndicator(color: Color(0xFF0B74FA)),
+              ),
+            )
+          else if (showEmpty)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: ScheduleEmptyState(
+                error: _error,
+                title: _filter.isActive
+                    ? 'No matches for these filters'
+                    : 'Your day looks clear',
+                subtitle: _filter.isActive
+                    ? 'Loosen filters or clear them to see everyone.'
+                    : 'Enjoy the calm — new appointments will appear here.',
+                actionLabel: _filter.isActive ? 'Clear filters' : null,
+                onAction: _filter.isActive
+                    ? () =>
+                        setState(() => _filter = AdvancedScheduleFilter.empty)
+                    : null,
+              ),
+            )
+          else
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, i) {
+                    final apt = visible[i];
+                    final current = i == safeOrbit;
+                    return AnimatedAppointmentTile(
+                      index: i,
+                      child: _PremiumTimelineCard(
+                        appointment: apt,
+                        accent: _accentFor(apt),
+                        isCurrent: current,
+                        isCompleted: apt.status == 'Completed',
+                        onTapHighlight: () => setState(() => _orbitIndex = i),
+                        onComplete: () =>
+                            _showCompleteVisitDialog(context, apt),
+                        onReschedule: () => _reschedule(apt),
+                        onMarkArrived: () => _markArrived(apt),
+                      ),
+                    );
+                  },
+                  childCount: visible.length,
+                ),
+              ),
+            ),
         ],
       ),
       bottomNavigationBar:
           buildBottomNav(_navIndex, (i) => switchMainTab(context, _navIndex, i)),
     );
   }
-
-  Widget _buildTab(String label, int index, {required IconData icon}) {
-    final active = index == 0;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => switchScheduleTab(context, 0, index),
-        child: Container(
-          height: 36,
-          margin: const EdgeInsets.all(2),
-          decoration: BoxDecoration(
-            color: active ? Colors.white : Colors.transparent,
-            borderRadius: BorderRadius.circular(44),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon,
-                  size: 14,
-                  color: active
-                      ? const Color(0xFF1A1B1E)
-                      : const Color(0xFF929296)),
-              const SizedBox(width: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: active ? FontWeight.w600 : FontWeight.w400,
-                  color: active
-                      ? const Color(0xFF1A1B1E)
-                      : const Color(0xFF929296),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _circleBtn(IconData icon, {VoidCallback? onTap}) => GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: 40,
-          height: 40,
-          decoration: const BoxDecoration(
-              color: Color(0xFF0B74FA), shape: BoxShape.circle),
-          child: Icon(icon, color: Colors.white, size: 20),
-        ),
-      );
-
-  Widget _buildEmpty() => Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (_error != null)
-              Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(
-                  _error!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.red),
-                ),
-              )
-            else ...[
-              Image.asset(AppAssets.noDayAppointments, width: 100, height: 100),
-              const SizedBox(height: 16),
-              Text(
-                _statusFilter != null
-                    ? 'No appointments match this filter'
-                    : "You don't have any appointments",
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF1A1B1E),
-                ),
-              ),
-            ],
-            if (_statusFilter != null) ...[
-              const SizedBox(height: 12),
-              TextButton(
-                onPressed: () => setState(() => _statusFilter = null),
-                child: const Text('Clear filter'),
-              ),
-            ],
-          ],
-        ),
-      );
 
   void _showCompleteVisitDialog(BuildContext context, Appointment apt) {
     showModalBottomSheet<void>(
@@ -455,6 +405,132 @@ class _DayViewScreenState extends State<DayViewScreen> {
         appointmentTime: apt.time,
         patient: apt.patient,
         onCompleted: (notes) => _markCompleted(apt, notes),
+      ),
+    );
+  }
+}
+
+class _PremiumTimelineCard extends StatelessWidget {
+  const _PremiumTimelineCard({
+    required this.appointment,
+    required this.accent,
+    required this.isCurrent,
+    required this.isCompleted,
+    required this.onTapHighlight,
+    required this.onComplete,
+    required this.onReschedule,
+    this.onMarkArrived,
+  });
+
+  final Appointment appointment;
+  final Color accent;
+  final bool isCurrent;
+  final bool isCompleted;
+  final VoidCallback onTapHighlight;
+  final VoidCallback onComplete;
+  final VoidCallback onReschedule;
+  final VoidCallback? onMarkArrived;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              width: 52,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 22),
+                child: Text(
+                  appointment.time,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w800,
+                    color: isCurrent ? accent : const Color(0xFF929296),
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(
+              width: 24,
+              child: Column(
+                children: [
+                  Expanded(
+                    child: Container(width: 2, color: const Color(0xFFE4E6EB)),
+                  ),
+                  Container(
+                    width: isCurrent ? 18 : 12,
+                    height: isCurrent ? 18 : 12,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isCompleted
+                          ? const Color(0xFFEAF7EE)
+                          : isCurrent
+                              ? accent
+                              : Colors.white,
+                      border: Border.all(
+                        color: accent,
+                        width: isCurrent ? 4 : 2,
+                      ),
+                      boxShadow: isCurrent
+                          ? [
+                              BoxShadow(
+                                color: accent.withValues(alpha: 0.35),
+                                blurRadius: 10,
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: isCompleted
+                        ? Icon(Icons.check, size: 8, color: accent)
+                        : null,
+                  ),
+                  Expanded(
+                    child: Container(width: 2, color: const Color(0xFFE4E6EB)),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: GestureDetector(
+                onTap: onTapHighlight,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 280),
+                  margin: const EdgeInsets.only(left: 4),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(18),
+                    boxShadow: isCurrent
+                        ? [
+                            BoxShadow(
+                              color: accent.withValues(alpha: 0.2),
+                              blurRadius: 18,
+                              offset: const Offset(0, 6),
+                            ),
+                          ]
+                        : null,
+                  ),
+                  foregroundDecoration: isCurrent
+                      ? BoxDecoration(
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: accent.withValues(alpha: 0.4),
+                            width: 1.5,
+                          ),
+                        )
+                      : null,
+                  child: AppointmentCard(
+                    appointment: appointment,
+                    onComplete: onComplete,
+                    onReschedule: onReschedule,
+                    onMarkArrived: onMarkArrived,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

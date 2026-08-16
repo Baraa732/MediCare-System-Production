@@ -1,8 +1,10 @@
 import {
+  Body,
   Controller,
   ForbiddenException,
   Get,
   Param,
+  Post,
   Query,
   Request,
   UseGuards,
@@ -120,6 +122,50 @@ export class EmrController {
     return this.emrRecordService.getPatientEmr(
       userId,
       req.user,
+      this.preferredTenant(query),
+    );
+  }
+
+  @Post('patients/:userId/ensure')
+  @UseGuards(RolesGuard, DoctorPatientAccessGuard)
+  @Roles(...STAFF_ROLES)
+  @DoctorPatientParam('userId')
+  async ensurePatientEmr(
+    @Param('userId') userId: string,
+    @Request() req: { user: AuthUser },
+    @Query() query: { tenantId?: string; clinicId?: string },
+    @Body()
+    body?: {
+      phoneNumber?: string;
+      firstName?: string;
+      lastName?: string;
+      email?: string;
+      gender?: string;
+      birthDate?: string;
+    },
+  ) {
+    return this.emrRecordService.ensurePatientEmr(
+      userId,
+      req.user,
+      this.preferredTenant(query),
+      body,
+    );
+  }
+
+  @Post('patients/:userId/clinical-notes')
+  @UseGuards(RolesGuard, DoctorPatientAccessGuard)
+  @Roles(...STAFF_ROLES)
+  @DoctorPatientParam('userId')
+  async addClinicalNote(
+    @Param('userId') userId: string,
+    @Request() req: { user: AuthUser },
+    @Query() query: { tenantId?: string; clinicId?: string },
+    @Body() body: { content: string; type?: string },
+  ) {
+    return this.emrRecordService.addClinicalNote(
+      userId,
+      req.user,
+      body,
       this.preferredTenant(query),
     );
   }

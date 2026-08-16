@@ -23,7 +23,7 @@ val googleMapsApiKey =
         ?: ""
 
 android {
-    namespace = "com.example.cms"
+    namespace = "com.medicare.cms"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -34,8 +34,8 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.cms"
+        // Must match google-services.json package_name / Firebase Android app.
+        applicationId = "com.medicare.cms"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = maxOf(flutter.minSdkVersion, 23)

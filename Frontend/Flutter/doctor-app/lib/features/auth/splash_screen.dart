@@ -16,16 +16,24 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    Future<void>.delayed(const Duration(milliseconds: 1200), () {
-      if (!mounted) return;
-      final next = sessionStorage.isLoggedIn
-          ? const DayViewScreen()
-          : const LoginScreen();
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => next),
-      );
-    });
+    _boot();
+  }
+
+  Future<void> _boot() async {
+    await Future<void>.delayed(const Duration(milliseconds: 900));
+    if (sessionStorage.isLoggedIn) {
+      try {
+        await authApi.refreshProfileNames();
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    final next = sessionStorage.isLoggedIn
+        ? const DayViewScreen()
+        : const LoginScreen();
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => next),
+    );
   }
 
   @override

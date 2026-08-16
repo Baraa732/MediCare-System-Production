@@ -19,6 +19,7 @@ class Appointment {
     required this.tags,
     required this.hasNotes,
     required this.color,
+    required this.scheduledAt,
     this.notes,
     this.rawStatus,
   });
@@ -32,6 +33,7 @@ class Appointment {
   final List<String> tags;
   final bool hasNotes;
   final Color color;
+  final DateTime scheduledAt;
   final String? notes;
   final String? rawStatus;
 
@@ -54,6 +56,7 @@ class Appointment {
       notes: a.notes,
       color: color,
       rawStatus: a.status,
+      scheduledAt: a.scheduledAt,
     );
   }
 
@@ -69,6 +72,7 @@ class Appointment {
     Color? color,
     String? notes,
     String? rawStatus,
+    DateTime? scheduledAt,
   }) {
     return Appointment(
       id: id ?? this.id,
@@ -82,6 +86,7 @@ class Appointment {
       color: color ?? this.color,
       notes: notes ?? this.notes,
       rawStatus: rawStatus ?? this.rawStatus,
+      scheduledAt: scheduledAt ?? this.scheduledAt,
     );
   }
 }
@@ -109,18 +114,33 @@ class AppointmentCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: appointment.color,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(color: Colors.white.withValues(alpha: 0.7)),
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           onTap: () => Navigator.push(
             context,
             MaterialPageRoute(
               builder: (_) => PatientRecordScreen(
                 patientId: appointment.patientId,
                 patientName: appointment.patient,
+                appointmentId: appointment.id,
+                appointmentTime: appointment.time,
+                appointmentDuration: appointment.duration,
+                appointmentStatus: appointment.status ?? 'Pending',
+                appointmentReason:
+                    appointment.tags.isNotEmpty ? appointment.tags.first : null,
+                appointmentNotes: appointment.notes,
               ),
             ),
           ),

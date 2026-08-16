@@ -92,7 +92,12 @@ class SessionStorage {
   String? get lastName => _prefs.getString(_lastNameKey);
 
   String get displayName {
-    final name = '${firstName ?? ''} ${lastName ?? ''}'.trim();
+    var name = '${firstName ?? ''} ${lastName ?? ''}'.trim();
+    if (name.toLowerCase().startsWith('dr.')) {
+      name = name.substring(3).trim();
+    } else if (name.toLowerCase().startsWith('dr ')) {
+      name = name.substring(3).trim();
+    }
     return name.isEmpty ? 'Doctor' : name;
   }
 
@@ -111,11 +116,20 @@ class SessionStorage {
     if (session.clinicId != null) {
       await _prefs.setString(_clinicIdKey, session.clinicId!);
     }
-    if (session.firstName != null) {
-      await _prefs.setString(_firstNameKey, session.firstName!);
+    if (session.firstName != null && session.firstName!.trim().isNotEmpty) {
+      await _prefs.setString(_firstNameKey, session.firstName!.trim());
     }
-    if (session.lastName != null) {
-      await _prefs.setString(_lastNameKey, session.lastName!);
+    if (session.lastName != null && session.lastName!.trim().isNotEmpty) {
+      await _prefs.setString(_lastNameKey, session.lastName!.trim());
+    }
+  }
+
+  Future<void> updateNames({String? firstName, String? lastName}) async {
+    if (firstName != null && firstName.trim().isNotEmpty) {
+      await _prefs.setString(_firstNameKey, firstName.trim());
+    }
+    if (lastName != null && lastName.trim().isNotEmpty) {
+      await _prefs.setString(_lastNameKey, lastName.trim());
     }
   }
 

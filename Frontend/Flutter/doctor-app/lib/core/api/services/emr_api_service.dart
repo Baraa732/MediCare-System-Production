@@ -46,6 +46,30 @@ class PatientEmrChart {
     );
   }
 
+  PatientEmrChart copyWith({
+    Map<String, dynamic>? patient,
+    List<Map<String, dynamic>>? allergies,
+    List<Map<String, dynamic>>? medications,
+    List<Map<String, dynamic>>? conditions,
+    List<Map<String, dynamic>>? encounters,
+    List<Map<String, dynamic>>? vitalSigns,
+    List<Map<String, dynamic>>? labResults,
+    List<Map<String, dynamic>>? immunizations,
+    List<Map<String, dynamic>>? clinicalNotes,
+  }) {
+    return PatientEmrChart(
+      patient: patient ?? this.patient,
+      allergies: allergies ?? this.allergies,
+      medications: medications ?? this.medications,
+      conditions: conditions ?? this.conditions,
+      encounters: encounters ?? this.encounters,
+      vitalSigns: vitalSigns ?? this.vitalSigns,
+      labResults: labResults ?? this.labResults,
+      immunizations: immunizations ?? this.immunizations,
+      clinicalNotes: clinicalNotes ?? this.clinicalNotes,
+    );
+  }
+
   String get fullName {
     final first = patient['firstName']?.toString() ?? '';
     final last = patient['lastName']?.toString() ?? '';
@@ -60,7 +84,41 @@ class EmrApiService {
 
   Future<PatientEmrChart> getPatientEmr(String userId) async {
     final response = await _client.get('/emr/patients/$userId');
+    return _parseChart(response.data);
+  }
+
+  /// Create / repair OpenEMR chart link for this clinic patient.
+  Future<Map<String, dynamic>> ensurePatientEmr(
+    String userId, {
+    Map<String, dynamic>? profileHint,
+  }) async {
+    final response = await _client.post(
+      '/emr/patients/$userId/ensure',
+      data: profileHint ?? const {},
+    );
     final data = response.data;
+    if (data is Map<String, dynamic>) return data;
+    return const {};
+  }
+
+  Future<Map<String, dynamic>> addClinicalNote(
+    String userId, {
+    required String content,
+    String? type,
+  }) async {
+    final response = await _client.post(
+      '/emr/patients/$userId/clinical-notes',
+      data: {
+        'content': content,
+        if (type != null && type.trim().isNotEmpty) 'type': type.trim(),
+      },
+    );
+    final data = response.data;
+    if (data is Map<String, dynamic>) return data;
+    return const {};
+  }
+
+  PatientEmrChart _parseChart(dynamic data) {
     if (data is Map<String, dynamic>) {
       final chart = data['chart'];
       if (chart is Map) {

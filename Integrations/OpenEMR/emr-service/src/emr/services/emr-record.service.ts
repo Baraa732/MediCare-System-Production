@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { EmrSyncStatus, PatientEmrLink } from '../entities/patient-emr-link.entity';
-import { PatientEmrChart } from '../types/patient-emr.types';
+import { ClinicalNoteRecord, PatientEmrChart } from '../types/patient-emr.types';
 import { OpenEmrChartService } from './openemr-chart.service';
 import { PatientSyncService } from './patient-sync.service';
 import { EmrTenantGuardService } from './emr-tenant-guard.service';
@@ -8,6 +8,8 @@ import { TenantContextService } from '../../tenant-shared/tenant-context.service
 import { HttpTenantAccessChecker } from '../../tenant-shared/tenant-access-checker';
 import { PhiAuditPublisherService } from '../../phi-audit-shared/phi-audit.publisher';
 import { PhiAuditAction, PhiAuditResourceType } from '../../phi-audit-shared/types';
+import { UserKafkaCorroborator } from './user-kafka-corroborator.service';
+import { OpenEmrDbReader } from './openemr-db.reader';
 
 export interface PatientSyncStatusResponse {
   medicareUserId: string;
@@ -43,6 +45,8 @@ export class EmrRecordService {
     private readonly tenantContext: TenantContextService,
     private readonly tenantAccess: HttpTenantAccessChecker,
     private readonly phiAudit: PhiAuditPublisherService,
+    private readonly userCorroborator: UserKafkaCorroborator,
+    private readonly dbReader: OpenEmrDbReader,
   ) {}
 
   private requireTenantId(): string {
@@ -249,5 +253,125 @@ export class EmrRecordService {
       });
       throw error;
     }
+  }
+
+  /**
+   * Ensure the patient has a SYNCED OpenEMR chart for this clinic.
+   * Doctors call this when opening a patient whose EMR is not linked yet.
+   */
+  async ensurePatientEmr(
+    userId: string,
+    actor: AuthUser,
+    preferredTenantId?: string | null,
+    profileHint?: {
+      phoneNumber?: string;
+      firstName?: string;
+      lastName?: string;
+      email?: string;
+      gender?: string;
+      birthDate?: string;
+    },
+  ): Promise<PatientSyncStatusResponse> {
+    if (!['DOCTOR', 'CLINIC_ADMIN', 'SYSTEM_MANAGER'].includes(actor.role)) {
+      throw new ForbiddenException('Only clinic staff can ensure EMR charts');
+    }
+
+    const tenantId = preferredTenantId || this.requireTenantId();
+    await this.assertActorAccess(actor, tenantId, userId);
+
+    const existing = await this.patientSyncService.getLinkByUserId(userId, tenantId);
+    if (existing?.syncStatus === EmrSyncStatus.SYNCED && existing.openemrPatientId) {
+      return this.toSyncStatus(existing, userId);
+    }
+
+    const profile =
+      (await this.userCorroborator.fetchUserProfile(userId)) ?? profileHint ?? null;
+    if (!profile?.phoneNumber) {
+      throw new NotFoundException({
+        message: 'Cannot link EMR — patient phone/profile is missing',
+        medicareUserId: userId,
+        syncStatus: EmrSyncStatus.FAILED,
+      });
+    }
+
+    const link = await this.patientSyncService.syncPatientFromUserCreated({
+      userId,
+      phoneNumber: profile.phoneNumber,
+      firstName: profile.firstName ?? profileHint?.firstName,
+      lastName: profile.lastName ?? profileHint?.lastName,
+      email: profile.email ?? profileHint?.email,
+      gender: profile.gender ?? profileHint?.gender,
+      birthDate: profile.birthDate ?? profileHint?.birthDate,
+      role: 'PATIENT',
+      tenantId,
+      clinicId: tenantId,
+    });
+
+    this.phiAudit.emit({
+      action: PhiAuditAction.EMR_CHART_WRITE,
+      actorId: actor.userId,
+      actorRole: actor.role,
+      tenantId,
+      resourceType: PhiAuditResourceType.EMR_CHART,
+      resourceId: userId,
+      success: link.syncStatus === EmrSyncStatus.SYNCED,
+      classification: 'phi',
+    });
+
+    return this.toSyncStatus(link, userId);
+  }
+
+  async addClinicalNote(
+    userId: string,
+    actor: AuthUser,
+    body: { content: string; type?: string },
+    preferredTenantId?: string | null,
+  ): Promise<ClinicalNoteRecord> {
+    if (!['DOCTOR', 'CLINIC_ADMIN', 'SYSTEM_MANAGER'].includes(actor.role)) {
+      throw new ForbiddenException('Only clinic staff can write clinical notes');
+    }
+
+    const content = body.content?.trim();
+    if (!content) {
+      throw new BadRequestException('Clinical note content is required');
+    }
+
+    const tenantId = preferredTenantId || this.requireTenantId();
+    await this.assertActorAccess(actor, tenantId, userId);
+
+    let link = await this.patientSyncService.getLinkByUserId(userId, tenantId);
+    if (!link || link.syncStatus !== EmrSyncStatus.SYNCED || !link.openemrPatientId) {
+      await this.ensurePatientEmr(userId, actor, tenantId);
+      link = await this.patientSyncService.getLinkByUserId(userId, tenantId);
+    }
+
+    if (!link?.openemrPatientId) {
+      throw new NotFoundException({
+        message: 'EMR chart is not available yet',
+        medicareUserId: userId,
+        syncStatus: link?.syncStatus ?? EmrSyncStatus.FAILED,
+        lastError: link?.lastError,
+      });
+    }
+
+    const note = await this.dbReader.insertClinicalNote({
+      pid: link.openemrPatientId,
+      content,
+      type: body.type?.trim() || 'Visit note',
+      author: actor.userId,
+    });
+
+    this.phiAudit.emit({
+      action: PhiAuditAction.EMR_CHART_WRITE,
+      actorId: actor.userId,
+      actorRole: actor.role,
+      tenantId,
+      resourceType: PhiAuditResourceType.EMR_CHART,
+      resourceId: userId,
+      success: true,
+      classification: 'phi',
+    });
+
+    return note;
   }
 }
