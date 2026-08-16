@@ -1,43 +1,46 @@
 /**
  * Start Railway services by triggering deployments in safe startup order.
  * Does NOT delete project or services.
+ *
+ * Target: anasdalati3 reliable-flow (production)
+ * Pair with: node scripts/railway-stop-deployments.mjs
  */
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
-const PROJECT_ID = '50517ef9-d515-4f95-9993-622fd1d53bb8';
-const ENV_ID = 'bdae5825-b0ca-48e3-802a-bdf51b4b8005';
+const PROJECT_ID = '4068da7b-8283-4cda-8e88-f4e28a0ffc22';
+const ENV_ID = '104d5d18-6ad3-48c3-8987-6198fd3484f6';
 const API = 'https://backboard.railway.com/graphql/v2';
 
 // Safe startup order: data -> messaging -> infra -> apps -> gateway/dashboards
 const SERVICE_ORDER = [
-  ['Postgres', '7becf8c2-d895-427b-9882-9b3bab30b602'],
-  ['Redis', '7bd8c86f-ace6-423a-af30-319d064621e6'],
-  ['mariadb-openemr', 'a4423033-0cc5-41e0-8289-aa8ad70addb4'],
-  ['zookeeper', '1fcd10b7-2707-4c65-8deb-47ee0be14bd8'],
-  ['kafka', 'e97e274a-324c-46e1-b73b-29d4f9ed0305'],
-  ['kafka-init', 'd7d8efe0-97c4-46ca-a71d-40d9e4be4c3a'],
-  ['openemr', 'd2a15df6-44d1-440c-b763-0f02e40fbf6c'],
-  ['pure-fulfillment', '1acd27e2-0014-47e7-bd1f-9b6f55c76c8c'],
-  ['jaeger', 'd1f9083d-70db-4054-9ccd-38a4009fae42'],
-  ['loki', 'b5ad0060-353a-4ee2-8c3a-246f57e65f46'],
-  ['prometheus', 'b54a1837-e202-4d5b-963f-44e9fe997325'],
-  ['otel-collector', '1f789229-f148-4aad-a75e-db697905c45c'],
-  ['grafana', '1b080c70-0c51-4f6a-95fd-f0d7179606ae'],
-  ['auth-service', '970a7ecf-a36f-41c6-b20f-47647417ebf1'],
-  ['user-service', 'de2d0692-5cf2-4f56-ae67-5e663d62be03'],
-  ['clinic-service', '6177a21b-f364-428c-a976-aee2972f1e5a'],
-  ['system-manager-service', '8cfa3690-7f35-4ae3-9bc3-95eea13f87d4'],
-  ['appointment-service', 'd4d6bde6-1373-45e1-bd3d-5f53e347864d'],
-  ['scheduling-service', '9c7099bb-5c7b-4786-aad7-990e82747d2f'],
-  ['notification-service', '076360d5-b800-41fa-b103-bb5b2a532c83'],
-  ['reminder-service', 'fac46935-914b-4f3a-9fa0-fdb47c4d552e'],
-  ['emr-service', '393d045b-67b8-44b7-a50c-0189d48fcd67'],
-  ['MediCare-System-Production', 'cf2986c8-8a3d-42eb-bad1-df457bcd3268'],
-  ['system-manager-dashboard', '461a9002-af79-4769-b416-e29320ce15be'],
-  ['clinic-admin-dashboard', '8b8012eb-5475-4461-84a1-fb379828a54f'],
-  ['secretary-dashboard', '22b5f358-8b79-4a33-b4b5-a2a6f63dd3e9'],
+  ['Postgres', 'b8c1076d-b87c-4a62-9954-be499f924cc8'],
+  ['Redis', 'bc1658f1-ee50-48b8-aa24-81724a98f133'],
+  ['mariadb-openemr', 'c8f0e660-e34d-4ad2-a2b2-adfd4bef93f8'],
+  ['zookeeper', '0e191a3c-dbe8-48f3-b2bd-692172873104'],
+  ['kafka', 'c01662ff-17da-4911-a02f-b72cfabab99f'],
+  ['kafka-init', 'f8339169-3ea1-4aa5-a0cf-924cd2efb103'],
+  ['openemr', 'e27b77b2-a6a8-4756-b5d4-b5a4a82fe25e'],
+  ['evolution-api', '62ce897d-ce96-4890-83bb-d291eb756a6b'],
+  ['jaeger', '05fd429a-9b9a-4852-b1d9-cafecf023c0b'],
+  ['loki', '6200644f-3d0a-4d97-80bc-840924ac85a0'],
+  ['prometheus', '6f65a774-c1c7-4b0b-8a38-e734cb7748bf'],
+  ['otel-collector', '3d23ef81-60c6-4d61-ab3b-2f72a21acdc5'],
+  ['grafana', 'dea291cc-8f9a-48dd-99a4-6ce3f4f3f48e'],
+  ['auth-service', '8550641b-4537-4914-9300-545f32d5270f'],
+  ['user-service', '2e53deaf-bd29-4504-9cf9-7ead72c4ecde'],
+  ['clinic-service', 'f12e235b-60b5-47f1-9e7d-03c05219c199'],
+  ['system-manager-service', 'a29b748e-22fe-48a7-91d2-4e0e7a8a9594'],
+  ['appointment-service', '17bebd9b-6636-4097-bfdf-54a57388f3ee'],
+  ['scheduling-service', 'c3bcc13d-463d-402b-828b-7b9582cd101a'],
+  ['notification-service', '2c1f006e-bea4-4da9-b16a-06efa760a598'],
+  ['reminder-service', 'd13d7566-ec68-42d2-b49b-7443f0403706'],
+  ['emr-service', '57a96f70-e062-4b7a-b747-18725b62bb70'],
+  ['MediCare-System-Production', '84d042b5-f4e0-4c6f-81db-81661c604f81'],
+  ['system-manager-dashboard', 'f5a64b86-2750-4a2a-ba7a-dc4bff3a8856'],
+  ['clinic-admin-dashboard', 'b3f29015-2a95-4a76-a70f-37b9470251a2'],
+  ['secretary-dashboard', '835ca78b-6672-440e-b625-2f3e1662d9c1'],
 ];
 
 async function loadToken() {
@@ -214,11 +217,31 @@ async function deployService(token, serviceId) {
   return { action: 'trigger', deploymentId: null, status: 'QUEUED' };
 }
 
+/** Wait until kafka-init (or similar one-shot) reaches SUCCESS before Nest apps start. */
+async function waitForServiceSuccess(token, serviceId, name, timeoutMs = 12 * 60 * 1000) {
+  const startedAt = Date.now();
+  console.log(`  WAIT  ${name} — until SUCCESS (topics ready)...`);
+  while (Date.now() - startedAt < timeoutMs) {
+    const latest = await getLatestDeployment(token, serviceId);
+    const status = latest?.status ?? 'UNKNOWN';
+    if (status === 'SUCCESS') {
+      console.log(`  READY ${name} — SUCCESS`);
+      return;
+    }
+    if (['FAILED', 'CRASHED'].includes(status)) {
+      throw new Error(`${name} deployment ${status}; Nest services would race on missing Kafka topics`);
+    }
+    await sleep(5000);
+  }
+  throw new Error(`${name} did not reach SUCCESS within ${Math.round(timeoutMs / 1000)}s`);
+}
+
 async function main() {
   const token = await loadToken();
   const results = { started: [], skipped: [], failed: [] };
+  const kafkaInitId = 'f8339169-3ea1-4aa5-a0cf-924cd2efb103';
 
-  console.log('Starting Railway deployments (safe order)...\n');
+  console.log('Starting Railway deployments on reliable-flow (safe order)...\n');
 
   for (const [name, serviceId] of SERVICE_ORDER) {
     try {
@@ -231,6 +254,12 @@ async function main() {
         console.log(`  OK    ${name} — ${result.action}${id}`);
         results.started.push(name);
       }
+
+      // Nest consumers crash if topics are missing; block until kafka-init finishes.
+      if (serviceId === kafkaInitId) {
+        await waitForServiceSuccess(token, serviceId, name);
+      }
+
       await sleep(1500);
     } catch (err) {
       console.log(`  FAIL  ${name} — ${err.message}`);

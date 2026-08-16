@@ -5,6 +5,7 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { AppModule } from './app.module';
 import { KafkaOptionsFactory } from './kafka-shared/kafka-options.factory';
+import { startKafkaMicroservicesWithRetry } from './kafka-shared/start-kafka-microservices';
 import { SessionService } from './auth/services/session.service';
 import { ApiExceptionFilter } from './common/filters/api-exception.filter';
 import { setupMedicareLogging, logServiceReady, createMedicareNestLogger } from '@medicare/telemetry';
@@ -43,7 +44,7 @@ async function bootstrap() {
     KafkaOptionsFactory.createConsumerOptions(configService, 'auth-service-consumer', 'auth-service-consumer'),
   );
 
-  await app.startAllMicroservices();
+  await startKafkaMicroservicesWithRetry(app, { logger: console });
 
   if (process.env.NODE_ENV === 'development') {
     const config = new DocumentBuilder()

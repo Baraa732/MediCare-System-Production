@@ -77,7 +77,11 @@ export class KafkaClientModule implements OnApplicationShutdown {
                   groupId: options.consumerGroupId,
                   allowAutoTopicCreation: false,
                   isolationLevel: 'read_committed',
-                  retry: { retries: 8 },
+                  retry: {
+                    retries: config.get<number>('KAFKA_CONSUMER_RETRY_COUNT') ?? 30,
+                    initialRetryTime: config.get<number>('KAFKA_CONSUMER_RETRY_INITIAL_MS') ?? 300,
+                    maxRetryTime: config.get<number>('KAFKA_CONSUMER_RETRY_MAX_MS') ?? 10_000,
+                  },
                 },
                 producer: {
                   allowAutoTopicCreation: false,

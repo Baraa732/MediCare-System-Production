@@ -70,8 +70,14 @@ export class KafkaOptionsFactory {
         },
         consumer: {
           groupId,
+          // Keep false so kafka-init owns partition/retention config; Nest bootstrap
+          // retries until topics exist (see start-kafka-microservices.ts).
           allowAutoTopicCreation: false,
-          retry: { retries: 8 },
+          retry: {
+            retries: config.get<number>('KAFKA_CONSUMER_RETRY_COUNT') ?? 30,
+            initialRetryTime: config.get<number>('KAFKA_CONSUMER_RETRY_INITIAL_MS') ?? 300,
+            maxRetryTime: config.get<number>('KAFKA_CONSUMER_RETRY_MAX_MS') ?? 10_000,
+          },
         },
         producer: {
           idempotent: true,

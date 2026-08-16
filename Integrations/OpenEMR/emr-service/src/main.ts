@@ -4,6 +4,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { ConfigService } from '@nestjs/config';
 import { KafkaOptionsFactory } from './kafka-shared/kafka-options.factory';
+import { startKafkaMicroservicesWithRetry } from './kafka-shared/start-kafka-microservices';
 import { ApiExceptionFilter } from './common/filters/api-exception.filter';
 import { setupMedicareLogging, logServiceReady, createMedicareNestLogger } from '@medicare/telemetry';
 import { requireInternalAuthConfig } from './internal-auth-shared/internal-auth.config';
@@ -29,7 +30,7 @@ async function bootstrap() {
     ),
   );
 
-  await app.startAllMicroservices();
+  await startKafkaMicroservicesWithRetry(app, { logger: console });
 
   const port = process.env.PORT || 3004;
   await app.listen(port);
