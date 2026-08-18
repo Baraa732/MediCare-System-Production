@@ -52,6 +52,16 @@ export class PrometheusTelemetryService {
     }
   }
 
+  private async queryQuantile(job: string, quantile: number, window: string): Promise<number | null> {
+    const fromRate = await this.queryInstant(
+      `histogram_quantile(${quantile}, sum(rate(http_request_duration_seconds_bucket{job="${job}"}[${window}])) by (le)) * 1000`,
+    );
+    if (fromRate !== null) return fromRate;
+    return this.queryInstant(
+      `histogram_quantile(${quantile}, sum(http_request_duration_seconds_bucket{job="${job}"}) by (le)) * 1000`,
+    );
+  }
+
   async queryRange(
     promql: string,
     rangeSeconds = 3600,
@@ -87,15 +97,9 @@ export class PrometheusTelemetryService {
           this.queryInstant(
             `100 * sum(rate(http_requests_total{job="${job}",status=~"5.."}[${window}])) / clamp_min(sum(rate(http_requests_total{job="${job}"}[${window}])), 0.001)`,
           ),
-          this.queryInstant(
-            `histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{job="${job}"}[${window}])) by (le)) * 1000`,
-          ),
-          this.queryInstant(
-            `histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job="${job}"}[${window}])) by (le)) * 1000`,
-          ),
-          this.queryInstant(
-            `histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{job="${job}"}[${window}])) by (le)) * 1000`,
-          ),
+          this.queryQuantile(job, 0.5, window),
+          this.queryQuantile(job, 0.95, window),
+          this.queryQuantile(job, 0.99, window),
           this.queryInstant(`100 * rate(process_cpu_user_seconds_total{job="${job}"}[${window}])`),
           this.queryInstant(`process_resident_memory_bytes{job="${job}"}`),
           this.queryRange(`sum(rate(http_requests_total{job="${job}"}[5m]))`, rangeSeconds, step),
