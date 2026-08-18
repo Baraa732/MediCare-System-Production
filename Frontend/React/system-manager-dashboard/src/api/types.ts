@@ -130,6 +130,21 @@ export interface QueueOverviewResponse {
   }>
 }
 
+export interface PrometheusAlertsResponse {
+  available: boolean
+  timestamp: string
+  items: Array<{
+    id: string
+    name: string
+    service: string
+    severity: 'critical' | 'high' | 'warning' | 'info'
+    condition: string
+    value: string
+    source: 'prometheus'
+    summary?: string
+  }>
+}
+
 export interface DeploymentsResponse {
   available: boolean
   timestamp: string
@@ -315,6 +330,7 @@ export interface PlatformIncidentRecord {
   resolvedAt: string | null
   escalatedAt: string | null
   resolutionNotes: string | null
+  silencedUntil?: string | null
   createdAt: string
   updatedAt: string
 }

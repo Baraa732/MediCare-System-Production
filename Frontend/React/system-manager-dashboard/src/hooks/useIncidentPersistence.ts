@@ -6,6 +6,7 @@ import {
   escalateIncident,
   listPlatformIncidents,
   resolveIncident,
+  silenceIncident,
 } from '../api/systemManager'
 import { normalizeError } from '../api/errors'
 import { queryKeys } from '../lib/queryClient'
@@ -69,6 +70,12 @@ export function useIncidentPersistence() {
     onSuccess: invalidate,
   })
 
+  const silenceMutation = useMutation({
+    mutationFn: (payload: { id: string; title: string; service: string; hours: number }) =>
+      silenceIncident(token!, payload.id, payload.hours, meta(payload)),
+    onSuccess: invalidate,
+  })
+
   const getRecord = useCallback((id: string) => byId.get(id) ?? null, [byId])
 
   const isAcknowledged = useCallback((id: string) => {
@@ -101,6 +108,12 @@ export function useIncidentPersistence() {
     assign: assignMutation.mutateAsync,
     resolve: resolveMutation.mutateAsync,
     escalate: escalateMutation.mutateAsync,
-    pending: ackMutation.isPending || assignMutation.isPending || resolveMutation.isPending || escalateMutation.isPending,
+    silence: silenceMutation.mutateAsync,
+    pending:
+      ackMutation.isPending ||
+      assignMutation.isPending ||
+      resolveMutation.isPending ||
+      escalateMutation.isPending ||
+      silenceMutation.isPending,
   }
 }

@@ -121,6 +121,10 @@ export class PlatformObservabilityService {
     return pending;
   }
 
+  async getFiringAlerts() {
+    return this.prometheusTelemetryService.listFiringAlerts();
+  }
+
   private async buildOverview(range = '1h') {
     const [health, logs, prometheusAvailable, lokiAvailable, otelAvailable, promMetrics, platformResources] = await Promise.all([
       this.platformHealthService.getPlatformHealth(),

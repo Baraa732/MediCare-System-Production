@@ -486,6 +486,28 @@ export class SystemManagerController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Post('platform/incidents/:id/silence')
+  async silenceIncident(
+    @Request() req,
+    @Param('id') id: string,
+    @Body() body: { hours?: number; title?: string; service?: string },
+  ) {
+    if (req.user.role !== 'SYSTEM_MANAGER') {
+      throw new ForbiddenException('Only system managers can manage incidents');
+    }
+    return this.platformIncidentsService.silence(id, body.hours ?? 1, body);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('platform/alerts')
+  async getFiringAlerts(@Request() req) {
+    if (req.user.role !== 'SYSTEM_MANAGER') {
+      throw new ForbiddenException('Only system managers can view alerts');
+    }
+    return this.platformObservabilityService.getFiringAlerts();
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Get('platform/security-summary')
   async getSecuritySummary(@Request() req, @Query('range') range?: string) {
     if (req.user.role !== 'SYSTEM_MANAGER') {

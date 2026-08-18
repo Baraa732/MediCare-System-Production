@@ -1,8 +1,12 @@
+import { useMemo } from 'react'
 import { Moon, PanelLeftClose, PanelLeftOpen, Sun } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useMediaQuery } from '@mui/material'
 import { useUIStore } from '../../store/uiStore'
 import { usePrefersReducedMotion } from '../../hooks/usePrefersReducedMotion'
+import { useObservabilityData } from '../../hooks/useObservabilityData'
+import { useIncidentPersistence } from '../../hooks/useIncidentPersistence'
+import { applyIncidentState, buildPlatformAlerts, firingAlerts } from '../../lib/platformAlerts'
 import { CC } from '../../theme/tokens'
 import { controlNavSections } from './navConfig'
 import SidebarGroup from './SidebarGroup'
@@ -18,6 +22,34 @@ export default function Sidebar() {
   const collapsed = isMobile || collapsedStore
   const width = collapsed ? CC.layout.sidebarCollapsed : CC.layout.sidebarExpanded
 
+  const obs = useObservabilityData(undefined, true)
+  const incidents = useIncidentPersistence()
+  const firingCount = useMemo(
+    () =>
+      firingAlerts(applyIncidentState(buildPlatformAlerts({ observability: obs.data }), incidents.records))
+        .length,
+    [obs.data, incidents.records],
+  )
+
+  const sections = useMemo(
+    () =>
+      controlNavSections.map((section) => ({
+        ...section,
+        items: section.items.map((item) =>
+          item.path === '/alerts'
+            ? {
+                ...item,
+                badge:
+                  firingCount > 0
+                    ? { label: String(firingCount), tone: 'error' as const }
+                    : undefined,
+              }
+            : item,
+        ),
+      })),
+    [firingCount],
+  )
+
   return (
     <motion.aside
       className={styles.sidebar}
@@ -30,7 +62,7 @@ export default function Sidebar() {
       }
     >
       <div className={styles.sidebarScroll}>
-        {controlNavSections.map((section) => (
+        {sections.map((section) => (
           <SidebarGroup key={section.id} section={section} collapsed={collapsed} />
         ))}
       </div>

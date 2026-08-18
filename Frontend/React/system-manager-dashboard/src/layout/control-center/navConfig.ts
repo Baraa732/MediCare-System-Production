@@ -36,7 +36,7 @@ export const controlNavSections: ControlNavSection[] = [
       { label: 'Services', path: '/apm', icon: Cpu },
       { label: 'Infrastructure', path: '/cc/infrastructure', icon: Server },
       { label: 'Logs', path: '/logs', icon: FileText },
-      { label: 'Alerts', path: '/alerts', icon: AlertTriangle, badge: { label: '5', tone: 'error' } },
+      { label: 'Alerts', path: '/alerts', icon: AlertTriangle },
       { label: 'Metrics', path: '/metrics', icon: Activity },
       { label: 'Tracing', path: '/cc/tracing', icon: Workflow },
       { label: 'Databases', path: '/cc/databases', icon: Database },

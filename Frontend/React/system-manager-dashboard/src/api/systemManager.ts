@@ -15,6 +15,7 @@ import type {
   PlatformIncidentRecord,
   SecuritySummary,
   QueueOverviewResponse,
+  PrometheusAlertsResponse,
   DeploymentsResponse,
 } from './types'
 
@@ -228,6 +229,13 @@ export function getQueueOverview(token: string, signal?: AbortSignal) {
   })
 }
 
+export function getPrometheusAlerts(token: string, signal?: AbortSignal) {
+  return apiRequest<PrometheusAlertsResponse>('/system-manager/platform/alerts', {
+    token,
+    signal,
+  })
+}
+
 export function getDeployments(token: string, limit = 20, signal?: AbortSignal) {
   return apiRequest<DeploymentsResponse>(
     `/system-manager/platform/deployments?limit=${limit}`,
@@ -315,6 +323,19 @@ export function escalateIncident(token: string, id: string, notes?: string, body
   return apiRequest<PlatformIncidentRecord>(`/system-manager/platform/incidents/${encodeURIComponent(id)}/escalate`, {
     method: 'POST',
     body: { notes, ...body },
+    token,
+  })
+}
+
+export function silenceIncident(
+  token: string,
+  id: string,
+  hours: number,
+  body?: { title?: string; service?: string },
+) {
+  return apiRequest<PlatformIncidentRecord>(`/system-manager/platform/incidents/${encodeURIComponent(id)}/silence`, {
+    method: 'POST',
+    body: { hours, ...body },
     token,
   })
 }

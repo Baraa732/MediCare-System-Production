@@ -17,12 +17,15 @@ export class PlatformIncidentsService {
     private readonly repo: Repository<PlatformIncident>,
   ) {}
 
-  async list(): Promise<PlatformIncident[]> {
-    return this.repo.find({ order: { updatedAt: 'DESC' }, take: 500 });
+  async list(): Promise<Array<PlatformIncident & { silencedUntil: string | null }>> {
+    const rows = await this.repo.find({ order: { updatedAt: 'DESC' }, take: 500 });
+    return rows.map((row) => Object.assign(row, { silencedUntil: parseSilencedUntil(row.notes) }));
   }
 
-  async get(id: string): Promise<PlatformIncident | null> {
-    return this.repo.findOne({ where: { id } });
+  async get(id: string): Promise<(PlatformIncident & { silencedUntil: string | null }) | null> {
+    const row = await this.repo.findOne({ where: { id } });
+    if (!row) return null;
+    return Object.assign(row, { silencedUntil: parseSilencedUntil(row.notes) });
   }
 
   private async upsert(id: string, patch: Partial<PlatformIncident>, meta?: IncidentActionDto): Promise<PlatformIncident> {
@@ -74,6 +77,13 @@ export class PlatformIncidentsService {
     }, meta);
   }
 
+  async silence(id: string, hours: number, meta?: IncidentActionDto): Promise<PlatformIncident> {
+    const until = new Date(Date.now() + Math.max(1, hours) * 3_600_000);
+    return this.upsert(id, {
+      notes: `silencedUntil:${until.toISOString()}`,
+    }, meta);
+  }
+
   isAcknowledged(status: PlatformIncidentStatus): boolean {
     return status === 'acknowledged' || status === 'assigned' || status === 'escalated' || status === 'resolved';
   }
@@ -91,4 +101,14 @@ export class PlatformIncidentsService {
     if (!row) throw new NotFoundException(`Incident ${id} not found`);
     return row;
   }
+}
+
+const SILENCE_PREFIX = 'silencedUntil:';
+
+function parseSilencedUntil(notes: string | null): string | null {
+  if (!notes?.startsWith(SILENCE_PREFIX)) return null;
+  const iso = notes.slice(SILENCE_PREFIX.length);
+  const ts = new Date(iso).getTime();
+  if (!Number.isFinite(ts) || ts <= Date.now()) return null;
+  return iso;
 }

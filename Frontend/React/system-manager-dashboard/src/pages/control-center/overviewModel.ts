@@ -11,6 +11,7 @@ import type {
   SecuritySummary,
 } from '../../api/types'
 import type { TrendDirection } from '../../types/dashboard'
+import { applyIncidentState, buildPlatformAlerts, formatAlertAgo } from '../../lib/platformAlerts'
 
 export type KpiView = {
   id: string
@@ -189,43 +190,21 @@ export function buildActiveAlerts(
   incidents: PlatformIncidentRecord[],
   observability: PlatformObservability | null,
 ) {
-  const fromIncidents = incidents
-    .filter((i) => i.status !== 'resolved')
+  return applyIncidentState(buildPlatformAlerts({ observability }), incidents)
+    .filter((alert) => alert.status !== 'resolved' && !alert.silenced)
     .slice(0, 12)
-    .map((i) => ({
-      id: i.id,
-      title: i.title || `Incident ${i.id.slice(0, 8)}`,
-      service: i.service || 'platform',
+    .map((alert) => ({
+      id: alert.id,
+      title: alert.name,
+      service: alert.service,
       level:
-        i.status === 'escalated'
+        alert.severity === 'critical'
           ? ('Critical' as const)
-          : i.status === 'open'
-            ? ('Warning' as const)
-            : ('Info' as const),
-      ago: i.updatedAt ? relative(i.updatedAt) : '—',
+          : alert.severity === 'info'
+            ? ('Info' as const)
+            : ('Warning' as const),
+      ago: formatAlertAgo(alert.startedAt),
     }))
-
-  if (fromIncidents.length) return fromIncidents
-
-  const degraded = (observability?.apm.services ?? [])
-    .filter((s) => s.status !== 'healthy')
-    .map((s) => ({
-      id: `svc-${s.name}`,
-      title: `${s.name} is ${s.status}`,
-      service: s.name,
-      level: s.status === 'down' ? ('Critical' as const) : ('Warning' as const),
-      ago: 'live',
-    }))
-
-  const errors = (observability?.apm.errors ?? []).slice(0, 5).map((e) => ({
-    id: String(e.id),
-    title: e.message.slice(0, 80),
-    service: e.service,
-    level: 'Warning' as const,
-    ago: e.lastSeen ? relative(e.lastSeen) : '—',
-  }))
-
-  return [...degraded, ...errors].slice(0, 12)
 }
 
 export type IncidentTimelineItem = {

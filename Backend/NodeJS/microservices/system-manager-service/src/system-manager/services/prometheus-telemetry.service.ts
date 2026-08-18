@@ -157,4 +157,128 @@ export class PrometheusTelemetryService {
       heapUsedBytes: heap,
     };
   }
+
+  async queryInstantVector(
+    promql: string,
+  ): Promise<Array<{ labels: Record<string, string>; value: number }>> {
+    try {
+      const { data } = await axios.get(`${this.baseUrl}/api/v1/query`, {
+        params: { query: promql },
+        timeout: 4000,
+      });
+      const rows: Array<{ metric?: Record<string, string>; value?: [number, string] }> =
+        data?.data?.result ?? [];
+      return rows
+        .map((row) => ({
+          labels: row.metric ?? {},
+          value: Number(row.value?.[1] ?? 0),
+        }))
+        .filter((row) => Number.isFinite(row.value));
+    } catch (error) {
+      this.logger.debug(`Prometheus vector query failed: ${promql} — ${String(error)}`);
+      return [];
+    }
+  }
+
+  async listFiringAlerts(): Promise<{
+    available: boolean;
+    timestamp: string;
+    items: Array<{
+      id: string;
+      name: string;
+      service: string;
+      severity: 'critical' | 'high' | 'warning' | 'info';
+      condition: string;
+      value: string;
+      source: 'prometheus';
+      summary?: string;
+    }>;
+  }> {
+    const available = await this.isAvailable();
+    if (!available) {
+      return { available: false, timestamp: new Date().toISOString(), items: [] };
+    }
+
+    const [ruleAlerts, downJobs, errorRatio, medicare5xx] = await Promise.all([
+      this.queryInstantVector('ALERTS{alertstate="firing"}'),
+      this.queryInstantVector('up == 0'),
+      this.queryInstantVector(
+        '(sum by (job) (rate(http_requests_total{status=~"5.."}[5m])) / sum by (job) (rate(http_requests_total[5m]))) > 0.05',
+      ),
+      this.queryInstantVector(
+        '(sum by (service) (rate(medicare_http_responses_total{status_class="5xx"}[5m])) / sum by (service) (rate(medicare_http_responses_total[5m]))) > 0.05',
+      ),
+    ]);
+
+    const items: Array<{
+      id: string;
+      name: string;
+      service: string;
+      severity: 'critical' | 'high' | 'warning' | 'info';
+      condition: string;
+      value: string;
+      source: 'prometheus';
+      summary?: string;
+    }> = [];
+    const seen = new Set<string>();
+    const push = (item: (typeof items)[number]) => {
+      if (seen.has(item.id)) return;
+      seen.add(item.id);
+      items.push(item);
+    };
+
+    for (const row of ruleAlerts) {
+      const name = row.labels.alertname || 'PrometheusAlert';
+      const service = row.labels.job || row.labels.service || row.labels.instance || 'platform';
+      push({
+        id: `prom-${name}-${service}`.replace(/[^a-zA-Z0-9._-]/g, '-'),
+        name,
+        service,
+        severity: mapPromSeverity(row.labels.severity),
+        condition: name,
+        value: 'firing',
+        source: 'prometheus',
+        summary: row.labels.summary,
+      });
+    }
+
+    for (const row of downJobs) {
+      const service = row.labels.job || row.labels.instance || 'unknown';
+      push({
+        id: `prom-down-${service}`.replace(/[^a-zA-Z0-9._-]/g, '-'),
+        name: `${service} is down`,
+        service,
+        severity: 'critical',
+        condition: 'up == 0',
+        value: '0',
+        source: 'prometheus',
+        summary: `${service} is not being scraped`,
+      });
+    }
+
+    for (const row of [...errorRatio, ...medicare5xx]) {
+      const service = row.labels.job || row.labels.service || 'unknown';
+      const pct = Math.round(row.value * 1000) / 10;
+      push({
+        id: `prom-5xx-${service}`.replace(/[^a-zA-Z0-9._-]/g, '-'),
+        name: `${service} 5xx rate`,
+        service,
+        severity: pct >= 10 ? 'critical' : 'high',
+        condition: 'http_5xx_ratio > 5%',
+        value: `${pct}%`,
+        source: 'prometheus',
+        summary: `HTTP 5xx ratio is ${pct}%`,
+      });
+    }
+
+    return { available: true, timestamp: new Date().toISOString(), items };
+  }
+}
+
+function mapPromSeverity(raw?: string): 'critical' | 'high' | 'warning' | 'info' {
+  const value = (raw ?? '').toLowerCase();
+  if (value === 'critical' || value === 'page' || value === 'error') return 'critical';
+  if (value === 'high') return 'high';
+  if (value === 'info' || value === 'none') return 'info';
+  return 'warning';
 }
