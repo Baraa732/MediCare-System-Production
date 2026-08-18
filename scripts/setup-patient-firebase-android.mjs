@@ -9,9 +9,9 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const RAILWAY_API = 'https://backboard.railway.com/graphql/v2';
-const PROJECT = '50517ef9-d515-4f95-9993-622fd1d53bb8';
-const ENV = 'bdae5825-b0ca-48e3-802a-bdf51b4b8005';
-const NOTIFICATION_SERVICE = '076360d5-b800-41fa-b103-bb5b2a532c83';
+const PROJECT = '4068da7b-8283-4cda-8e88-f4e28a0ffc22';
+const ENV = '104d5d18-6ad3-48c3-8987-6198fd3484f6';
+const NOTIFICATION_SERVICE = '2c1f006e-bea4-4da9-b16a-06efa760a598';
 const PACKAGE_NAME = 'com.example.cms';
 const DISPLAY_NAME = 'MediCare Patient';
 

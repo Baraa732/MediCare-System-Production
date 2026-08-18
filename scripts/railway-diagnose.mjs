@@ -3,18 +3,18 @@ import path from 'path';
 import os from 'os';
 
 const API = 'https://backboard.railway.com/graphql/v2';
-const PROJECT = '50517ef9-d515-4f95-9993-622fd1d53bb8';
-const ENV = 'bdae5825-b0ca-48e3-802a-bdf51b4b8005';
+const PROJECT = '4068da7b-8283-4cda-8e88-f4e28a0ffc22';
+const ENV = '104d5d18-6ad3-48c3-8987-6198fd3484f6';
 
 const SERVICES = {
-  'loki': 'b5ad0060-353a-4ee2-8c3a-246f57e65f46',
-  'otel-collector': '1f789229-f148-4aad-a75e-db697905c45c',
-  'system-manager-service': '8cfa3690-7f35-4ae3-9bc3-95eea13f87d4',
-  'user-service': 'de2d0692-5cf2-4f56-ae67-5e663d62be03',
-  'auth-service': '970a7ecf-a36f-41c6-b20f-47647417ebf1',
-  'MediCare-System-Production': 'cf2986c8-8a3d-42eb-bad1-df457bcd3268',
-  Postgres: '7becf8c2-d895-427b-9882-9b3bab30b602',
-  Redis: '7bd8c86f-ace6-423a-af30-319d064621e6',
+  'loki': '6200644f-3d0a-4d97-80bc-840924ac85a0',
+  'otel-collector': '3d23ef81-60c6-4d61-ab3b-2f72a21acdc5',
+  'system-manager-service': 'a29b748e-22fe-48a7-91d2-4e0e7a8a9594',
+  'user-service': '2e53deaf-bd29-4504-9cf9-7ead72c4ecde',
+  'auth-service': '8550641b-4537-4914-9300-545f32d5270f',
+  'MediCare-System-Production': '84d042b5-f4e0-4c6f-81db-81661c604f81',
+  Postgres: 'b8c1076d-b87c-4a62-9954-be499f924cc8',
+  Redis: 'bc1658f1-ee50-48b8-aa24-81724a98f133',
 };
 
 function loadToken() {

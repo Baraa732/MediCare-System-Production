@@ -3,9 +3,9 @@ import path from 'path';
 import os from 'os';
 
 const API = 'https://backboard.railway.com/graphql/v2';
-const PROJECT = '50517ef9-d515-4f95-9993-622fd1d53bb8';
-const ENV = 'bdae5825-b0ca-48e3-802a-bdf51b4b8005';
-const SM = '8cfa3690-7f35-4ae3-9bc3-95eea13f87d4';
+const PROJECT = '4068da7b-8283-4cda-8e88-f4e28a0ffc22';
+const ENV = '104d5d18-6ad3-48c3-8987-6198fd3484f6';
+const SM = 'a29b748e-22fe-48a7-91d2-4e0e7a8a9594';
 
 function loadToken() {
   if (process.env.RAILWAY_TOKEN?.trim()) return process.env.RAILWAY_TOKEN.trim();

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /** Wait for SM deploy then activate PENDING clinic staff assignments. */
-const API = (process.env.API_BASE || 'https://medicare-system-production-production.up.railway.app/api').replace(/\/$/, '');
+const API = (process.env.API_BASE || 'https://medicare-system-production-production-8ce0.up.railway.app/api').replace(/\/$/, '');
 const SM_USERNAME = process.env.SM_USERNAME || 'Baraa Al-Rifaee';
 const SM_PASSWORD = process.env.SM_PASSWORD || 'baraaalrifaee732';
 const CLINIC_ID = process.env.CLINIC_ID || 'c03b20c4-9db8-49ff-b10d-10198244a299';

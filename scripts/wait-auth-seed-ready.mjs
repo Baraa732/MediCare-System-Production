@@ -8,10 +8,10 @@ import path from 'path';
 import os from 'os';
 
 const API = 'https://backboard.railway.com/graphql/v2';
-const PROJECT = '50517ef9-d515-4f95-9993-622fd1d53bb8';
-const ENV = 'bdae5825-b0ca-48e3-802a-bdf51b4b8005';
-const AUTH_SERVICE = '970a7ecf-a36f-41c6-b20f-47647417ebf1';
-const GATEWAY = (process.env.API_BASE || 'https://medicare-system-production-production.up.railway.app/api').replace(/\/$/, '');
+const PROJECT = '4068da7b-8283-4cda-8e88-f4e28a0ffc22';
+const ENV = '104d5d18-6ad3-48c3-8987-6198fd3484f6';
+const AUTH_SERVICE = '8550641b-4537-4914-9300-545f32d5270f';
+const GATEWAY = (process.env.API_BASE || 'https://medicare-system-production-production-8ce0.up.railway.app/api').replace(/\/$/, '');
 const EXPECTED = (process.env.EXPECTED_COMMIT || 'f61fab9').slice(0, 7);
 const PROBE_PHONE = '+963999009998';
 

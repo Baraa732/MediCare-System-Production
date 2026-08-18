@@ -3,13 +3,13 @@ import path from 'path';
 import os from 'os';
 
 const API = 'https://backboard.railway.com/graphql/v2';
-const PROJECT = '50517ef9-d515-4f95-9993-622fd1d53bb8';
-const ENV = 'bdae5825-b0ca-48e3-802a-bdf51b4b8005';
+const PROJECT = '4068da7b-8283-4cda-8e88-f4e28a0ffc22';
+const ENV = '104d5d18-6ad3-48c3-8987-6198fd3484f6';
 const EXPECTED = 'ae54643';
 const SERVICES = [
-  ['auth-service', '970a7ecf-a36f-41c6-b20f-47647417ebf1'],
-  ['clinic-admin-dashboard', '8b8012eb-5475-4461-84a1-fb379828a54f'],
-  ['MediCare-System-Production', 'cf2986c8-8a3d-42eb-bad1-df457bcd3268'],
+  ['auth-service', '8550641b-4537-4914-9300-545f32d5270f'],
+  ['clinic-admin-dashboard', 'b3f29015-2a95-4a76-a70f-37b9470251a2'],
+  ['MediCare-System-Production', '84d042b5-f4e0-4c6f-81db-81661c604f81'],
 ];
 
 function loadToken() {
