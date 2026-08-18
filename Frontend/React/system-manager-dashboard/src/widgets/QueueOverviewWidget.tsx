@@ -6,9 +6,11 @@ import obs from '../components/observability/obs.module.css'
 export default function QueueOverviewWidget({
   delay = 0,
   queues,
+  onSelect,
 }: {
   delay?: number
   queues?: QueueOverviewResponse | null
+  onSelect?: (name: string) => void
 }) {
   const items = queues?.items ?? []
   const topicCount = queues?.topics ?? 0
@@ -42,6 +44,7 @@ export default function QueueOverviewWidget({
               consumers={q.consumers}
               lag={q.lag}
               status={q.status === 'Unknown' ? 'Warning' : q.status}
+              onClick={onSelect ? () => onSelect(q.name) : undefined}
             />
           ))}
         </div>

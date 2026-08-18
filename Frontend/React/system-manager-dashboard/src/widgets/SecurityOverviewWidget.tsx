@@ -22,9 +22,11 @@ function threatTone(score: number) {
 export default function SecurityOverviewWidget({
   delay = 0,
   security,
+  onSelectIp,
 }: {
   delay?: number
   security?: SecuritySummary | null
+  onSelectIp?: (ip: string) => void
 }) {
   const markers: HudMarker[] = useMemo(() => {
     return (security?.topIps ?? []).slice(0, 12).map((ip) => {
@@ -63,6 +65,7 @@ export default function SecurityOverviewWidget({
             title="SOURCE ARRAY"
             subtitle="ANON PLOT"
             emptyHint="No source IPs in this window yet"
+            onMarkerClick={onSelectIp ? (m) => onSelectIp(m.id) : undefined}
           />
           <div className={obs.stack}>
             <div className={obs.miniGrid}>
@@ -95,7 +98,24 @@ export default function SecurityOverviewWidget({
             </div>
             <div className={obs.ipList} aria-label="Top source IPs">
               {(security.topIps.length ? security.topIps : []).slice(0, 6).map((ip) => (
-                <div key={ip.ip} className={obs.ipRow}>
+                <div
+                  key={ip.ip}
+                  className={obs.ipRow}
+                  role={onSelectIp ? 'button' : undefined}
+                  tabIndex={onSelectIp ? 0 : undefined}
+                  onClick={onSelectIp ? () => onSelectIp(ip.ip) : undefined}
+                  onKeyDown={
+                    onSelectIp
+                      ? (e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            onSelectIp(ip.ip)
+                          }
+                        }
+                      : undefined
+                  }
+                  style={onSelectIp ? { cursor: 'pointer' } : undefined}
+                >
                   <span className={obs.ipAddr}>{ip.ip}</span>
                   <span className={obs.muted}>{ip.count}</span>
                 </div>

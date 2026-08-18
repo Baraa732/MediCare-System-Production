@@ -6,9 +6,11 @@ import type { PlatformObservability } from '../api/types'
 export default function DistributedTracingWidget({
   delay = 0,
   observability,
+  onNodeClick,
 }: {
   delay?: number
   observability?: PlatformObservability | null
+  onNodeClick?: (service: string) => void
 }) {
   const { nodes, edges } = useMemo(() => {
     const map = observability?.apm.serviceMap
@@ -69,7 +71,12 @@ export default function DistributedTracingWidget({
             : 'Obsidian force graph · live'
         }
       />
-      <ObsidianTraceGraph nodes={nodes} edges={edges} tall />
+      <ObsidianTraceGraph
+        nodes={nodes}
+        edges={edges}
+        tall
+        onNodeClick={onNodeClick ? (n) => onNodeClick(n.name || n.id) : undefined}
+      />
     </DashboardCard>
   )
 }

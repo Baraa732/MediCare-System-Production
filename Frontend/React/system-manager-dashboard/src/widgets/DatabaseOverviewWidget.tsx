@@ -11,9 +11,11 @@ function tone(status: string): 'Healthy' | 'Warning' | 'Critical' {
 export default function DatabaseOverviewWidget({
   delay = 0,
   health,
+  onSelect,
 }: {
   delay?: number
   health?: PlatformHealth | null
+  onSelect?: (name: string) => void
 }) {
   const infra = health?.infrastructure
   const cards = infra
@@ -32,7 +34,24 @@ export default function DatabaseOverviewWidget({
       ) : (
         <div className={obs.miniGrid}>
           {cards.map((c) => (
-            <article key={c.name} className={obs.dbCard} tabIndex={0}>
+            <article
+              key={c.name}
+              className={obs.dbCard}
+              tabIndex={0}
+              role={onSelect ? 'button' : undefined}
+              onClick={onSelect ? () => onSelect(c.name) : undefined}
+              onKeyDown={
+                onSelect
+                  ? (e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        onSelect(c.name)
+                      }
+                    }
+                  : undefined
+              }
+              style={onSelect ? { cursor: 'pointer' } : undefined}
+            >
               <div className={obs.rowBetween}>
                 <div className={obs.dbName}>{c.name}</div>
                 <HealthBadge status={c.status} />
