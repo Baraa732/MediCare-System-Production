@@ -4,7 +4,7 @@ class ApiConfig {
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
     defaultValue:
-        'https://medicare-system-production-production.up.railway.app/api',
+        'https://medicare-system-production-production-8ce0.up.railway.app/api',
   );
 
   static const Duration connectTimeout = Duration(seconds: 20);

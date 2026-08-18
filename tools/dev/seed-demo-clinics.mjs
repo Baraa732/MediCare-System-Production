@@ -6,7 +6,7 @@
  *
  * Usage:
  *   node tools/dev/seed-demo-clinics.mjs
- *   API_BASE=https://medicare-system-production-production.up.railway.app/api node tools/dev/seed-demo-clinics.mjs
+ *   API_BASE=https://medicare-system-production-production-8ce0.up.railway.app/api node tools/dev/seed-demo-clinics.mjs
  *
  * Env:
  *   API_BASE       default http://localhost:3000/api

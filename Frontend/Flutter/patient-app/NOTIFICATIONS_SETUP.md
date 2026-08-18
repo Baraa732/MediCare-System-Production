@@ -101,7 +101,7 @@ Place `google-services.json` in `android/app/`.
 ### 5. Run
 
 ```bash
-flutter run --dart-define=API_BASE_URL=https://medicare-system-production-production.up.railway.app/api
+flutter run --dart-define=API_BASE_URL=https://medicare-system-production-production-8ce0.up.railway.app/api
 ```
 
 Log in as a patient — the app registers the FCM token automatically.
