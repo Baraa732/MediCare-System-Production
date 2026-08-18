@@ -228,6 +228,101 @@ export function buildActiveAlerts(
   return [...degraded, ...errors].slice(0, 12)
 }
 
+export type IncidentTimelineItem = {
+  id: string
+  title: string
+  meta: string
+  ago: string
+  level: 'Critical' | 'Warning' | 'Success' | 'Info'
+}
+
+export function buildIncidentTimeline(
+  incidents: PlatformIncidentRecord[],
+  observability: PlatformObservability | null,
+  queues: QueueOverviewResponse | null,
+  deployments: DeploymentsResponse | null,
+): IncidentTimelineItem[] {
+  const items: IncidentTimelineItem[] = incidents.slice(0, 10).map((i) => ({
+    id: `inc-${i.id}`,
+    title: i.title || `Incident ${i.id.slice(0, 8)}`,
+    meta: i.service || i.status,
+    ago: i.updatedAt ? relative(i.updatedAt) : '—',
+    level:
+      i.status === 'escalated'
+        ? 'Critical'
+        : i.status === 'resolved'
+          ? 'Success'
+          : i.status === 'open'
+            ? 'Warning'
+            : 'Info',
+  }))
+
+  const seen = new Set(items.map((i) => i.id))
+  const push = (item: IncidentTimelineItem) => {
+    if (seen.has(item.id)) return
+    seen.add(item.id)
+    items.push(item)
+  }
+
+  for (const s of observability?.apm.services ?? []) {
+    if (s.status === 'healthy') continue
+    push({
+      id: `svc-${s.name}`,
+      title: `${s.name} is ${s.status}`,
+      meta: `${s.errorRate?.toFixed?.(1) ?? 0}% errors · ${s.reqRate?.toFixed?.(2) ?? 0} req/s`,
+      ago: 'live',
+      level: s.status === 'down' ? 'Critical' : 'Warning',
+    })
+  }
+
+  for (const e of (observability?.apm.errors ?? []).slice(0, 5)) {
+    push({
+      id: `err-${e.id}`,
+      title: e.message.slice(0, 80),
+      meta: e.service,
+      ago: e.lastSeen ? relative(e.lastSeen) : 'live',
+      level: 'Warning',
+    })
+  }
+
+  for (const q of queues?.items ?? []) {
+    if (q.status === 'Healthy' || q.status === 'Unknown') continue
+    push({
+      id: `q-${q.name}`,
+      title: `Queue pressure on ${q.name}`,
+      meta: `lag ${q.lag} · ${q.messages} messages`,
+      ago: queues?.timestamp ? relative(queues.timestamp) : 'live',
+      level: q.status === 'Critical' ? 'Critical' : 'Warning',
+    })
+  }
+
+  for (const d of (deployments?.items ?? []).slice(0, 4)) {
+    push({
+      id: `dep-${d.id}`,
+      title: `${d.service} ${d.version}`,
+      meta: `${d.status} · ${d.by}`,
+      ago: d.ago || (d.startedAt ? relative(d.startedAt) : '—'),
+      level: d.status === 'Failed' ? 'Critical' : d.status === 'Success' ? 'Success' : 'Info',
+    })
+  }
+
+  if (!items.length) {
+    const services = observability?.apm.services ?? []
+    const healthy = services.filter((s) => s.status === 'healthy').length
+    items.push({
+      id: 'all-clear',
+      title: `No open incidents · ${healthy || services.length} services healthy`,
+      meta: queues?.available
+        ? `${queues.topics ?? 0} Kafka topics · ${queues.groups ?? 0} groups`
+        : 'platform',
+      ago: 'live',
+      level: 'Success',
+    })
+  }
+
+  return items.slice(0, 12)
+}
+
 function relative(iso: string) {
   const sec = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000))
   if (sec < 60) return `${sec}s ago`

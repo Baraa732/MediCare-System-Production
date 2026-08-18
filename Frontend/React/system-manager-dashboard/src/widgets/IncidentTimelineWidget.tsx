@@ -1,46 +1,38 @@
-﻿import { DashboardCard, WidgetHeader, EmptyState } from '../components/ui'
-import { SeverityBadge, TimelineCard } from '../components/observability'
-import type { PlatformIncidentRecord } from '../api/types'
+﻿import { DashboardCard, WidgetHeader } from '../components/ui'
+import { LiveIndicator, SeverityBadge, TimelineCard } from '../components/observability'
+import type { IncidentTimelineItem } from '../pages/control-center/overviewModel'
 
 export default function IncidentTimelineWidget({
   delay = 0,
-  incidents = [],
+  items = [],
 }: {
   delay?: number
-  incidents?: PlatformIncidentRecord[]
+  items?: IncidentTimelineItem[]
 }) {
-  const items = incidents.slice(0, 10).map((i) => ({
+  const rows = items.slice(0, 10).map((i) => ({
     id: i.id,
-    title: i.title || `Incident ${i.id.slice(0, 8)}`,
-    meta: i.service || i.status,
-    ago: i.updatedAt,
+    title: i.title,
+    meta: i.meta,
+    ago: i.ago,
     tone:
-      i.status === 'escalated'
+      i.level === 'Critical'
         ? ('error' as const)
-        : i.status === 'resolved'
+        : i.level === 'Success'
           ? ('success' as const)
-          : ('warning' as const),
-    badge: (
-      <SeverityBadge
-        level={
-          i.status === 'escalated'
-            ? 'Critical'
-            : i.status === 'resolved'
-              ? 'Success'
-              : 'Warning'
-        }
-      />
-    ),
+          : i.level === 'Warning'
+            ? ('warning' as const)
+            : ('info' as const),
+    badge: <SeverityBadge level={i.level} />,
   }))
 
   return (
     <DashboardCard minHeight={280} delay={delay}>
-      <WidgetHeader title="Incident Timeline" subtitle="Persisted incidents" />
-      {!items.length ? (
-        <EmptyState title="No incidents" />
-      ) : (
-        <TimelineCard items={items} />
-      )}
+      <WidgetHeader
+        title="Incident Timeline"
+        subtitle={items.length ? `${items.length} events` : 'Live + persisted'}
+        badge={<LiveIndicator />}
+      />
+      <TimelineCard items={rows} />
     </DashboardCard>
   )
 }

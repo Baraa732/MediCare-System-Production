@@ -37,6 +37,7 @@ import {
 import {
   buildActiveAlerts,
   buildAiInsights,
+  buildIncidentTimeline,
   buildOverviewKpis,
   buildServiceRows,
   buildSystemLoad,
@@ -114,6 +115,10 @@ export default function OverviewPage() {
   const serviceRows = useMemo(() => buildServiceRows(obs.data), [obs.data])
   const load = useMemo(() => buildSystemLoad(obs.data), [obs.data])
   const alerts = useMemo(() => buildActiveAlerts(incidents, obs.data), [incidents, obs.data])
+  const timeline = useMemo(
+    () => buildIncidentTimeline(incidents, obs.data, queuesQ.data, deploymentsQ.data),
+    [incidents, obs.data, queuesQ.data, deploymentsQ.data],
+  )
   const insights = useMemo(
     () =>
       buildAiInsights({
@@ -263,7 +268,7 @@ export default function OverviewPage() {
         </div>
 
         <div className={styles.span12}>
-          <IncidentTimelineWidget delay={0.44} incidents={incidents} />
+          <IncidentTimelineWidget delay={0.44} items={timeline} />
         </div>
       </div>
     </div>

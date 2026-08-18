@@ -118,6 +118,9 @@ export interface QueueOverviewResponse {
   available: boolean
   timestamp: string
   warning?: string
+  source?: 'kafka' | 'prometheus' | 'health'
+  topics?: number
+  groups?: number
   items: Array<{
     name: string
     messages: number
