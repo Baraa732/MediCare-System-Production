@@ -47,8 +47,8 @@ export default function ForgotPasswordPage() {
                   Send Reset Link
                 </Button>
               </Box>
-              <Link to="/login" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 0.5, marginTop: 24 }}>
-                <ArrowLeft size={14} color="#8b93a8" />
+              <Link to="/login" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 0.5, marginTop: 24, color: 'inherit' }}>
+                <ArrowLeft size={14} color="currentColor" />
                 <Typography variant="caption2" sx={{ color: 'text.secondary' }}>Back to sign in</Typography>
               </Link>
             </Box>
@@ -67,8 +67,8 @@ export default function ForgotPasswordPage() {
               <Typography variant="caption2" sx={{ color: 'text.disabled', display: 'block', mb: 3 }}>
                 The link expires in 30 minutes.
               </Typography>
-              <Link to="/login" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'center' }}>
-                <ArrowLeft size={14} color="#8b93a8" />
+              <Link to="/login" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'center', color: 'inherit' }}>
+                <ArrowLeft size={14} color="currentColor" />
                 <Typography variant="caption2" sx={{ color: 'text.secondary' }}>Back to sign in</Typography>
               </Link>
             </Box>

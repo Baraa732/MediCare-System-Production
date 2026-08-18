@@ -4,8 +4,8 @@ import type { SxProps, Theme } from '@mui/material/styles'
 export const consoleFieldSx: SxProps<Theme> = {
   '& .MuiOutlinedInput-root': {
     borderRadius: '12px',
-    bgcolor: 'rgba(7, 17, 31, 0.55)',
-    color: '#e8f1ff',
+    bgcolor: 'var(--ac-panel)',
+    color: 'var(--ac-text)',
     transition: 'border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease',
     '& fieldset': {
       borderColor: 'rgba(125, 211, 252, 0.18)',
@@ -14,7 +14,7 @@ export const consoleFieldSx: SxProps<Theme> = {
       borderColor: 'rgba(34, 211, 238, 0.45)',
     },
     '&.Mui-focused': {
-      bgcolor: 'rgba(7, 17, 31, 0.72)',
+      bgcolor: 'var(--ac-panel-2)',
       boxShadow: '0 0 0 3px rgba(34, 211, 238, 0.14)',
       '& fieldset': {
         borderColor: '#22d3ee',
@@ -26,7 +26,7 @@ export const consoleFieldSx: SxProps<Theme> = {
     },
   },
   '& .MuiInputBase-input': {
-    color: '#e8f1ff',
+    color: 'var(--ac-text)',
     fontSize: 14,
     fontWeight: 500,
     '&::placeholder': {
@@ -35,7 +35,7 @@ export const consoleFieldSx: SxProps<Theme> = {
     },
   },
   '& .MuiInputLabel-root': {
-    color: '#8aa0b8',
+    color: 'var(--ac-muted)',
     fontWeight: 600,
     '&.Mui-focused': {
       color: '#67e8f9',
@@ -45,14 +45,14 @@ export const consoleFieldSx: SxProps<Theme> = {
     },
   },
   '& .MuiFormHelperText-root': {
-    color: '#8aa0b8',
+    color: 'var(--ac-muted)',
     marginLeft: '2px',
     '&.Mui-error': {
       color: '#fb7185',
     },
   },
   '& .MuiSelect-icon': {
-    color: '#8aa0b8',
+    color: 'var(--ac-muted)',
   },
   '& input[type="date"]::-webkit-calendar-picker-indicator': {
     filter: 'invert(0.75)',
@@ -84,8 +84,8 @@ export const consoleMenuProps = {
       sx: {
         mt: 0.75,
         borderRadius: '12px',
-        bgcolor: '#0d1a2b',
-        color: '#e8f1ff',
+        bgcolor: 'var(--ac-panel)',
+        color: 'var(--ac-text)',
         border: '1px solid rgba(125, 211, 252, 0.16)',
         backgroundImage: 'none',
         boxShadow: '0 18px 40px -20px rgba(0,0,0,0.65)',
@@ -115,6 +115,6 @@ export const consoleFormLabelSx: SxProps<Theme> = {
   '& .MuiFormControlLabel-label': {
     fontSize: 13.5,
     fontWeight: 600,
-    color: '#cbd5e1',
+    color: 'var(--ac-text)',
   },
 }

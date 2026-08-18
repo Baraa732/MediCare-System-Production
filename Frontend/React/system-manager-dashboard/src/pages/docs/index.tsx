@@ -83,7 +83,7 @@ export default function DocsPage() {
                     </Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <Chip label={item.external ? 'External' : 'Guide'} size="small" sx={{ height: 20, fontSize: 10, bgcolor: item.external ? '#f59e0b20' : '#06b6d420', color: item.external ? '#f59e0b' : '#06b6d4' }} />
-                      {item.external ? <ExternalLink size={14} color="#8b93a8" /> : <Activity size={14} color="#8b93a8" />}
+                      {item.external ? <ExternalLink size={14} color="var(--cc-muted)" /> : <Activity size={14} color="var(--cc-muted)" />}
                     </Box>
                   </Box>
                 ))}

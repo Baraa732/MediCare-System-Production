@@ -45,8 +45,9 @@ export default function Topbar() {
     <Box
       sx={{
         height: 48,
-        background: '#161b27',
-        borderBottom: '1px solid #1f2535',
+        bgcolor: 'background.paper',
+        borderBottom: '1px solid',
+        borderColor: 'divider',
         px: 2,
         display: 'flex',
         alignItems: 'center',
@@ -60,7 +61,7 @@ export default function Topbar() {
     >
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 'fit-content' }}>
         <Box sx={{ width: 24, height: 24, borderRadius: '6px', bgcolor: '#06b6d4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Plus size={15} color="#0f1117" strokeWidth={3} />
+          <Plus size={15} color="var(--cc-on-accent)" strokeWidth={3} />
         </Box>
         {!isMobile && (
           <Box sx={{ color: '#06b6d4', fontWeight: 600, fontSize: 15 }}>
@@ -78,7 +79,7 @@ export default function Topbar() {
               input: {
                 startAdornment: (
                   <InputAdornment position="start">
-                    <Search size={14} color="#4d566b" />
+                    <Search size={14} color="var(--cc-faint)" />
                   </InputAdornment>
                 ),
                 endAdornment: (
@@ -86,8 +87,9 @@ export default function Topbar() {
                     <Box
                       sx={{
                         fontSize: 11,
-                        color: '#4d566b',
-                        border: '1px solid #2a3147',
+                        color: 'text.disabled',
+                        border: '1px solid',
+                        borderColor: 'divider',
                         borderRadius: '3px',
                         px: 0.75,
                         py: 0.25,
@@ -105,10 +107,10 @@ export default function Topbar() {
               width: '100%',
               '& .MuiOutlinedInput-root': {
                 height: 32,
-                background: '#0f1117',
+                bgcolor: 'background.default',
                 fontSize: 13,
-                '& fieldset': { borderColor: '#2a3147' },
-                '&:hover fieldset': { borderColor: '#3d4663' },
+                '& fieldset': { borderColor: 'divider' },
+                '&:hover fieldset': { borderColor: 'text.disabled' },
                 '&.Mui-focused fieldset': {
                   borderColor: '#06b6d4',
                   boxShadow: '0 0 0 2px rgba(6,182,212,0.12)',
@@ -117,7 +119,7 @@ export default function Topbar() {
               '& .MuiOutlinedInput-input': {
                 height: 20,
                 padding: '6px 8px',
-                '&::placeholder': { color: '#4d566b', opacity: 1 },
+                '&::placeholder': { color: 'text.disabled', opacity: 1 },
               },
             }}
           />
@@ -134,8 +136,8 @@ export default function Topbar() {
               sx={{
                 fontSize: 13,
                 height: 30,
-                '& .MuiOutlinedInput-notchedOutline': { borderColor: '#2a3147' },
-                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#3d4663' },
+                '& .MuiOutlinedInput-notchedOutline': { borderColor: 'divider' },
+                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'text.disabled' },
                 '& .MuiSelect-select': { py: 0.5 },
               }}
             >
@@ -173,7 +175,7 @@ export default function Topbar() {
 
         <Avatar
           onClick={(e) => setMenuAnchor(e.currentTarget)}
-          sx={{ width: 28, height: 28, fontSize: 12, bgcolor: '#1a2540', color: '#06b6d4', cursor: 'pointer' }}
+          sx={{ width: 28, height: 28, fontSize: 12, bgcolor: 'background.selected', color: 'primary.main', cursor: 'pointer' }}
         >{user?.avatar || 'DU'}</Avatar>
 
         <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={() => setMenuAnchor(null)}

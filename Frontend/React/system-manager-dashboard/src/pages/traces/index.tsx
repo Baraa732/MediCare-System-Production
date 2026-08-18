@@ -118,7 +118,7 @@ export default function Traces() {
               placeholder="Search traces..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              slotProps={{ input: { startAdornment: <Search size={14} color="#8b93a8" style={{ marginRight: 6 }} /> } }}
+              slotProps={{ input: { startAdornment: <Search size={14} color="var(--cc-muted)" style={{ marginRight: 6 }} /> } }}
               sx={{ width: 300 }}
             />
             <Select size="small" value={serviceFilter} onChange={(e) => setServiceFilter(e.target.value)} sx={{ fontSize: 13, minWidth: 170 }}>

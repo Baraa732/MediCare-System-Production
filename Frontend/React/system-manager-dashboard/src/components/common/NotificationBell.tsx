@@ -67,7 +67,7 @@ export default function NotificationBell() {
           setAnchor(e.currentTarget)
           void refreshInbox()
         }}
-        sx={{ color: '#8b93a8' }}
+        sx={{ color: 'text.secondary' }}
       >
         <Badge
           badgeContent={unreadCount}

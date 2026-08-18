@@ -145,7 +145,7 @@ export function gaugeOption(value: number, color: string = CC_CHART.cyan): EChar
         axisLine: {
           lineStyle: {
             width: 12,
-            color: [[1, '#1f2535']],
+            color: [[1, CC_CHART.grid]],
           },
         },
         axisTick: { show: false },

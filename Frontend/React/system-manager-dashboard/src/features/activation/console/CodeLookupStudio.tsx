@@ -69,10 +69,10 @@ export default function CodeLookupStudio({ token }: CodeLookupStudioProps) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
     >
-      <Typography sx={{ fontWeight: 750, fontSize: 20, letterSpacing: '-0.02em', mb: 0.5, color: '#e8f1ff' }}>
+      <Typography sx={{ fontWeight: 750, fontSize: 20, letterSpacing: '-0.02em', mb: 0.5, color: 'var(--ac-text)' }}>
         Code intelligence
       </Typography>
-      <Typography sx={{ color: '#8aa0b8', fontSize: 13.5, mb: 2, lineHeight: 1.5 }}>
+      <Typography sx={{ color: 'var(--ac-muted)', fontSize: 13.5, mb: 2, lineHeight: 1.5 }}>
         Inspect lifecycle state, metadata, and revoke pending codes before they are claimed.
       </Typography>
 
@@ -115,7 +115,7 @@ export default function CodeLookupStudio({ token }: CodeLookupStudioProps) {
                 letterSpacing: '0.22em',
                 fontWeight: 700,
               },
-              startAdornment: <Search size={14} style={{ marginRight: 8, color: '#8aa0b8' }} />,
+              startAdornment: <Search size={14} style={{ marginRight: 8, color: 'var(--ac-muted)' }} />,
             },
           }}
         />
@@ -134,7 +134,7 @@ export default function CodeLookupStudio({ token }: CodeLookupStudioProps) {
             exit={{ opacity: 0, y: -8 }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <Typography sx={{ fontWeight: 750, color: '#e8f1ff' }}>Dossier</Typography>
+              <Typography sx={{ fontWeight: 750, color: 'var(--ac-text)' }}>Dossier</Typography>
               <Chip
                 size="small"
                 label={status.status}
@@ -205,8 +205,8 @@ export default function CodeLookupStudio({ token }: CodeLookupStudioProps) {
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '5px 0' }}>
-      <span style={{ fontSize: 12, color: '#8aa0b8', fontWeight: 650 }}>{label}</span>
-      <span style={{ fontSize: 12, color: '#e8f1ff', fontWeight: 650, textAlign: 'right' }}>{value}</span>
+      <span style={{ fontSize: 12, color: 'var(--ac-muted)', fontWeight: 650 }}>{label}</span>
+      <span style={{ fontSize: 12, color: 'var(--ac-text)', fontWeight: 650, textAlign: 'right' }}>{value}</span>
     </div>
   )
 }

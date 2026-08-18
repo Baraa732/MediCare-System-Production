@@ -76,9 +76,9 @@ export const CC = {
     warning: '0 0 16px rgba(245, 158, 11, 0.22)',
   },
   glass: {
-    bg: 'rgba(22, 27, 39, 0.72)',
-    bgStrong: 'rgba(28, 35, 51, 0.88)',
-    border: 'rgba(42, 49, 71, 0.9)',
+    bg: 'var(--cc-card)',
+    bgStrong: 'var(--cc-elevated)',
+    border: 'var(--cc-border-strong)',
     blur: '12px',
   },
   layout: {

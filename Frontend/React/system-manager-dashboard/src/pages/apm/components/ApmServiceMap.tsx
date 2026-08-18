@@ -49,7 +49,7 @@ export default function ApmServiceMap({ services, serviceMap }: ApmServiceMapPro
       ...position,
       itemStyle: { color: statusColor[svc.status] },
       symbolSize: Math.max(14, position.symbolSize * (svc.reqRate / maxReqRate || 0.35)),
-      label: { show: true, position: 'bottom', color: '#8b93a8', fontSize: 11 },
+      label: { show: true, position: 'bottom', color: theme.palette.text.secondary, fontSize: 11 },
     }
   })
 

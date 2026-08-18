@@ -254,7 +254,7 @@ export default function ClinicLocationPicker({
             slotProps={{
               input: {
                 startAdornment: (
-                  <InputAdornment position="start" sx={{ color: '#8aa0b8' }}>
+                  <InputAdornment position="start" sx={{ color: 'var(--ac-muted)' }}>
                     {searchLoading ? <CircularProgress size={14} sx={{ color: '#22d3ee' }} /> : <Search size={14} />}
                   </InputAdornment>
                 ),
@@ -290,7 +290,7 @@ export default function ClinicLocationPicker({
             disabled={geoLoading}
             sx={{
               borderColor: 'rgba(34, 211, 238, 0.35)',
-              color: '#a5f3fc',
+              color: 'primary.main',
               textTransform: 'none',
               fontWeight: 700,
               borderRadius: '10px',
@@ -299,12 +299,12 @@ export default function ClinicLocationPicker({
           >
             Use Current Location
           </Button>
-          <Typography variant="caption" className="clinic-map-hint" sx={{ alignSelf: 'center', color: '#8aa0b8' }}>
+          <Typography variant="caption" className="clinic-map-hint" sx={{ alignSelf: 'center', color: 'text.secondary' }}>
             Click the map or drag the pin for exact placement.
           </Typography>
         </Box>
 
-        <Box className="clinic-map-shell clinic-map-shell--dark">
+        <Box className={theme.palette.mode === 'dark' ? 'clinic-map-shell clinic-map-shell--dark' : 'clinic-map-shell'}>
           <MapContainer
             center={mapCenter}
             zoom={mapZoom}
@@ -372,7 +372,7 @@ export default function ClinicLocationPicker({
               mt: { xs: 0, sm: 0.25 },
               minWidth: 120,
               borderColor: 'rgba(34, 211, 238, 0.35)',
-              color: '#a5f3fc',
+              color: 'primary.main',
               textTransform: 'none',
               fontWeight: 700,
               borderRadius: '10px',
@@ -424,7 +424,7 @@ export default function ClinicLocationPicker({
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <MapPin size={14} color="#22d3ee" />
-          <Typography variant="caption" sx={{ color: '#8aa0b8' }}>
+          <Typography variant="caption" sx={{ color: 'var(--ac-muted)' }}>
             Coverage: {serviceRadiusKm} km radius
             {latitude != null && longitude != null
               ? ` · ${formatCoordinates(latitude, longitude)}`

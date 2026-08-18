@@ -16,12 +16,12 @@
   font-size: 24px;
   font-weight: 750;
   letter-spacing: -0.03em;
-  color: #e8eaf0;
+  color: var(--cc-text);
 }
 
 .heroMeta {
   font-size: 13px;
-  color: #8b93a8;
+  color: var(--cc-muted);
   margin-top: 4px;
 }
 

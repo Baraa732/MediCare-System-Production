@@ -48,6 +48,7 @@ export function flatBarSeries(name: string, data: number[], color: string, stack
 }
 
 export function buildLogFlowSankey(
+  theme: Theme,
   services: Array<{ name: string; count: number }>,
   levels: Array<{ level: string; count: number }>,
   entries: Array<{ service: string; level: string }>,
@@ -80,8 +81,8 @@ export function buildLogFlowSankey(
       emphasis: { focus: 'adjacency' },
       nodeWidth: 12,
       nodeGap: 10,
-      lineStyle: { color: '#2a3147', curveness: 0.45, opacity: 0.55 },
-      label: { color: '#8b93a8', fontSize: 10 },
+      lineStyle: { color: theme.palette.divider, curveness: 0.45, opacity: 0.55 },
+      label: { color: theme.palette.text.secondary, fontSize: 10 },
       data: nodes.length ? nodes : [{ name: 'No data' }],
       links: links.length ? links : [],
     }],

@@ -10,6 +10,15 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
     <link rel="preload" href="/sm-login-hero.lottie" as="fetch" crossorigin="anonymous" />
     <title>MediCare — System Manager</title>
+    <script>
+      try {
+        var m = JSON.parse(localStorage.getItem('obsadmin-ui-v1') || '{}').state && JSON.parse(localStorage.getItem('obsadmin-ui-v1') || '{}').state.themeMode;
+        document.documentElement.dataset.theme = m === 'light' ? 'light' : 'dark';
+        document.documentElement.style.colorScheme = m === 'light' ? 'light' : 'dark';
+      } catch (e) {
+        document.documentElement.dataset.theme = 'dark';
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

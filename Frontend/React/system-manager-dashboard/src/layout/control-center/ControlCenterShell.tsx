@@ -22,6 +22,7 @@ export default function ControlCenterShell({
   const location = useLocation()
   const reduced = usePrefersReducedMotion()
   const sidebarCollapsed = useUIStore((s) => s.sidebarCollapsed)
+  const themeMode = useUIStore((s) => s.themeMode)
   const isMobile = useMediaQuery('(max-width:900px)')
   const collapsed = isMobile || sidebarCollapsed
   const padLeft = collapsed
@@ -30,7 +31,7 @@ export default function ControlCenterShell({
 
   return (
     <div className={styles.shell}>
-      <Toaster theme="dark" position="top-right" richColors />
+      <Toaster theme={themeMode} position="top-right" richColors />
       <Topbar />
       <Sidebar />
       <motion.div

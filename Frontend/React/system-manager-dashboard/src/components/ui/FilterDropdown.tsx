@@ -20,11 +20,11 @@ export default function FilterDropdown({
         sx={{
           height: 32,
           fontSize: 12,
-          color: '#e8eaf0',
-          bgcolor: 'rgba(15,17,23,0.55)',
+          color: 'text.primary',
+          bgcolor: 'background.paper',
           borderRadius: '10px',
-          '& .MuiOutlinedInput-notchedOutline': { borderColor: '#2a3147' },
-          '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#06b6d460' },
+          '& .MuiOutlinedInput-notchedOutline': { borderColor: 'divider' },
+          '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'primary.main' },
         }}
         inputProps={{ 'aria-label': label ?? 'Filter' }}
       >

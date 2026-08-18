@@ -185,7 +185,7 @@ function InsightRail({
           <Icon size={22} />
         </div>
         <h3 style={{ margin: 0, fontSize: 17, letterSpacing: '-0.02em' }}>{step.contextTitle}</h3>
-        <p style={{ margin: '8px 0 0', color: '#8aa0b8', fontSize: 13, lineHeight: 1.55 }}>
+        <p style={{ margin: '8px 0 0', color: 'var(--ac-muted)', fontSize: 13, lineHeight: 1.55 }}>
           {step.contextBody}
         </p>
       </div>
@@ -196,7 +196,7 @@ function InsightRail({
           GUIDANCE
         </div>
         {step.tips.map((tip) => (
-          <p key={tip} style={{ margin: '0 0 6px', color: '#8aa0b8', fontSize: 12, lineHeight: 1.45 }}>
+          <p key={tip} style={{ margin: '0 0 6px', color: 'var(--ac-muted)', fontSize: 12, lineHeight: 1.45 }}>
             • {tip}
           </p>
         ))}
@@ -204,7 +204,7 @@ function InsightRail({
 
       <div style={{ marginTop: 'auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-          <span style={{ fontSize: 11, fontWeight: 750, letterSpacing: '0.08em', color: '#8aa0b8' }}>
+          <span style={{ fontSize: 11, fontWeight: 750, letterSpacing: '0.08em', color: 'var(--ac-muted)' }}>
             READY CHECK
           </span>
           <span style={{ fontSize: 11, fontWeight: 750, color: '#2dd4bf' }}>

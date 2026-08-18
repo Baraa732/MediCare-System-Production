@@ -60,7 +60,7 @@ function ExecutiveSummaryCard({ summary, services, incidents }: ExecutiveSummary
             Export JSON
           </Button>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 'auto' }}>
-            <FileText size={12} color="#8b93a8" />
+            <FileText size={12} color="var(--cc-muted)" />
             <Typography variant="caption2" sx={{ color: 'text.disabled' }}>
               Generated {new Date(summary.generatedAt).toLocaleTimeString()}
             </Typography>

@@ -8,7 +8,7 @@ export default function ThemeToggle() {
 
   return (
     <Tooltip title={`Switch to ${themeMode === 'dark' ? 'light' : 'dark'} mode`}>
-      <IconButton size="small" onClick={toggleThemeMode} sx={{ color: '#8b93a8' }}>
+      <IconButton size="small" onClick={toggleThemeMode} sx={{ color: 'text.secondary' }}>
         {themeMode === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
       </IconButton>
     </Tooltip>

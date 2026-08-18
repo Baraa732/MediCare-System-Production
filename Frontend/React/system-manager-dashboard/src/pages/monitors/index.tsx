@@ -139,7 +139,7 @@ export default function Monitors() {
               placeholder="Search monitors..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              slotProps={{ input: { startAdornment: <Search size={14} color="#8b93a8" style={{ marginRight: 6 }} /> } }}
+              slotProps={{ input: { startAdornment: <Search size={14} color="var(--cc-muted)" style={{ marginRight: 6 }} /> } }}
               sx={{ width: 280 }}
             />
             <Select size="small" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} sx={{ fontSize: 13, minWidth: 130 }}>
@@ -294,7 +294,7 @@ function MonitorTable({
                 </Tooltip>
               </TableCell>
               <TableCell sx={cellSx}>
-                <Chip label={monitor.type} size="small" sx={{ background: '#1e2438', color: 'text.secondary', fontSize: 10, height: 20 }} />
+                <Chip label={monitor.type} size="small" sx={{ bgcolor: 'background.hover', color: 'text.secondary', fontSize: 10, height: 20 }} />
               </TableCell>
               <TableCell sx={{ ...cellSx, fontFamily: theme.typography.mono?.fontFamily, color: monitor.availability < 98 ? '#ef4444' : '#10b981' }}>{monitor.availability}%</TableCell>
               <TableCell sx={{ ...cellSx, fontFamily: theme.typography.mono?.fontFamily }}>{monitor.avgDuration !== null ? `${monitor.avgDuration}ms` : '—'}</TableCell>

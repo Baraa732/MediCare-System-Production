@@ -9,6 +9,7 @@ import {
 } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { useUIStore } from '../../store/uiStore'
 import styles from './hudMap.module.css'
 
 export type HudMarker = {
@@ -60,6 +61,7 @@ export default function HudGeoMap({
   heightClass?: string
   onMarkerClick?: (marker: HudMarker) => void
 }) {
+  const themeMode = useUIStore((s) => s.themeMode)
   const center = useMemo<[number, number]>(() => {
     if (!markers.length) return [33.5, 36.3]
     const lat = markers.reduce((s, m) => s + m.lat, 0) / markers.length
@@ -78,6 +80,7 @@ export default function HudGeoMap({
   return (
     <div className={`${styles.frame} ${heightClass ?? ''}`} role="img" aria-label={title}>
       <MapContainer
+        key={themeMode}
         center={center}
         zoom={5}
         className={styles.map}
@@ -86,7 +89,11 @@ export default function HudGeoMap({
         scrollWheelZoom={false}
       >
         <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+          url={
+            themeMode === 'light'
+              ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+              : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+          }
           attribution='&copy; OpenStreetMap &copy; CARTO'
         />
         <FitBounds markers={markers} />
@@ -113,7 +120,7 @@ export default function HudGeoMap({
                 : undefined
             }
             pathOptions={{
-              color: '#0f1117',
+              color: themeMode === 'light' ? '#ffffff' : '#0f1117',
               weight: 2,
               fillColor: statusColor[m.status],
               fillOpacity: 0.95,

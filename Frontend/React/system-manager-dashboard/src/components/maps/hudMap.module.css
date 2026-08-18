@@ -6,7 +6,7 @@
   overflow: hidden;
   border: 1px solid rgba(6, 182, 212, 0.35);
   box-shadow: inset 0 0 40px rgba(6, 182, 212, 0.08), 0 0 20px rgba(6, 182, 212, 0.12);
-  background: #0a0e16;
+  background: var(--cc-map-bg);
 }
 
 .tall {
@@ -18,7 +18,7 @@
   width: 100%;
   height: 100%;
   min-height: 200px;
-  background: #0a0e16;
+  background: var(--cc-map-bg);
 }
 
 .tall .map {
@@ -35,7 +35,7 @@
     linear-gradient(rgba(6, 182, 212, 0.05) 1px, transparent 1px),
     linear-gradient(90deg, rgba(6, 182, 212, 0.05) 1px, transparent 1px);
   background-size: 28px 28px;
-  mix-blend-mode: screen;
+  mix-blend-mode: var(--cc-mix);
 }
 
 .hudCorner {
@@ -49,7 +49,7 @@
   color: #06b6d4;
   text-shadow: 0 0 10px rgba(6, 182, 212, 0.55);
   padding: 8px 10px;
-  background: rgba(15, 17, 23, 0.55);
+  background: var(--cc-overlay);
   border: 1px solid rgba(6, 182, 212, 0.25);
   backdrop-filter: blur(6px);
 }
@@ -72,10 +72,10 @@
   gap: 10px;
   padding: 6px 10px;
   border-radius: 8px;
-  background: rgba(15, 17, 23, 0.75);
+  background: var(--cc-overlay-strong);
   border: 1px solid rgba(6, 182, 212, 0.28);
   font-size: 10px;
-  color: #8b93a8;
+  color: var(--cc-muted);
   font-weight: 600;
 }
 
@@ -99,7 +99,7 @@
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  border: 2px solid #0f1117;
+  border: 2px solid var(--cc-bg);
   box-shadow: 0 0 12px currentColor;
 }
 
@@ -121,23 +121,23 @@
   place-items: center;
   min-height: 200px;
   height: 100%;
-  color: #8b93a8;
+  color: var(--cc-muted);
   font-size: 12px;
   padding: 16px;
   text-align: center;
 }
 
 :global(.leaflet-container) {
-  background: #0a0e16;
+  background: var(--cc-map-bg);
   font: inherit;
 }
 
 :global(.leaflet-control-attribution) {
   background: rgba(15, 17, 23, 0.7) !important;
-  color: #4d566b !important;
+  color: var(--cc-faint) !important;
   font-size: 9px !important;
 }
 
 :global(.leaflet-control-attribution a) {
-  color: #8b93a8 !important;
+  color: var(--cc-muted) !important;
 }

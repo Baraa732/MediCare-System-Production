@@ -28,28 +28,28 @@ export default function MapCard({
       <svg className={styles.mapSvg} viewBox="0 0 100 70" preserveAspectRatio="xMidYMid slice">
         <defs>
           <radialGradient id="ocean" cx="50%" cy="50%" r="60%">
-            <stop offset="0%" stopColor="#1a2234" />
-            <stop offset="100%" stopColor="#0d1018" />
+            <stop offset="0%" stopColor="var(--cc-elevated)" />
+            <stop offset="100%" stopColor="var(--cc-bg)" />
           </radialGradient>
         </defs>
         <rect width="100" height="70" fill="url(#ocean)" />
         {/* stylized continents */}
         <path
           d="M12 28 C18 22, 28 24, 34 30 C38 34, 36 42, 30 44 C22 46, 14 40, 12 28 Z"
-          fill="#1c2538"
-          stroke="#2a3147"
+          fill="var(--cc-hover)"
+          stroke="var(--cc-border-strong)"
           strokeWidth="0.3"
         />
         <path
           d="M42 18 C52 14, 62 16, 68 24 C72 30, 70 38, 62 40 C52 42, 44 34, 42 18 Z"
-          fill="#1c2538"
-          stroke="#2a3147"
+          fill="var(--cc-hover)"
+          stroke="var(--cc-border-strong)"
           strokeWidth="0.3"
         />
         <path
           d="M66 40 C74 38, 84 42, 88 50 C90 56, 84 60, 76 58 C68 56, 64 48, 66 40 Z"
-          fill="#1c2538"
-          stroke="#2a3147"
+          fill="var(--cc-hover)"
+          stroke="var(--cc-border-strong)"
           strokeWidth="0.3"
         />
 
@@ -85,7 +85,7 @@ export default function MapCard({
               cy={r.y}
               r="1.2"
               fill={statusFill[r.status]}
-              stroke="#0f1117"
+              stroke="var(--cc-bg)"
               strokeWidth="0.3"
             />
             <text className={styles.nodeLabel} x={r.x} y={r.y - 2.8} textAnchor="middle">

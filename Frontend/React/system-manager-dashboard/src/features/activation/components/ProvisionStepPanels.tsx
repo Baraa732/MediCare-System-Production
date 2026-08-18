@@ -139,8 +139,8 @@ export default function ProvisionStepPanels(props: ProvisionStepPanelsProps) {
                     sx: {
                       mt: 0.75,
                       borderRadius: '12px',
-                      bgcolor: '#0d1a2b',
-                      color: '#e8f1ff',
+                      bgcolor: 'var(--ac-panel)',
+                      color: 'var(--ac-text)',
                       border: '1px solid rgba(125, 211, 252, 0.16)',
                       backgroundImage: 'none',
                       boxShadow: '0 18px 40px -20px rgba(0,0,0,0.65)',

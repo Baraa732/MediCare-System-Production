@@ -62,7 +62,7 @@ export default function DocumentUploadZone({
     >
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1, mb: 1.25 }}>
         <Box>
-          <Typography variant="body2" sx={{ fontWeight: 700, color: '#e8f1ff' }}>
+          <Typography variant="body2" sx={{ fontWeight: 700, color: 'var(--ac-text)' }}>
             {label}
             {required && (
               <Typography component="span" sx={{ color: '#22d3ee', ml: 0.5 }}>
@@ -70,7 +70,7 @@ export default function DocumentUploadZone({
               </Typography>
             )}
           </Typography>
-          <Typography variant="caption" sx={{ color: '#8aa0b8', display: 'block', mt: 0.35, lineHeight: 1.4 }}>
+          <Typography variant="caption" sx={{ color: 'var(--ac-muted)', display: 'block', mt: 0.35, lineHeight: 1.4 }}>
             {helper}
           </Typography>
         </Box>
@@ -125,7 +125,7 @@ export default function DocumentUploadZone({
             </Box>
           )}
           <Box sx={{ minWidth: 0 }}>
-            <Typography variant="body2" noWrap sx={{ color: '#e8f1ff', fontWeight: 600 }}>
+            <Typography variant="body2" noWrap sx={{ color: 'var(--ac-text)', fontWeight: 600 }}>
               {value.name}
             </Typography>
             <Chip

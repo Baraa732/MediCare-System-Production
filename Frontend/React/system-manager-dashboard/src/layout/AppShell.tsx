@@ -74,7 +74,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         }}
       >
         <Breadcrumbs
-          separator={<Typography sx={{ color: '#4d566b', fontSize: 12 }}>/</Typography>}
+          separator={<Typography sx={{ color: 'text.disabled', fontSize: 12 }}>/</Typography>}
           sx={{ '& .MuiBreadcrumbs-ol': { flexWrap: 'nowrap' } }}
         >
           <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>MediCare</Typography>

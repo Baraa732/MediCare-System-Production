@@ -16,12 +16,12 @@
   font-size: 24px;
   font-weight: 750;
   letter-spacing: -0.03em;
-  color: #e8eaf0;
+  color: var(--cc-text);
 }
 
 .heroMeta {
   font-size: 13px;
-  color: #8b93a8;
+  color: var(--cc-muted);
   margin-top: 4px;
 }
 
@@ -73,17 +73,17 @@
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #8b93a8;
+  color: var(--cc-muted);
   padding: 10px 12px;
-  border-bottom: 1px solid #2a3147;
+  border-bottom: 1px solid var(--cc-border-strong);
   white-space: nowrap;
 }
 
 .table td {
   padding: 11px 12px;
-  border-bottom: 1px solid #23283a;
+  border-bottom: 1px solid var(--cc-table-row);
   font-size: 13px;
-  color: #e8eaf0;
+  color: var(--cc-text);
   vertical-align: middle;
 }
 
@@ -102,19 +102,19 @@
 .mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12px;
-  color: #b4bdd4;
+  color: var(--cc-muted);
 }
 
 .name {
-  color: #67e8f9;
+  color: var(--cc-accent-text);
   font-weight: 600;
 }
 
 .cluster {
   padding: 14px;
-  border: 1px solid rgba(42, 49, 71, 0.95);
+  border: 1px solid var(--cc-border-strong);
   border-radius: 12px;
-  background: rgba(15, 17, 23, 0.45);
+  background: var(--cc-input);
   border-left: 3px solid #f59e0b;
   min-height: 112px;
 }
@@ -134,12 +134,12 @@
 .clusterTitle {
   font-size: 14px;
   font-weight: 700;
-  color: #e8eaf0;
+  color: var(--cc-text);
 }
 
 .clusterMeta {
   font-size: 12px;
-  color: #8b93a8;
+  color: var(--cc-muted);
   line-height: 1.45;
 }
 
@@ -150,16 +150,16 @@
   justify-content: space-between;
   gap: 12px;
   padding: 12px 0;
-  border-bottom: 1px solid #23283a;
+  border-bottom: 1px solid var(--cc-table-row);
 }
 
 .channel {
   align-items: flex-start;
   flex-direction: column;
-  border: 1px solid #2a3147;
+  border: 1px solid var(--cc-border-strong);
   border-radius: 12px;
   padding: 14px;
-  background: rgba(15, 17, 23, 0.35);
+  background: var(--cc-inset);
 }
 
 .channelTop {
@@ -178,9 +178,9 @@
   height: 32px;
   padding: 0 10px;
   border-radius: 10px;
-  border: 1px solid #2a3147;
-  background: rgba(15, 17, 23, 0.55);
-  color: #e8eaf0;
+  border: 1px solid var(--cc-border-strong);
+  background: var(--cc-overlay);
+  color: var(--cc-text);
   font-size: 12px;
   cursor: pointer;
 }
@@ -191,14 +191,14 @@
 }
 
 .danger {
-  color: #fca5a5;
+  color: var(--cc-danger-text);
   border-color: #7f1d1d;
 }
 
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(5, 7, 12, 0.55);
+  background: var(--cc-scrim);
   z-index: 40;
 }
 
@@ -208,8 +208,8 @@
   right: 0;
   height: 100vh;
   width: min(480px, 100vw);
-  background: #12151f;
-  border-left: 1px solid #2a3147;
+  background: var(--cc-surface);
+  border-left: 1px solid var(--cc-border-strong);
   z-index: 41;
   display: flex;
   flex-direction: column;
@@ -218,19 +218,19 @@
 
 .drawerHead {
   padding: 18px 18px 14px;
-  border-bottom: 1px solid #2a3147;
+  border-bottom: 1px solid var(--cc-border-strong);
 }
 
 .drawerTitle {
   font-size: 18px;
   font-weight: 720;
-  color: #e8eaf0;
+  color: var(--cc-text);
   margin-top: 8px;
 }
 
 .drawerSub {
   font-size: 12px;
-  color: #8b93a8;
+  color: var(--cc-muted);
   margin-top: 4px;
 }
 
@@ -247,12 +247,12 @@
   grid-template-columns: 110px 1fr;
   gap: 8px;
   padding: 7px 0;
-  border-bottom: 1px solid #23283a;
+  border-bottom: 1px solid var(--cc-table-row);
   font-size: 13px;
 }
 
-.kv dt { color: #8b93a8; }
-.kv dd { color: #e8eaf0; margin: 0; }
+.kv dt { color: var(--cc-muted); }
+.kv dd { color: var(--cc-text); margin: 0; }
 
 .actions {
   display: flex;
@@ -266,13 +266,13 @@
   z-index: 50;
   display: grid;
   place-items: center;
-  background: rgba(5, 7, 12, 0.6);
+  background: var(--cc-scrim);
 }
 
 .dialog {
   width: min(440px, calc(100vw - 32px));
-  background: #161b27;
-  border: 1px solid #2a3147;
+  background: var(--cc-surface);
+  border: 1px solid var(--cc-border-strong);
   border-radius: 14px;
   padding: 18px;
   display: grid;
@@ -281,7 +281,7 @@
 
 .dialog h3 {
   margin: 0;
-  color: #e8eaf0;
+  color: var(--cc-text);
   font-size: 16px;
 }
 
@@ -292,7 +292,7 @@
 
 .field label {
   font-size: 11px;
-  color: #8b93a8;
+  color: var(--cc-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -301,9 +301,9 @@
 .field select {
   height: 36px;
   border-radius: 10px;
-  border: 1px solid #2a3147;
+  border: 1px solid var(--cc-border-strong);
   background: rgba(15, 17, 23, 0.7);
-  color: #e8eaf0;
+  color: var(--cc-text);
   padding: 0 10px;
 }
 

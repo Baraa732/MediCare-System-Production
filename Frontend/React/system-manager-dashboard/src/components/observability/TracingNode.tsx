@@ -52,7 +52,7 @@ export default function TracingGraph({
               x={n.x}
               y={n.y - 0.8}
               textAnchor="middle"
-              fill="#e8eaf0"
+              fill="var(--cc-text)"
               fontSize="2.6"
               fontWeight="700"
             >

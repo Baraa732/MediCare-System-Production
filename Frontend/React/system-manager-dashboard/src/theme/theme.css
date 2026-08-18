@@ -1,0 +1,101 @@
+:root {
+  color-scheme: dark;
+
+  --cc-bg: #0f1117;
+  --cc-surface: #161b27;
+  --cc-elevated: #1c2333;
+  --cc-hover: #1e2438;
+  --cc-selected: #1a2540;
+  --cc-text: #e8eaf0;
+  --cc-muted: #8b93a8;
+  --cc-faint: #4d566b;
+  --cc-border: #1f2535;
+  --cc-border-strong: #2a3147;
+  --cc-border-stronger: #3d4663;
+
+  --cc-card: rgba(22, 27, 39, 0.78);
+  --cc-card-solid: #161b27;
+  --cc-topbar: rgba(22, 27, 39, 0.86);
+  --cc-sidebar: rgba(15, 17, 23, 0.96);
+  --cc-input: rgba(15, 17, 23, 0.55);
+  --cc-inset: rgba(15, 17, 23, 0.35);
+  --cc-overlay: rgba(15, 17, 23, 0.55);
+  --cc-overlay-strong: rgba(15, 17, 23, 0.75);
+  --cc-scrim: rgba(5, 7, 12, 0.45);
+  --cc-nav-hover: rgba(30, 36, 56, 0.85);
+  --cc-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
+  --cc-shadow-hover: 0 0 24px rgba(6, 182, 212, 0.14), 0 12px 32px rgba(0, 0, 0, 0.35);
+  --cc-shadow-lg: 0 24px 48px rgba(0, 0, 0, 0.45);
+  --cc-panel-grad: linear-gradient(180deg, #161b27 0%, #121722 100%);
+  --cc-skeleton-a: #1c2333;
+  --cc-skeleton-b: #243049;
+  --cc-map-bg: #0a0e16;
+  --cc-on-accent: #0f1117;
+  --cc-accent: #06b6d4;
+  --cc-accent-text: #67e8f9;
+  --cc-danger-text: #fca5a5;
+  --cc-chip: #1a2130;
+  --cc-chip-text: #c5cad8;
+  --cc-link: #67e8f9;
+  --cc-graph-fill: #e8eaf0;
+  --cc-trace-bg: linear-gradient(180deg, #121722 0%, #0d1018 100%);
+  --cc-shimmer: rgba(232, 234, 240, 0.08);
+  --cc-table-row: #23283a;
+  --cc-mix: screen;
+}
+
+html[data-theme='light'] {
+  color-scheme: light;
+
+  --cc-bg: #f3f5f8;
+  --cc-surface: #ffffff;
+  --cc-elevated: #f8fafc;
+  --cc-hover: #eef2f6;
+  --cc-selected: #e6f7fb;
+  --cc-text: #0f172a;
+  --cc-muted: #64748b;
+  --cc-faint: #94a3b8;
+  --cc-border: #e2e8f0;
+  --cc-border-strong: #cbd5e1;
+  --cc-border-stronger: #94a3b8;
+
+  --cc-card: #ffffff;
+  --cc-card-solid: #ffffff;
+  --cc-topbar: rgba(255, 255, 255, 0.92);
+  --cc-sidebar: #ffffff;
+  --cc-input: #ffffff;
+  --cc-inset: #f1f5f9;
+  --cc-overlay: rgba(255, 255, 255, 0.78);
+  --cc-overlay-strong: rgba(255, 255, 255, 0.94);
+  --cc-scrim: rgba(15, 23, 42, 0.32);
+  --cc-nav-hover: rgba(15, 23, 42, 0.05);
+  --cc-shadow: 0 8px 28px rgba(15, 23, 42, 0.08);
+  --cc-shadow-hover: 0 0 20px rgba(8, 145, 178, 0.12), 0 12px 32px rgba(15, 23, 42, 0.1);
+  --cc-shadow-lg: 0 24px 48px rgba(15, 23, 42, 0.12);
+  --cc-panel-grad: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  --cc-skeleton-a: #e2e8f0;
+  --cc-skeleton-b: #f1f5f9;
+  --cc-map-bg: #e8eef4;
+  --cc-on-accent: #ffffff;
+  --cc-accent: #0891b2;
+  --cc-accent-text: #0e7490;
+  --cc-danger-text: #b91c1c;
+  --cc-chip: #f1f5f9;
+  --cc-chip-text: #334155;
+  --cc-link: #0e7490;
+  --cc-graph-fill: #0f172a;
+  --cc-trace-bg: linear-gradient(180deg, #f8fafc 0%, #eef2f6 100%);
+  --cc-shimmer: rgba(15, 23, 42, 0.06);
+  --cc-table-row: #e2e8f0;
+  --cc-mix: multiply;
+}
+
+html,
+body {
+  background: var(--cc-bg);
+  color: var(--cc-text);
+}
+
+html[data-theme='light'] .leaflet-container {
+  background: var(--cc-map-bg);
+}

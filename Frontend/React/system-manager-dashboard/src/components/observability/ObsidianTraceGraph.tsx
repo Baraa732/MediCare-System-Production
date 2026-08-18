@@ -5,6 +5,8 @@ import { GraphChart } from 'echarts/charts'
 import { TooltipComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import { EmptyState } from '../ui'
+import { useUIStore } from '../../store/uiStore'
+import { chartChrome } from '../../charts/chartTokens'
 import styles from './obs.module.css'
 
 echarts.use([GraphChart, TooltipComponent, CanvasRenderer])
@@ -42,7 +44,9 @@ export default function ObsidianTraceGraph({
   onNodeClick?: (node: TraceGraphNode) => void
   tall?: boolean
 }) {
+  const themeMode = useUIStore((s) => s.themeMode)
   const option = useMemo(() => {
+    const chrome = chartChrome(themeMode)
     const maxReq = Math.max(1, ...nodes.map((n) => n.reqRate ?? 0))
     const graphNodes = nodes.map((n) => {
       const color = statusColor(n.status)
@@ -55,12 +59,12 @@ export default function ObsidianTraceGraph({
           color,
           shadowBlur: 18,
           shadowColor: `${color}99`,
-          borderColor: '#e8eaf0',
+          borderColor: chrome.textStrong,
           borderWidth: 1,
         },
         label: {
           show: true,
-          color: '#e8eaf0',
+          color: chrome.textStrong,
           fontSize: 11,
           fontWeight: 650,
           formatter: `{b}\n${n.p95 ?? '—'}ms`,
@@ -85,7 +89,7 @@ export default function ObsidianTraceGraph({
         label: {
           show: Boolean(e.avgLatencyMs),
           formatter: `${Math.round(e.avgLatencyMs ?? 0)}ms`,
-          color: '#8b93a8',
+          color: chrome.text,
           fontSize: 9,
         },
         raw: e,
@@ -95,9 +99,9 @@ export default function ObsidianTraceGraph({
     return {
       backgroundColor: 'transparent',
       tooltip: {
-        backgroundColor: '#0f1117',
-        borderColor: '#2a3147',
-        textStyle: { color: '#e8eaf0', fontSize: 12 },
+        backgroundColor: chrome.tooltipBg,
+        borderColor: chrome.tooltipBorder,
+        textStyle: { color: chrome.textStrong, fontSize: 12 },
         formatter: (p: { dataType?: string; data?: { raw?: TraceGraphNode | TraceGraphEdge; name?: string } }) => {
           if (p.dataType === 'node') {
             const n = p.data?.raw as TraceGraphNode
@@ -131,7 +135,7 @@ export default function ObsidianTraceGraph({
         },
       ],
     }
-  }, [nodes, edges])
+  }, [nodes, edges, themeMode])
 
   const shellClass = [styles.traceCanvas, tall ? styles.traceCanvasTall : '']
     .filter(Boolean)

@@ -15,7 +15,7 @@ export default function Legend({
             alignItems: 'center',
             gap: 6,
             fontSize: 11,
-            color: '#8b93a8',
+            color: 'var(--cc-muted)',
           }}
         >
           <span

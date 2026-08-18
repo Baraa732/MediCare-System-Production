@@ -15,7 +15,7 @@ const KIND_ICON = {
 function SectionLabel({ icon: Icon, label }: { icon: typeof Brain; label: string }) {
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.75 }}>
-      <Icon size={13} color="#8b93a8" />
+      <Icon size={13} color="var(--cc-muted)" />
       <Typography variant="caption2" sx={{ color: 'text.secondary', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
         {label}
       </Typography>

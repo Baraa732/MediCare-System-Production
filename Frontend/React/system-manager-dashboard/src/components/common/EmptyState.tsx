@@ -23,7 +23,7 @@ export default function EmptyState({ icon: Icon, title, description, action }: E
         px: 2,
       }}
     >
-      {Icon && <Icon size={48} color="#4d566b" style={{ marginBottom: 16 }} />}
+      {Icon && <Icon size={48} color="var(--cc-faint)" style={{ marginBottom: 16 }} />}
       <Typography variant="h4" sx={{ mb: 1, color: theme.palette.text.secondary }}>
         {title}
       </Typography>

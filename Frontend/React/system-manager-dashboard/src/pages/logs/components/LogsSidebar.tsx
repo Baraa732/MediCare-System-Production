@@ -14,7 +14,6 @@ import {
 import { alpha, useTheme } from '@mui/material/styles'
 import { ChevronDown, Filter, Search } from 'lucide-react'
 import type { PlatformLogLevel } from '../../../api/types'
-import { COLORS } from '../../../theme/tokens'
 import { ALL_LOG_LEVELS, LOG_LEVEL_COLORS, formatCount } from '../logUtils'
 
 interface LogsSidebarProps {
@@ -83,11 +82,11 @@ export default function LogsSidebar({
         flexShrink: 0,
         borderRight: 1,
         borderColor: 'divider',
-        bgcolor: alpha(COLORS.bg.surface, 0.88),
+        bgcolor: alpha(theme.palette.background.paper, 0.88),
         overflowY: 'auto',
         p: 1.25,
         backdropFilter: 'blur(6px)',
-        backgroundImage: `linear-gradient(180deg, ${alpha(COLORS.accent.default, 0.03)} 0%, transparent 120px)`,
+        backgroundImage: `linear-gradient(180deg, ${alpha(theme.palette.primary.main, 0.03)} 0%, transparent 120px)`,
       }}
     >
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.25, px: 0.25 }}>
@@ -98,8 +97,8 @@ export default function LogsSidebar({
             borderRadius: '6px',
             display: 'grid',
             placeItems: 'center',
-            bgcolor: alpha(COLORS.accent.default, 0.12),
-            color: COLORS.accent.default,
+            bgcolor: alpha(theme.palette.primary.main, 0.12),
+            color: theme.palette.primary.main,
           }}
         >
           <Filter size={14} />
@@ -165,7 +164,7 @@ export default function LogsSidebar({
             value={serviceQuery}
             onChange={(e) => setServiceQuery(e.target.value)}
             fullWidth
-            sx={{ mb: 0.75, '& .MuiOutlinedInput-root': { fontSize: 12, bgcolor: alpha(COLORS.bg.page, 0.65) } }}
+            sx={{ mb: 0.75, '& .MuiOutlinedInput-root': { fontSize: 12, bgcolor: 'background.default' } }}
             slotProps={{
               input: {
                 startAdornment: (

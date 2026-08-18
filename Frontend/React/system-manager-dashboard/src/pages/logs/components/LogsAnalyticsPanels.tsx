@@ -32,7 +32,7 @@ function levelDonutOption(theme: Theme, levels: Array<{ level: PlatformLogLevel;
       center: ['50%', '42%'],
       label: { show: false },
       itemStyle: { borderWidth: 1, borderColor: theme.palette.background.paper },
-      data: data.length ? data : [{ name: 'No data', value: 1, itemStyle: { color: '#2a3147' } }],
+      data: data.length ? data : [{ name: 'No data', value: 1, itemStyle: { color: theme.palette.divider } }],
     }],
   }
 }
@@ -42,11 +42,11 @@ function serviceBarOption(theme: Theme, services: Array<{ name: string; count: n
   return {
     ...chartBase(theme),
     grid: chartGrid(true),
-    xAxis: { type: 'value', splitLine: { lineStyle: { color: '#1f2535', width: 1 } }, axisLabel: { color: '#4d566b', fontSize: 10 } },
+    xAxis: { type: 'value', splitLine: { lineStyle: { color: theme.palette.divider, width: 1 } }, axisLabel: { color: theme.palette.text.disabled, fontSize: 10 } },
     yAxis: {
       type: 'category',
       data: top.map((s) => s.name).reverse(),
-      axisLabel: { color: '#8b93a8', fontSize: 10 },
+      axisLabel: { color: theme.palette.text.secondary, fontSize: 10 },
       axisLine: { show: false },
       axisTick: { show: false },
     },
@@ -67,11 +67,11 @@ function errorTrendOption(theme: Theme, histogram: PlatformLogsHistogramBucket[]
     xAxis: {
       type: 'category',
       data: labels,
-      axisLabel: { fontSize: 10, color: '#4d566b', interval: Math.max(0, Math.floor(labels.length / 6)) },
-      axisLine: { lineStyle: { color: '#2a3147', width: 1 } },
+      axisLabel: { fontSize: 10, color: theme.palette.text.disabled, interval: Math.max(0, Math.floor(labels.length / 6)) },
+      axisLine: { lineStyle: { color: theme.palette.divider, width: 1 } },
       axisTick: { show: false },
     },
-    yAxis: { type: 'value', minInterval: 1, axisLabel: { fontSize: 10, color: '#4d566b' }, splitLine: { lineStyle: { color: '#1f2535', width: 1 } } },
+    yAxis: { type: 'value', minInterval: 1, axisLabel: { fontSize: 10, color: theme.palette.text.disabled }, splitLine: { lineStyle: { color: theme.palette.divider, width: 1 } } },
     series: [
       thinLineSeries('ERROR', histogram.map((b) => b.error), '#ef4444'),
       thinLineSeries('WARN', histogram.map((b) => b.warn), '#f59e0b'),
@@ -89,6 +89,7 @@ export default function LogsAnalyticsPanels({ histogram, services, levels, entri
     () => ({
       ...chartBase(theme),
       ...buildLogFlowSankey(
+        theme,
         services,
         levels.map((l) => ({ level: l.level, count: l.count })),
         entries.map((e) => ({ service: e.service, level: e.level })),

@@ -56,6 +56,7 @@ export default function Metrics() {
 }
 
 function InfrastructureTab({ hosts, services }: { hosts: PlatformMonitor[]; services: ApmService[] }) {
+  const theme = useTheme()
   const [selected, setSelected] = useState<PlatformMonitor | null>(null)
   const cards = [
     { label: 'Checks', value: hosts.length, color: '#06b6d4' },
@@ -80,7 +81,7 @@ function InfrastructureTab({ hosts, services }: { hosts: PlatformMonitor[]; serv
       <Grid size={{ xs: 12, xl: 4 }}>
         <MotionPanel index={1}>
         <AdvancedPanel title="Capacity Radar" caption="traffic, latency, errors, monitor health" dense>
-          <ReactECharts option={capacityOption(services, hosts)} style={{ height: 320 }} notMerge />
+          <ReactECharts option={capacityOption(theme, services, hosts)} style={{ height: 320 }} notMerge />
         </AdvancedPanel>
         </MotionPanel>
       </Grid>
@@ -118,7 +119,7 @@ function MetricsExplorerTab({ services }: { services: ApmService[] }) {
         <MotionPanel index={0}>
         <AdvancedPanel title="Metrics Explorer" caption="query real service series" dense>
           <Box sx={{ display: 'flex', gap: 1, mb: 1, flexWrap: 'wrap' }}>
-            <TextField size="small" value={query} onChange={(e) => setQuery(e.target.value)} slotProps={{ input: { startAdornment: <Search size={14} color="#8b93a8" style={{ marginRight: 6 }} /> } }} sx={{ width: 320 }} />
+            <TextField size="small" value={query} onChange={(e) => setQuery(e.target.value)} slotProps={{ input: { startAdornment: <Search size={14} color="var(--cc-muted)" style={{ marginRight: 6 }} /> } }} sx={{ width: 320 }} />
             <Select size="small" value={service} onChange={(e) => setService(e.target.value)} sx={{ minWidth: 180 }}>
               <MenuItem value="all">All Services</MenuItem>
               {services.map((s) => <MenuItem key={s.name} value={s.name}>{s.name}</MenuItem>)}
@@ -160,12 +161,12 @@ function explorerOption(theme: Theme, services: ApmService[], query: string) {
   return { tooltip: { trigger: 'axis', backgroundColor: theme.palette.background.elevated, borderColor: theme.palette.divider, textStyle: { color: theme.palette.text.primary, fontSize: 12 } }, legend: { bottom: 0, type: 'scroll', textStyle: { color: theme.palette.text.secondary, fontSize: 11 } }, grid: { top: 12, right: 12, bottom: 40, left: 44 }, xAxis: { type: 'category', data: Array.from({ length: 30 }, (_, i) => `${i * 2}m`), axisLabel: { color: theme.palette.text.disabled, fontSize: 10 } }, yAxis: { type: 'value', splitLine: { lineStyle: { color: theme.palette.divider, width: 1 } }, axisLabel: { color: theme.palette.text.disabled, fontSize: 10 } }, series: services.slice(0, 7).map((s, i) => ({ name: s.name, type: 'line', data: query.includes('error') ? s.series.map((v) => Math.round(v * s.errorRate / 10)) : query.includes('instances') ? s.series.map(() => s.instances) : s.series, smooth: false, symbol: 'none', lineStyle: { color: ['#06b6d4', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#ec4899', '#f97316'][i], width: 1 } })) }
 }
 
-function capacityOption(services: ApmService[], hosts: PlatformMonitor[]) {
+function capacityOption(theme: Theme, services: ApmService[], hosts: PlatformMonitor[]) {
   const traffic = Math.min(100, services.reduce((sum, s) => sum + s.reqRate, 0))
   const latency = Math.min(100, services.reduce((sum, s) => sum + (s.p95 ?? 0), 0) / Math.max(1, services.length) / 10)
   const errors = Math.min(100, services.reduce((sum, s) => sum + s.errorRate, 0) * 10)
   const health = hosts.length ? (hosts.filter((h) => h.status === 'up').length / hosts.length) * 100 : 100
-  return { radar: { indicator: [{ name: 'Traffic', max: 100 }, { name: 'Latency', max: 100 }, { name: 'Errors', max: 100 }, { name: 'Monitor Health', max: 100 }, { name: 'Instances', max: 100 }], axisName: { color: '#8b93a8', fontSize: 10 }, splitLine: { lineStyle: { color: '#2a3147', width: 1 } }, splitArea: { show: false }, axisLine: { lineStyle: { color: '#2a3147', width: 1 } } }, series: [{ type: 'radar', data: [{ value: [traffic, latency, errors, health, Math.min(100, services.reduce((sum, s) => sum + s.instances, 0) * 20)], lineStyle: { color: '#06b6d4', width: 1 }, itemStyle: { color: '#06b6d4' } }] }] }
+  return { radar: { indicator: [{ name: 'Traffic', max: 100 }, { name: 'Latency', max: 100 }, { name: 'Errors', max: 100 }, { name: 'Monitor Health', max: 100 }, { name: 'Instances', max: 100 }], axisName: { color: theme.palette.text.secondary, fontSize: 10 }, splitLine: { lineStyle: { color: theme.palette.divider, width: 1 } }, splitArea: { show: false }, axisLine: { lineStyle: { color: theme.palette.divider, width: 1 } } }, series: [{ type: 'radar', data: [{ value: [traffic, latency, errors, health, Math.min(100, services.reduce((sum, s) => sum + s.instances, 0) * 20)], lineStyle: { color: '#06b6d4', width: 1 }, itemStyle: { color: '#06b6d4' } }] }] }
 }
 
 const headSx = { color: 'text.secondary', fontSize: '11px', fontWeight: 500, letterSpacing: '0.04em', textTransform: 'uppercase' as const, borderColor: 'divider', py: 1 }
