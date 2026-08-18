@@ -50,6 +50,7 @@ export default function HudGeoMap({
   subtitle = 'ACTIVE',
   emptyHint = 'No geolocated nodes yet',
   heightClass,
+  onMarkerClick,
 }: {
   markers: HudMarker[]
   arcs?: HudArc[]
@@ -57,6 +58,7 @@ export default function HudGeoMap({
   subtitle?: string
   emptyHint?: string
   heightClass?: string
+  onMarkerClick?: (marker: HudMarker) => void
 }) {
   const center = useMemo<[number, number]>(() => {
     if (!markers.length) return [33.5, 36.3]
@@ -105,6 +107,11 @@ export default function HudGeoMap({
             key={m.id}
             center={[m.lat, m.lng]}
             radius={m.status === 'bad' ? 8 : 6}
+            eventHandlers={
+              onMarkerClick
+                ? { click: () => onMarkerClick(m) }
+                : undefined
+            }
             pathOptions={{
               color: '#0f1117',
               weight: 2,

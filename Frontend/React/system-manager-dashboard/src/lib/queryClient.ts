@@ -24,6 +24,7 @@ export const queryKeys = {
   queues: () => ['platform-queues'] as const,
   deployments: () => ['platform-deployments'] as const,
   prometheusAlerts: () => ['platform-prometheus-alerts'] as const,
+  distributedTrace: (traceId: string) => ['platform-trace', traceId] as const,
 }
 
 /** Live telemetry keys only — clinics/users (platform-data) stay manual. */

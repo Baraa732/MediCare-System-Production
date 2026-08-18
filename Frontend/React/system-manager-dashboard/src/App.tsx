@@ -71,7 +71,7 @@ export default function App() {
                     <Route path="/profile" element={<ProfilePage />} />
                     <Route path="/docs" element={<DocsPage />} />
 
-                    {/* Control Center placeholder routes (UI only) */}
+                    {/* Control Center routes */}
                     <Route path="/cc/infrastructure" element={<InfrastructurePage />} />
                     <Route path="/cc/tracing" element={<TracingPage />} />
                     <Route path="/cc/databases" element={<DatabasesPage />} />

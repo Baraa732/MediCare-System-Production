@@ -1,12 +1,7 @@
 import PlaceholderPage from './PlaceholderPage'
 
-export function InfrastructurePage() {
-  return <PlaceholderPage title="Infrastructure" description="Nodes, regions, and capacity map shell." />
-}
-
-export function TracingPage() {
-  return <PlaceholderPage title="Tracing" description="Distributed request traces shell." />
-}
+export { default as InfrastructurePage } from './InfrastructurePage'
+export { default as TracingPage } from './TracingPage'
 
 export function DatabasesPage() {
   return <PlaceholderPage title="Databases" description="Database estate overview shell." />

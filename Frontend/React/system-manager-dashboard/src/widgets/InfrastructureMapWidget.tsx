@@ -16,9 +16,11 @@ function clinicStatus(status: string): HudMarker['status'] {
 export default function InfrastructureMapWidget({
   delay = 0,
   clinics = [],
+  onSelectClinic,
 }: {
   delay?: number
   clinics?: Clinic[]
+  onSelectClinic?: (clinic: Clinic) => void
 }) {
   const geo = useMemo(() => clinicsWithCoords(clinics), [clinics])
 
@@ -60,6 +62,14 @@ export default function InfrastructureMapWidget({
         subtitle="ACTIVE"
         emptyHint="No clinics with latitude/longitude yet"
         heightClass={mapStyles.tall}
+        onMarkerClick={
+          onSelectClinic
+            ? (marker) => {
+                const clinic = clinics.find((c) => c.id === marker.id)
+                if (clinic) onSelectClinic(clinic)
+              }
+            : undefined
+        }
       />
     </DashboardCard>
   )
