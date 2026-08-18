@@ -43,7 +43,9 @@ export class PrometheusTelemetryService {
         timeout: 4000,
       });
       const value = data?.data?.result?.[0]?.value?.[1];
-      return value !== undefined ? Number(value) : null;
+      if (value === undefined || value === null) return null;
+      const numeric = Number(value);
+      return Number.isFinite(numeric) ? numeric : null;
     } catch (error) {
       this.logger.debug(`Prometheus query failed: ${promql} — ${String(error)}`);
       return null;
