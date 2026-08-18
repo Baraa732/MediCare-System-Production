@@ -51,6 +51,11 @@ export class PlatformBroadcastService {
     this.logger.log(
       `Broadcast complete: patients=${totalPatients} inbox=${inboxSaved} pushOk=${pushSuccess} pushFail=${pushFailed} batches=${batches}`,
     );
+    if (totalPatients > 0 && pushSuccess === 0) {
+      this.logger.warn(
+        'Broadcast inbox was saved but no FCM push was delivered. Patients need a registered device token, and notification-service needs FIREBASE_* Admin credentials.',
+      );
+    }
 
     return {
       success: true,
@@ -63,7 +68,9 @@ export class PlatformBroadcastService {
       message:
         totalPatients === 0
           ? 'No patients found on the platform.'
-          : `Notification delivered to ${inboxSaved} of ${totalPatients} patients.`,
+          : pushSuccess === 0
+            ? `Saved to ${inboxSaved} patient inboxes, but no phone push was delivered (FCM not configured or no device tokens).`
+            : `Notification delivered to ${inboxSaved} of ${totalPatients} patients (${pushSuccess} push).`,
     };
   }
 }

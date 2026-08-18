@@ -306,6 +306,7 @@ export class PatientPushService {
       where: { userId, enabled: true, tenantId: IsNull() },
     });
     if (!tokens.length) {
+      this.logger.warn(`No FCM device token for patient ${userId} — inbox saved, push skipped`);
       return { pushSuccess: 0, pushFailed: 0 };
     }
 

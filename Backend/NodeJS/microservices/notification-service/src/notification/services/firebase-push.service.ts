@@ -114,6 +114,11 @@ export class FirebasePushService implements OnModuleInit {
     invalidTokens: string[];
   }> {
     if (!this.initialized || tokens.length === 0) {
+      if (!this.initialized && tokens.length > 0) {
+        this.logger.warn(
+          `Skipping FCM send for ${tokens.length} token(s) — Firebase Admin is not configured.`,
+        );
+      }
       return { successCount: 0, failureCount: tokens.length, invalidTokens: [] };
     }
 

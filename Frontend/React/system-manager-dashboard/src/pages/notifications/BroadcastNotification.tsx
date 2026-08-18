@@ -134,6 +134,14 @@ export default function BroadcastNotification() {
                 Sent as category SYSTEM to all ACTIVE / PENDING patients.
               </Typography>
 
+              {result && result.queued > 0 && result.pushSuccess === 0 ? (
+                <Alert severity="warning" sx={{ mb: 2 }}>
+                  Inbox rows were saved ({result.inboxSaved}), but no phone push was delivered
+                  ({result.pushFailed} failed). Patients only get a tray notification if the app
+                  registered an FCM token and Firebase Admin is configured on notification-service.
+                </Alert>
+              ) : null}
+
               {error ? (
                 <Alert severity="error" sx={{ mb: 2 }}>
                   {error}
