@@ -72,7 +72,7 @@ function createHttpLoggingMiddleware(serviceName, options = {}) {
       res.on('finish', () => {
         const duration_ms = Date.now() - started;
         const status_code = res.statusCode;
-        recordHttpResponse(serviceName, status_code);
+        recordHttpResponse(serviceName, status_code, duration_ms, req.method);
         const payload = {
           event: status_code >= 400 ? 'request_error' : 'request_end',
           method: req.method,

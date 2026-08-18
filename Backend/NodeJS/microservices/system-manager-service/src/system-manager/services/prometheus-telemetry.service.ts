@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
 import { SERVICE_CONTAINERS } from './platform-logs.service';
+import { resolvePrometheusBaseUrl } from './resolve-runtime-url';
 
 export interface PrometheusServiceMetrics {
   job: string;
@@ -24,7 +25,7 @@ const JOBS = Object.keys(SERVICE_CONTAINERS);
 @Injectable()
 export class PrometheusTelemetryService {
   private readonly logger = new Logger(PrometheusTelemetryService.name);
-  private readonly baseUrl = process.env.PROMETHEUS_URL || 'http://prometheus:9090';
+  private readonly baseUrl = resolvePrometheusBaseUrl();
 
   async isAvailable(): Promise<boolean> {
     try {

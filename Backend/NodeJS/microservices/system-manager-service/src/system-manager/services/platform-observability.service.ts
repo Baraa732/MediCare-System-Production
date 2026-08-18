@@ -9,6 +9,7 @@ import {
 import { PrometheusTelemetryService } from './prometheus-telemetry.service';
 import { OtelTopologyService } from './otel-topology.service';
 import { LokiTelemetryService } from './loki-telemetry.service';
+import { resolvePrometheusBaseUrl, resolveRuntimeUrl } from './resolve-runtime-url';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { resolveLokiBaseUrl } = require('@medicare/telemetry/loki-url') as {
@@ -210,12 +211,12 @@ export class PlatformObservabilityService {
     const errorCount = serviceEntries.filter((entry) => entry.level === 'ERROR').length;
     const healthStatus = health.services.find((item) => item.name === service)?.status;
     const durations = serviceEntries.map((entry) => this.extractDuration(entry.message)).filter((value) => value > 0);
-    const logP50 = this.percentile(durations, 50) ?? (healthStatus === 'up' ? 45 : 1200);
-    const logP95 = this.percentile(durations, 95) ?? (healthStatus === 'up' ? logP50 * 2 : null);
-    const logP99 = this.percentile(durations, 99) ?? (logP95 ? logP95 * 1.4 : null);
+    const logP50 = this.percentile(durations, 50);
+    const logP95 = this.percentile(durations, 95);
+    const logP99 = this.percentile(durations, 99);
 
     const useProm = prom?.available;
-    const p50 = useProm && prom.p50 !== null ? prom.p50 : Math.round(logP50);
+    const p50 = useProm && prom.p50 !== null ? prom.p50 : logP50 !== null ? Math.round(logP50) : 0;
     const p95 = useProm && prom.p95 !== null ? prom.p95 : logP95 === null ? null : Math.round(logP95);
     const p99 = useProm && prom.p99 !== null ? prom.p99 : logP99 === null ? null : Math.round(logP99);
 
@@ -238,7 +239,7 @@ export class PlatformObservabilityService {
 
     return {
       name: service,
-      status: healthStatus === 'down' ? 'down' : errorCount > 0 || (useProm && prom.errorRate > 2) ? 'degraded' : 'healthy',
+      status: healthStatus === 'down' ? 'down' : healthStatus === 'degraded' || errorCount > 0 || (useProm && prom.errorRate > 2) ? 'degraded' : 'healthy',
       reqRate,
       errorRate,
       p50,
@@ -351,9 +352,9 @@ export class PlatformObservabilityService {
         name: `${this.toTitle(service.name)} Health`,
         url: `/health/ready`,
         type: 'HTTP' as const,
-        status: service.status === 'up' ? 'up' as const : 'down' as const,
+        status: service.status === 'up' ? 'up' as const : service.status === 'degraded' ? 'degraded' as const : 'down' as const,
         availability: Math.round(availability * 10) / 10,
-        avgDuration: prom?.p95 ?? (service.status === 'up' ? 45 : null),
+        avgDuration: prom?.p95 ?? null,
         lastCheck: 'just now',
         frequency: '30s',
       };
@@ -379,8 +380,18 @@ export class PlatformObservabilityService {
   ): Promise<PlatformIntegration[]> {
     const checkedAt = new Date().toISOString();
     const [prometheus, grafana, loki, jaeger, evolution] = await Promise.all([
-      this.probeIntegration('Prometheus', 'Data Sources', 'Metrics collection and alerting', process.env.PROMETHEUS_URL || 'http://prometheus:9090/-/ready'),
-      this.probeIntegration('Grafana', 'Data Sources', 'Metrics dashboards and visualization', process.env.GRAFANA_INTERNAL_URL || 'http://grafana:3000/api/health'),
+      this.probeIntegration('Prometheus', 'Data Sources', 'Metrics collection and alerting', `${resolvePrometheusBaseUrl()}/-/ready`),
+      this.probeIntegration(
+        'Grafana',
+        'Data Sources',
+        'Metrics dashboards and visualization',
+        `${resolveRuntimeUrl({
+          explicit: process.env.GRAFANA_INTERNAL_URL,
+          dockerFallback: 'http://grafana:3000',
+          publicEnvKey: 'RAILWAY_SERVICE_GRAFANA_URL',
+          preferPublicOnRailway: true,
+        })}/api/health`,
+      ),
       this.probeIntegration('Loki', 'Data Sources', 'Structured log aggregation', `${resolveLokiBaseUrl()}/ready`),
       this.probeIntegration('Jaeger', 'Tracing', 'Distributed trace visualization', `${process.env.JAEGER_QUERY_URL || 'http://jaeger:16686'}/api/services`),
       this.probeEvolutionApi(),
@@ -396,7 +407,10 @@ export class PlatformObservabilityService {
         name: 'OpenEMR',
         category: 'Clinical',
         desc: 'Electronic medical records integration',
-        url: process.env.EMR_SERVICE_URL || 'http://emr-service:3004/health/ready',
+        url: `${resolveRuntimeUrl({
+          explicit: process.env.EMR_SERVICE_URL,
+          dockerFallback: 'http://emr-service:3004',
+        })}/health/ready`,
         status: this.checkIsOk(emrService?.checks?.openemr) && emrService?.status === 'up' ? 'connected' : 'error',
         latencyMs: emrService?.status === 'up' ? 45 : null,
         checkedAt,

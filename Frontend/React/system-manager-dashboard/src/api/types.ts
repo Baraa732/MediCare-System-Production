@@ -172,7 +172,7 @@ export interface PlatformHealth {
   timestamp: string
   services: Array<{
     name: string
-    status: 'up' | 'down'
+    status: 'up' | 'down' | 'degraded'
     checks?: Record<string, string>
   }>
   infrastructure: {
