@@ -556,8 +556,9 @@ export class EmrRecordService {
       this.logger.warn(
         `OpenEMR Standard API patient update failed (${error?.message}); writing patient_data`,
       );
-      await this.dbReader.updatePatientPortalFields(row.pid, standardFields);
     }
+    // Always write MariaDB so GET /emr/me shows the contact immediately.
+    await this.dbReader.updatePatientPortalFields(row.pid, standardFields);
 
     this.phiAudit.emit({
       action: PhiAuditAction.EMR_CHART_WRITE,
@@ -605,8 +606,16 @@ export class EmrRecordService {
     if (dto.emergencyContact) {
       const e = dto.emergencyContact;
       if (e.name !== undefined) fields.guardiansname = blank(e.name) ?? '';
-      if (e.relationship !== undefined) fields.contact_relationship = blank(e.relationship) ?? '';
-      if (e.phone !== undefined) fields.phone_contact = blank(e.phone) ?? '';
+      if (e.relationship !== undefined) {
+        const relationship = blank(e.relationship) ?? '';
+        fields.contact_relationship = relationship;
+        fields.guardianrelationship = relationship;
+      }
+      if (e.phone !== undefined) {
+        const phone = blank(e.phone) ?? '';
+        fields.phone_contact = phone;
+        fields.guardianphone = phone;
+      }
       if (e.email !== undefined) fields.guardianemail = blank(e.email) ?? '';
     }
 

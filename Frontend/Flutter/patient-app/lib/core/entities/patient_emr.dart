@@ -73,6 +73,31 @@ class PatientEmrChart {
     );
   }
 
+  PatientEmrChart copyWith({
+    PatientDemographics? patient,
+    ContactInformation? contactInformation,
+    List<EmergencyContact>? emergencyContacts,
+  }) {
+    return PatientEmrChart(
+      patient: patient ?? this.patient,
+      contactInformation: contactInformation ?? this.contactInformation,
+      emergencyContacts: emergencyContacts ?? this.emergencyContacts,
+      insurance: insurance,
+      allergies: allergies,
+      problems: problems,
+      conditions: conditions,
+      medications: medications,
+      encounters: encounters,
+      vitalSigns: vitalSigns,
+      labResults: labResults,
+      immunizations: immunizations,
+      carePlans: carePlans,
+      clinicalNotes: clinicalNotes,
+      documents: documents,
+      syncMetadata: syncMetadata,
+    );
+  }
+
   factory PatientEmrChart.empty() {
     return const PatientEmrChart(
       patient: PatientDemographics(),

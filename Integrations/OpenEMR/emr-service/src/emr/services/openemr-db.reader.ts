@@ -200,6 +200,7 @@ export class OpenEmrDbReader {
       'guardiansname',
       'guardianemail',
       'guardianphone',
+      'guardianrelationship',
       'guardianaddress',
     ]);
 
@@ -255,15 +256,20 @@ export class OpenEmrDbReader {
   }
 
   mapEmergencyContacts(row: PatientRow): EmergencyContact[] {
-    const phone = this.nonEmpty(row.phone_contact);
-    const relationship = this.nonEmpty(row.contact_relationship);
-    if (!phone && !relationship) return [];
+    const name = this.nonEmpty(row.guardiansname);
+    const phone =
+      this.nonEmpty(row.phone_contact) ?? this.nonEmpty(row.guardianphone);
+    const relationship =
+      this.nonEmpty(row.contact_relationship) ??
+      this.nonEmpty(row.guardianrelationship);
+    const email = this.nonEmpty(row.guardianemail);
+    if (!name && !phone && !relationship && !email) return [];
 
     return [{
-      name: this.nonEmpty(row.guardiansname),
+      name,
       relationship,
       phone,
-      email: this.nonEmpty(row.guardianemail),
+      email,
       address: [
         this.nonEmpty(row.guardianaddress),
         this.nonEmpty(row.guardiancity),

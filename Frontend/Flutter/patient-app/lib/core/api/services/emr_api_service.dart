@@ -67,9 +67,10 @@ class EmrApiService {
     final response = await _client.patch(
       '/emr/me',
       data: {
-        ?patient,
-        ?contactInformation,
-        ?emergencyContact,
+        if (patient != null) 'patient': patient,
+        if (contactInformation != null)
+          'contactInformation': contactInformation,
+        if (emergencyContact != null) 'emergencyContact': emergencyContact,
       },
       queryParameters: _tenantQuery(tenantId),
     );

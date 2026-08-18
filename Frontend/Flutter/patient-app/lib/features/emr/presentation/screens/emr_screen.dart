@@ -2,6 +2,7 @@ import 'package:cms/core/animations/fade_slide_in.dart';
 import 'package:cms/core/constants/font_heading.dart';
 import 'package:cms/core/entities/patient_emr.dart';
 import 'package:cms/core/theme/app_colors.dart';
+import 'package:cms/features/emr/data/emr_pdf_service.dart';
 import 'package:cms/features/emr/presentation/cubit/emr_cubit.dart';
 import 'package:cms/features/emr/presentation/cubit/emr_state.dart';
 import 'package:cms/injection_container.dart';
@@ -23,17 +24,68 @@ class EmrScreen extends StatelessWidget {
   }
 }
 
-class _EmrView extends StatelessWidget {
+class _EmrView extends StatefulWidget {
   const _EmrView();
+
+  @override
+  State<_EmrView> createState() => _EmrViewState();
+}
+
+class _EmrViewState extends State<_EmrView> {
+  final _pdf = EmrPdfService();
+  bool _exporting = false;
+
+  Future<void> _sharePdf(PatientEmrChart chart) async {
+    if (_exporting) return;
+    setState(() => _exporting = true);
+    try {
+      await _pdf.shareChart(chart);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not create the PDF. Try again.')),
+      );
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  Future<void> _printPdf(PatientEmrChart chart) async {
+    if (_exporting) return;
+    setState(() => _exporting = true);
+    try {
+      await _pdf.printChart(chart);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open print preview.')),
+      );
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final top = MediaQuery.paddingOf(context).top;
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FB),
+      backgroundColor: const Color(0xFFF4F7FB),
       body: Column(
         children: [
-          _Header(topInset: top),
+          _TopBar(
+            topInset: top,
+            exporting: _exporting,
+            onSharePdf: () {
+              final chart = context.read<EmrCubit>().state.chart;
+              if (chart == null) return;
+              _sharePdf(chart);
+            },
+            onPrintPdf: () {
+              final chart = context.read<EmrCubit>().state.chart;
+              if (chart == null) return;
+              _printPdf(chart);
+            },
+          ),
           Expanded(
             child: BlocConsumer<EmrCubit, EmrState>(
               listenWhen: (prev, next) =>
@@ -51,21 +103,11 @@ class _EmrView extends StatelessWidget {
                 switch (state.status) {
                   case EmrLoadStatus.initial:
                   case EmrLoadStatus.loading:
-                    return const Center(child: CircularProgressIndicator());
+                    return const _LoadingChart();
                   case EmrLoadStatus.pending:
                   case EmrLoadStatus.failure:
-                    return FadeSlideIn(
-                      child: RefreshIndicator(
-                        color: AppColors.main_background_blue,
-                        onRefresh: () =>
-                            context.read<EmrCubit>().load(showLoading: false),
-                        child: _ChartBody(
-                          chart: state.chart ?? PatientEmrChart.empty(),
-                        ),
-                      ),
-                    );
                   case EmrLoadStatus.ready:
-                    final chart = state.chart!;
+                    final chart = state.chart ?? PatientEmrChart.empty();
                     return FadeSlideIn(
                       child: Column(
                         children: [
@@ -75,14 +117,22 @@ class _EmrView extends StatelessWidget {
                               selectedTenantId: state.selectedTenantId,
                             ),
                           if (state.isSaving)
-                            const LinearProgressIndicator(minHeight: 2),
+                            const LinearProgressIndicator(
+                              minHeight: 2,
+                              color: AppColors.main_background_blue,
+                            ),
                           Expanded(
                             child: RefreshIndicator(
                               color: AppColors.main_background_blue,
                               onRefresh: () => context
                                   .read<EmrCubit>()
                                   .load(showLoading: false),
-                              child: _ChartBody(chart: chart),
+                              child: _ChartBody(
+                                chart: chart,
+                                exporting: _exporting,
+                                onSharePdf: () => _sharePdf(chart),
+                                onPrintPdf: () => _printPdf(chart),
+                              ),
                             ),
                           ),
                         ],
@@ -98,21 +148,29 @@ class _EmrView extends StatelessWidget {
   }
 }
 
-class _Header extends StatelessWidget {
-  const _Header({required this.topInset});
+class _TopBar extends StatelessWidget {
+  const _TopBar({
+    required this.topInset,
+    required this.exporting,
+    required this.onSharePdf,
+    required this.onPrintPdf,
+  });
 
   final double topInset;
+  final bool exporting;
+  final VoidCallback onSharePdf;
+  final VoidCallback onPrintPdf;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.fromLTRB(8, topInset + 8, 16, 20),
+      padding: EdgeInsets.fromLTRB(4, topInset + 4, 8, 12),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF0B74FA), Color(0xFF0856C0)],
+          colors: [Color(0xFF0B74FA), Color(0xFF0648A8)],
         ),
       ),
       child: Row(
@@ -122,29 +180,93 @@ class _Header extends StatelessWidget {
             icon: const Icon(Icons.arrow_back_ios_new_rounded,
                 color: Colors.white, size: 20),
           ),
-          const SizedBox(width: 4),
-          Expanded(
+          const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'My Health Record',
-                  style: FontHeading.heading3.copyWith(color: Colors.white),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'OpenEMR chart · cash at the clinic',
-                  style: FontHeading.bodySmall.copyWith(
-                    color: Colors.white.withValues(alpha: 0.85),
+                  'Health record',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.3,
                   ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Live OpenEMR chart · cash at clinic',
+                  style: TextStyle(color: Color(0xCCFFFFFF), fontSize: 12),
                 ),
               ],
             ),
           ),
           IconButton(
             onPressed: () => context.read<EmrCubit>().load(),
+            tooltip: 'Refresh from clinic',
             icon: const Icon(Icons.refresh_rounded, color: Colors.white),
-            tooltip: 'Refresh',
+          ),
+          PopupMenuButton<String>(
+            tooltip: 'PDF',
+            color: Colors.white,
+            onSelected: (value) {
+              if (value == 'share') onSharePdf();
+              if (value == 'print') onPrintPdf();
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: 'share',
+                child: ListTile(
+                  dense: true,
+                  leading: Icon(Icons.picture_as_pdf_outlined),
+                  title: Text('Save / share PDF'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              PopupMenuItem(
+                value: 'print',
+                child: ListTile(
+                  dense: true,
+                  leading: Icon(Icons.print_outlined),
+                  title: Text('Print PDF'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ],
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              child: exporting
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.ios_share_rounded, color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LoadingChart extends StatelessWidget {
+  const _LoadingChart();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircularProgressIndicator(color: AppColors.main_background_blue),
+          SizedBox(height: 14),
+          Text(
+            'Loading your OpenEMR chart…',
+            style: TextStyle(color: AppColors.CustomgrayDark),
           ),
         ],
       ),
@@ -220,52 +342,452 @@ class _ClinicPicker extends StatelessWidget {
   }
 }
 
-class _ChartBody extends StatelessWidget {
-  const _ChartBody({required this.chart});
+enum _Jump {
+  patient,
+  allergies,
+  medications,
+  conditions,
+  visits,
+  vitals,
+  labs,
+  vaccines,
+  plans,
+  notes,
+  documents,
+}
 
+class _ChartBody extends StatefulWidget {
+  const _ChartBody({
+    required this.chart,
+    required this.exporting,
+    required this.onSharePdf,
+    required this.onPrintPdf,
+  });
+
+  final PatientEmrChart chart;
+  final bool exporting;
+  final VoidCallback onSharePdf;
+  final VoidCallback onPrintPdf;
+
+  @override
+  State<_ChartBody> createState() => _ChartBodyState();
+}
+
+class _ChartBodyState extends State<_ChartBody> {
+  final _keys = {for (final j in _Jump.values) j: GlobalKey()};
+
+  Future<void> _jump(_Jump section) async {
+    final ctx = _keys[section]?.currentContext;
+    if (ctx == null) return;
+    await Scrollable.ensureVisible(
+      ctx,
+      duration: const Duration(milliseconds: 380),
+      curve: Curves.easeOutCubic,
+      alignment: 0.08,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final chart = widget.chart;
+    final conditions = _mergedConditions(chart);
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: BouncingScrollPhysics(),
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
+      children: [
+        _IdentityCard(chart: chart),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _PrimaryAction(
+                icon: Icons.picture_as_pdf_rounded,
+                label: widget.exporting ? 'Preparing PDF…' : 'Save EMR as PDF',
+                onTap: widget.exporting ? null : widget.onSharePdf,
+              ),
+            ),
+            const SizedBox(width: 10),
+            _IconAction(
+              icon: Icons.print_outlined,
+              tooltip: 'Print',
+              onTap: widget.exporting ? null : widget.onPrintPdf,
+            ),
+            const SizedBox(width: 8),
+            _IconAction(
+              icon: Icons.edit_outlined,
+              tooltip: 'Edit patient',
+              onTap: () => _openPatientEditor(context, chart),
+            ),
+          ],
+        ),
+        if (chart.allergies.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _AllergyBanner(items: chart.allergies),
+        ],
+        const SizedBox(height: 16),
+        _GlanceRow(chart: chart, conditionCount: conditions.length),
+        const SizedBox(height: 14),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _JumpChip('Patient', () => _jump(_Jump.patient)),
+              _JumpChip('Allergies ${chart.allergies.length}',
+                  () => _jump(_Jump.allergies)),
+              _JumpChip('Meds ${chart.medications.length}',
+                  () => _jump(_Jump.medications)),
+              _JumpChip('Problems ${conditions.length}',
+                  () => _jump(_Jump.conditions)),
+              _JumpChip('Visits ${chart.encounters.length}',
+                  () => _jump(_Jump.visits)),
+              _JumpChip('Vitals ${chart.vitalSigns.length}',
+                  () => _jump(_Jump.vitals)),
+              _JumpChip('Labs ${chart.labResults.length}',
+                  () => _jump(_Jump.labs)),
+              _JumpChip('Vaccines ${chart.immunizations.length}',
+                  () => _jump(_Jump.vaccines)),
+              _JumpChip('Plans ${chart.carePlans.length}',
+                  () => _jump(_Jump.plans)),
+              _JumpChip('Notes ${chart.clinicalNotes.length}',
+                  () => _jump(_Jump.notes)),
+              _JumpChip('Files ${chart.documents.length}',
+                  () => _jump(_Jump.documents)),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        KeyedSubtree(
+          key: _keys[_Jump.patient],
+          child: _PatientSection(chart: chart),
+        ),
+        const SizedBox(height: 18),
+        KeyedSubtree(
+          key: _keys[_Jump.allergies],
+          child: _Section(
+            fhir: 'AllergyIntolerance',
+            title: 'Allergies',
+            count: chart.allergies.length,
+            emptyTitle: 'No allergies on file',
+            emptySubtitle: 'Clinic staff add these when known.',
+            icon: Icons.warning_amber_rounded,
+            children: [
+              for (final a in chart.allergies)
+                _RecordCard(
+                  accent: const Color(0xFFE11D48),
+                  title: a.allergen ?? 'Allergy',
+                  lines: [
+                    if (a.severity != null) 'Severity: ${a.severity}',
+                    if (a.reaction != null) 'Reaction: ${a.reaction}',
+                    if (a.recordedDate != null)
+                      'Recorded ${_fmtDate(a.recordedDate)}',
+                  ],
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        KeyedSubtree(
+          key: _keys[_Jump.medications],
+          child: _Section(
+            fhir: 'MedicationRequest',
+            title: 'Medications',
+            count: chart.medications.length,
+            emptyTitle: 'No medications',
+            emptySubtitle: 'Prescriptions from visits appear here.',
+            icon: Icons.medication_outlined,
+            children: [
+              for (final m in chart.medications)
+                _RecordCard(
+                  title: m.name ?? 'Medication',
+                  lines: [
+                    [m.dosage, m.frequency]
+                        .whereType<String>()
+                        .join(' · '),
+                    if (m.route != null) 'Route: ${m.route}',
+                    if (m.prescribedBy != null)
+                      'Prescribed by ${m.prescribedBy}',
+                    if (m.startDate != null) 'Started ${_fmtDate(m.startDate)}',
+                    if (m.status != null) m.status!,
+                  ].where((e) => e.trim().isNotEmpty).toList(),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        KeyedSubtree(
+          key: _keys[_Jump.conditions],
+          child: _Section(
+            fhir: 'Condition',
+            title: 'Conditions & problems',
+            count: conditions.length,
+            emptyTitle: 'No conditions listed',
+            emptySubtitle: 'Diagnoses appear after clinic visits.',
+            icon: Icons.health_and_safety_outlined,
+            children: [
+              for (final c in conditions)
+                _RecordCard(
+                  title: c.title,
+                  lines: [c.subtitle].where((e) => e.trim().isNotEmpty).toList(),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        KeyedSubtree(
+          key: _keys[_Jump.visits],
+          child: _Section(
+            fhir: 'Encounter',
+            title: 'Visits',
+            count: chart.encounters.length,
+            emptyTitle: 'No visits yet',
+            emptySubtitle: 'Completed clinic encounters appear here.',
+            icon: Icons.event_note_outlined,
+            children: [
+              for (final e in chart.encounters)
+                _RecordCard(
+                  title: e.type ?? e.reason ?? 'Visit',
+                  lines: [
+                    _fmtDateTime(e.date),
+                    if (e.clinic != null) e.clinic!,
+                    if (e.provider != null) 'Provider: ${e.provider}',
+                    if (e.reason != null && e.type != null) e.reason!,
+                    if (e.diagnosis.isNotEmpty)
+                      'Dx: ${e.diagnosis.join(', ')}',
+                    if (e.notes != null) e.notes!,
+                  ].where((s) => s.isNotEmpty && s != '—').toList(),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        KeyedSubtree(
+          key: _keys[_Jump.vitals],
+          child: _Section(
+            fhir: 'Observation',
+            title: 'Vital signs',
+            count: chart.vitalSigns.length,
+            emptyTitle: 'No vital signs',
+            emptySubtitle: 'Vitals recorded during visits appear here.',
+            icon: Icons.monitor_heart_outlined,
+            children: [
+              for (final v in chart.vitalSigns)
+                _RecordCard(
+                  title: _fmtDateTime(v.date),
+                  lines: [
+                    if (v.bloodPressure != null) 'BP ${v.bloodPressure}',
+                    if (v.heartRate != null)
+                      'HR ${v.heartRate!.toStringAsFixed(0)} bpm',
+                    if (v.temperatureCelsius != null)
+                      'Temp ${v.temperatureCelsius!.toStringAsFixed(1)}°C',
+                    if (v.oxygenSaturation != null)
+                      'SpO₂ ${v.oxygenSaturation!.toStringAsFixed(0)}%',
+                    if (v.weightKg != null)
+                      'Wt ${v.weightKg!.toStringAsFixed(1)} kg',
+                    if (v.heightCm != null)
+                      'Ht ${v.heightCm!.toStringAsFixed(0)} cm',
+                    if (v.bmi != null) 'BMI ${v.bmi!.toStringAsFixed(1)}',
+                    if (v.respiratoryRate != null)
+                      'RR ${v.respiratoryRate!.toStringAsFixed(0)}',
+                  ],
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        KeyedSubtree(
+          key: _keys[_Jump.labs],
+          child: _Section(
+            fhir: 'Observation / DiagnosticReport',
+            title: 'Laboratory',
+            count: chart.labResults.length,
+            emptyTitle: 'No lab results',
+            emptySubtitle: 'Results appear when the clinic posts them.',
+            icon: Icons.science_outlined,
+            children: [
+              for (final lab in chart.labResults)
+                _RecordCard(
+                  title: lab.testName ?? 'Lab test',
+                  lines: [
+                    [
+                      lab.result,
+                      if (lab.unit != null) lab.unit,
+                    ].whereType<String>().join(' '),
+                    if (lab.referenceRange != null)
+                      'Ref: ${lab.referenceRange}',
+                    if (lab.status != null) lab.status!,
+                    if (lab.performedDate != null)
+                      _fmtDate(lab.performedDate),
+                  ].where((e) => e.trim().isNotEmpty).toList(),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        KeyedSubtree(
+          key: _keys[_Jump.vaccines],
+          child: _Section(
+            fhir: 'Immunization',
+            title: 'Immunizations',
+            count: chart.immunizations.length,
+            emptyTitle: 'No immunizations recorded',
+            emptySubtitle: 'Vaccines given at the clinic appear here.',
+            icon: Icons.vaccines_outlined,
+            children: [
+              for (final i in chart.immunizations)
+                _RecordCard(
+                  title: i.vaccine ?? 'Vaccine',
+                  lines: [
+                    if (i.dateAdministered != null)
+                      _fmtDate(i.dateAdministered),
+                    if (i.lotNumber != null) 'Lot ${i.lotNumber}',
+                    if (i.administeredBy != null) i.administeredBy!,
+                  ].where((e) => e.isNotEmpty).toList(),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        KeyedSubtree(
+          key: _keys[_Jump.plans],
+          child: _Section(
+            fhir: 'CarePlan',
+            title: 'Care plans',
+            count: chart.carePlans.length,
+            emptyTitle: 'No care plans',
+            emptySubtitle: 'Plans written by clinicians appear here.',
+            icon: Icons.assignment_outlined,
+            children: [
+              for (final p in chart.carePlans)
+                _RecordCard(
+                  title: p.title ?? 'Care plan',
+                  lines: [
+                    if (p.status != null) p.status!,
+                    if (p.goals.isNotEmpty) p.goals.join(', '),
+                    if (p.startDate != null) _fmtDate(p.startDate),
+                  ].where((e) => e.isNotEmpty).toList(),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        KeyedSubtree(
+          key: _keys[_Jump.notes],
+          child: _Section(
+            fhir: 'OpenEMR notes',
+            title: 'Clinical notes',
+            count: chart.clinicalNotes.length,
+            emptyTitle: 'No clinical notes',
+            emptySubtitle: 'Visit notes from clinicians appear here.',
+            icon: Icons.notes_outlined,
+            children: [
+              for (final n in chart.clinicalNotes)
+                _RecordCard(
+                  title: n.type ?? 'Note',
+                  lines: [
+                    _fmtDateTime(n.date),
+                    if (n.author != null) n.author!,
+                    if (n.content != null) n.content!,
+                  ].where((e) => e.isNotEmpty && e != '—').toList(),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        KeyedSubtree(
+          key: _keys[_Jump.documents],
+          child: _Section(
+            fhir: 'DocumentReference',
+            title: 'Documents',
+            count: chart.documents.length,
+            emptyTitle: 'No documents',
+            emptySubtitle: 'Files attached to your chart appear here.',
+            icon: Icons.attach_file_rounded,
+            children: [
+              for (final d in chart.documents)
+                _RecordCard(
+                  title: d.fileName ?? d.type ?? 'Document',
+                  lines: [
+                    if (d.type != null) d.type!,
+                    if (d.status != null) d.status!,
+                    if (d.uploadedAt != null) _fmtDate(d.uploadedAt),
+                  ].where((e) => e.isNotEmpty).toList(),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        _SyncFooter(chart: chart),
+      ],
+    );
+  }
+}
+
+class _IdentityCard extends StatelessWidget {
+  const _IdentityCard({required this.chart});
   final PatientEmrChart chart;
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 8,
-      child: Column(
+    final name =
+        chart.patient.fullName.isEmpty ? 'Your chart' : chart.patient.fullName;
+    final initials = _initials(chart.patient);
+    final meta = [
+      if (chart.patient.birthDate != null)
+        _fmtDate(chart.patient.birthDate),
+      if (chart.patient.gender != null) chart.patient.gender!,
+      if (chart.contactInformation.phone != null)
+        chart.contactInformation.phone!,
+    ].join('  ·  ');
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x140B74FA),
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
         children: [
-          Material(
-            color: Colors.white,
-            child: TabBar(
-              isScrollable: true,
-              tabAlignment: TabAlignment.start,
-              labelColor: AppColors.main_background_blue,
-              unselectedLabelColor: AppColors.CustomgrayDark,
-              indicatorColor: AppColors.main_background_blue,
-              labelStyle: FontHeading.bodySmall.copyWith(
-                fontWeight: FontWeight.w600,
-                color: AppColors.main_background_blue,
+          CircleAvatar(
+            radius: 28,
+            backgroundColor: const Color(0xFF0B74FA),
+            child: Text(
+              initials,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 18,
               ),
-              tabs: [
-                Tab(text: 'Overview'),
-                Tab(text: 'Allergies (${chart.allergies.length})'),
-                Tab(text: 'Medications (${chart.medications.length})'),
-                Tab(text: 'Conditions (${_conditionCount(chart)})'),
-                Tab(text: 'Visits (${chart.encounters.length})'),
-                Tab(text: 'Vitals (${chart.vitalSigns.length})'),
-                Tab(text: 'Labs (${chart.labResults.length})'),
-                Tab(text: 'More'),
-              ],
             ),
           ),
+          const SizedBox(width: 14),
           Expanded(
-            child: TabBarView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _OverviewTab(chart: chart),
-                _AllergiesTab(items: chart.allergies),
-                _MedicationsTab(items: chart.medications),
-                _ConditionsTab(chart: chart),
-                _EncountersTab(items: chart.encounters),
-                _VitalsTab(items: chart.vitalSigns),
-                _LabsTab(items: chart.labResults),
-                _MoreTab(chart: chart),
+                Text(
+                  name,
+                  style: FontHeading.heading4.copyWith(
+                    color: AppColors.grayDark,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  meta.isEmpty ? 'Patient · FHIR Patient' : meta,
+                  style: FontHeading.bodySmall.copyWith(
+                    color: AppColors.CustomgrayDark,
+                  ),
+                ),
               ],
             ),
           ),
@@ -274,100 +796,274 @@ class _ChartBody extends StatelessWidget {
     );
   }
 
-  int _conditionCount(PatientEmrChart chart) {
-    final ids = <String>{};
-    for (final c in chart.conditions) {
-      ids.add(c.id.isEmpty ? c.name ?? '' : c.id);
-    }
-    for (final p in chart.problems) {
-      ids.add(p.id.isEmpty ? p.name ?? '' : p.id);
-    }
-    return ids.where((e) => e.isNotEmpty).length;
+  String _initials(PatientDemographics p) {
+    final a = (p.firstName ?? '').trim();
+    final b = (p.lastName ?? '').trim();
+    if (a.isEmpty && b.isEmpty) return 'P';
+    return '${a.isEmpty ? '' : a[0]}${b.isEmpty ? '' : b[0]}'.toUpperCase();
   }
 }
 
-class _OverviewTab extends StatelessWidget {
-  const _OverviewTab({required this.chart});
+class _PrimaryAction extends StatelessWidget {
+  const _PrimaryAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return FilledButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 18),
+      label: Text(label),
+      style: FilledButton.styleFrom(
+        backgroundColor: AppColors.main_background_blue,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+    );
+  }
+}
+
+class _IconAction extends StatelessWidget {
+  const _IconAction({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: SizedBox(
+            width: 48,
+            height: 48,
+            child: Icon(icon, color: AppColors.main_background_blue),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AllergyBanner extends StatelessWidget {
+  const _AllergyBanner({required this.items});
+  final List<AllergyRecord> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final names = items
+        .map((a) => a.allergen)
+        .whereType<String>()
+        .where((e) => e.isNotEmpty)
+        .take(4)
+        .join(', ');
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF1F2),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFECACA)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.warning_amber_rounded, color: Color(0xFFE11D48)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Critical allergies',
+                  style: FontHeading.body.copyWith(
+                    color: const Color(0xFF9F1239),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  names.isEmpty ? '${items.length} on file' : names,
+                  style: FontHeading.bodySmall.copyWith(
+                    color: const Color(0xFF9F1239),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GlanceRow extends StatelessWidget {
+  const _GlanceRow({required this.chart, required this.conditionCount});
+  final PatientEmrChart chart;
+  final int conditionCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        _Glance(chart.allergies.length, 'Allergies', const Color(0xFFE11D48)),
+        _Glance(chart.medications.length, 'Meds', AppColors.main_background_blue),
+        _Glance(conditionCount, 'Problems', const Color(0xFFB45309)),
+        _Glance(chart.encounters.length, 'Visits', const Color(0xFF0F766E)),
+      ].map((w) => Expanded(child: w)).toList(),
+    );
+  }
+}
+
+class _Glance extends StatelessWidget {
+  const _Glance(this.value, this.label, this.color);
+  final int value;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Column(
+          children: [
+            Text(
+              '$value',
+              style: TextStyle(
+                color: color,
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: const TextStyle(
+                color: AppColors.CustomgrayDark,
+                fontSize: 11,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _JumpChip extends StatelessWidget {
+  const _JumpChip(this.label, this.onTap);
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ActionChip(
+        label: Text(label, style: const TextStyle(fontSize: 12)),
+        backgroundColor: Colors.white,
+        side: const BorderSide(color: Color(0xFFE6EBF3)),
+        onPressed: onTap,
+      ),
+    );
+  }
+}
+
+class _PatientSection extends StatelessWidget {
+  const _PatientSection({required this.chart});
   final PatientEmrChart chart;
 
   @override
   Widget build(BuildContext context) {
-    final patient = chart.patient;
-    final contact = chart.contactInformation;
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(
-        parent: BouncingScrollPhysics(),
-      ),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+    final live = context.watch<EmrCubit>().state.chart ?? chart;
+    final p = live.patient;
+    final c = live.contactInformation;
+    final emergency = live.emergencyContacts;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            const Expanded(child: _SectionTitle('Patient')),
-            TextButton.icon(
-              onPressed: () => _openPatientEditor(context, chart),
-              icon: const Icon(Icons.edit_outlined, size: 16),
-              label: const Text('Edit'),
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.main_background_blue,
-              ),
-            ),
-          ],
+        _SectionHead(
+          fhir: 'Patient',
+          title: 'Patient & contact',
+          trailing: TextButton.icon(
+            onPressed: () => _openPatientEditor(context, live),
+            icon: const Icon(Icons.edit_outlined, size: 16),
+            label: const Text('Edit'),
+          ),
         ),
         _InfoBlock(
           rows: [
-            _InfoRow('Name', patient.fullName.isEmpty ? '—' : patient.fullName),
-            _InfoRow('Birth date', _fmtDate(patient.birthDate)),
-            _InfoRow('Gender', patient.gender ?? '—'),
-            if (patient.nationalId != null)
-              _InfoRow('National ID', patient.nationalId!),
-            if (contact.phone != null) _InfoRow('Phone', contact.phone!),
-            if (contact.email != null) _InfoRow('Email', contact.email!),
-            if (contact.addressLine.isNotEmpty)
-              _InfoRow('Address', contact.addressLine),
-          ],
-        ),
-        const SizedBox(height: 20),
-        Row(
-          children: [
-            const Expanded(child: _SectionTitle('Emergency contact')),
-            TextButton.icon(
-              onPressed: () => _openEmergencyEditor(
-                context,
-                chart.emergencyContacts.isEmpty
-                    ? null
-                    : chart.emergencyContacts.first,
-              ),
-              icon: Icon(
-                chart.emergencyContacts.isEmpty
-                    ? Icons.add
-                    : Icons.edit_outlined,
-                size: 16,
-              ),
-              label: Text(chart.emergencyContacts.isEmpty ? 'Add' : 'Edit'),
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.main_background_blue,
-              ),
+            _InfoRow('Name', p.fullName.isEmpty ? '—' : p.fullName),
+            _InfoRow('Birth date', _fmtDate(p.birthDate)),
+            _InfoRow('Gender', p.gender ?? '—'),
+            _InfoRow('Marital status', p.maritalStatus ?? '—'),
+            _InfoRow('Language', p.language ?? '—'),
+            _InfoRow('National ID', p.nationalId ?? '—'),
+            _InfoRow('Phone', c.phone ?? '—'),
+            _InfoRow('Email', c.email ?? '—'),
+            _InfoRow(
+              'Address',
+              c.addressLine.isEmpty ? '—' : c.addressLine,
             ),
           ],
         ),
-        if (chart.emergencyContacts.isEmpty)
-          const _InlineEmpty('None on file — add one for the clinic')
+        const SizedBox(height: 14),
+        _SectionHead(
+          fhir: 'OpenEMR contact',
+          title: 'Emergency contact',
+          trailing: TextButton.icon(
+            onPressed: () => _openEmergencyEditor(
+              context,
+              emergency.isEmpty ? null : emergency.first,
+            ),
+            icon: Icon(
+              emergency.isEmpty ? Icons.add : Icons.edit_outlined,
+              size: 16,
+            ),
+            label: Text(emergency.isEmpty ? 'Add' : 'Edit'),
+          ),
+        ),
+        if (emergency.isEmpty)
+          const _EmptyCard(
+            title: 'None on file',
+            subtitle: 'Add a contact the clinic can reach in an emergency.',
+          )
         else
-          ...chart.emergencyContacts.map(
-            (c) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _LineTile(
-                title: c.name ?? 'Contact',
-                subtitle: [
-                  if (c.relationship != null) c.relationship!,
-                  if (c.phone != null) c.phone!,
-                  if (c.email != null) c.email!,
-                ].where((e) => e.isNotEmpty).join(' · '),
-              ),
+          ...emergency.map(
+            (e) => _RecordCard(
+              title: e.name ?? 'Contact',
+              lines: [
+                if (e.relationship != null) e.relationship!,
+                if (e.phone != null) e.phone!,
+                if (e.email != null) e.email!,
+              ],
             ),
           ),
-        if (chart.emergencyContacts.isNotEmpty)
+        if (emergency.isNotEmpty)
           Align(
             alignment: Alignment.centerRight,
             child: TextButton(
@@ -376,559 +1072,195 @@ class _OverviewTab extends StatelessWidget {
               child: const Text('Remove contact'),
             ),
           ),
-        const SizedBox(height: 20),
-        _SectionTitle('At a glance'),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: [
-            _StatChip(
-              label: 'Allergies',
-              value: '${chart.allergies.length}',
-              color: const Color(0xFFE11D48),
-            ),
-            _StatChip(
-              label: 'Medications',
-              value: '${chart.medications.length}',
-              color: AppColors.main_background_blue,
-            ),
-            _StatChip(
-              label: 'Conditions',
-              value: '${chart.conditions.length}',
-              color: const Color(0xFFB45309),
-            ),
-            _StatChip(
-              label: 'Visits',
-              value: '${chart.encounters.length}',
-              color: const Color(0xFF0F766E),
-            ),
-            _StatChip(
-              label: 'Labs',
-              value: '${chart.labResults.length}',
-              color: const Color(0xFF7C3AED),
-            ),
-            _StatChip(
-              label: 'Vaccines',
-              value: '${chart.immunizations.length}',
-              color: AppColors.green,
-            ),
-          ],
-        ),
-        if (chart.allergies.isNotEmpty) ...[
-          const SizedBox(height: 20),
-          _SectionTitle('Critical allergies'),
-          ...chart.allergies.take(3).map(
-                (a) => _LineTile(
-                  title: a.allergen ?? 'Unknown allergen',
-                  subtitle: [
-                    if (a.severity != null) a.severity!,
-                    if (a.reaction != null) a.reaction!,
-                  ].join(' · '),
-                  accent: const Color(0xFFE11D48),
-                ),
-              ),
-        ],
-        if (chart.medications.isNotEmpty) ...[
-          const SizedBox(height: 20),
-          _SectionTitle('Active medications'),
-          ...chart.medications.take(4).map(
-                (m) => _LineTile(
-                  title: m.name ?? 'Medication',
-                  subtitle: [
-                    if (m.dosage != null) m.dosage!,
-                    if (m.frequency != null) m.frequency!,
-                    if (m.status != null) m.status!,
-                  ].join(' · '),
-                ),
-              ),
-        ],
-        const SizedBox(height: 20),
-        _SectionTitle('Sync'),
-        _InfoBlock(
-          rows: [
-            _InfoRow('Status', chart.syncMetadata.syncStatus),
-            _InfoRow('Last sync', _fmtDateTime(chart.syncMetadata.lastSyncAt)),
-            if (chart.syncMetadata.lastVisitDate != null)
-              _InfoRow(
-                'Last visit',
-                _fmtDate(chart.syncMetadata.lastVisitDate),
-              ),
-          ],
-        ),
       ],
     );
   }
 }
 
-class _AllergiesTab extends StatelessWidget {
-  const _AllergiesTab({required this.items});
-  final List<AllergyRecord> items;
-
-  @override
-  Widget build(BuildContext context) {
-    if (items.isEmpty) {
-      return const _EmptyList(
-        icon: Icons.warning_amber_rounded,
-        title: 'No allergies on file',
-        subtitle: 'Clinic staff will add allergies when known',
-      );
-    }
-    return ListView.separated(
-      physics: const AlwaysScrollableScrollPhysics(
-        parent: BouncingScrollPhysics(),
-      ),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-      itemCount: items.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 10),
-      itemBuilder: (_, i) {
-        final a = items[i];
-        return _LineTile(
-          title: a.allergen ?? 'Allergy',
-          subtitle: [
-            if (a.severity != null) 'Severity: ${a.severity}',
-            if (a.reaction != null) 'Reaction: ${a.reaction}',
-            if (a.recordedDate != null) 'Recorded ${_fmtDate(a.recordedDate)}',
-          ].join('\n'),
-          accent: const Color(0xFFE11D48),
-        );
-      },
-    );
-  }
-}
-
-class _MedicationsTab extends StatelessWidget {
-  const _MedicationsTab({required this.items});
-  final List<MedicationRecord> items;
-
-  @override
-  Widget build(BuildContext context) {
-    if (items.isEmpty) {
-      return const _EmptyList(
-        icon: Icons.medication_outlined,
-        title: 'No medications',
-        subtitle: 'Prescriptions from your visits will appear here',
-      );
-    }
-    return ListView.separated(
-      physics: const AlwaysScrollableScrollPhysics(
-        parent: BouncingScrollPhysics(),
-      ),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-      itemCount: items.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 10),
-      itemBuilder: (_, i) {
-        final m = items[i];
-        return _LineTile(
-          title: m.name ?? 'Medication',
-          subtitle: [
-            if (m.dosage != null || m.frequency != null)
-              [m.dosage, m.frequency].whereType<String>().join(' · '),
-            if (m.route != null) 'Route: ${m.route}',
-            if (m.prescribedBy != null) 'Prescribed by ${m.prescribedBy}',
-            if (m.startDate != null) 'Started ${_fmtDate(m.startDate)}',
-            if (m.status != null) m.status!,
-          ].where((e) => e.isNotEmpty).join('\n'),
-        );
-      },
-    );
-  }
-}
-
-class _ConditionsTab extends StatelessWidget {
-  const _ConditionsTab({required this.chart});
-  final PatientEmrChart chart;
-
-  @override
-  Widget build(BuildContext context) {
-    final items = <({String title, String subtitle})>[];
-    final seen = <String>{};
-
-    void add(String id, String? name, String? code, String? status, String? date) {
-      final key = id.isNotEmpty ? id : (name ?? '');
-      if (key.isEmpty || seen.contains(key)) return;
-      seen.add(key);
-      items.add((
-        title: name ?? 'Condition',
-        subtitle: [
-          if (code != null) 'ICD-10: $code',
-          if (status != null) status,
-          if (date != null) 'Diagnosed ${_fmtDate(date)}',
-        ].join(' · '),
-      ));
-    }
-
-    for (final c in chart.conditions) {
-      add(c.id, c.name, c.icd10Code, c.status, c.diagnosedDate);
-    }
-    for (final p in chart.problems) {
-      add(p.id, p.name, p.icd10Code, p.status, p.diagnosedDate);
-    }
-
-    if (items.isEmpty) {
-      return const _EmptyList(
-        icon: Icons.health_and_safety_outlined,
-        title: 'No conditions listed',
-        subtitle: 'Diagnoses and problems will show after visits',
-      );
-    }
-
-    return ListView.separated(
-      physics: const AlwaysScrollableScrollPhysics(
-        parent: BouncingScrollPhysics(),
-      ),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-      itemCount: items.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 10),
-      itemBuilder: (_, i) => _LineTile(
-        title: items[i].title,
-        subtitle: items[i].subtitle,
-      ),
-    );
-  }
-}
-
-class _EncountersTab extends StatelessWidget {
-  const _EncountersTab({required this.items});
-  final List<EncounterRecord> items;
-
-  @override
-  Widget build(BuildContext context) {
-    if (items.isEmpty) {
-      return const _EmptyList(
-        icon: Icons.event_note_outlined,
-        title: 'No visits yet',
-        subtitle: 'Completed clinic encounters appear here',
-      );
-    }
-    return ListView.separated(
-      physics: const AlwaysScrollableScrollPhysics(
-        parent: BouncingScrollPhysics(),
-      ),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-      itemCount: items.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 10),
-      itemBuilder: (_, i) {
-        final e = items[i];
-        return _LineTile(
-          title: e.type ?? e.reason ?? 'Visit',
-          subtitle: [
-            _fmtDateTime(e.date),
-            if (e.clinic != null) e.clinic!,
-            if (e.provider != null) 'Provider: ${e.provider}',
-            if (e.reason != null && e.type != null) e.reason!,
-            if (e.diagnosis.isNotEmpty) 'Dx: ${e.diagnosis.join(', ')}',
-            if (e.notes != null) e.notes!,
-          ].where((s) => s.isNotEmpty && s != '—').join('\n'),
-        );
-      },
-    );
-  }
-}
-
-class _VitalsTab extends StatelessWidget {
-  const _VitalsTab({required this.items});
-  final List<VitalSignRecord> items;
-
-  @override
-  Widget build(BuildContext context) {
-    if (items.isEmpty) {
-      return const _EmptyList(
-        icon: Icons.monitor_heart_outlined,
-        title: 'No vital signs',
-        subtitle: 'Vitals recorded during visits will appear here',
-      );
-    }
-    return ListView.separated(
-      physics: const AlwaysScrollableScrollPhysics(
-        parent: BouncingScrollPhysics(),
-      ),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-      itemCount: items.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 10),
-      itemBuilder: (_, i) {
-        final v = items[i];
-        final parts = <String>[
-          if (v.bloodPressure != null) 'BP ${v.bloodPressure}',
-          if (v.heartRate != null) 'HR ${v.heartRate!.toStringAsFixed(0)} bpm',
-          if (v.temperatureCelsius != null)
-            'Temp ${v.temperatureCelsius!.toStringAsFixed(1)}°C',
-          if (v.oxygenSaturation != null)
-            'SpO₂ ${v.oxygenSaturation!.toStringAsFixed(0)}%',
-          if (v.weightKg != null) 'Wt ${v.weightKg!.toStringAsFixed(1)} kg',
-          if (v.heightCm != null) 'Ht ${v.heightCm!.toStringAsFixed(0)} cm',
-          if (v.bmi != null) 'BMI ${v.bmi!.toStringAsFixed(1)}',
-          if (v.respiratoryRate != null)
-            'RR ${v.respiratoryRate!.toStringAsFixed(0)}',
-        ];
-        return _LineTile(
-          title: _fmtDateTime(v.date),
-          subtitle: parts.isEmpty ? 'No measurements' : parts.join(' · '),
-        );
-      },
-    );
-  }
-}
-
-class _LabsTab extends StatelessWidget {
-  const _LabsTab({required this.items});
-  final List<LabResultRecord> items;
-
-  @override
-  Widget build(BuildContext context) {
-    if (items.isEmpty) {
-      return const _EmptyList(
-        icon: Icons.science_outlined,
-        title: 'No lab results',
-        subtitle: 'Laboratory results will appear when available',
-      );
-    }
-    return ListView.separated(
-      physics: const AlwaysScrollableScrollPhysics(
-        parent: BouncingScrollPhysics(),
-      ),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-      itemCount: items.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 10),
-      itemBuilder: (_, i) {
-        final lab = items[i];
-        final result = [
-          lab.result,
-          if (lab.unit != null) lab.unit,
-        ].whereType<String>().join(' ');
-        return _LineTile(
-          title: lab.testName ?? 'Lab test',
-          subtitle: [
-            if (result.isNotEmpty) result,
-            if (lab.referenceRange != null) 'Ref: ${lab.referenceRange}',
-            if (lab.status != null) lab.status!,
-            if (lab.performedDate != null)
-              _fmtDate(lab.performedDate),
-          ].where((e) => e.isNotEmpty).join('\n'),
-        );
-      },
-    );
-  }
-}
-
-class _MoreTab extends StatelessWidget {
-  const _MoreTab({required this.chart});
-  final PatientEmrChart chart;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(
-        parent: BouncingScrollPhysics(),
-      ),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-      children: [
-        _SectionTitle('Immunizations (${chart.immunizations.length})'),
-        if (chart.immunizations.isEmpty)
-          const _InlineEmpty('No immunizations recorded')
-        else
-          ...chart.immunizations.map(
-            (i) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _LineTile(
-                title: i.vaccine ?? 'Vaccine',
-                subtitle: [
-                  if (i.dateAdministered != null)
-                    _fmtDate(i.dateAdministered),
-                  if (i.lotNumber != null) 'Lot ${i.lotNumber}',
-                  if (i.administeredBy != null) i.administeredBy!,
-                ].where((e) => e.isNotEmpty).join(' · '),
-              ),
-            ),
-          ),
-        const SizedBox(height: 12),
-        _SectionTitle('Care plans (${chart.carePlans.length})'),
-        if (chart.carePlans.isEmpty)
-          const _InlineEmpty('No care plans')
-        else
-          ...chart.carePlans.map(
-            (p) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _LineTile(
-                title: p.title ?? 'Care plan',
-                subtitle: [
-                  if (p.status != null) p.status!,
-                  if (p.goals.isNotEmpty) p.goals.join(', '),
-                  if (p.startDate != null) _fmtDate(p.startDate),
-                ].where((e) => e.isNotEmpty).join('\n'),
-              ),
-            ),
-          ),
-        const SizedBox(height: 12),
-        _SectionTitle('Clinical notes (${chart.clinicalNotes.length})'),
-        if (chart.clinicalNotes.isEmpty)
-          const _InlineEmpty('No clinical notes')
-        else
-          ...chart.clinicalNotes.map(
-            (n) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _LineTile(
-                title: n.type ?? 'Note',
-                subtitle: [
-                  _fmtDateTime(n.date),
-                  if (n.author != null) n.author!,
-                  if (n.content != null) n.content!,
-                ].where((e) => e.isNotEmpty && e != '—').join('\n'),
-              ),
-            ),
-          ),
-        const SizedBox(height: 12),
-        _SectionTitle('Documents (${chart.documents.length})'),
-        if (chart.documents.isEmpty)
-          const _InlineEmpty('No documents')
-        else
-          ...chart.documents.map(
-            (d) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _LineTile(
-                title: d.fileName ?? d.type ?? 'Document',
-                subtitle: [
-                  if (d.type != null) d.type!,
-                  if (d.status != null) d.status!,
-                  if (d.uploadedAt != null) _fmtDate(d.uploadedAt),
-                ].where((e) => e.isNotEmpty).join(' · '),
-              ),
-            ),
-          ),
-        if (chart.emergencyContacts.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          _SectionTitle('Emergency contacts'),
-          ...chart.emergencyContacts.map(
-            (c) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _LineTile(
-                title: c.name ?? 'Contact',
-                subtitle: [
-                  if (c.relationship != null) c.relationship!,
-                  if (c.phone != null) c.phone!,
-                  if (c.email != null) c.email!,
-                ].where((e) => e.isNotEmpty).join(' · '),
-              ),
-            ),
-          ),
-        ],
-        const SizedBox(height: 16),
-        Text(
-          'Structured OpenEMR chart (Patient, AllergyIntolerance, MedicationRequest, Condition, Encounter, Observation). You can edit your patient and emergency-contact fields. Visits are paid in cash at reception — no billing in this app.',
-          style: FontHeading.bodySmall.copyWith(color: AppColors.customGray),
-        ),
-      ],
-    );
-  }
-}
-
-class _EmptyList extends StatelessWidget {
-  const _EmptyList({
-    required this.icon,
+class _Section extends StatelessWidget {
+  const _Section({
+    required this.fhir,
     required this.title,
-    required this.subtitle,
+    required this.count,
+    required this.emptyTitle,
+    required this.emptySubtitle,
+    required this.icon,
+    required this.children,
   });
 
-  final IconData icon;
+  final String fhir;
   final String title;
-  final String subtitle;
+  final int count;
+  final String emptyTitle;
+  final String emptySubtitle;
+  final IconData icon;
+  final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(
-          height: MediaQuery.sizeOf(context).height * 0.45,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 40, color: AppColors.customGray),
-              const SizedBox(height: 12),
-              Text(title, style: FontHeading.heading4.copyWith(color: AppColors.grayDark)),
-              const SizedBox(height: 6),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32),
-                child: Text(
-                  subtitle,
-                  textAlign: TextAlign.center,
-                  style: FontHeading.bodySmall.copyWith(color: AppColors.customGray),
-                ),
-              ),
+        _SectionHead(fhir: fhir, title: '$title ($count)'),
+        if (children.isEmpty)
+          _EmptyCard(
+            icon: icon,
+            title: emptyTitle,
+            subtitle: emptySubtitle,
+          )
+        else
+          ...[
+            for (var i = 0; i < children.length; i++) ...[
+              if (i > 0) const SizedBox(height: 10),
+              children[i],
             ],
-          ),
-        ),
+          ],
       ],
     );
   }
 }
 
-class _InlineEmpty extends StatelessWidget {
-  const _InlineEmpty(this.text);
-  final String text;
+class _SectionHead extends StatelessWidget {
+  const _SectionHead({
+    required this.fhir,
+    required this.title,
+    this.trailing,
+  });
 
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Text(
-        text,
-        style: FontHeading.bodySmall.copyWith(color: AppColors.customGray),
-      ),
-    );
-  }
-}
-
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.text);
-  final String text;
+  final String fhir;
+  final String title;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: Text(
-        text,
-        style: FontHeading.heading4.copyWith(color: AppColors.grayDark),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: FontHeading.heading4.copyWith(
+                    color: AppColors.grayDark,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  fhir,
+                  style: FontHeading.bodySmall.copyWith(
+                    color: AppColors.customGray,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (trailing != null) trailing!,
+        ],
       ),
     );
   }
 }
 
-class _StatChip extends StatelessWidget {
-  const _StatChip({
-    required this.label,
-    required this.value,
-    required this.color,
+class _EmptyCard extends StatelessWidget {
+  const _EmptyCard({
+    required this.title,
+    required this.subtitle,
+    this.icon,
   });
 
-  final String label;
-  final String value;
-  final Color color;
+  final String title;
+  final String subtitle;
+  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 104,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(14),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE8EEF6)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon ?? Icons.inbox_outlined, color: AppColors.customGray),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: FontHeading.body.copyWith(
+                    color: AppColors.grayDark,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: FontHeading.bodySmall.copyWith(
+                    color: AppColors.CustomgrayDark,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RecordCard extends StatelessWidget {
+  const _RecordCard({
+    required this.title,
+    required this.lines,
+    this.accent,
+  });
+
+  final String title;
+  final List<String> lines;
+  final Color? accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: accent == null
+            ? Border.all(color: const Color(0xFFE8EEF6))
+            : Border(left: BorderSide(color: accent!, width: 3.5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            value,
-            style: FontHeading.heading3.copyWith(color: color, fontSize: 22),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: FontHeading.bodySmall.copyWith(
-              color: AppColors.CustomgrayDark,
-              fontSize: 12,
+            title,
+            style: FontHeading.body.copyWith(
+              color: AppColors.grayDark,
+              fontWeight: FontWeight.w700,
             ),
           ),
+          if (lines.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              lines.join('\n'),
+              style: FontHeading.bodySmall.copyWith(
+                color: AppColors.CustomgrayDark,
+                height: 1.4,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -951,12 +1283,12 @@ class _InfoBlock extends StatelessWidget {
       child: Column(
         children: [
           for (var i = 0; i < rows.length; i++) ...[
-            if (i > 0) const SizedBox(height: 10),
+            if (i > 0) const Divider(height: 18, color: Color(0xFFF0F3F8)),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 SizedBox(
-                  width: 96,
+                  width: 110,
                   child: Text(
                     rows[i].label,
                     style: FontHeading.bodySmall.copyWith(
@@ -988,53 +1320,86 @@ class _InfoRow {
   final String value;
 }
 
-class _LineTile extends StatelessWidget {
-  const _LineTile({
-    required this.title,
-    required this.subtitle,
-    this.accent,
-  });
-
-  final String title;
-  final String subtitle;
-  final Color? accent;
+class _SyncFooter extends StatelessWidget {
+  const _SyncFooter({required this.chart});
+  final PatientEmrChart chart;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFFEFF5FF),
         borderRadius: BorderRadius.circular(16),
-        border: accent == null
-            ? null
-            : Border(left: BorderSide(color: accent!, width: 3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            title,
+            'OpenEMR source',
             style: FontHeading.body.copyWith(
-              color: AppColors.grayDark,
-              fontWeight: FontWeight.w600,
+              color: AppColors.main_background_blue,
+              fontWeight: FontWeight.w700,
             ),
           ),
-          if (subtitle.trim().isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              subtitle,
-              style: FontHeading.bodySmall.copyWith(
-                color: AppColors.CustomgrayDark,
-                height: 1.35,
-              ),
+          const SizedBox(height: 6),
+          Text(
+            'Status ${chart.syncMetadata.syncStatus.isEmpty ? 'READY' : chart.syncMetadata.syncStatus}'
+            ' · Last sync ${_fmtDateTime(chart.syncMetadata.lastSyncAt)}'
+            '${chart.syncMetadata.lastVisitDate == null ? '' : ' · Last visit ${_fmtDate(chart.syncMetadata.lastVisitDate)}'}',
+            style: FontHeading.bodySmall.copyWith(
+              color: AppColors.CustomgrayDark,
+              height: 1.4,
             ),
-          ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'You can edit patient and emergency-contact fields. Clinical lists are written by clinic staff. Visits are paid in cash — no billing in this app.',
+            style: FontHeading.bodySmall.copyWith(
+              color: AppColors.CustomgrayDark,
+              height: 1.4,
+            ),
+          ),
         ],
       ),
     );
   }
+}
+
+class _ConditionItem {
+  const _ConditionItem(this.title, this.subtitle);
+  final String title;
+  final String subtitle;
+}
+
+List<_ConditionItem> _mergedConditions(PatientEmrChart chart) {
+  final items = <_ConditionItem>[];
+  final seen = <String>{};
+
+  void add(String id, String? name, String? code, String? status, String? date) {
+    final key = id.isNotEmpty ? id : (name ?? '');
+    if (key.isEmpty || seen.contains(key)) return;
+    seen.add(key);
+    items.add(
+      _ConditionItem(
+        name ?? 'Condition',
+        [
+          if (code != null) 'ICD-10: $code',
+          if (status != null) status,
+          if (date != null) 'Diagnosed ${_fmtDate(date)}',
+        ].join(' · '),
+      ),
+    );
+  }
+
+  for (final c in chart.conditions) {
+    add(c.id, c.name, c.icd10Code, c.status, c.diagnosedDate);
+  }
+  for (final p in chart.problems) {
+    add(p.id, p.name, p.icd10Code, p.status, p.diagnosedDate);
+  }
+  return items;
 }
 
 String _fmtDate(String? raw) {
@@ -1201,7 +1566,7 @@ class _PatientEditSheetState extends State<_PatientEditSheet> {
             Text('Edit patient', style: FontHeading.heading4),
             const SizedBox(height: 4),
             Text(
-              'OpenEMR Standard API patient fields',
+              'Saved to OpenEMR patient_data',
               style: FontHeading.bodySmall.copyWith(color: AppColors.customGray),
             ),
             const SizedBox(height: 12),

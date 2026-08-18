@@ -99,11 +99,20 @@ class EmrCubit extends Cubit<EmrState> {
 
   Future<bool> saveEmergencyContact(Map<String, dynamic> contact) async {
     emit(state.copyWith(isSaving: true, clearError: true));
+    final saved = EmergencyContact(
+      name: _nz(contact['name']),
+      relationship: _nz(contact['relationship']),
+      phone: _nz(contact['phone']),
+      email: _nz(contact['email']),
+    );
     try {
-      final chart = await _emrApi.upsertEmergencyContact(
+      var chart = await _emrApi.upsertEmergencyContact(
         tenantId: state.selectedTenantId,
         contact: contact,
       );
+      if (chart.emergencyContacts.isEmpty) {
+        chart = chart.copyWith(emergencyContacts: [saved]);
+      }
       emit(state.copyWith(chart: chart, isSaving: false, clearError: true));
       return true;
     } on ApiException catch (e) {
@@ -118,12 +127,19 @@ class EmrCubit extends Cubit<EmrState> {
     }
   }
 
+  String? _nz(dynamic value) {
+    final s = value?.toString().trim();
+    if (s == null || s.isEmpty) return null;
+    return s;
+  }
+
   Future<bool> deleteEmergencyContact() async {
     emit(state.copyWith(isSaving: true, clearError: true));
     try {
-      final chart = await _emrApi.deleteEmergencyContact(
+      var chart = await _emrApi.deleteEmergencyContact(
         tenantId: state.selectedTenantId,
       );
+      chart = chart.copyWith(emergencyContacts: const []);
       emit(state.copyWith(chart: chart, isSaving: false, clearError: true));
       return true;
     } on ApiException catch (e) {
