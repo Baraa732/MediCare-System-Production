@@ -15,6 +15,9 @@ export interface SecuritySummaryResponse {
   suspicious: number;
   rateLimitExceeded: number;
   activeSessions: number;
+  loginEvents: number;
+  uniqueActors: number;
+  threatScore: number;
   blockedIdentifiers: Array<{
     identifier: string;
     tier: string;
@@ -55,6 +58,33 @@ function formatAgo(date: Date): string {
   return `${Math.floor(hr / 24)}d ago`;
 }
 
+function normalizeIp(raw?: string | null): string | null {
+  if (!raw) return null;
+  const ip = raw.replace(/^::ffff:/, '').trim();
+  if (!ip || ip === 'unknown' || ip === '::1') return null;
+  return ip;
+}
+
+function extractLogIp(log: AuditLog): string | null {
+  const fromColumn = normalizeIp(log.ip);
+  if (fromColumn) return fromColumn;
+  const meta = log.metadata as { ip?: string; deviceInfo?: { ip?: string } } | undefined;
+  return normalizeIp(meta?.ip) || normalizeIp(meta?.deviceInfo?.ip) || null;
+}
+
+function bumpIp(
+  ipMap: Map<string, { count: number; lastSeen: Date; actions: Set<string> }>,
+  ip: string,
+  at: Date,
+  action: string,
+) {
+  const cur = ipMap.get(ip) ?? { count: 0, lastSeen: at, actions: new Set<string>() };
+  cur.count += 1;
+  if (at > cur.lastSeen) cur.lastSeen = at;
+  cur.actions.add(action);
+  ipMap.set(ip, cur);
+}
+
 @Injectable()
 export class SecuritySummaryService {
   constructor(
@@ -70,7 +100,7 @@ export class SecuritySummaryService {
     const since = new Date(Date.now() - rangeToMs(range));
     const now = new Date();
 
-    const [failedLogins, suspicious, rateLimitExceeded, activeSessions, locks, recentLogs] =
+    const [failedLogins, suspicious, rateLimitExceeded, activeSessions, locks, recentLogs, activeSessionRows] =
       await Promise.all([
         this.auditRepo.count({
           where: { action: AuditAction.FAILED_LOGIN, createdAt: MoreThan(since) },
@@ -96,22 +126,23 @@ export class SecuritySummaryService {
           order: { createdAt: 'DESC' },
           take: 400,
         }),
+        this.sessionRepo.find({
+          where: { status: SessionStatus.ACTIVE },
+          take: 200,
+          order: { lastActivityAt: 'DESC' },
+        }),
       ]);
 
     const ipMap = new Map<string, { count: number; lastSeen: Date; actions: Set<string> }>();
     for (const log of recentLogs) {
-      if (!log.ip) continue;
-      const interesting =
-        log.action === AuditAction.FAILED_LOGIN ||
-        log.action === AuditAction.SUSPICIOUS_ACTIVITY ||
-        log.action === AuditAction.RATE_LIMIT_EXCEEDED ||
-        log.success === false;
-      if (!interesting) continue;
-      const cur = ipMap.get(log.ip) ?? { count: 0, lastSeen: log.createdAt, actions: new Set() };
-      cur.count += 1;
-      if (log.createdAt > cur.lastSeen) cur.lastSeen = log.createdAt;
-      cur.actions.add(log.action);
-      ipMap.set(log.ip, cur);
+      const ip = extractLogIp(log);
+      if (!ip) continue;
+      bumpIp(ipMap, ip, log.createdAt, log.action);
+    }
+    for (const session of activeSessionRows) {
+      const ip = normalizeIp(session.deviceInfo?.ip);
+      if (!ip) continue;
+      bumpIp(ipMap, ip, session.lastActivityAt ?? session.updatedAt ?? now, 'active_session');
     }
 
     const topIps = [...ipMap.entries()]
@@ -141,10 +172,20 @@ export class SecuritySummaryService {
       action: log.action,
       target: log.resourceId ?? log.resource,
       result: log.success ? 'Allowed' : 'Blocked',
-      ip: log.ip ?? null,
+      ip: extractLogIp(log),
       ago: formatAgo(log.createdAt),
       createdAt: log.createdAt.toISOString(),
     }));
+
+    const loginEvents = recentLogs.filter(
+      (l) => l.action === AuditAction.LOGIN || l.action === AuditAction.SESSION_CREATED,
+    ).length;
+    const uniqueActors = new Set(recentLogs.map((l) => l.userId).filter(Boolean)).size;
+    const blockedCount = locks.filter((l) => l.tier !== LockTierDb.NONE && (!l.lockedUntil || l.lockedUntil > now)).length;
+    const threatScore = Math.min(
+      100,
+      failedLogins * 8 + suspicious * 12 + rateLimitExceeded * 6 + blockedCount * 10,
+    );
 
     return {
       available: true,
@@ -154,6 +195,9 @@ export class SecuritySummaryService {
       suspicious,
       rateLimitExceeded,
       activeSessions,
+      loginEvents,
+      uniqueActors,
+      threatScore,
       blockedIdentifiers,
       topIps,
       recentAudits,

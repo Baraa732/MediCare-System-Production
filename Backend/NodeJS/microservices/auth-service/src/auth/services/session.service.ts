@@ -78,6 +78,7 @@ export class SessionService {
       action: AuditAction.SESSION_CREATED,
       resource: AuditResource.SESSION,
       resourceId: session.id,
+      ip: deviceInfo.ip,
       metadata: { ip: deviceInfo.ip, userAgent: deviceInfo.userAgent, deviceInfo },
       success: true,
     });

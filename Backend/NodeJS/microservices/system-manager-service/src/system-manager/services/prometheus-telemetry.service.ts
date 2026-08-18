@@ -100,8 +100,16 @@ export class PrometheusTelemetryService {
           this.queryQuantile(job, 0.5, window),
           this.queryQuantile(job, 0.95, window),
           this.queryQuantile(job, 0.99, window),
-          this.queryInstant(`100 * rate(process_cpu_user_seconds_total{job="${job}"}[${window}])`),
-          this.queryInstant(`process_resident_memory_bytes{job="${job}"}`),
+          this.queryInstant(
+            `100 * (rate(process_cpu_user_seconds_total{job="${job}"}[${window}]) + rate(process_cpu_system_seconds_total{job="${job}"}[${window}]))`,
+          ).then(async (v) => {
+            if (v !== null) return v;
+            return this.queryInstant(`100 * rate(process_cpu_seconds_total{job="${job}"}[${window}])`);
+          }),
+          this.queryInstant(`process_resident_memory_bytes{job="${job}"}`).then(async (v) => {
+            if (v !== null) return v;
+            return this.queryInstant(`nodejs_heap_size_used_bytes{job="${job}"}`);
+          }),
           this.queryRange(`sum(rate(http_requests_total{job="${job}"}[5m]))`, rangeSeconds, step),
           this.queryRange(
             `sum(rate(http_requests_total{job="${job}",status=~"5.."}[5m]))`,
@@ -128,5 +136,25 @@ export class PrometheusTelemetryService {
         };
       }),
     );
+  }
+
+  async getPlatformResources(window = '5m'): Promise<{
+    cpuPercent: number | null;
+    memoryBytes: number | null;
+    heapUsedBytes: number | null;
+  }> {
+    const [cpuCombined, cpuUser, memory, heap] = await Promise.all([
+      this.queryInstant(`100 * avg(rate(process_cpu_seconds_total[${window}]))`),
+      this.queryInstant(
+        `100 * avg(rate(process_cpu_user_seconds_total[${window}]) + rate(process_cpu_system_seconds_total[${window}]))`,
+      ),
+      this.queryInstant('sum(process_resident_memory_bytes)'),
+      this.queryInstant('sum(nodejs_heap_size_used_bytes)'),
+    ]);
+    return {
+      cpuPercent: cpuCombined ?? cpuUser,
+      memoryBytes: memory,
+      heapUsedBytes: heap,
+    };
   }
 }

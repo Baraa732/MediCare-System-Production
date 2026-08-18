@@ -5,6 +5,7 @@ const client = require('prom-client');
 let httpRequestsTotal;
 let httpRequestDuration;
 let httpResponsesTotal;
+let defaultMetricsStarted = false;
 
 function getOrCreateMetric(name, create) {
   const existing = client.register.getSingleMetric(name);
@@ -58,10 +59,17 @@ function recordHttpResponse(serviceName, statusCode, durationMs, method = 'GET')
   }
 }
 
+function ensureDefaultProcessMetrics() {
+  if (defaultMetricsStarted) return;
+  defaultMetricsStarted = true;
+  client.collectDefaultMetrics();
+}
+
 function registerPrometheusRoute(expressApp) {
   if (!expressApp || typeof expressApp.get !== 'function') return;
 
   ensureHttpMetrics();
+  ensureDefaultProcessMetrics();
   expressApp.get('/metrics', async (_req, res) => {
     res.set('Content-Type', client.register.contentType);
     res.end(await client.register.metrics());

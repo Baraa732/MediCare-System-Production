@@ -13,6 +13,12 @@ function ipToAnonCoord(ip: string): [number, number] {
   return [lat, lng]
 }
 
+function threatTone(score: number) {
+  if (score >= 60) return 'Critical'
+  if (score >= 25) return 'Elevated'
+  return 'Quiet'
+}
+
 export default function SecurityOverviewWidget({
   delay = 0,
   security,
@@ -21,22 +27,30 @@ export default function SecurityOverviewWidget({
   security?: SecuritySummary | null
 }) {
   const markers: HudMarker[] = useMemo(() => {
-    return (security?.topIps ?? []).slice(0, 10).map((ip) => {
+    return (security?.topIps ?? []).slice(0, 12).map((ip) => {
       const [lat, lng] = ipToAnonCoord(ip.ip)
+      const hostile = ip.actions.some((a) =>
+        /fail|suspicious|rate_limit|blocked/i.test(a),
+      )
       return {
         id: ip.ip,
         lat,
         lng,
         label: ip.ip,
-        status: ip.count > 10 ? 'bad' : ip.count > 3 ? 'warn' : 'ok',
-        meta: `${ip.count} events · anonymous plot`,
+        status: hostile ? (ip.count > 8 ? 'bad' : 'warn') : 'ok',
+        meta: `${ip.count} events · ${ip.actions.slice(0, 3).join(', ') || 'activity'}`,
       }
     })
   }, [security])
 
+  const score = security?.threatScore ?? 0
+
   return (
     <DashboardCard minHeight={280} delay={delay}>
-      <WidgetHeader title="Security Overview" subtitle="Audit · sessions · threat plot" />
+      <WidgetHeader
+        title="Security Overview"
+        subtitle={`${threatTone(score)} · ${security?.range ?? 'live'} window`}
+      />
       {!security?.available ? (
         <EmptyState
           title="Security summary unavailable"
@@ -46,12 +60,16 @@ export default function SecurityOverviewWidget({
         <div className={obs.securityGrid}>
           <HudGeoMap
             markers={markers}
-            title="THREAT ARRAY"
+            title="SOURCE ARRAY"
             subtitle="ANON PLOT"
-            emptyHint="No IP activity in range"
+            emptyHint="No source IPs in this window yet"
           />
           <div className={obs.stack}>
             <div className={obs.miniGrid}>
+              <div className={obs.metricTile}>
+                <div className={obs.metricTileLabel}>Threat</div>
+                <div className={obs.metricTileValue}>{score}</div>
+              </div>
               <div className={obs.metricTile}>
                 <div className={obs.metricTileLabel}>Failed logins</div>
                 <div className={obs.metricTileValue}>{security.failedLogins}</div>
@@ -66,14 +84,27 @@ export default function SecurityOverviewWidget({
                 <div className={obs.metricTileLabel}>Sessions</div>
                 <div className={obs.metricTileValue}>{security.activeSessions}</div>
               </div>
+              <div className={obs.metricTile}>
+                <div className={obs.metricTileLabel}>Logins</div>
+                <div className={obs.metricTileValue}>{security.loginEvents ?? 0}</div>
+              </div>
+              <div className={obs.metricTile}>
+                <div className={obs.metricTileLabel}>Suspicious</div>
+                <div className={obs.metricTileValue}>{security.suspicious}</div>
+              </div>
             </div>
             <div className={obs.ipList} aria-label="Top source IPs">
-              {security.topIps.slice(0, 6).map((ip) => (
+              {(security.topIps.length ? security.topIps : []).slice(0, 6).map((ip) => (
                 <div key={ip.ip} className={obs.ipRow}>
                   <span className={obs.ipAddr}>{ip.ip}</span>
                   <span className={obs.muted}>{ip.count}</span>
                 </div>
               ))}
+              {!security.topIps.length && (
+                <div className={obs.muted}>
+                  {security.uniqueActors ?? 0} actors · {security.rateLimitExceeded} rate-limit events
+                </div>
+              )}
             </div>
           </div>
         </div>

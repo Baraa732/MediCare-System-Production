@@ -36,6 +36,7 @@ import { IdempotencyGuard, Idempotent } from '../guards/idempotency.guard';
 import { IdempotencyInterceptor } from '../interceptors/idempotency.interceptor';
 import { CsrfGuard } from '../guards/csrf.guard';
 import { RateLimitGuard } from '../guards/rate-limit.guard';
+import { clientIp } from '../utils/client-ip';
 
 enum UserRole {
   SYSTEM_MANAGER = 'SYSTEM_MANAGER',
@@ -75,7 +76,7 @@ export class AuthController {
   async verifyOtp(@Body() verifyOtpDto: VerifyOtpDto, @Request() req) {
     const autoLogin = verifyOtpDto.autoLogin === 'true';
     const deviceInfo = {
-      ip: req.ip,
+      ip: clientIp(req),
       userAgent: req.headers['user-agent'],
     };
     // HIGH FIX: Pass deviceInfo to verifyOtp for auto-login IP fix
@@ -110,7 +111,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async login(@Body() loginDto: LoginDto, @Request() req) {
     const deviceInfo = {
-      ip: req.ip,
+      ip: clientIp(req),
       userAgent: req.headers['user-agent'],
       deviceId: loginDto.deviceId,
       browserFingerprint: loginDto.browserFingerprint,
@@ -141,8 +142,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async refreshToken(@Body() refreshTokenDto: RefreshTokenDto, @Request() req) {
     const requestId = req.headers['x-request-id'] as string;
-    const clientIp = req.ip || 'unknown';
-    return this.authService.refreshToken(refreshTokenDto, clientIp, requestId);
+    return this.authService.refreshToken(refreshTokenDto, clientIp(req), requestId);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -212,7 +212,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async resetPassword(@Body() resetPasswordDto: ResetPasswordDto, @Request() req) {
     const deviceInfo = {
-      ip: req.ip,
+      ip: clientIp(req),
       userAgent: req.headers['user-agent'],
       deviceId: resetPasswordDto.deviceId,
       browserFingerprint: resetPasswordDto.browserFingerprint,
@@ -254,7 +254,7 @@ export class AuthController {
     if (!allowed) {
       return { message: 'Only available in development' };
     }
-    return this.authService.devClearRateLimits(phoneNumber, req.ip);
+    return this.authService.devClearRateLimits(phoneNumber, clientIp(req));
   }
 
   // MFA verification after login returns { requiresMfa: true, mfaToken }
@@ -263,7 +263,7 @@ export class AuthController {
   @UseGuards(RateLimitGuard)
   async verifyMfa(@Body() body: VerifyMfaDto, @Request() req) {
     const deviceInfo = {
-      ip: req.ip,
+      ip: clientIp(req),
       userAgent: req.headers['user-agent'],
       deviceId: body.deviceId,
       browserFingerprint: body.browserFingerprint,
@@ -277,7 +277,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async completeStaffActivation(@Body() dto: CompleteStaffActivationDto, @Request() req) {
     const deviceInfo = {
-      ip: req.ip,
+      ip: clientIp(req),
       userAgent: req.headers['user-agent'],
       deviceId: dto.deviceId,
       browserFingerprint: dto.browserFingerprint,

@@ -143,18 +143,45 @@ export function buildSystemLoad(observability: PlatformObservability | null) {
   const services = observability?.apm.services ?? []
   const cpus = services.map((s) => s.cpuPercent).filter((n): n is number => n != null)
   const mems = services.map((s) => s.memoryBytes).filter((n): n is number => n != null)
-  const cpu = cpus.length ? Math.round(avg(cpus)) : 0
-  const memory = mems.length
-    ? Math.min(100, Math.round((avg(mems) / (512 * 1024 * 1024)) * 100))
-    : 0
-  const overall = Math.round(avg([cpu || 0, memory || 0].filter(Boolean)) || 0)
+  const resourceCpu = observability?.apm.resources?.cpuPercent ?? null
+  const resourceMem = observability?.apm.resources?.memoryBytes ?? observability?.apm.resources?.heapUsedBytes ?? null
+
+  const cpu = resourceCpu != null
+    ? Math.round(resourceCpu)
+    : cpus.length
+      ? Math.round(avg(cpus))
+      : null
+
+  const memoryBytes = resourceMem ?? (mems.length ? avg(mems) : null)
+  const memory = memoryBytes != null
+    ? Math.min(100, Math.round((memoryBytes / (512 * 1024 * 1024)) * 100))
+    : null
+
+  const totalReq = services.reduce((n, s) => n + (s.reqRate || 0), 0)
+  const peak = observability?.apm.throughput?.peak || 0
+  const requests = peak > 0
+    ? Math.min(100, Math.round((totalReq / peak) * 100))
+    : Math.min(100, Math.round(totalReq * 20))
+
+  const avgP95 = avg(services.map((s) => s.p95 ?? s.p50 ?? 0).filter((n) => n > 0))
+  const latency = avgP95 > 0 ? Math.min(100, Math.round((avgP95 / 800) * 100)) : 0
+
+  const parts = [cpu, memory, requests, latency].filter((n): n is number => n != null)
+  const overall = parts.length ? Math.round(avg(parts)) : 0
+
   return {
     overall,
     cpu,
     memory,
-    disk: null as number | null,
-    network: null as number | null,
-    available: cpus.length > 0 || mems.length > 0,
+    requests,
+    latency,
+    available: services.length > 0 || cpu != null || memory != null,
+    services: services.map((s) => ({
+      name: s.name,
+      cpu: s.cpuPercent ?? null,
+      memoryBytes: s.memoryBytes ?? null,
+      reqRate: s.reqRate,
+    })),
   }
 }
 

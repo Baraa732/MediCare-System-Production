@@ -44,9 +44,15 @@ export class AuditLogService {
     const tenantId = asTenantUuid(
       dto.tenantId ?? this.tenantContext.getTenantId() ?? undefined,
     );
+    const ipFromMeta =
+      (typeof dto.metadata?.ip === 'string' && dto.metadata.ip) ||
+      (dto.metadata?.deviceInfo && typeof dto.metadata.deviceInfo === 'object'
+        ? String((dto.metadata.deviceInfo as { ip?: string }).ip || '')
+        : '');
     const auditLog = this.auditLogRepository.create({
       ...dto,
       tenantId,
+      ip: dto.ip || ipFromMeta || undefined,
       severity: dto.severity || 'info',
     });
 

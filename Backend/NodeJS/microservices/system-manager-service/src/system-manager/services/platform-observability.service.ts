@@ -122,13 +122,14 @@ export class PlatformObservabilityService {
   }
 
   private async buildOverview(range = '1h') {
-    const [health, logs, prometheusAvailable, lokiAvailable, otelAvailable, promMetrics] = await Promise.all([
+    const [health, logs, prometheusAvailable, lokiAvailable, otelAvailable, promMetrics, platformResources] = await Promise.all([
       this.platformHealthService.getPlatformHealth(),
       this.platformLogsService.getPlatformLogs({ range, limit: 300 }),
       this.prometheusTelemetryService.isAvailable(),
       this.lokiTelemetryService.isAvailable(),
       this.otelTopologyService.isAvailable(),
       this.prometheusTelemetryService.getServiceMetrics(range),
+      this.prometheusTelemetryService.getPlatformResources(),
     ]);
 
     const services = this.platformLogsService.getKnownServices();
@@ -156,6 +157,16 @@ export class PlatformObservabilityService {
         errors: this.buildErrors(entries),
         latencySeries: await this.buildLatencySeries(apm, promByService, range),
         throughput: this.buildPlatformThroughput(apm, range),
+        resources: {
+          cpuPercent: platformResources.cpuPercent !== null
+            ? Math.round(platformResources.cpuPercent * 10) / 10
+            : (() => {
+                const cpus = apm.map((s) => s.cpuPercent).filter((n): n is number => n != null);
+                return cpus.length ? this.average(cpus) : null;
+              })(),
+          memoryBytes: platformResources.memoryBytes ?? platformResources.heapUsedBytes,
+          heapUsedBytes: platformResources.heapUsedBytes,
+        },
         serviceMap,
       },
       traces: {

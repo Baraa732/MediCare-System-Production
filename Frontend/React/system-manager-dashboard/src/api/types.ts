@@ -86,6 +86,9 @@ export interface SecuritySummary {
   suspicious: number
   rateLimitExceeded: number
   activeSessions: number
+  loginEvents?: number
+  uniqueActors?: number
+  threatScore?: number
   blockedIdentifiers: Array<{
     identifier: string
     tier: string
@@ -357,6 +360,11 @@ export interface PlatformObservability {
     }>
     latencySeries: Array<{ name: string; p50: number[]; p95: number[] }>
     throughput?: PlatformThroughput
+    resources?: {
+      cpuPercent: number | null
+      memoryBytes: number | null
+      heapUsedBytes?: number | null
+    }
     serviceMap: {
       simulated?: boolean
       nodes: Array<{ id: string; name: string; status: ObservabilityStatus; reqRate: number; errorRate: number }>

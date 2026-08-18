@@ -10,6 +10,9 @@ export interface AuthSecuritySummary {
   suspicious: number;
   rateLimitExceeded: number;
   activeSessions: number;
+  loginEvents: number;
+  uniqueActors: number;
+  threatScore: number;
   blockedIdentifiers: Array<{
     identifier: string;
     tier: string;
