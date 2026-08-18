@@ -6,7 +6,10 @@ import { darkTheme, lightTheme } from './theme'
 import { useUIStore } from './store/uiStore'
 import App from './App'
 import QueryProvider from './providers/QueryProvider'
+import { installStaleChunkReload } from './lib/staleChunk'
 import './components/motion/motion.css'
+
+installStaleChunkReload()
 
 function ThemedApp() {
   const themeMode = useUIStore((s) => s.themeMode)

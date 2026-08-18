@@ -1,7 +1,11 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { Box } from '@mui/material'
+import { reloadOnceOnStaleChunk } from '../../../lib/staleChunk'
 
-const playerImport = import('./AuthLottiePlayer')
+const playerImport = import('./AuthLottiePlayer').catch((error: unknown) => {
+  reloadOnceOnStaleChunk(error)
+  return Promise.reject(error)
+})
 
 const AuthLottiePlayer = lazy(() =>
   playerImport.then((m) => ({ default: m.AuthLottiePlayer })),

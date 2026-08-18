@@ -1,4 +1,4 @@
-﻿import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+﻿import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Alert, Box, Chip, Typography } from '@mui/material'
 import { alpha } from '@mui/material/styles'
@@ -16,6 +16,7 @@ import LogsFilterBar from './components/LogsFilterBar'
 import LogsFilterHeader from './components/LogsFilterHeader'
 import LogsTable from './components/LogsTable'
 import LogsToolbar from './components/LogsToolbar'
+import LogsChartsRow from './components/LogsChartsRow'
 import {
   LOG_LEVEL_COLORS,
   applyLogFilters,
@@ -26,8 +27,6 @@ import {
   type LogSortOrder,
   type LogViewDensity,
 } from './logUtils'
-
-const LogsChartsRow = lazy(() => import('./components/LogsChartsRow'))
 
 export default function LogsPage() {
   const [searchParams] = useSearchParams()
@@ -231,9 +230,7 @@ export default function LogsPage() {
       {data?.warning && <Alert severity="warning" sx={{ flexShrink: 0 }}>{data.warning}</Alert>}
 
       <MotionPanel index={0}>
-      <Suspense fallback={<Box sx={{ height: 220, borderRadius: 1, bgcolor: 'action.hover' }} />}>
         <LogsChartsRow histogram={chartHistogram} levels={levelCounts} />
-      </Suspense>
       </MotionPanel>
 
       <MotionPanel index={1}>

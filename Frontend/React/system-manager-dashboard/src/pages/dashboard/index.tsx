@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useMemo, useState } from 'react'
+import { Suspense, useCallback, useMemo, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { Alert, Box, LinearProgress } from '@mui/material'
 import { LayoutDashboard } from 'lucide-react'
@@ -39,11 +39,12 @@ import {
 } from './dashboardUtils'
 import { computeErrorBudget, generateInsights } from './insightsEngine'
 import { buildAIOpsSnapshot } from '../../lib/aiopsEngine'
+import { lazyWithReload } from '../../lib/staleChunk'
 
-const ActivationFunnelChart = lazy(() => import('./components/ActivationFunnelChart'))
-const ClinicGrowthChart = lazy(() => import('./components/ClinicGrowthChart'))
-const LatencyHeatmapChart = lazy(() => import('./components/LatencyHeatmapChart'))
-const ErrorTreemapChart = lazy(() => import('./components/ErrorTreemapChart'))
+const ActivationFunnelChart = lazyWithReload(() => import('./components/ActivationFunnelChart'))
+const ClinicGrowthChart = lazyWithReload(() => import('./components/ClinicGrowthChart'))
+const LatencyHeatmapChart = lazyWithReload(() => import('./components/LatencyHeatmapChart'))
+const ErrorTreemapChart = lazyWithReload(() => import('./components/ErrorTreemapChart'))
 
 function ChartFallback() {
   return <LinearProgress sx={{ my: 2 }} />

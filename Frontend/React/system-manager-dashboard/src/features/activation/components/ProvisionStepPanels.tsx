@@ -1,4 +1,5 @@
-import { lazy, Suspense } from 'react'
+import { Suspense } from 'react'
+import { lazyWithReload } from '../../../lib/staleChunk'
 import {
   Alert,
   Autocomplete,
@@ -31,7 +32,7 @@ import {
 } from '../console/formFieldSx'
 import DocumentUploadZone from './DocumentUploadZone'
 
-const ClinicLocationPicker = lazy(() => import('../ClinicLocationPicker'))
+const ClinicLocationPicker = lazyWithReload(() => import('../ClinicLocationPicker'))
 
 type ProvisionStepPanelsProps = {
   stepId: string
