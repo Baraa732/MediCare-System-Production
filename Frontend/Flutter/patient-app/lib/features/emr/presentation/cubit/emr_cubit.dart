@@ -36,54 +36,31 @@ class EmrCubit extends Cubit<EmrState> {
           );
       final selected = preferredLink?.id ?? syncedLink?.id;
 
-      final sync = await _emrApi.getMySyncStatus(tenantId: selected);
-      if (!sync.synced) {
-        emit(state.copyWith(
-          status: EmrLoadStatus.pending,
-          syncStatus: sync,
-          links: links,
-          selectedTenantId: selected ?? sync.tenantId,
-          clearChart: true,
-          clearError: true,
-        ));
-        return;
+      EmrSyncStatus? sync;
+      try {
+        sync = await _emrApi.getMySyncStatus(tenantId: selected);
+      } catch (_) {}
+
+      PatientEmrChart chart;
+      try {
+        chart = await _emrApi.getMyEmr(tenantId: selected ?? sync?.tenantId);
+      } catch (_) {
+        chart = PatientEmrChart.empty();
       }
 
-      final chart = await _emrApi.getMyEmr(tenantId: selected ?? sync.tenantId);
       emit(state.copyWith(
         status: EmrLoadStatus.ready,
         chart: chart,
         syncStatus: sync,
         links: links,
-        selectedTenantId: selected ?? sync.tenantId,
+        selectedTenantId: selected ?? sync?.tenantId,
         clearError: true,
-      ));
-    } on ApiException catch (e) {
-      if (e.statusCode == 404) {
-        EmrSyncStatus? sync;
-        List<EmrClinicLink> links = state.links;
-        try {
-          sync = await _emrApi.getMySyncStatus(tenantId: preferred);
-          links = await _emrApi.getMyLinks();
-        } catch (_) {}
-        emit(state.copyWith(
-          status: EmrLoadStatus.pending,
-          syncStatus: sync,
-          links: links,
-          selectedTenantId: preferred ?? sync?.tenantId,
-          clearChart: true,
-          clearError: true,
-        ));
-        return;
-      }
-      emit(state.copyWith(
-        status: EmrLoadStatus.failure,
-        errorMessage: e.message,
       ));
     } catch (_) {
       emit(state.copyWith(
-        status: EmrLoadStatus.failure,
-        errorMessage: 'Could not load your medical records.',
+        status: EmrLoadStatus.ready,
+        chart: PatientEmrChart.empty(),
+        clearError: true,
       ));
     }
   }

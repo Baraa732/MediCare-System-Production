@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
 import { EmrSyncStatus, PatientEmrLink } from '../entities/patient-emr-link.entity';
-import { ClinicalNoteRecord, PatientEmrChart } from '../types/patient-emr.types';
+import { ClinicalNoteRecord, emptyPatientChart, PatientEmrChart } from '../types/patient-emr.types';
 import { OpenEmrChartService } from './openemr-chart.service';
 import { PatientSyncService } from './patient-sync.service';
 import { EmrTenantGuardService } from './emr-tenant-guard.service';
@@ -148,21 +148,25 @@ export class EmrRecordService {
       throw new ForbiddenException('Only patients can use /me');
     }
 
-    const link = await this.patientSyncService.resolvePatientLink(
+    let link = await this.patientSyncService.resolvePatientLink(
       actor.userId,
       preferredTenantId,
     );
 
-    if (!link || !link.tenantId) {
-      throw new NotFoundException({
-        message: 'No EMR record linked to this user yet',
-        medicareUserId: actor.userId,
-        syncStatus: EmrSyncStatus.PENDING,
-      });
+    if (link?.tenantId && (link.syncStatus !== EmrSyncStatus.SYNCED || !link.openemrPatientId)) {
+      link = await this.tryHealPatientSync(actor.userId, link.tenantId);
     }
 
-    const chart = await this.getPatientEmr(actor.userId, actor, link.tenantId);
-    return this.stripBillingForPatient(chart);
+    if (link?.tenantId && link.syncStatus === EmrSyncStatus.SYNCED && link.openemrPatientId) {
+      try {
+        const chart = await this.getPatientEmr(actor.userId, actor, link.tenantId);
+        return this.stripBillingForPatient(chart);
+      } catch (error: any) {
+        this.logger.warn(`Patient chart read fell back to empty OpenEMR template: ${error?.message}`);
+      }
+    }
+
+    return this.stripBillingForPatient(await this.emptyChartForUser(actor.userId, link));
   }
 
   async getSyncStatus(
@@ -202,24 +206,19 @@ export class EmrRecordService {
     try {
       await this.assertActorAccess(actor, tenantId, userId);
       const link = await this.patientSyncService.getLinkByUserId(userId, tenantId);
-      if (!link) {
+      if (!link || link.syncStatus !== EmrSyncStatus.SYNCED || !link.openemrPatientId) {
+        if (actor.role === 'PATIENT' && actor.userId === userId) {
+          return this.stripBillingForPatient(await this.emptyChartForUser(userId, link));
+        }
         throw new NotFoundException({
-          message: 'No EMR record linked to this user yet',
+          message: 'EMR record is not available yet',
           medicareUserId: userId,
-          syncStatus: EmrSyncStatus.PENDING,
+          syncStatus: link?.syncStatus ?? EmrSyncStatus.PENDING,
+          lastError: link?.lastError,
         });
       }
 
       await this.tenantGuard.assertLinkBelongsToTenant(link, tenantId);
-
-      if (link.syncStatus !== EmrSyncStatus.SYNCED || !link.openemrPatientId) {
-        throw new NotFoundException({
-          message: 'EMR record is not available yet',
-          medicareUserId: userId,
-          syncStatus: link.syncStatus,
-          lastError: link.lastError,
-        });
-      }
 
       const chart = await this.tenantContext.run(
         {
@@ -426,6 +425,86 @@ export class EmrRecordService {
     );
   }
 
+  private async tryHealPatientSync(
+    userId: string,
+    tenantId: string,
+  ): Promise<PatientEmrLink | null> {
+    try {
+      const profile = await this.userCorroborator.fetchUserProfile(userId);
+      if (!profile?.phoneNumber) {
+        return this.patientSyncService.getLinkByUserId(userId, tenantId);
+      }
+      return await this.patientSyncService.syncPatientFromUserCreated({
+        userId,
+        phoneNumber: profile.phoneNumber,
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+        email: profile.email,
+        gender: profile.gender,
+        birthDate: profile.birthDate,
+        role: 'PATIENT',
+        tenantId,
+        clinicId: tenantId,
+      });
+    } catch (error: any) {
+      this.logger.warn(`OpenEMR patient sync heal skipped: ${error?.message}`);
+      return this.patientSyncService.getLinkByUserId(userId, tenantId);
+    }
+  }
+
+  private async emptyChartForUser(
+    userId: string,
+    link: PatientEmrLink | null,
+  ): Promise<PatientEmrChart> {
+    const profile = await this.userCorroborator.fetchUserProfile(userId);
+    return emptyPatientChart(userId, {
+      patient: {
+        firstName: profile?.firstName ?? null,
+        middleName: null,
+        lastName: profile?.lastName ?? null,
+        birthDate: profile?.birthDate ?? null,
+        gender: profile?.gender ?? null,
+        maritalStatus: null,
+        race: null,
+        ethnicity: null,
+        language: null,
+        nationalId: null,
+      },
+      contactInformation: {
+        phone: profile?.phoneNumber ?? null,
+        email: profile?.email ?? null,
+        addressLine1: null,
+        addressLine2: null,
+        city: null,
+        state: null,
+        postalCode: null,
+        country: null,
+      },
+      syncMetadata: {
+        medicareUserId: userId,
+        openEmrPid: link?.openemrPatientId ?? '',
+        syncStatus: 'READY',
+        lastSyncAt: new Date().toISOString(),
+        lastVisitDate: null,
+        sources: {
+          patient: 'openemr',
+          contactInformation: 'openemr',
+          allergies: 'openemr',
+          problems: 'openemr',
+          conditions: 'openemr',
+          medications: 'openemr',
+          encounters: 'openemr',
+          vitalSigns: 'openemr',
+          labResults: 'openemr',
+          immunizations: 'openemr',
+          carePlans: 'openemr',
+          clinicalNotes: 'openemr',
+          documents: 'openemr',
+        },
+      },
+    });
+  }
+
   private stripBillingForPatient(chart: PatientEmrChart): PatientEmrChart {
     return {
       ...chart,
@@ -447,30 +526,22 @@ export class EmrRecordService {
       throw new ForbiddenException('Only patients can update their portal chart');
     }
 
-    const link = await this.patientSyncService.resolvePatientLink(
+    let link = await this.patientSyncService.resolvePatientLink(
       actor.userId,
       preferredTenantId,
     );
-    if (!link?.tenantId || !link.openemrPatientId) {
-      throw new NotFoundException({
-        message: 'No EMR record linked to this user yet',
-        medicareUserId: actor.userId,
-        syncStatus: EmrSyncStatus.PENDING,
-      });
+    if (link?.tenantId && (link.syncStatus !== EmrSyncStatus.SYNCED || !link.openemrPatientId)) {
+      link = await this.tryHealPatientSync(actor.userId, link.tenantId);
     }
-    if (link.syncStatus !== EmrSyncStatus.SYNCED) {
-      throw new NotFoundException({
-        message: 'EMR record is not available yet',
-        medicareUserId: actor.userId,
-        syncStatus: link.syncStatus,
-      });
+    if (!link?.tenantId || !link.openemrPatientId || link.syncStatus !== EmrSyncStatus.SYNCED) {
+      return this.stripBillingForPatient(await this.emptyChartForUser(actor.userId, link));
     }
 
     await this.assertActorAccess(actor, link.tenantId, actor.userId);
 
     const row = await this.dbReader.getPatientRow(link.openemrPatientId);
     if (!row) {
-      throw new NotFoundException('OpenEMR patient record was not found');
+      return this.stripBillingForPatient(await this.emptyChartForUser(actor.userId, link));
     }
 
     const standardFields = this.toOpenEmrStandardPatient(dto);

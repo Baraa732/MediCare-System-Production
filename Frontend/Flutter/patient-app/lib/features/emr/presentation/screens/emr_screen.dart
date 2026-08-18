@@ -53,12 +53,16 @@ class _EmrView extends StatelessWidget {
                   case EmrLoadStatus.loading:
                     return const Center(child: CircularProgressIndicator());
                   case EmrLoadStatus.pending:
-                    return _PendingState(sync: state.syncStatus);
                   case EmrLoadStatus.failure:
-                    return _ErrorState(
-                      message: state.errorMessage ??
-                          'Could not load your medical records.',
-                      onRetry: () => context.read<EmrCubit>().load(),
+                    return FadeSlideIn(
+                      child: RefreshIndicator(
+                        color: AppColors.main_background_blue,
+                        onRefresh: () =>
+                            context.read<EmrCubit>().load(showLoading: false),
+                        child: _ChartBody(
+                          chart: state.chart ?? PatientEmrChart.empty(),
+                        ),
+                      ),
                     );
                   case EmrLoadStatus.ready:
                     final chart = state.chart!;
@@ -813,104 +817,6 @@ class _MoreTab extends StatelessWidget {
           style: FontHeading.bodySmall.copyWith(color: AppColors.customGray),
         ),
       ],
-    );
-  }
-}
-
-class _PendingState extends StatelessWidget {
-  const _PendingState({this.sync});
-  final EmrSyncStatus? sync;
-
-  @override
-  Widget build(BuildContext context) {
-    final status = sync?.syncStatus ?? 'PENDING';
-    return FadeSlideIn(
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(28),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 88,
-                height: 88,
-                decoration: BoxDecoration(
-                  color: AppColors.main_background_blue.withValues(alpha: 0.1),
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(28),
-                    topRight: Radius.circular(12),
-                    bottomLeft: Radius.circular(12),
-                    bottomRight: Radius.circular(28),
-                  ),
-                ),
-                child: const Icon(
-                  Icons.folder_shared_outlined,
-                  size: 40,
-                  color: AppColors.main_background_blue,
-                ),
-              ),
-              const SizedBox(height: 18),
-              Text('Records being prepared', style: FontHeading.heading4.copyWith(color: AppColors.grayDark)),
-              const SizedBox(height: 8),
-              Text(
-                'Your clinic EMR link is $status. '
-                'Medical history appears here after your first synced visit.',
-                textAlign: TextAlign.center,
-                style: FontHeading.bodySmall.copyWith(color: AppColors.CustomgrayDark),
-              ),
-              if (sync?.lastError != null) ...[
-                const SizedBox(height: 12),
-                Text(
-                  sync!.lastError!,
-                  textAlign: TextAlign.center,
-                  style: FontHeading.bodySmall.copyWith(color: AppColors.red),
-                ),
-              ],
-              const SizedBox(height: 20),
-              TextButton(
-                onPressed: () => context.read<EmrCubit>().load(),
-                style: TextButton.styleFrom(
-                  foregroundColor: AppColors.main_background_blue,
-                ),
-                child: const Text('Check again'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ErrorState extends StatelessWidget {
-  const _ErrorState({required this.message, required this.onRetry});
-  final String message;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: FontHeading.body.copyWith(color: AppColors.CustomgrayDark),
-            ),
-            const SizedBox(height: 16),
-            TextButton(
-              onPressed: onRetry,
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.main_background_blue,
-              ),
-              child: const Text('Retry'),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

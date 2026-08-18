@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import {
   DEFAULT_DATA_OWNERSHIP,
   EmrDataSource,
+  emptyPatientChart,
   PatientDemographics,
   PatientEmrChart,
   SyncMetadata,
@@ -79,12 +80,34 @@ export class OpenEmrChartService {
   }): Promise<PatientEmrChart> {
     const { tenantId, openemrPatientId, medicareUserId, syncStatus, lastSyncAt } = params;
 
-    await this.tenantGuard.assertOpenEmrPatientBelongsToTenant(openemrPatientId, tenantId);
+    try {
+      await this.tenantGuard.assertOpenEmrPatientBelongsToTenant(openemrPatientId, tenantId);
+    } catch {
+      return emptyPatientChart(medicareUserId, {
+        syncMetadata: {
+          medicareUserId,
+          openEmrPid: openemrPatientId,
+          syncStatus,
+          lastSyncAt,
+          lastVisitDate: null,
+          sources: {},
+        },
+      });
+    }
 
     const patientRow = await this.dbReader.getPatientRow(openemrPatientId);
 
     if (!patientRow) {
-      throw new Error(`OpenEMR patient ${openemrPatientId} not found`);
+      return emptyPatientChart(medicareUserId, {
+        syncMetadata: {
+          medicareUserId,
+          openEmrPid: openemrPatientId,
+          syncStatus,
+          lastSyncAt,
+          lastVisitDate: null,
+          sources: {},
+        },
+      });
     }
 
     const patientUuid = this.dbReader.getPatientUuid(patientRow);

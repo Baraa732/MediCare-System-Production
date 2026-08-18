@@ -24,16 +24,12 @@ export interface OpenEmrPatientInput {
   birthDate?: string;
 }
 
-const OPENEMR_SCOPES = [
+const FHIR_READ_SCOPES = [
   'openid',
   'offline_access',
   'api:fhir',
-  'api:oemr',
   'user/Patient.crs',
   'user/Patient.rs',
-  'user/Patient.u',
-  'user/patient.read',
-  'user/patient.write',
   'user/AllergyIntolerance.rs',
   'user/Condition.rs',
   'user/MedicationRequest.rs',
@@ -150,7 +146,7 @@ export class OpenEmrClient implements OnModuleInit {
       redirect_uris: [`${this.baseUrl}/oauth2/${this.site}/redirect`],
       client_name: 'MediCare EMR Integration',
       token_endpoint_auth_method: 'client_secret_post',
-      scope: OPENEMR_SCOPES,
+      scope: FHIR_READ_SCOPES,
     };
 
     const response = await this.http.post(this.oauthUrl('/registration'), payload, {
@@ -206,6 +202,8 @@ export class OpenEmrClient implements OnModuleInit {
       return this.tokenCache.accessToken;
     }
 
+    this.tokenCache = null;
+
     if (!this.clientId || !this.clientSecret) {
       await this.ensureOAuthClient();
     }
@@ -217,7 +215,7 @@ export class OpenEmrClient implements OnModuleInit {
       grant_type: 'password',
       client_id: this.clientId!,
       client_secret: this.clientSecret!,
-      scope: OPENEMR_SCOPES,
+      scope: FHIR_READ_SCOPES,
       user_role: 'users',
       username: adminUser,
       password: adminPass,
@@ -229,6 +227,9 @@ export class OpenEmrClient implements OnModuleInit {
     });
 
     if (response.status < 200 || response.status >= 300 || !response.data?.access_token) {
+      this.logger.warn(
+        `OpenEMR token request failed (HTTP ${response.status}); FHIR reads will be skipped`,
+      );
       throw new Error(this.formatOpenEmrError('OpenEMR token request', response.status));
     }
 

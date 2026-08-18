@@ -72,6 +72,32 @@ class PatientEmrChart {
       ),
     );
   }
+
+  factory PatientEmrChart.empty() {
+    return const PatientEmrChart(
+      patient: PatientDemographics(),
+      contactInformation: ContactInformation(),
+      emergencyContacts: [],
+      insurance: [],
+      allergies: [],
+      problems: [],
+      conditions: [],
+      medications: [],
+      encounters: [],
+      vitalSigns: [],
+      labResults: [],
+      immunizations: [],
+      carePlans: [],
+      clinicalNotes: [],
+      documents: [],
+      syncMetadata: SyncMetadata(
+        medicareUserId: '',
+        openEmrPid: '',
+        syncStatus: 'READY',
+        lastSyncAt: '',
+      ),
+    );
+  }
 }
 
 class PatientDemographics {
