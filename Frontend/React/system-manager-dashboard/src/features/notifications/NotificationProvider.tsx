@@ -16,8 +16,11 @@ import {
   onMessage,
   type Messaging,
 } from 'firebase/messaging'
+import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
+import { useSettingsStore } from '../../store/settingsStore'
 import { LIVE_POLL } from '../../lib/livePolling'
+import { passesThreshold, sanitizeDeepLink } from '../../lib/staffInbox'
 import {
   fetchPushWebConfig,
   fetchStaffInbox,
@@ -45,12 +48,17 @@ type NotificationContextValue = {
 
 const NotificationContext = createContext<NotificationContextValue | null>(null)
 
-function showSystemNotification(title: string, body: string, data?: Record<string, string>) {
+function showSystemNotification(
+  title: string,
+  body: string,
+  data?: Record<string, string>,
+  onOpen?: (deepLink: string, notificationId?: string) => void,
+) {
   if (typeof Notification === 'undefined' || Notification.permission !== 'granted') {
     return
   }
 
-  const tag = data?.category || 'medicare-system-manager'
+  const tag = data?.category || data?.kind || 'medicare-system-manager'
   const notification = new Notification(title, {
     body,
     icon: '/favicon.svg',
@@ -63,11 +71,13 @@ function showSystemNotification(title: string, body: string, data?: Record<strin
   notification.onclick = () => {
     window.focus()
     notification.close()
+    onOpen?.(sanitizeDeepLink(data?.deepLink), data?.notificationId)
   }
 }
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const token = useAuthStore((s) => s.token)
+  const navigate = useNavigate()
   const [items, setItems] = useState<StaffInboxItem[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [permission, setPermission] = useState<NotificationPermissionState>('default')
@@ -83,7 +93,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     if (!token) return
     setIsLoading(true)
     try {
-      const inbox = await fetchStaffInbox(token, { page: 1, limit: 30 })
+      const inbox = await fetchStaffInbox(token, { page: 1, limit: 50 })
       setItems(inbox.items)
       setUnreadCount(inbox.unreadCount)
       setLastError(null)
@@ -98,13 +108,18 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const markRead = useCallback(
     async (id: string) => {
       if (!token) return
+      let wasUnread = false
+      setItems((prev) => {
+        const current = prev.find((item) => item.id === id)
+        wasUnread = Boolean(current && !current.readAt)
+        return prev.map((item) =>
+          item.id === id ? { ...item, readAt: item.readAt ?? new Date().toISOString() } : item,
+        )
+      })
+      if (wasUnread) {
+        setUnreadCount((count) => Math.max(0, count - 1))
+      }
       await markStaffInboxRead(id, token)
-      setItems((prev) =>
-        prev.map((item) =>
-          item.id === id ? { ...item, readAt: new Date().toISOString() } : item,
-        ),
-      )
-      setUnreadCount((count) => Math.max(0, count - 1))
     },
     [token],
   )
@@ -181,11 +196,15 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       const title =
         payload.notification?.title || payload.data?.title || 'MediCare Platform'
       const body = payload.notification?.body || payload.data?.body || ''
+      const data = (payload.data ?? {}) as Record<string, string>
 
       void refreshInbox()
-      showSystemNotification(title, body, payload.data as Record<string, string>)
+      showSystemNotification(title, body, data, (deepLink, notificationId) => {
+        if (notificationId) void markRead(notificationId)
+        navigate(deepLink)
+      })
     })
-  }, [token, refreshInbox, registerServiceWorker])
+  }, [token, refreshInbox, registerServiceWorker, markRead, navigate])
 
   const requestPushPermission = useCallback(async () => {
     await setupFirebaseMessaging()
@@ -204,6 +223,23 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     void refreshInbox()
     void setupFirebaseMessaging()
   }, [token, refreshInbox, setupFirebaseMessaging])
+
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return
+
+    const onSwMessage = (event: MessageEvent) => {
+      if (event.data?.type !== 'NOTIFICATION_CLICK') return
+      const deepLink = sanitizeDeepLink(event.data.deepLink)
+      const notificationId =
+        typeof event.data.notificationId === 'string' ? event.data.notificationId : undefined
+      if (notificationId) void markRead(notificationId)
+      navigate(deepLink)
+      void refreshInbox()
+    }
+
+    navigator.serviceWorker.addEventListener('message', onSwMessage)
+    return () => navigator.serviceWorker.removeEventListener('message', onSwMessage)
+  }, [navigate, markRead, refreshInbox])
 
   useEffect(() => {
     if (!token) return
@@ -275,4 +311,18 @@ export function useNotifications() {
     throw new Error('useNotifications must be used within NotificationProvider')
   }
   return ctx
+}
+
+export function useInboxView() {
+  const ctx = useNotifications()
+  const threshold = useSettingsStore((s) => s.notificationThreshold)
+  const items = useMemo(
+    () => ctx.items.filter((item) => passesThreshold(item, threshold)),
+    [ctx.items, threshold],
+  )
+  const unreadCount = useMemo(
+    () => items.filter((item) => !item.readAt).length,
+    [items],
+  )
+  return { ...ctx, items, unreadCount }
 }

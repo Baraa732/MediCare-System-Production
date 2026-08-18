@@ -83,3 +83,45 @@ export class BroadcastPatientsDto {
   @IsUUID('4', { each: true })
   userIds: string[];
 }
+
+export class NotifySystemManagersDto {
+  @IsArray()
+  @ArrayNotEmpty()
+  @ArrayMaxSize(50)
+  @IsUUID('4', { each: true })
+  userIds: string[];
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
+  title: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(500)
+  body: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  severity?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  kind?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  deepLink?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  dedupeKey?: string;
+
+  @IsOptional()
+  @IsUUID('4')
+  clinicId?: string;
+}

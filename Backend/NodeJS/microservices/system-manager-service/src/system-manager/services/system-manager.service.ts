@@ -18,6 +18,7 @@ import {
 } from '../dto/clinic-admin-activation.dto';
 import { ClinicHttpClient } from './clinic-http.client';
 import { ActivationDocumentService } from './activation-document.service';
+import { PlatformOpsNotifyService } from './platform-ops-notify.service';
 import type { ActivationUploadedFiles } from '../types/activation-documents.types';
 import { ClinicType } from '../enums/clinic-activation.enums';
 
@@ -67,6 +68,7 @@ export class SystemManagerService {
     private kafkaClient: ClientKafka,
     private readonly clinicHttpClient: ClinicHttpClient,
     private readonly activationDocumentService: ActivationDocumentService,
+    private readonly opsNotify: PlatformOpsNotifyService,
   ) {}
 
   async login(loginDto: SystemManagerLoginDto) {
@@ -131,6 +133,14 @@ export class SystemManagerService {
     });
 
     this.logger.log(`System manager created: ${username}`);
+    void this.opsNotify.notifyAll({
+      title: 'System manager provisioned',
+      body: `${saved.firstName} ${saved.lastName} (@${saved.username}) was added to the control plane.`,
+      severity: 'info',
+      kind: 'ADMIN',
+      deepLink: '/administrators',
+      dedupeKey: `admin:created:${saved.id}`,
+    });
     return {
       id: saved.id, username: saved.username,
       firstName: saved.firstName, lastName: saved.lastName, email: saved.email,
@@ -510,6 +520,14 @@ export class SystemManagerService {
     });
 
     this.logger.log(`Activation code used: ${activation.fullName} (${activation.phoneNumber})`);
+    void this.opsNotify.notifyAll({
+      title: 'Clinic admin activated',
+      body: `${activation.fullName} activated a clinic at ${activation.clinicLocation || 'unspecified location'}.`,
+      severity: 'info',
+      kind: 'ACTIVATION',
+      deepLink: '/activation-codes',
+      dedupeKey: `activation:${activation.id}`,
+    });
 
     return {
       message: 'Dashboard activated successfully. Your clinic is ready — register with your phone number.',

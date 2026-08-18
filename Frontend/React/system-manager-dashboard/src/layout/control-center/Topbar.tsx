@@ -2,17 +2,18 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
-  CheckSquare,
-  MessageSquare,
+  Inbox,
   Settings,
 } from 'lucide-react'
 import { SearchInput, TopbarAction } from '../../components/ui'
 import { fadeIn, pulseDot } from '../../animations/variants'
+import { useInboxView } from '../../features/notifications/NotificationProvider'
 import NotificationPanel from './NotificationPanel'
 import styles from './shell.module.css'
 
 export default function Topbar() {
   const navigate = useNavigate()
+  const { unreadCount } = useInboxView()
   const [now, setNow] = useState(() => new Date())
   const [query, setQuery] = useState('')
 
@@ -60,11 +61,13 @@ export default function Topbar() {
         </div>
         <span className={styles.clock}>{timeLabel}</span>
         <NotificationPanel />
-        <TopbarAction label="Messages" badge={3}>
-          <MessageSquare size={16} />
-        </TopbarAction>
-        <TopbarAction label="Tasks" badge={5}>
-          <CheckSquare size={16} />
+        <TopbarAction
+          label="Inbox"
+          badge={unreadCount > 0 ? (unreadCount > 99 ? '99+' : unreadCount) : undefined}
+          ring={unreadCount > 0}
+          onClick={() => navigate('/notifications')}
+        >
+          <Inbox size={16} />
         </TopbarAction>
         <TopbarAction label="Settings" onClick={() => navigate('/settings')}>
           <Settings size={16} />

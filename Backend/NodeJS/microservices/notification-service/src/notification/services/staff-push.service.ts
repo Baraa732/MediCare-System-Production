@@ -1,4 +1,4 @@
-import { Injectable, Logger, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, IsNull } from 'typeorm';
 import { PushDeviceToken } from '../entities/push-device-token.entity';
@@ -10,6 +10,7 @@ import { FirebasePushService } from './firebase-push.service';
 import { ClinicHttpClient } from './clinic-http.client';
 import { AppointmentEventPayload } from './notification.service';
 import { TenantContextService } from '../../tenant-shared/tenant-context.service';
+import type { NotifySystemManagersDto } from '../dto/notification.dto';
 
 @Injectable()
 export class StaffPushService {
@@ -96,10 +97,8 @@ export class StaffPushService {
 
   async markRead(userId: string, notificationId: string): Promise<void> {
     const ctxTenant = this.tenantContext.getTenantId();
-    if (!ctxTenant) {
-      throw new ForbiddenException('Tenant context is required');
-    }
-    const where: Record<string, unknown> = { id: notificationId, userId, tenantId: ctxTenant };
+    const where: Record<string, unknown> = { id: notificationId, userId };
+    if (ctxTenant) where.tenantId = ctxTenant;
     const result = await this.inboxRepo.update(where as never, { readAt: new Date() });
     if (!result.affected) {
       throw new NotFoundException('Notification not found');
@@ -108,11 +107,50 @@ export class StaffPushService {
 
   async markAllRead(userId: string): Promise<void> {
     const ctxTenant = this.tenantContext.getTenantId();
-    if (!ctxTenant) {
-      throw new ForbiddenException('Tenant context is required');
-    }
-    const where: Record<string, unknown> = { userId, readAt: IsNull(), tenantId: ctxTenant };
+    const where: Record<string, unknown> = { userId, readAt: IsNull() };
+    if (ctxTenant) where.tenantId = ctxTenant;
     await this.inboxRepo.update(where as never, { readAt: new Date() });
+  }
+
+  async notifySystemManagers(dto: NotifySystemManagersDto): Promise<{ delivered: number; skipped: number }> {
+    const uniqueIds = Array.from(new Set(dto.userIds));
+    let delivered = 0;
+    let skipped = 0;
+    const since = new Date(Date.now() - 6 * 60 * 60 * 1000);
+
+    for (const userId of uniqueIds) {
+      if (dto.dedupeKey) {
+        const existing = await this.inboxRepo
+          .createQueryBuilder('n')
+          .where('n.userId = :userId', { userId })
+          .andWhere("n.data->>'dedupeKey' = :dedupeKey", { dedupeKey: dto.dedupeKey })
+          .andWhere('n.createdAt > :since', { since })
+          .getOne();
+        if (existing) {
+          skipped += 1;
+          continue;
+        }
+      }
+
+      await this.deliverToUser(userId, {
+        category: StaffNotificationCategory.SYSTEM,
+        title: dto.title,
+        body: dto.body,
+        clinicId: dto.clinicId,
+        requireTenant: false,
+        data: {
+          kind: dto.kind ?? 'SYSTEM',
+          severity: dto.severity ?? 'warning',
+          deepLink: dto.deepLink ?? '/',
+          dedupeKey: dto.dedupeKey ?? null,
+          clinicId: dto.clinicId ?? null,
+          category: StaffNotificationCategory.SYSTEM,
+        },
+      });
+      delivered += 1;
+    }
+
+    return { delivered, skipped };
   }
 
   async notifyClinicSecretaries(
@@ -206,6 +244,7 @@ export class StaffPushService {
       body: string;
       appointmentId?: string;
       clinicId?: string;
+      requireTenant?: boolean;
       data: Record<string, unknown>;
     },
   ): Promise<void> {
@@ -216,7 +255,7 @@ export class StaffPushService {
       this.tenantContext.getTenantId() ??
       undefined;
 
-    if (!tenantId) {
+    if (input.requireTenant !== false && !tenantId) {
       this.logger.warn(`Skipping staff inbox notification — missing tenantId for user ${userId}`);
       return;
     }
@@ -224,7 +263,7 @@ export class StaffPushService {
     const inbox = await this.inboxRepo.save(
       this.inboxRepo.create({
         userId,
-        tenantId,
+        tenantId: tenantId ?? null,
         category: input.category,
         title: input.title,
         body: input.body,
@@ -234,13 +273,7 @@ export class StaffPushService {
     );
 
     const tokens = await this.tokenRepo.find({
-      where: {
-        userId,
-        enabled: true,
-        ...(this.tenantContext.getTenantId()
-          ? { tenantId: this.tenantContext.getTenantId()! }
-          : {}),
-      },
+      where: { userId, enabled: true },
     });
 
     if (!tokens.length) return;
@@ -250,7 +283,7 @@ export class StaffPushService {
       category: input.category,
       title: input.title,
       body: input.body,
-      deepLink: '/dashboard',
+      deepLink: String(input.data.deepLink ?? '/dashboard'),
     };
 
     for (const [key, value] of Object.entries(input.data)) {

@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { PlatformDataService } from './platform-data.service';
 import { NotificationHttpClient } from './notification-http.client';
+import { PlatformOpsNotifyService } from './platform-ops-notify.service';
 
 @Injectable()
 export class PlatformBroadcastService {
@@ -9,6 +10,7 @@ export class PlatformBroadcastService {
   constructor(
     private readonly platformDataService: PlatformDataService,
     private readonly notificationHttpClient: NotificationHttpClient,
+    private readonly opsNotify: PlatformOpsNotifyService,
   ) {}
 
   async broadcastToAllPatients(title: string, body: string) {
@@ -51,6 +53,17 @@ export class PlatformBroadcastService {
     this.logger.log(
       `Broadcast complete: patients=${totalPatients} inbox=${inboxSaved} pushOk=${pushSuccess} pushFail=${pushFailed} batches=${batches}`,
     );
+    void this.opsNotify.notifyAll({
+      title: 'Patient broadcast sent',
+      body:
+        totalPatients === 0
+          ? `“${cleanTitle}” reached no patients.`
+          : `“${cleanTitle}” saved to ${inboxSaved} inboxes (${pushSuccess} push, ${pushFailed} failed).`,
+      severity: totalPatients === 0 || (totalPatients > 0 && pushSuccess === 0) ? 'warning' : 'info',
+      kind: 'BROADCAST',
+      deepLink: '/notifications/broadcast',
+      dedupeKey: `broadcast:${Date.now()}`,
+    });
     if (totalPatients > 0 && pushSuccess === 0) {
       this.logger.warn(
         'Broadcast inbox was saved but no FCM push was delivered. Patients need a registered device token, and notification-service needs FIREBASE_* Admin credentials.',

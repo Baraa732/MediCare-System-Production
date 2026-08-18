@@ -56,4 +56,38 @@ export class NotificationHttpClient {
       throw error;
     }
   }
+
+  async notifySystemManagers(payload: {
+    userIds: string[];
+    title: string;
+    body: string;
+    severity?: string;
+    kind?: string;
+    deepLink?: string;
+    dedupeKey?: string;
+    clinicId?: string;
+  }): Promise<{ success: boolean; delivered: number; skipped: number }> {
+    const path = '/v1/notifications/internal/system-managers';
+    try {
+      const res = await axios.post(`${this.baseUrl}${path}`, payload, {
+        timeout: 20_000,
+        headers: createInternalAuthHeadersForUrl(
+          this.serviceName,
+          this.signingSecret,
+          'POST',
+          path,
+          payload,
+        ),
+      });
+      return {
+        success: res.data?.success === true,
+        delivered: Number(res.data?.delivered ?? 0),
+        skipped: Number(res.data?.skipped ?? 0),
+      };
+    } catch (error) {
+      const msg = error instanceof AxiosError ? error.message : String(error);
+      this.logger.error(`notifySystemManagers failed: ${msg}`);
+      return { success: false, delivered: 0, skipped: 0 };
+    }
+  }
 }

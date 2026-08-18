@@ -264,9 +264,10 @@ export default function Settings() {
                   />
                 </div>
                 <div className={styles.drawerSub}>
-                  Used as the local default when opening Alerts. Firing rules still come from live Prometheus, APM, monitors, and queues.
+                  Filters the control-center inbox and bell. Info stays hidden at warning; only high and critical show at error. Firing Prometheus rules still appear on Alerts.
                 </div>
                 <div className={styles.actions}>
+                  <AnimatedButton onClick={() => navigate('/notifications')}>Open inbox</AnimatedButton>
                   <AnimatedButton onClick={() => navigate('/alerts')}>Open alerts</AnimatedButton>
                 </div>
               </div>

@@ -8,6 +8,7 @@ import { usePrefersReducedMotion } from '../../hooks/usePrefersReducedMotion'
 import { useObservabilityData } from '../../hooks/useObservabilityData'
 import { useIncidentPersistence } from '../../hooks/useIncidentPersistence'
 import { applyIncidentState, buildPlatformAlerts, firingAlerts } from '../../lib/platformAlerts'
+import { useInboxView } from '../../features/notifications/NotificationProvider'
 import { CC } from '../../theme/tokens'
 import { controlNavSections } from './navConfig'
 import SidebarGroup from './SidebarGroup'
@@ -28,6 +29,7 @@ export default function Sidebar() {
 
   const obs = useObservabilityData(undefined, true)
   const incidents = useIncidentPersistence()
+  const { unreadCount } = useInboxView()
   const firingCount = useMemo(
     () =>
       firingAlerts(applyIncidentState(buildPlatformAlerts({ observability: obs.data }), incidents.records))
@@ -39,19 +41,29 @@ export default function Sidebar() {
     () =>
       controlNavSections.map((section) => ({
         ...section,
-        items: section.items.map((item) =>
-          item.path === '/alerts'
-            ? {
-                ...item,
-                badge:
-                  firingCount > 0
-                    ? { label: String(firingCount), tone: 'error' as const }
-                    : undefined,
-              }
-            : item,
-        ),
+        items: section.items.map((item) => {
+          if (item.path === '/alerts') {
+            return {
+              ...item,
+              badge:
+                firingCount > 0
+                  ? { label: String(firingCount), tone: 'error' as const }
+                  : undefined,
+            }
+          }
+          if (item.path === '/notifications') {
+            return {
+              ...item,
+              badge:
+                unreadCount > 0
+                  ? { label: String(unreadCount), tone: unreadCount > 0 ? ('warning' as const) : ('info' as const) }
+                  : undefined,
+            }
+          }
+          return item
+        }),
       })),
-    [firingCount],
+    [firingCount, unreadCount],
   )
 
   return (

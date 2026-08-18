@@ -60,14 +60,31 @@ self.addEventListener('message', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const deepLink = event.notification.data?.deepLink || '/';
+  const data = event.notification.data || {};
+  const deepLink = data.deepLink || '/';
   const targetUrl = new URL(deepLink, self.location.origin).href;
+  const payload = {
+    type: 'NOTIFICATION_CLICK',
+    deepLink,
+    notificationId: data.notificationId || null,
+  };
 
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (windowClients) => {
       for (const client of windowClients) {
-        if (client.url.startsWith(self.location.origin) && 'focus' in client) {
-          return client.focus();
+        if (client.url.startsWith(self.location.origin)) {
+          if ('navigate' in client && typeof client.navigate === 'function') {
+            try {
+              await client.navigate(targetUrl);
+            } catch {
+              /* SPA clients may reject navigate; postMessage still routes. */
+            }
+          }
+          if ('focus' in client) {
+            await client.focus();
+          }
+          client.postMessage(payload);
+          return;
         }
       }
       if (clients.openWindow) {

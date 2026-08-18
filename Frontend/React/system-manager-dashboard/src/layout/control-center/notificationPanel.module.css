@@ -271,3 +271,10 @@
   background: #06b6d4;
   box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.15);
 }
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 12px;
+  border-top: 1px solid #243049;
+}

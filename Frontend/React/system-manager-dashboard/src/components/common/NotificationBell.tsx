@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Box,
   Typography,
@@ -12,31 +13,27 @@ import {
 } from '@mui/material'
 import { Bell, CheckCheck } from 'lucide-react'
 import { useTheme } from '@mui/material/styles'
-import { useNotifications } from '../../features/notifications/NotificationProvider'
+import { useInboxView } from '../../features/notifications/NotificationProvider'
+import {
+  inboxDeepLink,
+  inboxKind,
+  inboxSeverity,
+  kindLabel,
+  relativeTime,
+} from '../../lib/staffInbox'
 
 const FILTERS = [
   { id: 'all', label: 'All' },
   { id: 'unread', label: 'Unread' },
-  { id: 'APPOINTMENT_CREATED', label: 'Created' },
-  { id: 'APPOINTMENT_UPDATED', label: 'Updated' },
-  { id: 'APPOINTMENT_CANCELLED', label: 'Cancelled' },
-  { id: 'APPOINTMENT_REQUESTED', label: 'Requested' },
-  { id: 'SYSTEM', label: 'System' },
+  { id: 'critical', label: 'Critical' },
+  { id: 'HEALTH', label: 'Health' },
+  { id: 'QUEUE', label: 'Queues' },
+  { id: 'SECURITY', label: 'Security' },
 ] as const
-
-function formatRelativeTime(iso: string) {
-  const diffMs = Date.now() - new Date(iso).getTime()
-  const mins = Math.floor(diffMs / 60_000)
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins}m ago`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  return `${days}d ago`
-}
 
 export default function NotificationBell() {
   const theme = useTheme()
+  const navigate = useNavigate()
   const [anchor, setAnchor] = useState<HTMLElement | null>(null)
   const [filter, setFilter] = useState<(typeof FILTERS)[number]['id']>('all')
   const {
@@ -50,7 +47,7 @@ export default function NotificationBell() {
     markRead,
     markAllRead,
     requestPushPermission,
-  } = useNotifications()
+  } = useInboxView()
 
   const needsPermission =
     permission === 'default' || (permission === 'granted' && !pushEnabled)
@@ -58,7 +55,8 @@ export default function NotificationBell() {
   const filtered = useMemo(() => {
     if (filter === 'all') return items
     if (filter === 'unread') return items.filter((i) => !i.readAt)
-    return items.filter((i) => i.category === filter)
+    if (filter === 'critical') return items.filter((i) => inboxSeverity(i) === 'critical')
+    return items.filter((i) => inboxKind(i) === filter)
   }, [filter, items])
 
   return (
@@ -92,7 +90,7 @@ export default function NotificationBell() {
           <Box>
             <Typography variant="h4">Notifications</Typography>
             <Typography variant="caption2" sx={{ color: 'text.secondary' }}>
-              Inbox · push · polling{pushEnabled ? ' · FCM on' : ''}
+              Platform inbox · push · polling{pushEnabled ? ' · FCM on' : ''}
             </Typography>
           </Box>
           {unreadCount > 0 ? (
@@ -168,13 +166,17 @@ export default function NotificationBell() {
               return (
                 <Box
                   key={item.id}
-                  onClick={() => unread && void markRead(item.id)}
+                  onClick={() => {
+                    if (unread) void markRead(item.id)
+                    setAnchor(null)
+                    navigate(inboxDeepLink(item))
+                  }}
                   sx={{
                     px: 2,
                     py: 1.5,
                     borderBottom: 1,
                     borderColor: 'divider',
-                    cursor: unread ? 'pointer' : 'default',
+                    cursor: 'pointer',
                     bgcolor: unread ? 'rgba(6, 182, 212, 0.06)' : 'transparent',
                     '&:hover': { bgcolor: 'background.hover' },
                   }}
@@ -191,12 +193,24 @@ export default function NotificationBell() {
                     {item.body}
                   </Typography>
                   <Typography variant="caption2" sx={{ color: 'text.disabled', mt: 0.5, display: 'block', fontSize: 10 }}>
-                    {item.category.replace(/_/g, ' ')} · {formatRelativeTime(item.createdAt)}
+                    {kindLabel(inboxKind(item))} · {relativeTime(item.createdAt)}
                   </Typography>
                 </Box>
               )
             })
           )}
+        </Box>
+        <Divider />
+        <Box sx={{ px: 2, py: 1, display: 'flex', justifyContent: 'flex-end' }}>
+          <Button
+            size="small"
+            onClick={() => {
+              setAnchor(null)
+              navigate('/notifications')
+            }}
+          >
+            Open inbox
+          </Button>
         </Box>
       </Popover>
     </>

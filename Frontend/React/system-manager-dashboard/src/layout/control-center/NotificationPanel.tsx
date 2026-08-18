@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Bell,
@@ -8,37 +9,30 @@ import {
   RefreshCw,
   X,
 } from 'lucide-react'
-import { useNotifications } from '../../features/notifications/NotificationProvider'
+import { useInboxView } from '../../features/notifications/NotificationProvider'
 import { TopbarAction } from '../../components/ui'
+import {
+  inboxDeepLink,
+  inboxKind,
+  inboxSeverity,
+  kindLabel,
+  relativeTime,
+  severityTone,
+} from '../../lib/staffInbox'
 import styles from './notificationPanel.module.css'
 
 const FILTERS = [
   { id: 'all', label: 'All' },
   { id: 'unread', label: 'Unread' },
-  { id: 'APPOINTMENT_CREATED', label: 'Created' },
-  { id: 'APPOINTMENT_UPDATED', label: 'Updated' },
-  { id: 'APPOINTMENT_CANCELLED', label: 'Cancelled' },
-  { id: 'APPOINTMENT_REQUESTED', label: 'Requested' },
-  { id: 'SYSTEM', label: 'System' },
+  { id: 'critical', label: 'Critical' },
+  { id: 'HEALTH', label: 'Health' },
+  { id: 'QUEUE', label: 'Queues' },
+  { id: 'SECURITY', label: 'Security' },
+  { id: 'ALERT', label: 'Alerts' },
 ] as const
 
-function relativeTime(iso: string) {
-  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000)
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins}m ago`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  return `${Math.floor(hours / 24)}d ago`
-}
-
-function categoryTone(category: string) {
-  if (category.includes('CANCEL')) return 'bad'
-  if (category.includes('REQUEST') || category.includes('UPDATE')) return 'warn'
-  if (category.includes('CREATE') || category.includes('CONFIRM')) return 'ok'
-  return 'sys'
-}
-
 export default function NotificationPanel() {
+  const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [filter, setFilter] = useState<(typeof FILTERS)[number]['id']>('all')
   const {
@@ -52,16 +46,23 @@ export default function NotificationPanel() {
     markRead,
     markAllRead,
     requestPushPermission,
-  } = useNotifications()
+  } = useInboxView()
 
   const filtered = useMemo(() => {
     if (filter === 'all') return items
     if (filter === 'unread') return items.filter((i) => !i.readAt)
-    return items.filter((i) => i.category === filter)
+    if (filter === 'critical') return items.filter((i) => inboxSeverity(i) === 'critical')
+    return items.filter((i) => inboxKind(i) === filter)
   }, [filter, items])
 
   const needsPermission =
     permission === 'default' || (permission === 'granted' && !pushEnabled)
+
+  const openItem = async (id: string, deepLink: string, unread: boolean) => {
+    if (unread) await markRead(id)
+    setOpen(false)
+    navigate(deepLink)
+  }
 
   return (
     <div className={styles.wrap}>
@@ -97,10 +98,10 @@ export default function NotificationPanel() {
                 <div>
                   <div className={styles.titleRow}>
                     <Radio size={14} />
-                    <h2>Live Notifications</h2>
+                    <h2>Platform inbox</h2>
                   </div>
                   <p className={styles.sub}>
-                    Inbox · push · polling
+                    Health · queues · security · activations
                     {pushEnabled ? ' · FCM on' : ' · browser push off'}
                   </p>
                 </div>
@@ -167,13 +168,13 @@ export default function NotificationPanel() {
                 ) : (
                   filtered.map((item) => {
                     const unread = !item.readAt
-                    const tone = categoryTone(item.category)
+                    const tone = severityTone(inboxSeverity(item))
                     return (
                       <button
                         key={item.id}
                         type="button"
                         className={`${styles.item} ${unread ? styles.itemUnread : ''}`}
-                        onClick={() => unread && void markRead(item.id)}
+                        onClick={() => void openItem(item.id, inboxDeepLink(item), unread)}
                       >
                         <span className={`${styles.tone} ${styles[`tone_${tone}`]}`} />
                         <span className={styles.itemBody}>
@@ -183,8 +184,7 @@ export default function NotificationPanel() {
                           </span>
                           <span className={styles.itemText}>{item.body}</span>
                           <span className={styles.itemMeta}>
-                            {item.category.replace(/_/g, ' ')}
-                            {item.clinicId ? ` · clinic ${item.clinicId.slice(0, 8)}` : ''}
+                            {kindLabel(inboxKind(item))} · {inboxSeverity(item)}
                           </span>
                         </span>
                         {unread ? <span className={styles.dot} /> : null}
@@ -192,6 +192,18 @@ export default function NotificationPanel() {
                     )
                   })
                 )}
+              </div>
+              <div className={styles.footer}>
+                <button
+                  type="button"
+                  className={styles.textBtn}
+                  onClick={() => {
+                    setOpen(false)
+                    navigate('/notifications')
+                  }}
+                >
+                  Open full inbox
+                </button>
               </div>
             </motion.aside>
           </>

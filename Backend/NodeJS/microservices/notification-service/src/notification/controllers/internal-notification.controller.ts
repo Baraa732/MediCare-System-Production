@@ -1,7 +1,8 @@
 import { Body, Controller, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
 import { NotificationService } from '../services/notification.service';
 import { PatientPushService } from '../services/patient-push.service';
-import { AppointmentReminderDto, BroadcastPatientsDto } from '../dto/notification.dto';
+import { StaffPushService } from '../services/staff-push.service';
+import { AppointmentReminderDto, BroadcastPatientsDto, NotifySystemManagersDto } from '../dto/notification.dto';
 import { InternalServiceGuard } from '../guards/internal-service.guard';
 
 @Controller('v1/notifications/internal')
@@ -9,6 +10,7 @@ export class InternalNotificationController {
   constructor(
     private readonly notificationService: NotificationService,
     private readonly patientPushService: PatientPushService,
+    private readonly staffPushService: StaffPushService,
   ) {}
 
   @Post('appointment-reminder')
@@ -29,6 +31,15 @@ export class InternalNotificationController {
       dto.title.trim(),
       dto.body.trim(),
     );
+    return { success: true, ...result };
+  }
+
+  /** Platform operations inbox — called by system-manager-service for all system managers. */
+  @Post('system-managers')
+  @UseGuards(InternalServiceGuard)
+  @HttpCode(HttpStatus.OK)
+  async notifySystemManagers(@Body() dto: NotifySystemManagersDto) {
+    const result = await this.staffPushService.notifySystemManagers(dto);
     return { success: true, ...result };
   }
 }
