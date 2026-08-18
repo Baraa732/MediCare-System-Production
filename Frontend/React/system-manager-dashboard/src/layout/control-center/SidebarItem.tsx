@@ -7,9 +7,11 @@ import styles from './shell.module.css'
 export default function SidebarItem({
   item,
   collapsed,
+  showIcon = true,
 }: {
   item: ControlNavItem
   collapsed: boolean
+  showIcon?: boolean
 }) {
   const Icon = item.icon
   return (
@@ -21,13 +23,15 @@ export default function SidebarItem({
         [styles.navItem, isActive ? styles.navItemActive : ''].join(' ')
       }
     >
-      <motion.span
-        className={styles.navIcon}
-        whileHover={{ scale: 1.08 }}
-        transition={{ type: 'spring', stiffness: 400, damping: 22 }}
-      >
-        <Icon size={17} strokeWidth={1.9} />
-      </motion.span>
+      {(showIcon || collapsed) ? (
+        <motion.span
+          className={styles.navIcon}
+          whileHover={{ scale: 1.08 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 22 }}
+        >
+          <Icon size={17} strokeWidth={1.9} />
+        </motion.span>
+      ) : null}
       {!collapsed ? (
         <>
           <span className={styles.navLabel}>{item.label}</span>

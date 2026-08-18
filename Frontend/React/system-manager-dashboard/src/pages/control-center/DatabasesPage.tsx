@@ -22,11 +22,11 @@ import { usePlatformHealth } from '../../hooks/usePlatformHealth'
 import { buildLogsUrl } from '../../store/logsFilterStore'
 import { DatabaseOverviewWidget } from '../../widgets'
 import type { PlatformHealth } from '../../api/types'
-import { CcDrawer, CcPage, healthTone } from './CcChrome'
+import { CcDrawer, CcPage, checkStatusDetail, checkStatusText, healthTone } from './CcChrome'
 import styles from './cc.module.css'
 
 type DatastoreId = 'postgres' | 'redis'
-type Dependent = { service: string; check: string; status: string }
+type Dependent = { service: string; check: string; status: string; detail: string }
 type Datastore = {
   id: DatastoreId
   name: string
@@ -50,7 +50,7 @@ function buildDatastores(health: PlatformHealth | null): Datastore[] {
     name: 'PostgreSQL',
     engine: 'PostgreSQL',
     role: 'Primary datastore',
-    status: infra?.database ?? 'unknown',
+    status: checkStatusText(infra?.database) as Datastore['status'],
     dependents: [],
   }
   const redis: Datastore = {
@@ -58,15 +58,21 @@ function buildDatastores(health: PlatformHealth | null): Datastore[] {
     name: 'Redis',
     engine: 'Redis',
     role: 'Cache / sessions',
-    status: infra?.redis ?? 'unknown',
+    status: checkStatusText(infra?.redis) as Datastore['status'],
     dependents: [],
   }
 
   for (const service of health?.services ?? []) {
-    for (const [check, status] of Object.entries(service.checks ?? {})) {
+    for (const [check, raw] of Object.entries(service.checks ?? {})) {
       const kind = checkKind(check)
-      if (kind === 'postgres') postgres.dependents.push({ service: service.name, check, status })
-      if (kind === 'redis') redis.dependents.push({ service: service.name, check, status })
+      const dependent: Dependent = {
+        service: service.name,
+        check,
+        status: checkStatusText(raw),
+        detail: checkStatusDetail(raw),
+      }
+      if (kind === 'postgres') postgres.dependents.push(dependent)
+      if (kind === 'redis') redis.dependents.push(dependent)
     }
   }
 
@@ -140,6 +146,7 @@ export default function DatabasesPage() {
                     <tr>
                       <th>Service</th>
                       <th>Check</th>
+                      <th>Detail</th>
                       <th>Status</th>
                     </tr>
                   </thead>
@@ -148,6 +155,7 @@ export default function DatabasesPage() {
                       <tr key={`${d.service}-${d.check}`} onClick={() => navigate(buildLogsUrl({ services: [d.service] }))}>
                         <td className={styles.name}>{d.service}</td>
                         <td className={styles.mono}>{d.check}</td>
+                        <td className={styles.mono}>{d.detail || '—'}</td>
                         <td><HealthBadge status={healthTone(d.status)} /></td>
                       </tr>
                     ))}
@@ -231,7 +239,7 @@ export default function DatabasesPage() {
               {selected.dependents.length ? (
                 selected.dependents.map((d) => (
                   <div key={`${d.service}-${d.check}`} className={styles.check}>
-                    <span>{d.service} · {d.check}</span>
+                    <span>{d.service} · {d.check}{d.detail ? ` · ${d.detail}` : ''}</span>
                     <HealthBadge status={healthTone(d.status)} />
                   </div>
                 ))

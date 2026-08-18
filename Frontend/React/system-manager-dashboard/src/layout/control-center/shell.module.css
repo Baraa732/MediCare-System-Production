@@ -186,16 +186,19 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  height: 38px;
+  min-height: 34px;
   padding: 0 10px;
+  margin: 2px 8px;
   border-radius: 10px;
   color: #8b93a8;
   text-decoration: none;
   font-size: 13px;
   font-weight: 500;
-  margin-bottom: 2px;
   transition: background 140ms ease, color 140ms ease, box-shadow 140ms ease;
 }
+
+.sidebar[data-density='compact'] .navItem { min-height: 28px; }
+.sidebar[data-density='comfortable'] .navItem { min-height: 40px; }
 
 .navItem:hover {
   color: #e8eaf0;

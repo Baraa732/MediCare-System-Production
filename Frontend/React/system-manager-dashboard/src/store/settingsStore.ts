@@ -11,6 +11,7 @@ interface SettingsState {
   density: 'compact' | 'default' | 'comfortable'
   showSectionLabels: boolean
   showIcons: boolean
+  notificationThreshold: 'info' | 'warning' | 'error'
   updateSettings: (settings: Partial<SettingsState>) => void
 }
 
@@ -19,15 +20,26 @@ export const useSettingsStore = create<SettingsState>()(
     (set) => ({
       timezone: 'UTC',
       dateFormat: 'YYYY-MM-DD',
-      defaultTimeRange: 'Last 15 minutes',
+      defaultTimeRange: 'Last 1h',
       defaultEnvironment: 'production',
       rowsPerPage: 25,
       sendTelemetry: false,
       density: 'default' as const,
       showSectionLabels: true,
       showIcons: true,
+      notificationThreshold: 'warning',
       updateSettings: (newSettings) => set((state) => ({ ...state, ...newSettings })),
     }),
-    { name: 'obsadmin-settings' }
-  )
+    {
+      name: 'obsadmin-settings',
+      merge: (persisted, current) => {
+        const stored = (persisted && typeof persisted === 'object' ? persisted : {}) as Partial<SettingsState>
+        return {
+          ...current,
+          ...stored,
+          updateSettings: current.updateSettings,
+        }
+      },
+    },
+  ),
 )

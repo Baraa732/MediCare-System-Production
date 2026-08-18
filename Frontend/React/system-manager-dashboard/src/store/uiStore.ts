@@ -6,6 +6,7 @@ interface UIState {
   toggleSidebar: () => void
   themeMode: 'dark' | 'light'
   toggleThemeMode: () => void
+  setThemeMode: (mode: 'dark' | 'light') => void
 }
 
 export const useUIStore = create<UIState>()(
@@ -17,6 +18,7 @@ export const useUIStore = create<UIState>()(
       themeMode: 'dark',
       toggleThemeMode: () =>
         set((state) => ({ themeMode: state.themeMode === 'dark' ? 'light' : 'dark' })),
+      setThemeMode: (themeMode: 'dark' | 'light') => set({ themeMode }),
     }),
     { name: 'obsadmin-ui-v1' }
   )

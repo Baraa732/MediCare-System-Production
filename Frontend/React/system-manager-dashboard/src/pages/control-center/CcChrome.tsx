@@ -134,9 +134,30 @@ export function CcDrawer({
   )
 }
 
-export function healthTone(status: string): 'Healthy' | 'Warning' | 'Critical' {
-  const value = status.toLowerCase()
-  if (['healthy', 'up', 'ok', 'connected', 'active', 'success'].includes(value)) return 'Healthy'
-  if (['degraded', 'unknown', 'pending', 'available', 'warning', 'slow'].includes(value)) return 'Warning'
+/** Nest health payloads are sometimes `{ status, latency }` instead of a string. */
+export function checkStatusText(value: unknown): string {
+  if (typeof value === 'string' && value.trim()) return value
+  if (value && typeof value === 'object') {
+    const row = value as { status?: unknown; state?: unknown }
+    if (typeof row.status === 'string' && row.status.trim()) return row.status
+    if (typeof row.state === 'string' && row.state.trim()) return row.state
+  }
+  if (value == null) return 'unknown'
+  return String(value)
+}
+
+export function checkStatusDetail(value: unknown): string {
+  if (value && typeof value === 'object') {
+    const row = value as { latency?: unknown; message?: unknown }
+    if (typeof row.latency === 'string') return row.latency
+    if (typeof row.message === 'string') return row.message
+  }
+  return ''
+}
+
+export function healthTone(status: unknown): 'Healthy' | 'Warning' | 'Critical' {
+  const value = checkStatusText(status).toLowerCase()
+  if (['healthy', 'up', 'ok', 'connected', 'active', 'success', 'ready'].includes(value)) return 'Healthy'
+  if (['degraded', 'unknown', 'pending', 'available', 'warning', 'slow', 'not_ready'].includes(value)) return 'Warning'
   return 'Critical'
 }

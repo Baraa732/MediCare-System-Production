@@ -3,6 +3,7 @@ import { Moon, PanelLeftClose, PanelLeftOpen, Sun } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useMediaQuery } from '@mui/material'
 import { useUIStore } from '../../store/uiStore'
+import { useSettingsStore } from '../../store/settingsStore'
 import { usePrefersReducedMotion } from '../../hooks/usePrefersReducedMotion'
 import { useObservabilityData } from '../../hooks/useObservabilityData'
 import { useIncidentPersistence } from '../../hooks/useIncidentPersistence'
@@ -17,6 +18,9 @@ export default function Sidebar() {
   const toggleSidebar = useUIStore((s) => s.toggleSidebar)
   const themeMode = useUIStore((s) => s.themeMode)
   const toggleThemeMode = useUIStore((s) => s.toggleThemeMode)
+  const density = useSettingsStore((s) => s.density)
+  const showSectionLabels = useSettingsStore((s) => s.showSectionLabels)
+  const showIcons = useSettingsStore((s) => s.showIcons)
   const isMobile = useMediaQuery('(max-width:900px)')
   const reduced = usePrefersReducedMotion()
   const collapsed = isMobile || collapsedStore
@@ -53,6 +57,7 @@ export default function Sidebar() {
   return (
     <motion.aside
       className={styles.sidebar}
+      data-density={density}
       initial={false}
       animate={{ width }}
       transition={
@@ -63,7 +68,13 @@ export default function Sidebar() {
     >
       <div className={styles.sidebarScroll}>
         {sections.map((section) => (
-          <SidebarGroup key={section.id} section={section} collapsed={collapsed} />
+          <SidebarGroup
+            key={section.id}
+            section={section}
+            collapsed={collapsed}
+            showLabel={showSectionLabels}
+            showIcons={showIcons}
+          />
         ))}
       </div>
 
