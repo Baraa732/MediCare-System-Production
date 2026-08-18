@@ -23,14 +23,21 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-// 1. استيراد المُعدّل المسؤول عن تقييد حركة السحب عمودياً فقط
 import { restrictToParentElement } from "@dnd-kit/modifiers";
 import type { PendingRequest } from "../../types";
 
 import { useWizardDrawer } from "../../hooks/useWizardDrawer";
 import { usePendingRequest } from "../../hooks/usePendingRequest";
+import { useScheduleGridStore } from "../../hooks/scheduleGridStore";
 import { useScheduleContext } from "../../context/ScheduleContext";
 import { formatMinutesToAMPM } from "../SchedualeGrid/DNDGrid/utils/timeFormatters";
+import { useAuthStore } from "@/stores/authStore";
+import {
+  cancelAppointment,
+  updateAppointmentStatus,
+} from "@/lib/api/appointments";
+import { isApiAppointmentId } from "../../hooks/useAppointmentActions";
+import { normalizeCaughtError } from "@/lib/api/errors";
 
 export function PendingRequestSection() {
   const isEditMode = useEditeMode((state) => state.isEditMode);
@@ -38,7 +45,24 @@ export function PendingRequestSection() {
   // const [requests, setRequests] = useState(INITIAL_REQUESTS)
   const requests = usePendingRequest((state) => state.requests);
   const setRequests = usePendingRequest((state) => state.setRequests);
+  const searchQuery = useScheduleGridStore((s) => s.searchQuery);
   const { doctors } = useScheduleContext();
+
+  const q = searchQuery.trim().toLowerCase();
+  const visibleRequests = q
+    ? requests.filter((item) => {
+        const hay = [
+          item.patient?.name,
+          item.patient?.phone,
+          item.title,
+          doctors.find((doc) => doc.id == item.docId)?.name,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return hay.includes(q);
+      })
+    : requests;
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -97,10 +121,10 @@ export function PendingRequestSection() {
           modifiers={[restrictToParentElement]}
         >
           <SortableContext
-            items={requests.map((r) => r.id)}
+            items={visibleRequests.map((r) => r.id)}
             strategy={verticalListSortingStrategy}
           >
-            {requests.map((item) => (
+            {visibleRequests.map((item) => (
               <SortableRequestCard
                 key={item.id}
                 item={item}
@@ -170,6 +194,13 @@ function SortableRequestCard({ item, isEditMode }: SortableCardProps) {
   const openWithPendingRequest = useWizardDrawer(
     (state) => state.openWithPendingRequest,
   );
+  const onRemovePendingRequest = usePendingRequest(
+    (s) => s.onRemovePendingRequest,
+  );
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const { refetch, doctors } = useScheduleContext();
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const {
     attributes,
     listeners,
@@ -188,9 +219,45 @@ function SortableRequestCard({ item, isEditMode }: SortableCardProps) {
     opacity: isDragging ? 0.3 : 1,
   };
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const { doctors } = useScheduleContext();
   const doctor = doctors.find((doc) => doc.id == item.docId);
+
+  const handleConfirm = async () => {
+    if (!accessToken || !isApiAppointmentId(item.id)) return;
+    setBusy(true);
+    setActionError(null);
+    try {
+      await updateAppointmentStatus(item.id, { status: "CONFIRMED" }, accessToken);
+      onRemovePendingRequest(item.id);
+      refetch();
+    } catch (err) {
+      setActionError(
+        normalizeCaughtError(err, "Could not confirm this request."),
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDecline = async () => {
+    if (!accessToken || !isApiAppointmentId(item.id)) return;
+    setBusy(true);
+    setActionError(null);
+    try {
+      await cancelAppointment(
+        item.id,
+        accessToken,
+        "Declined by secretary",
+      );
+      onRemovePendingRequest(item.id);
+      refetch();
+    } catch (err) {
+      setActionError(
+        normalizeCaughtError(err, "Could not decline this request."),
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <div
@@ -248,14 +315,36 @@ function SortableRequestCard({ item, isEditMode }: SortableCardProps) {
           className={`transition-all duration-300 ease-in-out overflow-hidden ${
             isEditMode
               ? "max-h-0 mt-0 opacity-0 pointer-events-none"
-              : "max-h-12 mt-3 opacity-100"
+              : "max-h-32 mt-3 opacity-100"
           }`}
         >
+          {actionError ? (
+            <p className="text-[10px] text-red-500 mb-1 leading-tight">{actionError}</p>
+          ) : null}
+          <div className="flex gap-2">
+            <Button
+              className="flex-1 h-8 bg-[#16a34a] hover:bg-[#15803d] text-white text-xs font-bold rounded-lg shadow-2xs"
+              disabled={busy}
+              onClick={() => void handleConfirm()}
+            >
+              Confirm
+            </Button>
+            <Button
+              variant="outline"
+              className="flex-1 h-8 text-xs font-bold rounded-lg text-red-600 border-red-200 hover:bg-red-50"
+              disabled={busy}
+              onClick={() => void handleDecline()}
+            >
+              Decline
+            </Button>
+          </div>
           <Button
-            className="w-full h-8 bg-[#39A3FF] hover:bg-[#258ce5] text-white text-xs font-bold rounded-lg shadow-2xs transition-colors"
-            onClick={() => openWithPendingRequest(item)} // ربط الأكشن هنا 🔥
+            variant="ghost"
+            className="w-full h-7 mt-1 text-[11px] font-semibold text-neutral-500"
+            disabled={busy}
+            onClick={() => openWithPendingRequest(item)}
           >
-            Review
+            Review / reassign
           </Button>
         </div>
       </div>

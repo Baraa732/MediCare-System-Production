@@ -141,17 +141,82 @@ export class OpenEmrDbReader {
     return this.nonEmpty((rows as any[])[0]?.name);
   }
 
-  async getPatientRow(pid: string): Promise<PatientRow | null> {
-    return this.withConnection(async (connection) => {
-      const [rows] = await connection.execute(
-        `SELECT pid, fname, mname, lname, DOB, sex, ss, street, street_line_2, postal_code, city, state, country_code,
+  private readonly patientSelect = `SELECT pid, fname, mname, lname, DOB, sex, ss, street, street_line_2, postal_code, city, state, country_code,
                 phone_cell, phone_home, phone_contact, contact_relationship, email, race, ethnicity,
                 language, status, pharmacy_id, date, guardiansname, guardianrelationship, guardianphone,
                 guardianemail, guardianaddress, guardiancity, guardianstate, guardianpostalcode, uuid
-         FROM patient_data WHERE pid = ? LIMIT 1`,
-        [pid],
+         FROM patient_data`;
+
+  async getPatientRow(pidOrUuid: string): Promise<PatientRow | null> {
+    return this.withConnection(async (connection) => {
+      if (/^\d+$/.test(pidOrUuid)) {
+        const [rows] = await connection.execute(
+          `${this.patientSelect} WHERE pid = ? LIMIT 1`,
+          [pidOrUuid],
+        );
+        if ((rows as PatientRow[])[0]) return (rows as PatientRow[])[0];
+      }
+
+      const hex = pidOrUuid.replace(/-/g, '');
+      if (/^[0-9a-fA-F]{32}$/.test(hex)) {
+        const [rows] = await connection.execute(
+          `${this.patientSelect} WHERE uuid = UNHEX(?) LIMIT 1`,
+          [hex],
+        );
+        return (rows as PatientRow[])[0] ?? null;
+      }
+
+      return null;
+    });
+  }
+
+  /**
+   * Writes the OpenEMR Standard API patient columns (`patient_data`).
+   * Used when FHIR/standard HTTP update is unavailable.
+   */
+  async updatePatientPortalFields(
+    pid: string | number,
+    fields: Record<string, string | null>,
+  ): Promise<void> {
+    const allowed = new Set([
+      'fname',
+      'mname',
+      'lname',
+      'DOB',
+      'sex',
+      'status',
+      'language',
+      'street',
+      'street_line_2',
+      'city',
+      'state',
+      'postal_code',
+      'country_code',
+      'phone_cell',
+      'phone_home',
+      'email',
+      'contact_relationship',
+      'phone_contact',
+      'guardiansname',
+      'guardianemail',
+      'guardianphone',
+      'guardianaddress',
+    ]);
+
+    const sets: string[] = [];
+    const values: Array<string | number> = [];
+    for (const [key, value] of Object.entries(fields)) {
+      if (!allowed.has(key) || value === undefined) continue;
+      sets.push(`\`${key}\` = ?`);
+      values.push(value ?? '');
+    }
+    if (sets.length === 0) return;
+
+    await this.withConnection(async (connection) => {
+      await connection.execute(
+        `UPDATE patient_data SET ${sets.join(', ')} WHERE pid = ?`,
+        [...values, pid],
       );
-      return (rows as PatientRow[])[0] ?? null;
     });
   }
 

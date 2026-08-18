@@ -1,14 +1,18 @@
 import {
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   Param,
+  Patch,
   Post,
+  Put,
   Query,
   Request,
   UseGuards,
 } from '@nestjs/common';
+import { UpdateMyEmrDto, UpdateMyEmrEmergencyContactDto } from '../dto/update-my-emr.dto';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { RolesGuard } from '../guards/roles.guard';
 import { Roles } from '../decorators/roles.decorator';
@@ -98,6 +102,90 @@ export class EmrController {
   @Roles('PATIENT')
   async listMyLinks(@Request() req: { user: AuthUser }) {
     return this.emrRecordService.listMyLinks(req.user);
+  }
+
+  /** Patient portal update — OpenEMR Standard API `patient` fields only. */
+  @Patch('me')
+  @SkipTenantGuard()
+  @SkipTenantAuthorization()
+  @UseGuards(RolesGuard)
+  @Roles('PATIENT')
+  async patchMyEmr(
+    @Request() req: { user: AuthUser },
+    @Query() query: { tenantId?: string; clinicId?: string },
+    @Body() body: UpdateMyEmrDto,
+  ) {
+    return this.emrRecordService.updateMyEmr(
+      req.user,
+      body,
+      this.preferredTenant(query),
+    );
+  }
+
+  @Put('me')
+  @SkipTenantGuard()
+  @SkipTenantAuthorization()
+  @UseGuards(RolesGuard)
+  @Roles('PATIENT')
+  async putMyEmr(
+    @Request() req: { user: AuthUser },
+    @Query() query: { tenantId?: string; clinicId?: string },
+    @Body() body: UpdateMyEmrDto,
+  ) {
+    return this.emrRecordService.updateMyEmr(
+      req.user,
+      body,
+      this.preferredTenant(query),
+    );
+  }
+
+  @Post('me/emergency-contacts')
+  @SkipTenantGuard()
+  @SkipTenantAuthorization()
+  @UseGuards(RolesGuard)
+  @Roles('PATIENT')
+  async createMyEmergencyContact(
+    @Request() req: { user: AuthUser },
+    @Query() query: { tenantId?: string; clinicId?: string },
+    @Body() body: UpdateMyEmrEmergencyContactDto,
+  ) {
+    return this.emrRecordService.upsertMyEmergencyContact(
+      req.user,
+      body,
+      this.preferredTenant(query),
+    );
+  }
+
+  @Put('me/emergency-contacts')
+  @SkipTenantGuard()
+  @SkipTenantAuthorization()
+  @UseGuards(RolesGuard)
+  @Roles('PATIENT')
+  async updateMyEmergencyContact(
+    @Request() req: { user: AuthUser },
+    @Query() query: { tenantId?: string; clinicId?: string },
+    @Body() body: UpdateMyEmrEmergencyContactDto,
+  ) {
+    return this.emrRecordService.upsertMyEmergencyContact(
+      req.user,
+      body,
+      this.preferredTenant(query),
+    );
+  }
+
+  @Delete('me/emergency-contacts')
+  @SkipTenantGuard()
+  @SkipTenantAuthorization()
+  @UseGuards(RolesGuard)
+  @Roles('PATIENT')
+  async deleteMyEmergencyContact(
+    @Request() req: { user: AuthUser },
+    @Query() query: { tenantId?: string; clinicId?: string },
+  ) {
+    return this.emrRecordService.deleteMyEmergencyContact(
+      req.user,
+      this.preferredTenant(query),
+    );
   }
 
   @Get('patients/:userId')

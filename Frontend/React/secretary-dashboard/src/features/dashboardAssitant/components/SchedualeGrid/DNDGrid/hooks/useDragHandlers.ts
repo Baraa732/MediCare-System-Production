@@ -32,16 +32,40 @@ import {
   useAppointmentActions,
 } from "@/features/dashboardAssitant/hooks/useAppointmentActions";
 import { normalizeCaughtError } from "@/lib/api/errors";
+import { useScheduleGridStore } from "@/features/dashboardAssitant/hooks/scheduleGridStore";
 
 export function useDragHandlers() {
   const { doctors: scheduleDoctors } = useScheduleContext();
   const { persistGridUpdate, refetch } = useAppointmentActions();
+  const searchQuery = useScheduleGridStore((s) => s.searchQuery);
 
   const [doctors, setDoctors] = useState<DoctorType[]>([]);
 
   useEffect(() => {
-    setDoctors(scheduleDoctors as DoctorType[]);
-  }, [scheduleDoctors]);
+    const q = searchQuery.trim().toLowerCase();
+    const source = scheduleDoctors as DoctorType[];
+    if (!q) {
+      setDoctors(source);
+      return;
+    }
+    setDoctors(
+      source
+        .map((doc) => ({
+          ...doc,
+          appointments: doc.appointments.filter((a) =>
+            (a.title ?? "").toLowerCase().includes(q) ||
+            (a.patient?.name ?? "").toLowerCase().includes(q) ||
+            (a.patient?.phone ?? "").toLowerCase().includes(q),
+          ),
+        }))
+        .filter(
+          (doc) =>
+            doc.name.toLowerCase().includes(q) ||
+            (doc.specialty ?? "").toLowerCase().includes(q) ||
+            doc.appointments.length > 0,
+        ),
+    );
+  }, [scheduleDoctors, searchQuery]);
 
   const isEditMode = useEditeMode((state) => state.isEditMode);
   const setConflict = useGlobalConflictStore((state) => state.setConflict);

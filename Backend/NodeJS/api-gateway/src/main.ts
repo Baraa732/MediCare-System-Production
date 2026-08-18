@@ -220,13 +220,18 @@ async function bootstrap() {
   
   if (redisEnabled) {
     try {
-      redisClient = createClient({
-        socket: {
-          host: process.env.REDIS_HOST || 'redis',
-          port: parseInt(process.env.REDIS_PORT || '6379', 10),
-        },
-        password: process.env.REDIS_PASSWORD,
-      });
+      redisClient = createClient(
+        process.env.REDIS_URL
+          ? { url: process.env.REDIS_URL }
+          : {
+              socket: {
+                host: process.env.REDIS_HOST || 'redis',
+                port: parseInt(process.env.REDIS_PORT || '6379', 10),
+              },
+              username: process.env.REDIS_USERNAME || process.env.REDISUSER,
+              password: process.env.REDIS_PASSWORD,
+            },
+      );
 
       instrumentRedisClient(redisClient, 'api-gateway', 'jwt-cache');
       wrapRedisCommand(redisClient, 'api-gateway', 'jwt-cache');

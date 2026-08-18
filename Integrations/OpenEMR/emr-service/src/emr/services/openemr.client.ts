@@ -24,12 +24,16 @@ export interface OpenEmrPatientInput {
   birthDate?: string;
 }
 
-const FHIR_READ_SCOPES = [
+const OPENEMR_SCOPES = [
   'openid',
   'offline_access',
   'api:fhir',
+  'api:oemr',
   'user/Patient.crs',
   'user/Patient.rs',
+  'user/Patient.u',
+  'user/patient.read',
+  'user/patient.write',
   'user/AllergyIntolerance.rs',
   'user/Condition.rs',
   'user/MedicationRequest.rs',
@@ -146,7 +150,7 @@ export class OpenEmrClient implements OnModuleInit {
       redirect_uris: [`${this.baseUrl}/oauth2/${this.site}/redirect`],
       client_name: 'MediCare EMR Integration',
       token_endpoint_auth_method: 'client_secret_post',
-      scope: FHIR_READ_SCOPES,
+      scope: OPENEMR_SCOPES,
     };
 
     const response = await this.http.post(this.oauthUrl('/registration'), payload, {
@@ -213,7 +217,7 @@ export class OpenEmrClient implements OnModuleInit {
       grant_type: 'password',
       client_id: this.clientId!,
       client_secret: this.clientSecret!,
-      scope: FHIR_READ_SCOPES,
+      scope: OPENEMR_SCOPES,
       user_role: 'users',
       username: adminUser,
       password: adminPass,
@@ -355,5 +359,27 @@ export class OpenEmrClient implements OnModuleInit {
     }
 
     return response.data;
+  }
+
+  /**
+   * OpenEMR Standard REST (`/apis/{site}/api/...`), not FHIR.
+   * Used for patient-portal writes of `patient_data` fields.
+   */
+  async standardPut<T = unknown>(path: string, body: unknown): Promise<T> {
+    const token = await this.getAccessToken();
+    const response = await this.http.put(this.apiUrl(path), body, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      httpsAgent: new (require('https').Agent)({ rejectUnauthorized: false }),
+    });
+
+    if (response.status < 200 || response.status >= 300) {
+      throw new Error(this.formatOpenEmrError(`OpenEMR standard PUT ${path}`, response.status));
+    }
+
+    return response.data as T;
   }
 }

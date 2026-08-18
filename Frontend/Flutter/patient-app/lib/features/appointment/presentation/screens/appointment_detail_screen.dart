@@ -1,21 +1,69 @@
 import 'package:cms/core/constants/assets.dart';
 import 'package:cms/core/constants/font_heading.dart';
 import 'package:cms/core/entities/appointment.dart';
+import 'package:cms/core/entities/clinic.dart';
 import 'package:cms/core/theme/app_colors.dart';
 import 'package:cms/core/widgets/safe_google_map.dart';
-import 'package:cms/features/map/presentation/screens/map_test_screen.dart';
+import 'package:cms/core/api/api_exception.dart';
+import 'package:cms/core/api/services/appointment_api_service.dart';
+import 'package:cms/core/api/services/clinic_api_service.dart';
+import 'package:cms/core/api/services/schedule_api_service.dart';
 import 'package:cms/core/animations/app_page_route.dart';
+import 'package:cms/features/clinic/presentation/screens/clinic_detail_screen.dart';
+import 'package:cms/features/map/presentation/screens/map_test_screen.dart';
+import 'package:cms/injection_container.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:intl/intl.dart';
 
-class AppointmentDetailScreen extends StatelessWidget {
+class AppointmentDetailScreen extends StatefulWidget {
   static const routeName = '/appointment-detail';
   final Appointment appointment;
 
   const AppointmentDetailScreen({super.key, required this.appointment});
 
-  // Clinic location (hardcoded for demo – replace with real data)
-  final LatLng _clinicLocation = const LatLng(33.5138, 36.2765);
+  @override
+  State<AppointmentDetailScreen> createState() =>
+      _AppointmentDetailScreenState();
+}
+
+class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
+  late Appointment appointment;
+  Clinic? _clinic;
+  LatLng _clinicLocation = const LatLng(33.5138, 36.2765);
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    appointment = widget.appointment;
+    _loadClinic();
+  }
+
+  Future<void> _loadClinic() async {
+    final id = appointment.clinicId;
+    if (id.isEmpty) return;
+    try {
+      final clinic = await getIt<ClinicApiService>().getClinic(id);
+      if (!mounted) return;
+      setState(() {
+        _clinic = clinic;
+        if (clinic.hasCoordinates) {
+          _clinicLocation = LatLng(clinic.latitude!, clinic.longitude!);
+        }
+      });
+    } catch (_) {}
+  }
+
+  String get _clinicAddress {
+    if (_clinic != null && _clinic!.location.trim().isNotEmpty) {
+      return _clinic!.location;
+    }
+    if (appointment.clinicAddress.trim().isNotEmpty) {
+      return appointment.clinicAddress;
+    }
+    return 'Location not set';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -298,7 +346,7 @@ class AppointmentDetailScreen extends StatelessWidget {
                                     const SizedBox(width: 4),
                                     Expanded(
                                       child: Text(
-                                        'Damascus, Al-Mazzeh', // Replace with real location
+                                        _clinicAddress,
                                         style: FontHeading.bodySmall.copyWith(
                                           color: AppColors.CustomgrayDark,
                                         ),
@@ -327,8 +375,7 @@ class AppointmentDetailScreen extends StatelessWidget {
                                     context,
                                     AppPageRoute(
                                       builder: (context) => MapTestScreen(
-                                        clinic:
-                                            null, // Pass clinic if available
+                                        clinic: _clinic,
                                       ),
                                     ),
                                   );
@@ -473,11 +520,18 @@ class AppointmentDetailScreen extends StatelessWidget {
                       width: double.infinity,
                       child: ElevatedButton.icon(
                         onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Requesting new appointment'),
-                            ),
-                          );
+                          final clinic = _clinic;
+                          if (clinic != null) {
+                            Navigator.push(
+                              context,
+                              AppPageRoute(
+                                builder: (_) =>
+                                    ClinicDetailScreen(clinic: clinic),
+                              ),
+                            );
+                          } else {
+                            Navigator.pop(context);
+                          }
                         },
                         icon: const Icon(
                           Icons.calendar_today,
@@ -666,11 +720,36 @@ class AppointmentDetailScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 12),
+                    if (appointment.isReschedulable) ...[
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _busy ? null : _openRescheduleSheet,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.main_background_blue
+                                .withValues(alpha: 0.1),
+                            foregroundColor: AppColors.main_background_blue,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            shadowColor: Colors.transparent,
+                          ),
+                          child: Text(
+                            'Reschedule',
+                            style: FontHeading.button.copyWith(
+                              color: AppColors.main_background_blue,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                     // ---- Cancel appointment ----
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: () => _showCancelDialog(context),
+                        onPressed: _busy ? null : () => _showCancelDialog(context),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.red.shade50,
                           foregroundColor: Colors.red,
@@ -734,34 +813,105 @@ class AppointmentDetailScreen extends StatelessWidget {
   void _showCancelDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Cancel Appointment'),
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Cancel appointment'),
         content: const Text(
-          'Are you sure you want to cancel this appointment?',
+          'Cancel this visit? The clinic will be notified.',
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('No'),
           ),
           TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Appointment cancelled'),
-                  backgroundColor: AppColors.red,
-                ),
-              );
-            },
+            onPressed: _busy
+                ? null
+                : () async {
+                    Navigator.pop(dialogContext);
+                    setState(() => _busy = true);
+                    try {
+                      await getIt<AppointmentApiService>().cancelAppointment(
+                        appointment.id,
+                        reason: 'Cancelled by patient',
+                      );
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Appointment cancelled'),
+                          backgroundColor: AppColors.red,
+                        ),
+                      );
+                      Navigator.pop(context, true);
+                    } on ApiException catch (e) {
+                      if (!mounted) return;
+                      setState(() => _busy = false);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(e.message)),
+                      );
+                    } catch (_) {
+                      if (!mounted) return;
+                      setState(() => _busy = false);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Could not cancel. Try again.'),
+                        ),
+                      );
+                    }
+                  },
             child: const Text(
-              'Yes, Cancel',
+              'Yes, cancel',
               style: TextStyle(color: AppColors.red),
             ),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _openRescheduleSheet() async {
+    if (appointment.clinicId.isEmpty || appointment.doctorId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Missing clinic or doctor for this visit.')),
+      );
+      return;
+    }
+
+    final picked = await showModalBottomSheet<DateTime>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _RescheduleSheet(
+        clinicId: appointment.clinicId,
+        doctorId: appointment.doctorId,
+      ),
+    );
+    if (picked == null || !mounted) return;
+
+    setState(() => _busy = true);
+    try {
+      final updated = await getIt<AppointmentApiService>().rescheduleAppointment(
+        id: appointment.id,
+        scheduledAt: picked,
+      );
+      if (!mounted) return;
+      setState(() {
+        appointment = updated;
+        _busy = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Appointment rescheduled')),
+      );
+      Navigator.pop(context, true);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not reschedule. Try another slot.')),
+      );
+    }
   }
 }
 
@@ -876,4 +1026,140 @@ Widget _buildRescheduledCard() {
       ],
     ),
   );
+}
+
+class _RescheduleSheet extends StatefulWidget {
+  const _RescheduleSheet({
+    required this.clinicId,
+    required this.doctorId,
+  });
+
+  final String clinicId;
+  final String doctorId;
+
+  @override
+  State<_RescheduleSheet> createState() => _RescheduleSheetState();
+}
+
+class _RescheduleSheetState extends State<_RescheduleSheet> {
+  late DateTime _date;
+  List<DateTime> _slots = [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    final now = DateTime.now();
+    _date = DateTime(now.year, now.month, now.day).add(const Duration(days: 1));
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+      _slots = [];
+    });
+    try {
+      final slots = await getIt<ScheduleApiService>().getAvailableSlots(
+        clinicId: widget.clinicId,
+        doctorId: widget.doctorId,
+        date: _date,
+      );
+      if (!mounted) return;
+      setState(() {
+        _slots = slots;
+        _loading = false;
+        if (slots.isEmpty) {
+          _error = 'No open times on this day.';
+        }
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = e.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = 'Could not load times.';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 16,
+          bottom: MediaQuery.viewInsetsOf(context).bottom + 16,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Pick a new time', style: FontHeading.heading3),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 40,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: 14,
+                separatorBuilder: (_, _) => const SizedBox(width: 8),
+                itemBuilder: (context, i) {
+                  final now = DateTime.now();
+                  final day = DateTime(now.year, now.month, now.day)
+                      .add(Duration(days: i + 1));
+                  final selected = day.year == _date.year &&
+                      day.month == _date.month &&
+                      day.day == _date.day;
+                  return ChoiceChip(
+                    label: Text(DateFormat('EEE d').format(day)),
+                    selected: selected,
+                    onSelected: (_) {
+                      setState(() => _date = day);
+                      _load();
+                    },
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (_loading)
+              const Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_error != null)
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Text(_error!),
+              )
+            else
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 280),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: _slots.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 8),
+                  itemBuilder: (context, i) {
+                    final slot = _slots[i];
+                    return ListTile(
+                      title: Text(DateFormat('h:mm a').format(slot)),
+                      onTap: () => Navigator.pop(context, slot),
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 }

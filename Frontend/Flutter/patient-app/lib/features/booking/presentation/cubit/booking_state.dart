@@ -7,6 +7,7 @@ class BookingState {
   final List<Appointment> filteredAppointments;
   final String selectedStatus;
   final String? errorMessage;
+  final String? patientName;
 
   const BookingState({
     this.isLoading = false,
@@ -14,6 +15,7 @@ class BookingState {
     this.filteredAppointments = const [],
     this.selectedStatus = 'All',
     this.errorMessage,
+    this.patientName,
   });
 
   BookingState copyWith({
@@ -22,6 +24,7 @@ class BookingState {
     List<Appointment>? filteredAppointments,
     String? selectedStatus,
     String? errorMessage,
+    String? patientName,
   }) {
     return BookingState(
       isLoading: isLoading ?? this.isLoading,
@@ -29,6 +32,7 @@ class BookingState {
       filteredAppointments: filteredAppointments ?? this.filteredAppointments,
       selectedStatus: selectedStatus ?? this.selectedStatus,
       errorMessage: errorMessage,
+      patientName: patientName ?? this.patientName,
     );
   }
 }

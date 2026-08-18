@@ -76,7 +76,11 @@ function absoluteMinutesFromIso(scheduledAt: string): number {
 }
 
 export function mapApiAppointmentToPendingRequest(
-  appointment: ApiAppointment,
+  appointment: ApiAppointment & {
+    patientName?: string;
+    patientPhone?: string;
+    doctorName?: string;
+  },
 ): PendingRequest {
   const scheduledDate = new Date(appointment.scheduledAt);
   const start = absoluteMinutesFromIso(appointment.scheduledAt);
@@ -100,9 +104,12 @@ export function mapApiAppointmentToPendingRequest(
     price: 0,
     notes: appointment.notes,
     patient: {
-      name: appointment.reason ?? `Patient ${appointment.patientId.slice(0, 8)}`,
+      name:
+        appointment.patientName?.trim() ||
+        appointment.reason ||
+        `Patient ${appointment.patientId.slice(0, 8)}`,
       age: 0,
-      phone: "",
+      phone: appointment.patientPhone ?? "",
       gender: null,
       adddress: "",
     },

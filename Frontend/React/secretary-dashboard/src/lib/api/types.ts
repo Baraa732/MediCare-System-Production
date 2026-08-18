@@ -84,6 +84,9 @@ export interface EnrichedAppointment extends ApiAppointment {
   clinicPhone?: string;
   doctorName?: string;
   doctorSpecialization?: string;
+  patientName?: string;
+  patientPhone?: string;
+  patientGender?: string;
 }
 
 export interface UserProfile {

@@ -1,5 +1,7 @@
 import '../../injection_container.dart';
 import 'package:cms/core/api/services/appointment_api_service.dart';
+import 'package:cms/core/api/services/user_api_service.dart';
+import 'package:cms/core/storage/session_storage.dart';
 import 'data/data_sources/remote/booking_remote_data_source.dart';
 import 'data/repositories/booking_repository_impl.dart';
 import 'domain/repositories/booking_repository.dart';
@@ -18,6 +20,10 @@ injectBooking() {
   );
 
   getIt.registerFactory<BookingCubit>(
-    () => BookingCubit(getIt<AppointmentApiService>()),
+    () => BookingCubit(
+      getIt<AppointmentApiService>(),
+      userApi: getIt<UserApiService>(),
+      sessionStorage: getIt<SessionStorage>(),
+    ),
   );
 }

@@ -127,25 +127,43 @@ class ApiClient {
   Future<Response<T>> put<T>(
     String path, {
     dynamic data,
+    Map<String, dynamic>? queryParameters,
     Options? options,
   }) {
-    return _request(() => _dio.put<T>(path, data: data, options: options));
+    return _request(() => _dio.put<T>(
+          path,
+          data: data,
+          queryParameters: queryParameters,
+          options: options,
+        ));
   }
 
   Future<Response<T>> patch<T>(
     String path, {
     dynamic data,
+    Map<String, dynamic>? queryParameters,
     Options? options,
   }) {
-    return _request(() => _dio.patch<T>(path, data: data, options: options));
+    return _request(() => _dio.patch<T>(
+          path,
+          data: data,
+          queryParameters: queryParameters,
+          options: options,
+        ));
   }
 
   Future<Response<T>> delete<T>(
     String path, {
     dynamic data,
+    Map<String, dynamic>? queryParameters,
     Options? options,
   }) {
-    return _request(() => _dio.delete<T>(path, data: data, options: options));
+    return _request(() => _dio.delete<T>(
+          path,
+          data: data,
+          queryParameters: queryParameters,
+          options: options,
+        ));
   }
 
   Future<Response<T>> _request<T>(Future<Response<T>> Function() call) async {

@@ -88,4 +88,21 @@ class AppointmentApiService {
       },
     );
   }
+
+  Future<Appointment> rescheduleAppointment({
+    required String id,
+    required DateTime scheduledAt,
+    int durationMinutes = 30,
+  }) async {
+    final response = await _client.put(
+      '/appointments/$id',
+      data: {
+        'scheduledAt': scheduledAt.toUtc().toIso8601String(),
+        'durationMinutes': durationMinutes,
+      },
+    );
+    final data = response.data as Map<String, dynamic>;
+    final json = data['appointment'] as Map<String, dynamic>? ?? data;
+    return EntityMappers.appointmentFromJson(json);
+  }
 }

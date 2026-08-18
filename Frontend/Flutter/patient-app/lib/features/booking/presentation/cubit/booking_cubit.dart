@@ -1,29 +1,57 @@
 // lib/features/booking/presentation/cubit/booking_cubit.dart
 import 'package:cms/core/api/api_exception.dart';
 import 'package:cms/core/api/services/appointment_api_service.dart';
+import 'package:cms/core/api/services/user_api_service.dart';
 import 'package:cms/core/entities/appointment.dart';
+import 'package:cms/core/storage/session_storage.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'booking_state.dart';
 
 class BookingCubit extends Cubit<BookingState> {
-  BookingCubit(this._appointmentApi) : super(const BookingState());
+  BookingCubit(
+    this._appointmentApi, {
+    required UserApiService userApi,
+    required SessionStorage sessionStorage,
+  })  : _userApi = userApi,
+        _sessionStorage = sessionStorage,
+        super(const BookingState());
 
   final AppointmentApiService _appointmentApi;
+  final UserApiService _userApi;
+  final SessionStorage _sessionStorage;
 
   Future<void> loadAppointments() async {
     emit(state.copyWith(isLoading: true, errorMessage: null));
+
+    String? patientName = state.patientName;
+    final userId = _sessionStorage.userId;
+    if (userId != null && userId.isNotEmpty) {
+      try {
+        final profile = await _userApi.getProfile(userId);
+        if (profile.fullName.trim().isNotEmpty) {
+          patientName = profile.fullName.trim();
+        }
+      } catch (_) {}
+    }
+
     try {
       final appointments = await _appointmentApi.getMyAppointments(group: 'all');
       emit(state.copyWith(
         isLoading: false,
+        patientName: patientName,
         allAppointments: appointments,
-        filteredAppointments: appointments,
+        filteredAppointments: _filter(appointments, state.selectedStatus),
       ));
     } on ApiException catch (e) {
-      emit(state.copyWith(isLoading: false, errorMessage: e.message));
+      emit(state.copyWith(
+        isLoading: false,
+        patientName: patientName,
+        errorMessage: e.message,
+      ));
     } catch (_) {
       emit(state.copyWith(
         isLoading: false,
+        patientName: patientName,
         errorMessage: 'Could not load appointments.',
       ));
     }
@@ -69,16 +97,16 @@ class BookingCubit extends Cubit<BookingState> {
   }
 
   void selectStatus(String status) {
-    emit(state.copyWith(selectedStatus: status));
+    emit(state.copyWith(
+      selectedStatus: status,
+      filteredAppointments: _filter(state.allAppointments, status),
+    ));
+  }
 
-    if (status == 'All') {
-      emit(state.copyWith(filteredAppointments: state.allAppointments));
-      return;
-    }
-
-    final filtered = state.allAppointments
-        .where((appointment) => appointment.status == status)
+  List<Appointment> _filter(List<Appointment> all, String status) {
+    if (status == 'All') return all;
+    return all
+        .where((a) => a.status.toLowerCase() == status.toLowerCase())
         .toList();
-    emit(state.copyWith(filteredAppointments: filtered));
   }
 }

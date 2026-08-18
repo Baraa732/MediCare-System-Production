@@ -21,13 +21,21 @@ export class JwtCacheService {
     this.cacheTTL = parseInt(this.configService.get('JWT_CACHE_TTL') || '300', 10); // 5 minutes default
     
     if (this.cacheEnabled) {
-      this.redisClient = createClient({
-        socket: {
-          host: this.configService.get('REDIS_HOST') || 'redis',
-          port: parseInt(this.configService.get('REDIS_PORT') || '6379', 10),
-        },
-        password: this.configService.get('REDIS_PASSWORD'),
-      });
+      const redisUrl = this.configService.get<string>('REDIS_URL');
+      this.redisClient = createClient(
+        redisUrl
+          ? { url: redisUrl }
+          : {
+              socket: {
+                host: this.configService.get('REDIS_HOST') || 'redis',
+                port: parseInt(this.configService.get('REDIS_PORT') || '6379', 10),
+              },
+              username:
+                this.configService.get('REDIS_USERNAME') ||
+                this.configService.get('REDISUSER'),
+              password: this.configService.get('REDIS_PASSWORD'),
+            },
+      );
 
       this.redisClient.on('error', (err) => {
         this.logger.error('Redis cache error:', err);

@@ -9,6 +9,7 @@ class EmrState {
   final List<EmrClinicLink> links;
   final String? selectedTenantId;
   final String? errorMessage;
+  final bool isSaving;
 
   const EmrState({
     this.status = EmrLoadStatus.initial,
@@ -17,6 +18,7 @@ class EmrState {
     this.links = const [],
     this.selectedTenantId,
     this.errorMessage,
+    this.isSaving = false,
   });
 
   EmrState copyWith({
@@ -26,6 +28,7 @@ class EmrState {
     List<EmrClinicLink>? links,
     String? selectedTenantId,
     String? errorMessage,
+    bool? isSaving,
     bool clearError = false,
     bool clearChart = false,
     bool clearSelectedTenant = false,
@@ -39,6 +42,7 @@ class EmrState {
           ? null
           : (selectedTenantId ?? this.selectedTenantId),
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
+      isSaving: isSaving ?? this.isSaving,
     );
   }
 }

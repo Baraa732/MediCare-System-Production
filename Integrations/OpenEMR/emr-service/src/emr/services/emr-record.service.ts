@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
 import { EmrSyncStatus, PatientEmrLink } from '../entities/patient-emr-link.entity';
 import { ClinicalNoteRecord, PatientEmrChart } from '../types/patient-emr.types';
 import { OpenEmrChartService } from './openemr-chart.service';
@@ -10,6 +10,11 @@ import { PhiAuditPublisherService } from '../../phi-audit-shared/phi-audit.publi
 import { PhiAuditAction, PhiAuditResourceType } from '../../phi-audit-shared/types';
 import { UserKafkaCorroborator } from './user-kafka-corroborator.service';
 import { OpenEmrDbReader } from './openemr-db.reader';
+import { OpenEmrClient } from './openemr.client';
+import {
+  UpdateMyEmrDto,
+  UpdateMyEmrEmergencyContactDto,
+} from '../dto/update-my-emr.dto';
 
 export interface PatientSyncStatusResponse {
   medicareUserId: string;
@@ -38,6 +43,8 @@ interface AuthUser {
 
 @Injectable()
 export class EmrRecordService {
+  private readonly logger = new Logger(EmrRecordService.name);
+
   constructor(
     private patientSyncService: PatientSyncService,
     private chartService: OpenEmrChartService,
@@ -47,6 +54,7 @@ export class EmrRecordService {
     private readonly phiAudit: PhiAuditPublisherService,
     private readonly userCorroborator: UserKafkaCorroborator,
     private readonly dbReader: OpenEmrDbReader,
+    private readonly openEmrClient: OpenEmrClient,
   ) {}
 
   private requireTenantId(): string {
@@ -153,7 +161,8 @@ export class EmrRecordService {
       });
     }
 
-    return this.getPatientEmr(actor.userId, actor, link.tenantId);
+    const chart = await this.getPatientEmr(actor.userId, actor, link.tenantId);
+    return this.stripBillingForPatient(chart);
   }
 
   async getSyncStatus(
@@ -373,5 +382,170 @@ export class EmrRecordService {
     });
 
     return note;
+  }
+
+  /** Patient portal CRUD — OpenEMR Standard API `patient` resource only. */
+  async updateMyEmr(
+    actor: AuthUser,
+    dto: UpdateMyEmrDto,
+    preferredTenantId?: string | null,
+  ): Promise<PatientEmrChart> {
+    return this.writeMyPortalFields(actor, dto, preferredTenantId);
+  }
+
+  async upsertMyEmergencyContact(
+    actor: AuthUser,
+    contact: UpdateMyEmrEmergencyContactDto,
+    preferredTenantId?: string | null,
+  ): Promise<PatientEmrChart> {
+    if (!contact.name?.trim() && !contact.phone?.trim() && !contact.relationship?.trim()) {
+      throw new BadRequestException('Emergency contact needs a name, phone, or relationship');
+    }
+    return this.writeMyPortalFields(
+      actor,
+      { emergencyContact: contact },
+      preferredTenantId,
+    );
+  }
+
+  async deleteMyEmergencyContact(
+    actor: AuthUser,
+    preferredTenantId?: string | null,
+  ): Promise<PatientEmrChart> {
+    return this.writeMyPortalFields(
+      actor,
+      {
+        emergencyContact: {
+          name: '',
+          relationship: '',
+          phone: '',
+          email: '',
+        },
+      },
+      preferredTenantId,
+    );
+  }
+
+  private stripBillingForPatient(chart: PatientEmrChart): PatientEmrChart {
+    return {
+      ...chart,
+      insurance: [],
+      guarantor: null,
+      dataOwnership: {
+        ...chart.dataOwnership,
+        patientEditable: ['patient', 'contactInformation', 'emergencyContacts'],
+      },
+    };
+  }
+
+  private async writeMyPortalFields(
+    actor: AuthUser,
+    dto: UpdateMyEmrDto,
+    preferredTenantId?: string | null,
+  ): Promise<PatientEmrChart> {
+    if (actor.role !== 'PATIENT') {
+      throw new ForbiddenException('Only patients can update their portal chart');
+    }
+
+    const link = await this.patientSyncService.resolvePatientLink(
+      actor.userId,
+      preferredTenantId,
+    );
+    if (!link?.tenantId || !link.openemrPatientId) {
+      throw new NotFoundException({
+        message: 'No EMR record linked to this user yet',
+        medicareUserId: actor.userId,
+        syncStatus: EmrSyncStatus.PENDING,
+      });
+    }
+    if (link.syncStatus !== EmrSyncStatus.SYNCED) {
+      throw new NotFoundException({
+        message: 'EMR record is not available yet',
+        medicareUserId: actor.userId,
+        syncStatus: link.syncStatus,
+      });
+    }
+
+    await this.assertActorAccess(actor, link.tenantId, actor.userId);
+
+    const row = await this.dbReader.getPatientRow(link.openemrPatientId);
+    if (!row) {
+      throw new NotFoundException('OpenEMR patient record was not found');
+    }
+
+    const standardFields = this.toOpenEmrStandardPatient(dto);
+    if (Object.keys(standardFields).length === 0) {
+      throw new BadRequestException('No patient portal fields to update');
+    }
+
+    const puuid = this.dbReader.getPatientUuid(row) ?? link.openemrPatientId;
+    try {
+      await this.openEmrClient.standardPut(`/api/patient/${puuid}`, standardFields);
+    } catch (error: any) {
+      this.logger.warn(
+        `OpenEMR Standard API patient update failed (${error?.message}); writing patient_data`,
+      );
+      await this.dbReader.updatePatientPortalFields(row.pid, standardFields);
+    }
+
+    this.phiAudit.emit({
+      action: PhiAuditAction.EMR_CHART_WRITE,
+      actorId: actor.userId,
+      actorRole: actor.role,
+      tenantId: link.tenantId,
+      resourceType: PhiAuditResourceType.EMR_CHART,
+      resourceId: actor.userId,
+      success: true,
+      classification: 'phi',
+    });
+
+    return this.getMyEmr(actor, link.tenantId);
+  }
+
+  /** Maps MediCare portal DTO → OpenEMR Standard API `/api/patient` fields. */
+  private toOpenEmrStandardPatient(dto: UpdateMyEmrDto): Record<string, string | null> {
+    const fields: Record<string, string | null> = {};
+    const blank = (value?: string) =>
+      value === undefined ? undefined : value.trim();
+
+    if (dto.patient) {
+      const p = dto.patient;
+      if (p.firstName !== undefined) fields.fname = blank(p.firstName) ?? '';
+      if (p.middleName !== undefined) fields.mname = blank(p.middleName) ?? '';
+      if (p.lastName !== undefined) fields.lname = blank(p.lastName) ?? '';
+      if (p.birthDate !== undefined) fields.DOB = blank(p.birthDate) ?? '';
+      if (p.gender !== undefined) fields.sex = this.toOpenEmrSex(p.gender);
+      if (p.maritalStatus !== undefined) fields.status = blank(p.maritalStatus) ?? '';
+      if (p.language !== undefined) fields.language = blank(p.language) ?? '';
+    }
+
+    if (dto.contactInformation) {
+      const c = dto.contactInformation;
+      if (c.phone !== undefined) fields.phone_cell = blank(c.phone) ?? '';
+      if (c.email !== undefined) fields.email = blank(c.email) ?? '';
+      if (c.addressLine1 !== undefined) fields.street = blank(c.addressLine1) ?? '';
+      if (c.addressLine2 !== undefined) fields.street_line_2 = blank(c.addressLine2) ?? '';
+      if (c.city !== undefined) fields.city = blank(c.city) ?? '';
+      if (c.state !== undefined) fields.state = blank(c.state) ?? '';
+      if (c.postalCode !== undefined) fields.postal_code = blank(c.postalCode) ?? '';
+      if (c.country !== undefined) fields.country_code = blank(c.country) ?? '';
+    }
+
+    if (dto.emergencyContact) {
+      const e = dto.emergencyContact;
+      if (e.name !== undefined) fields.guardiansname = blank(e.name) ?? '';
+      if (e.relationship !== undefined) fields.contact_relationship = blank(e.relationship) ?? '';
+      if (e.phone !== undefined) fields.phone_contact = blank(e.phone) ?? '';
+      if (e.email !== undefined) fields.guardianemail = blank(e.email) ?? '';
+    }
+
+    return fields;
+  }
+
+  private toOpenEmrSex(gender: string): string {
+    const normalized = gender.trim().toLowerCase();
+    if (normalized === 'male' || normalized === 'm') return 'Male';
+    if (normalized === 'female' || normalized === 'f') return 'Female';
+    return gender.trim() || '';
   }
 }

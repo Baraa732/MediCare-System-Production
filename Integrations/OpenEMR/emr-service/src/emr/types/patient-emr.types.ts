@@ -214,9 +214,6 @@ export const DEFAULT_DATA_OWNERSHIP: DataOwnership = {
     'patient',
     'contactInformation',
     'emergencyContacts',
-    'insurance',
-    'preferredPharmacy',
-    'documents',
   ],
   doctorManaged: [
     'allergies',

@@ -53,4 +53,53 @@ class EmrApiService {
     }
     return const [];
   }
+
+  Map<String, dynamic> _tenantQuery(String? tenantId) => {
+        if (tenantId != null && tenantId.isNotEmpty) 'tenantId': tenantId,
+      };
+
+  Future<PatientEmrChart> updateMyEmr({
+    String? tenantId,
+    Map<String, dynamic>? patient,
+    Map<String, dynamic>? contactInformation,
+    Map<String, dynamic>? emergencyContact,
+  }) async {
+    final response = await _client.patch(
+      '/emr/me',
+      data: {
+        ?patient,
+        ?contactInformation,
+        ?emergencyContact,
+      },
+      queryParameters: _tenantQuery(tenantId),
+    );
+    return _chart(response.data);
+  }
+
+  Future<PatientEmrChart> upsertEmergencyContact({
+    required String? tenantId,
+    required Map<String, dynamic> contact,
+  }) async {
+    final response = await _client.put(
+      '/emr/me/emergency-contacts',
+      data: contact,
+      queryParameters: _tenantQuery(tenantId),
+    );
+    return _chart(response.data);
+  }
+
+  Future<PatientEmrChart> deleteEmergencyContact({String? tenantId}) async {
+    final response = await _client.delete(
+      '/emr/me/emergency-contacts',
+      queryParameters: _tenantQuery(tenantId),
+    );
+    return _chart(response.data);
+  }
+
+  PatientEmrChart _chart(dynamic data) {
+    if (data is Map<String, dynamic>) {
+      return PatientEmrChart.fromJson(data);
+    }
+    throw Exception('Invalid EMR response');
+  }
 }

@@ -76,13 +76,27 @@ class EntityMappers {
     final doctorFirst = doctor?['firstName']?.toString() ?? '';
     final doctorLast = doctor?['lastName']?.toString() ?? '';
     final doctorName = doctor?['fullName']?.toString() ??
+        json['doctorName']?.toString() ??
         [doctorFirst, doctorLast].where((p) => p.isNotEmpty).join(' ');
+
+    final clinicName = clinic?['name']?.toString() ??
+        json['clinicName']?.toString() ??
+        'Clinic';
+    final addressParts = [
+      json['clinicAddress']?.toString() ?? clinic?['address']?.toString() ?? '',
+      json['clinicCity']?.toString() ?? clinic?['city']?.toString() ?? '',
+      json['clinicGovernorate']?.toString() ??
+          clinic?['governorate']?.toString() ??
+          '',
+    ].where((p) => p.trim().isNotEmpty).toList();
 
     return Appointment(
       id: json['id']?.toString() ?? '',
       doctorName: doctorName.isNotEmpty ? doctorName : 'Doctor',
-      specialty: doctor?['specialization']?.toString() ?? '—',
-      clinicName: clinic?['name']?.toString() ?? 'Clinic',
+      specialty: doctor?['specialization']?.toString() ??
+          json['doctorSpecialization']?.toString() ??
+          '—',
+      clinicName: clinicName,
       clinicId: json['clinicId']?.toString() ??
           json['tenantId']?.toString() ??
           clinic?['id']?.toString() ??
@@ -96,6 +110,7 @@ class EntityMappers {
       status: _mapAppointmentStatus(json['status']?.toString()),
       followUp: json['reason']?.toString(),
       scheduledAt: dt,
+      clinicAddress: addressParts.join(', '),
     );
   }
 

@@ -35,7 +35,18 @@ class _EmrView extends StatelessWidget {
         children: [
           _Header(topInset: top),
           Expanded(
-            child: BlocBuilder<EmrCubit, EmrState>(
+            child: BlocConsumer<EmrCubit, EmrState>(
+              listenWhen: (prev, next) =>
+                  next.errorMessage != null &&
+                  next.status == EmrLoadStatus.ready &&
+                  prev.errorMessage != next.errorMessage,
+              listener: (context, state) {
+                final msg = state.errorMessage;
+                if (msg == null) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(msg)),
+                );
+              },
               builder: (context, state) {
                 switch (state.status) {
                   case EmrLoadStatus.initial:
@@ -59,6 +70,8 @@ class _EmrView extends StatelessWidget {
                               links: state.links,
                               selectedTenantId: state.selectedTenantId,
                             ),
+                          if (state.isSaving)
+                            const LinearProgressIndicator(minHeight: 2),
                           Expanded(
                             child: RefreshIndicator(
                               color: AppColors.main_background_blue,
@@ -116,7 +129,7 @@ class _Header extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Synced from your clinic EMR',
+                  'OpenEMR chart · cash at the clinic',
                   style: FontHeading.bodySmall.copyWith(
                     color: Colors.white.withValues(alpha: 0.85),
                   ),
@@ -284,7 +297,19 @@ class _OverviewTab extends StatelessWidget {
       ),
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
       children: [
-        _SectionTitle('Patient'),
+        Row(
+          children: [
+            const Expanded(child: _SectionTitle('Patient')),
+            TextButton.icon(
+              onPressed: () => _openPatientEditor(context, chart),
+              icon: const Icon(Icons.edit_outlined, size: 16),
+              label: const Text('Edit'),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.main_background_blue,
+              ),
+            ),
+          ],
+        ),
         _InfoBlock(
           rows: [
             _InfoRow('Name', patient.fullName.isEmpty ? '—' : patient.fullName),
@@ -298,6 +323,55 @@ class _OverviewTab extends StatelessWidget {
               _InfoRow('Address', contact.addressLine),
           ],
         ),
+        const SizedBox(height: 20),
+        Row(
+          children: [
+            const Expanded(child: _SectionTitle('Emergency contact')),
+            TextButton.icon(
+              onPressed: () => _openEmergencyEditor(
+                context,
+                chart.emergencyContacts.isEmpty
+                    ? null
+                    : chart.emergencyContacts.first,
+              ),
+              icon: Icon(
+                chart.emergencyContacts.isEmpty
+                    ? Icons.add
+                    : Icons.edit_outlined,
+                size: 16,
+              ),
+              label: Text(chart.emergencyContacts.isEmpty ? 'Add' : 'Edit'),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.main_background_blue,
+              ),
+            ),
+          ],
+        ),
+        if (chart.emergencyContacts.isEmpty)
+          const _InlineEmpty('None on file — add one for the clinic')
+        else
+          ...chart.emergencyContacts.map(
+            (c) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _LineTile(
+                title: c.name ?? 'Contact',
+                subtitle: [
+                  if (c.relationship != null) c.relationship!,
+                  if (c.phone != null) c.phone!,
+                  if (c.email != null) c.email!,
+                ].where((e) => e.isNotEmpty).join(' · '),
+              ),
+            ),
+          ),
+        if (chart.emergencyContacts.isNotEmpty)
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: () => _confirmDeleteEmergency(context),
+              style: TextButton.styleFrom(foregroundColor: AppColors.red),
+              child: const Text('Remove contact'),
+            ),
+          ),
         const SizedBox(height: 20),
         _SectionTitle('At a glance'),
         Wrap(
@@ -716,24 +790,6 @@ class _MoreTab extends StatelessWidget {
               ),
             ),
           ),
-        if (chart.insurance.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          _SectionTitle('Insurance'),
-          ...chart.insurance.map(
-            (ins) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _LineTile(
-                title: ins.provider ?? 'Coverage',
-                subtitle: [
-                  if (ins.memberId != null) 'Member ${ins.memberId}',
-                  if (ins.policyNumber != null) 'Policy ${ins.policyNumber}',
-                  if (ins.coverageType != null) ins.coverageType!,
-                  if (ins.status != null) ins.status!,
-                ].where((e) => e.isNotEmpty).join(' · '),
-              ),
-            ),
-          ),
-        ],
         if (chart.emergencyContacts.isNotEmpty) ...[
           const SizedBox(height: 12),
           _SectionTitle('Emergency contacts'),
@@ -751,6 +807,11 @@ class _MoreTab extends StatelessWidget {
             ),
           ),
         ],
+        const SizedBox(height: 16),
+        Text(
+          'Structured OpenEMR chart (Patient, AllergyIntolerance, MedicationRequest, Condition, Encounter, Observation). You can edit your patient and emergency-contact fields. Visits are paid in cash at reception — no billing in this app.',
+          style: FontHeading.bodySmall.copyWith(color: AppColors.customGray),
+        ),
       ],
     );
   }
@@ -1082,4 +1143,277 @@ String _fmtDateTime(String? raw) {
   final dt = DateTime.tryParse(raw);
   if (dt == null) return raw;
   return DateFormat.yMMMd().add_jm().format(dt.toLocal());
+}
+
+Future<void> _openPatientEditor(
+  BuildContext context,
+  PatientEmrChart chart,
+) async {
+  final cubit = context.read<EmrCubit>();
+  final result = await showModalBottomSheet<bool>(
+    context: context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    builder: (ctx) => BlocProvider.value(
+      value: cubit,
+      child: _PatientEditSheet(chart: chart),
+    ),
+  );
+  if (result == true && context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Patient record saved')),
+    );
+  }
+}
+
+Future<void> _openEmergencyEditor(
+  BuildContext context,
+  EmergencyContact? existing,
+) async {
+  final cubit = context.read<EmrCubit>();
+  final result = await showModalBottomSheet<bool>(
+    context: context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    builder: (ctx) => BlocProvider.value(
+      value: cubit,
+      child: _EmergencyEditSheet(existing: existing),
+    ),
+  );
+  if (result == true && context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Emergency contact saved')),
+    );
+  }
+}
+
+Future<void> _confirmDeleteEmergency(BuildContext context) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Remove emergency contact?'),
+      content: const Text('This clears the OpenEMR contact on your chart.'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: const Text('Keep'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          child: const Text('Remove'),
+        ),
+      ],
+    ),
+  );
+  if (ok != true || !context.mounted) return;
+  final saved = await context.read<EmrCubit>().deleteEmergencyContact();
+  if (saved && context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Emergency contact removed')),
+    );
+  }
+}
+
+class _PatientEditSheet extends StatefulWidget {
+  const _PatientEditSheet({required this.chart});
+  final PatientEmrChart chart;
+
+  @override
+  State<_PatientEditSheet> createState() => _PatientEditSheetState();
+}
+
+class _PatientEditSheetState extends State<_PatientEditSheet> {
+  late final TextEditingController _first;
+  late final TextEditingController _last;
+  late final TextEditingController _dob;
+  late final TextEditingController _gender;
+  late final TextEditingController _phone;
+  late final TextEditingController _email;
+  late final TextEditingController _address;
+  late final TextEditingController _city;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final p = widget.chart.patient;
+    final c = widget.chart.contactInformation;
+    _first = TextEditingController(text: p.firstName ?? '');
+    _last = TextEditingController(text: p.lastName ?? '');
+    _dob = TextEditingController(text: p.birthDate ?? '');
+    _gender = TextEditingController(text: p.gender ?? '');
+    _phone = TextEditingController(text: c.phone ?? '');
+    _email = TextEditingController(text: c.email ?? '');
+    _address = TextEditingController(text: c.addressLine1 ?? '');
+    _city = TextEditingController(text: c.city ?? '');
+  }
+
+  @override
+  void dispose() {
+    _first.dispose();
+    _last.dispose();
+    _dob.dispose();
+    _gender.dispose();
+    _phone.dispose();
+    _email.dispose();
+    _address.dispose();
+    _city.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    setState(() => _busy = true);
+    final cubit = context.read<EmrCubit>();
+    final ok = await cubit.updatePortal(
+      patient: {
+        'firstName': _first.text.trim(),
+        'lastName': _last.text.trim(),
+        'birthDate': _dob.text.trim(),
+        'gender': _gender.text.trim(),
+      },
+      contactInformation: {
+        'phone': _phone.text.trim(),
+        'email': _email.text.trim(),
+        'addressLine1': _address.text.trim(),
+        'city': _city.text.trim(),
+      },
+    );
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (ok) Navigator.pop(context, true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final inset = MediaQuery.viewInsetsOf(context).bottom;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + inset),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Edit patient', style: FontHeading.heading4),
+            const SizedBox(height: 4),
+            Text(
+              'OpenEMR Standard API patient fields',
+              style: FontHeading.bodySmall.copyWith(color: AppColors.customGray),
+            ),
+            const SizedBox(height: 12),
+            _field(_first, 'First name'),
+            _field(_last, 'Last name'),
+            _field(_dob, 'Birth date (YYYY-MM-DD)'),
+            _field(_gender, 'Gender'),
+            _field(_phone, 'Phone'),
+            _field(_email, 'Email'),
+            _field(_address, 'Address'),
+            _field(_city, 'City'),
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: _busy ? null : _save,
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.main_background_blue,
+              ),
+              child: Text(_busy ? 'Saving…' : 'Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmergencyEditSheet extends StatefulWidget {
+  const _EmergencyEditSheet({this.existing});
+  final EmergencyContact? existing;
+
+  @override
+  State<_EmergencyEditSheet> createState() => _EmergencyEditSheetState();
+}
+
+class _EmergencyEditSheetState extends State<_EmergencyEditSheet> {
+  late final TextEditingController _name;
+  late final TextEditingController _relationship;
+  late final TextEditingController _phone;
+  late final TextEditingController _email;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.existing;
+    _name = TextEditingController(text: e?.name ?? '');
+    _relationship = TextEditingController(text: e?.relationship ?? '');
+    _phone = TextEditingController(text: e?.phone ?? '');
+    _email = TextEditingController(text: e?.email ?? '');
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _relationship.dispose();
+    _phone.dispose();
+    _email.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    setState(() => _busy = true);
+    final ok = await context.read<EmrCubit>().saveEmergencyContact({
+      'name': _name.text.trim(),
+      'relationship': _relationship.text.trim(),
+      'phone': _phone.text.trim(),
+      'email': _email.text.trim(),
+    });
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (ok) Navigator.pop(context, true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final inset = MediaQuery.viewInsetsOf(context).bottom;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + inset),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              widget.existing == null
+                  ? 'Add emergency contact'
+                  : 'Edit emergency contact',
+              style: FontHeading.heading4,
+            ),
+            const SizedBox(height: 12),
+            _field(_name, 'Name'),
+            _field(_relationship, 'Relationship'),
+            _field(_phone, 'Phone'),
+            _field(_email, 'Email'),
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: _busy ? null : _save,
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.main_background_blue,
+              ),
+              child: Text(_busy ? 'Saving…' : 'Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+Widget _field(TextEditingController controller, String label) {
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: TextField(
+      controller: controller,
+      decoration: InputDecoration(
+        labelText: label,
+        border: const OutlineInputBorder(),
+        isDense: true,
+      ),
+    ),
+  );
 }

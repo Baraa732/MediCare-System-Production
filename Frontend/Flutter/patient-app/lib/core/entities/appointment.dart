@@ -10,6 +10,7 @@ class Appointment {
   final String status;
   final String? followUp;
   final DateTime? scheduledAt;
+  final String clinicAddress;
 
   Appointment({
     required this.id,
@@ -23,5 +24,13 @@ class Appointment {
     required this.status,
     this.followUp,
     this.scheduledAt,
+    this.clinicAddress = '',
   });
+
+  bool get isCancellable {
+    final s = status.toLowerCase();
+    return s.contains('pending') || s.contains('confirmed');
+  }
+
+  bool get isReschedulable => isCancellable;
 }

@@ -8,6 +8,7 @@ import 'package:cms/core/theme/app_colors.dart';
 import 'package:cms/features/appointment/presentation/screens/appointment_detail_screen.dart';
 import 'package:cms/features/booking/presentation/cubit/booking_cubit.dart';
 import 'package:cms/features/booking/presentation/cubit/booking_state.dart';
+import 'package:cms/features/emr/presentation/screens/emr_screen.dart';
 import 'package:cms/features/notifications/presentation/screens/notifications_screen.dart';
 import 'package:cms/injection_container.dart';
 import 'package:flutter/material.dart';
@@ -47,20 +48,53 @@ class BookingScreen extends StatelessWidget {
                     return const Center(child: CircularProgressIndicator());
                   }
 
+                  if (state.errorMessage != null &&
+                      state.allAppointments.isEmpty) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              state.errorMessage!,
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 12),
+                            TextButton(
+                              onPressed: () => context
+                                  .read<BookingCubit>()
+                                  .loadAppointments(),
+                              child: const Text('Try again'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
+
                   if (state.filteredAppointments.isEmpty) {
-                    return const Center(
-                      child: Text('No appointments with this status'),
+                    return Center(
+                      child: Text(
+                        state.selectedStatus == 'All'
+                            ? 'No appointments yet. Book from a clinic.'
+                            : 'No appointments with this status',
+                      ),
                     );
                   }
 
                   return FadeSlideIn(
-                    child: ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: state.filteredAppointments.length,
-                      itemBuilder: (context, index) {
-                        final appointment = state.filteredAppointments[index];
-                        return _buildAppointmentCard(context, appointment);
-                      },
+                    child: RefreshIndicator(
+                      onRefresh: () =>
+                          context.read<BookingCubit>().loadAppointments(),
+                      child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        itemCount: state.filteredAppointments.length,
+                        itemBuilder: (context, index) {
+                          final appointment = state.filteredAppointments[index];
+                          return _buildAppointmentCard(context, appointment);
+                        },
+                      ),
                     ),
                   );
                 },
@@ -74,82 +108,96 @@ class BookingScreen extends StatelessWidget {
 
   // ---- Blue Header (exactly as you had) ----
   Widget _buildBlueHeader(BuildContext context) {
-    return RepaintBoundary(
-      child: Container(
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: AppColors.main_background_blue,
-          borderRadius: const BorderRadius.only(
-            bottomLeft: Radius.circular(24),
-            bottomRight: Radius.circular(24),
-          ),
-        ),
-        padding: const EdgeInsets.fromLTRB(20, 30, 30, 30),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Row(
+    return BlocBuilder<BookingCubit, BookingState>(
+      builder: (context, state) {
+        return RepaintBoundary(
+          child: Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: AppColors.main_background_blue,
+              borderRadius: const BorderRadius.only(
+                bottomLeft: Radius.circular(24),
+                bottomRight: Radius.circular(24),
+              ),
+            ),
+            padding: const EdgeInsets.fromLTRB(20, 30, 30, 30),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                CircleAvatar(
-                  radius: 26,
-                  backgroundColor: Colors.white,
-                  backgroundImage: AssetImage(
-                    Assets.assetsImagesUserFolanAlfolani,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Folan Al-Folani',
-                        style: FontHeading.heading1.copyWith(
-                          fontSize: 18,
-                          color: Colors.white,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    CircleAvatar(
+                      radius: 26,
+                      backgroundColor: Colors.white,
+                      backgroundImage: AssetImage(
+                        Assets.assetsImagesUserFolanAlfolani,
                       ),
-                      Text(
-                        'View my records',
-                        style: FontHeading.bodySmall.copyWith(
-                          color: Colors.white70,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  width: 40,
-                  height: 40,
-                  padding: EdgeInsets.zero,
-                  decoration: const BoxDecoration(
-                    color: AppColors.main_background_white,
-                    borderRadius: BorderRadius.all(Radius.circular(8)),
-                  ),
-                  child: IconButton(
-                    splashColor: Colors.transparent,
-                    highlightColor: Colors.transparent,
-                    padding: EdgeInsets.zero,
-                    onPressed: () {
-                      Navigator.pushNamed(context, NotificationsScreen.routeName);
-                    },
-                    icon: const Icon(
-                      Icons.notifications_outlined,
-                      color: AppColors.main_background_blue,
-                      size: 28,
                     ),
-                  ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () {
+                          Navigator.pushNamed(context, EmrScreen.routeName);
+                        },
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              state.patientName?.trim().isNotEmpty == true
+                                  ? state.patientName!
+                                  : 'My appointments',
+                              style: FontHeading.heading1.copyWith(
+                                fontSize: 18,
+                                color: Colors.white,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              'View my records',
+                              style: FontHeading.bodySmall.copyWith(
+                                color: Colors.white70,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Container(
+                      width: 40,
+                      height: 40,
+                      padding: EdgeInsets.zero,
+                      decoration: const BoxDecoration(
+                        color: AppColors.main_background_white,
+                        borderRadius: BorderRadius.all(Radius.circular(8)),
+                      ),
+                      child: IconButton(
+                        splashColor: Colors.transparent,
+                        highlightColor: Colors.transparent,
+                        padding: EdgeInsets.zero,
+                        onPressed: () {
+                          Navigator.pushNamed(
+                            context,
+                            NotificationsScreen.routeName,
+                          );
+                        },
+                        icon: const Icon(
+                          Icons.notifications_outlined,
+                          color: AppColors.main_background_blue,
+                          size: 28,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -206,13 +254,16 @@ class BookingScreen extends StatelessWidget {
   // ---- Appointment Card (keeps your exact style, but with appointment data) ----
   Widget _buildAppointmentCard(BuildContext context, Appointment appointment) {
     return GestureDetector(
-      onTap: () {
-        Navigator.push(
+      onTap: () async {
+        final changed = await Navigator.push<bool>(
           context,
           AppPageRoute(
             builder: (_) => AppointmentDetailScreen(appointment: appointment),
           ),
         );
+        if (changed == true && context.mounted) {
+          context.read<BookingCubit>().loadAppointments();
+        }
       },
       child: Container(
       padding: const EdgeInsets.all(4),

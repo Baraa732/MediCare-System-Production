@@ -92,4 +92,72 @@ class EmrCubit extends Cubit<EmrState> {
     emit(state.copyWith(selectedTenantId: tenantId));
     await load(tenantId: tenantId);
   }
+
+  Future<bool> updatePortal({
+    Map<String, dynamic>? patient,
+    Map<String, dynamic>? contactInformation,
+    Map<String, dynamic>? emergencyContact,
+  }) async {
+    emit(state.copyWith(isSaving: true, clearError: true));
+    try {
+      final chart = await _emrApi.updateMyEmr(
+        tenantId: state.selectedTenantId,
+        patient: patient,
+        contactInformation: contactInformation,
+        emergencyContact: emergencyContact,
+      );
+      emit(state.copyWith(chart: chart, isSaving: false, clearError: true));
+      return true;
+    } on ApiException catch (e) {
+      emit(state.copyWith(isSaving: false, errorMessage: e.message));
+      return false;
+    } catch (_) {
+      emit(state.copyWith(
+        isSaving: false,
+        errorMessage: 'Could not save your record.',
+      ));
+      return false;
+    }
+  }
+
+  Future<bool> saveEmergencyContact(Map<String, dynamic> contact) async {
+    emit(state.copyWith(isSaving: true, clearError: true));
+    try {
+      final chart = await _emrApi.upsertEmergencyContact(
+        tenantId: state.selectedTenantId,
+        contact: contact,
+      );
+      emit(state.copyWith(chart: chart, isSaving: false, clearError: true));
+      return true;
+    } on ApiException catch (e) {
+      emit(state.copyWith(isSaving: false, errorMessage: e.message));
+      return false;
+    } catch (_) {
+      emit(state.copyWith(
+        isSaving: false,
+        errorMessage: 'Could not save emergency contact.',
+      ));
+      return false;
+    }
+  }
+
+  Future<bool> deleteEmergencyContact() async {
+    emit(state.copyWith(isSaving: true, clearError: true));
+    try {
+      final chart = await _emrApi.deleteEmergencyContact(
+        tenantId: state.selectedTenantId,
+      );
+      emit(state.copyWith(chart: chart, isSaving: false, clearError: true));
+      return true;
+    } on ApiException catch (e) {
+      emit(state.copyWith(isSaving: false, errorMessage: e.message));
+      return false;
+    } catch (_) {
+      emit(state.copyWith(
+        isSaving: false,
+        errorMessage: 'Could not remove emergency contact.',
+      ));
+      return false;
+    }
+  }
 }

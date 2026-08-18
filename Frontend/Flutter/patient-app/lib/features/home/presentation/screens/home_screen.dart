@@ -356,7 +356,41 @@ class HomeScreen extends StatelessWidget {
               _buildSearchBar(context),
               const SizedBox(height: 16),
               if (clinics.isEmpty)
-                _buildClinicsEmptyState()
+                state.errorMessage != null
+                    ? Expanded(
+                        child: Center(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.cloud_off_outlined,
+                                    size: 64, color: AppColors.customGray),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'Could not load clinics',
+                                  style: FontHeading.heading4
+                                      .copyWith(color: Colors.black),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  state.errorMessage!,
+                                  style: FontHeading.body
+                                      .copyWith(color: AppColors.customGray),
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 16),
+                                TextButton(
+                                  onPressed: () =>
+                                      context.read<HomeCubit>().loadHomeData(),
+                                  child: const Text('Try again'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      )
+                    : _buildClinicsEmptyState()
               else
                 Expanded(
                   child: ListView.builder(
@@ -396,7 +430,7 @@ class HomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Clinics will appear here once they are\nregistered in the system.',
+              'No active clinics yet. Clinics added by MediCare appear here after activation.',
               style: FontHeading.body.copyWith(color: AppColors.customGray),
               textAlign: TextAlign.center,
             ),

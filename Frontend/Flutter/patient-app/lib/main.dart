@@ -65,7 +65,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'CMS',
+      title: 'MediCare Patient',
       navigatorKey: appNavigatorKey,
       theme: ThemeData(primarySwatch: Colors.blue),
       // Use `home` instead of `initialRoute: '/splash'`.
