@@ -47,7 +47,7 @@ export default function ConsoleHero({ orbs }: ConsoleHeroProps) {
               transition={{ delay: 0.12 + index * 0.07, duration: 0.45 }}
             >
               <div className="ac-orb-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                {Icon ? <Icon size={12} color="#67e8f9" /> : null}
+                {Icon ? <Icon size={12} className="ac-orb-icon" /> : null}
                 {orb.label}
               </div>
               <div className="ac-orb-value" data-mono={orb.mono ? 'true' : 'false'}>

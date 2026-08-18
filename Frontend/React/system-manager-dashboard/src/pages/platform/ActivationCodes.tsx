@@ -92,19 +92,19 @@ export default function ActivationCodes() {
             )}
           </AnimatePresence>
         </div>
-      </div>
 
-      <IssuedCodeTheater
-        open={theaterOpen && Boolean(issued)}
-        code={issued?.code ?? ''}
-        expiresAt={issued?.expiresAt ?? ''}
-        onCopy={() => {
-          if (!issued) return
-          void navigator.clipboard?.writeText(issued.code)
-          notify.success('Code copied to clipboard')
-        }}
-        onClose={() => setTheaterOpen(false)}
-      />
+        <IssuedCodeTheater
+          open={theaterOpen && Boolean(issued)}
+          code={issued?.code ?? ''}
+          expiresAt={issued?.expiresAt ?? ''}
+          onCopy={() => {
+            if (!issued) return
+            void navigator.clipboard?.writeText(issued.code)
+            notify.success('Code copied to clipboard')
+          }}
+          onClose={() => setTheaterOpen(false)}
+        />
+      </div>
     </PageMotion>
   )
 }

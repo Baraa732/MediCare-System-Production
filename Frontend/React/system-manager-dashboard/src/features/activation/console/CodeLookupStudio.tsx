@@ -82,15 +82,8 @@ export default function CodeLookupStudio({ token }: CodeLookupStudioProps) {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            style={{
-              marginBottom: 12,
-              padding: '10px 12px',
-              borderRadius: 10,
-              background: 'rgba(251,113,133,0.1)',
-              border: '1px solid rgba(251,113,133,0.28)',
-              color: '#fda4af',
-              fontSize: 13,
-            }}
+            className="ac-alert"
+            style={{ overflow: 'hidden' }}
           >
             {error}
           </motion.div>
@@ -156,7 +149,7 @@ export default function CodeLookupStudio({ token }: CodeLookupStudioProps) {
             {status.whatsappNumber && <Row label="WhatsApp" value={status.whatsappNumber} />}
             {status.expiresAt && (
               <>
-                <Divider sx={{ my: 1.25, borderColor: 'rgba(125, 211, 252, 0.12)' }} />
+                <Divider sx={{ my: 1.25, borderColor: 'var(--ac-line)' }} />
                 <Row label="Expires" value={new Date(status.expiresAt).toLocaleString()} />
               </>
             )}
@@ -175,9 +168,9 @@ export default function CodeLookupStudio({ token }: CodeLookupStudioProps) {
                     label={DOCUMENT_FIELD_META[key as keyof typeof DOCUMENT_FIELD_META]?.label ?? key}
                     sx={{
                       borderRadius: '8px',
-                      borderColor: 'rgba(34, 211, 238, 0.28)',
-                      color: '#a5f3fc',
-                      bgcolor: 'rgba(34, 211, 238, 0.06)',
+                      borderColor: 'var(--ac-line)',
+                      color: 'var(--ac-soft)',
+                      bgcolor: 'var(--ac-fill)',
                     }}
                   />
                 ))}
@@ -189,7 +182,7 @@ export default function CodeLookupStudio({ token }: CodeLookupStudioProps) {
                 className="ac-btn"
                 disabled={loading}
                 onClick={() => void onRevoke()}
-                style={{ marginTop: 16, background: 'rgba(251,113,133,0.12)', color: '#fda4af', border: '1px solid rgba(251,113,133,0.3)' }}
+                style={{ marginTop: 16, background: 'var(--ac-danger-fill)', color: 'var(--ac-danger-soft)', border: '1px solid var(--ac-danger-border)' }}
               >
                 <Ban size={14} />
                 Revoke code

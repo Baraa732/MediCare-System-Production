@@ -24,11 +24,13 @@ import {
   type ActivationDocumentField,
 } from '../activationConstants'
 import {
+  consoleAlertSx,
   consoleAutocompleteSx,
   consoleCheckboxSx,
   consoleFieldSx,
   consoleFormLabelSx,
   consoleMenuProps,
+  consoleReviewCardSx,
 } from '../console/formFieldSx'
 import DocumentUploadZone from './DocumentUploadZone'
 
@@ -141,15 +143,15 @@ export default function ProvisionStepPanels(props: ProvisionStepPanelsProps) {
                       borderRadius: '12px',
                       bgcolor: 'var(--ac-panel)',
                       color: 'var(--ac-text)',
-                      border: '1px solid rgba(125, 211, 252, 0.16)',
+                      border: '1px solid var(--ac-line)',
                       backgroundImage: 'none',
-                      boxShadow: '0 18px 40px -20px rgba(0,0,0,0.65)',
+                      boxShadow: 'var(--ac-shadow)',
                       '& .MuiAutocomplete-option': {
                         fontSize: 13.5,
                         borderRadius: '8px',
                         mx: 0.5,
-                        '&[aria-selected="true"]': { bgcolor: 'rgba(34, 211, 238, 0.16)' },
-                        '&.Mui-focused': { bgcolor: 'rgba(34, 211, 238, 0.1)' },
+                        '&[aria-selected="true"]': { bgcolor: 'var(--ac-fill-strong)' },
+                        '&.Mui-focused': { bgcolor: 'var(--ac-fill)' },
                       },
                     },
                   },
@@ -232,16 +234,7 @@ export default function ProvisionStepPanels(props: ProvisionStepPanelsProps) {
           ))}
           {!documentsReady && (
             <Grid size={{ xs: 12 }}>
-              <Alert
-                severity="warning"
-                sx={{
-                  borderRadius: '12px',
-                  bgcolor: 'rgba(251, 191, 36, 0.08)',
-                  color: '#fde68a',
-                  border: '1px solid rgba(251, 191, 36, 0.28)',
-                  '& .MuiAlert-icon': { color: '#fbbf24' },
-                }}
-              >
+              <Alert severity="warning" sx={consoleAlertSx}>
                 National ID, clinic license, and government ID are required.
               </Alert>
             </Grid>
@@ -366,16 +359,7 @@ export default function ProvisionStepPanels(props: ProvisionStepPanelsProps) {
           </Grid>
 
           {!hasMapPin && (
-            <Alert
-              severity="warning"
-              sx={{
-                borderRadius: '12px',
-                bgcolor: 'rgba(251, 191, 36, 0.08)',
-                color: '#fde68a',
-                border: '1px solid rgba(251, 191, 36, 0.28)',
-                '& .MuiAlert-icon': { color: '#fbbf24' },
-              }}
-            >
+            <Alert severity="warning" sx={consoleAlertSx}>
               Clinic location is required before generating activation code.
             </Alert>
           )}
@@ -390,27 +374,15 @@ export default function ProvisionStepPanels(props: ProvisionStepPanelsProps) {
 
 function ReviewCard({ title, lines }: { title: string; lines: string[] }) {
   return (
-    <Box
-      sx={{
-        p: 1.75,
-        borderRadius: '14px',
-        border: '1px solid rgba(34, 211, 238, 0.16)',
-        bgcolor: 'rgba(7, 17, 31, 0.45)',
-        transition: 'border-color 0.2s ease, background 0.2s ease',
-        '&:hover': {
-          borderColor: 'rgba(34, 211, 238, 0.32)',
-          bgcolor: 'rgba(7, 17, 31, 0.6)',
-        },
-      }}
-    >
+    <Box sx={consoleReviewCardSx}>
       <Typography
         variant="caption"
-        sx={{ color: '#67e8f9', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}
+        sx={{ color: 'var(--ac-glow)', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}
       >
         {title}
       </Typography>
       {lines.map((line) => (
-        <Typography key={`${title}-${line}`} variant="body2" sx={{ mt: 0.75, color: '#94a3b8', fontWeight: 500 }}>
+        <Typography key={`${title}-${line}`} variant="body2" sx={{ mt: 0.75, color: 'var(--ac-muted)', fontWeight: 500 }}>
           {line}
         </Typography>
       ))}

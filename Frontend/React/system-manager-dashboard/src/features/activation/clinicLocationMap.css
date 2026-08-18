@@ -72,7 +72,7 @@
 
 .clinic-map-hint {
   font-size: 11px;
-  color: rgba(100, 116, 139, 0.95);
+  color: var(--ac-muted, rgba(100, 116, 139, 0.95));
 }
 
 .clinic-map-shell--dark .clinic-map-hint {
@@ -88,9 +88,10 @@
   max-height: 220px;
   overflow-y: auto;
   border-radius: 6px;
-  border: 1px solid var(--clinic-map-border, rgba(100, 116, 139, 0.22));
-  background: var(--clinic-map-dropdown-bg, #ffffff);
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  border: 1px solid var(--ac-line, var(--clinic-map-border, rgba(100, 116, 139, 0.22)));
+  background: var(--ac-panel, var(--clinic-map-dropdown-bg, #ffffff));
+  color: var(--ac-text, #0f172a);
+  box-shadow: var(--ac-shadow, 0 8px 24px rgba(15, 23, 42, 0.12));
 }
 
 .clinic-map-shell--dark .clinic-map-search-dropdown {
@@ -112,7 +113,7 @@
 
 .clinic-map-search-item:hover,
 .clinic-map-search-item:focus-visible {
-  background: rgba(59, 130, 246, 0.08);
+  background: var(--ac-fill, rgba(59, 130, 246, 0.08));
   outline: none;
 }
 
@@ -178,4 +179,25 @@
 
 .clinic-map-radius-circle {
   pointer-events: none;
+}
+
+.clinic-map-shell .leaflet-bar a {
+  background: var(--ac-panel, #ffffff);
+  color: var(--ac-text, #333);
+  border-bottom-color: var(--ac-line, #ccc);
+}
+
+.clinic-map-shell .leaflet-bar a:hover {
+  background: var(--ac-card-hover, #f4f4f4);
+}
+
+.clinic-map-shell .leaflet-control-attribution {
+  background: var(--ac-panel, rgba(255, 255, 255, 0.8));
+  color: var(--ac-muted, #333);
+}
+
+.clinic-map-shell .leaflet-popup-content-wrapper,
+.clinic-map-shell .leaflet-popup-tip {
+  background: var(--ac-panel, #ffffff);
+  color: var(--ac-text, #0f172a);
 }

@@ -52,9 +52,9 @@ export default function DocumentUploadZone({
         p: 1.75,
         borderRadius: '14px',
         border: '1px dashed',
-        borderColor: dragOver ? 'rgba(34, 211, 238, 0.65)' : 'rgba(125, 211, 252, 0.22)',
-        bgcolor: dragOver ? 'rgba(34, 211, 238, 0.1)' : 'rgba(7, 17, 31, 0.45)',
-        boxShadow: dragOver ? '0 0 0 3px rgba(34, 211, 238, 0.12)' : 'none',
+        borderColor: dragOver ? 'var(--ac-cyan)' : 'var(--ac-line)',
+        bgcolor: dragOver ? 'var(--ac-fill)' : 'var(--ac-upload-bg)',
+        boxShadow: dragOver ? 'var(--ac-focus-ring)' : 'none',
         transition: 'border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease',
         height: '100%',
         minHeight: 148,
@@ -65,7 +65,7 @@ export default function DocumentUploadZone({
           <Typography variant="body2" sx={{ fontWeight: 700, color: 'var(--ac-text)' }}>
             {label}
             {required && (
-              <Typography component="span" sx={{ color: '#22d3ee', ml: 0.5 }}>
+              <Typography component="span" sx={{ color: 'var(--ac-cyan)', ml: 0.5 }}>
                 *
               </Typography>
             )}
@@ -80,11 +80,11 @@ export default function DocumentUploadZone({
             onClick={() => onChange(null)}
             startIcon={<X size={12} />}
             sx={{
-              color: '#94a3b8',
+              color: 'var(--ac-muted)',
               textTransform: 'none',
               fontWeight: 650,
               minWidth: 0,
-              '&:hover': { color: '#fda4af', bgcolor: 'rgba(251, 113, 133, 0.08)' },
+              '&:hover': { color: 'var(--ac-danger-soft)', bgcolor: 'var(--ac-danger-fill)' },
             }}
           >
             Remove
@@ -105,7 +105,7 @@ export default function DocumentUploadZone({
                 height: 56,
                 objectFit: 'cover',
                 borderRadius: '10px',
-                border: '1px solid rgba(125, 211, 252, 0.22)',
+                border: '1px solid var(--ac-line)',
               }}
             />
           ) : (
@@ -116,9 +116,9 @@ export default function DocumentUploadZone({
                 borderRadius: '10px',
                 display: 'grid',
                 placeItems: 'center',
-                bgcolor: 'rgba(34, 211, 238, 0.12)',
-                color: '#67e8f9',
-                border: '1px solid rgba(34, 211, 238, 0.22)',
+                bgcolor: 'var(--ac-fill)',
+                color: 'var(--ac-glow)',
+                border: '1px solid var(--ac-line)',
               }}
             >
               <FileText size={20} />
@@ -135,10 +135,10 @@ export default function DocumentUploadZone({
               sx={{
                 mt: 0.6,
                 height: 24,
-                bgcolor: 'rgba(34, 211, 238, 0.12)',
-                color: '#a5f3fc',
-                border: '1px solid rgba(34, 211, 238, 0.22)',
-                '& .MuiChip-icon': { color: '#67e8f9' },
+                bgcolor: 'var(--ac-fill)',
+                color: 'var(--ac-soft)',
+                border: '1px solid var(--ac-line)',
+                '& .MuiChip-icon': { color: 'var(--ac-glow)' },
               }}
             />
           </Box>
@@ -151,15 +151,15 @@ export default function DocumentUploadZone({
           onClick={() => inputRef.current?.click()}
           sx={{
             borderStyle: 'dashed',
-            borderColor: 'rgba(34, 211, 238, 0.35)',
-            color: '#a5f3fc',
+            borderColor: 'var(--ac-cyan)',
+            color: 'var(--ac-soft)',
             textTransform: 'none',
             fontWeight: 700,
             borderRadius: '10px',
             px: 1.5,
             '&:hover': {
-              borderColor: '#22d3ee',
-              bgcolor: 'rgba(34, 211, 238, 0.08)',
+              borderColor: 'var(--ac-cyan)',
+              bgcolor: 'var(--ac-fill)',
               borderStyle: 'dashed',
             },
           }}

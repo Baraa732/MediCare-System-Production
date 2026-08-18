@@ -255,7 +255,7 @@ export default function ClinicLocationPicker({
               input: {
                 startAdornment: (
                   <InputAdornment position="start" sx={{ color: 'var(--ac-muted)' }}>
-                    {searchLoading ? <CircularProgress size={14} sx={{ color: '#22d3ee' }} /> : <Search size={14} />}
+                    {searchLoading ? <CircularProgress size={14} sx={{ color: 'var(--ac-cyan)' }} /> : <Search size={14} />}
                   </InputAdornment>
                 ),
               },
@@ -285,16 +285,16 @@ export default function ClinicLocationPicker({
           <Button
             size="small"
             variant="outlined"
-            startIcon={geoLoading ? <CircularProgress size={12} sx={{ color: '#22d3ee' }} /> : <LocateFixed size={14} />}
+            startIcon={geoLoading ? <CircularProgress size={12} sx={{ color: 'var(--ac-cyan)' }} /> : <LocateFixed size={14} />}
             onClick={handleUseCurrentLocation}
             disabled={geoLoading}
             sx={{
-              borderColor: 'rgba(34, 211, 238, 0.35)',
+              borderColor: 'var(--ac-cyan)',
               color: 'primary.main',
               textTransform: 'none',
               fontWeight: 700,
               borderRadius: '10px',
-              '&:hover': { borderColor: '#22d3ee', bgcolor: 'rgba(34, 211, 238, 0.08)' },
+              '&:hover': { borderColor: 'var(--ac-cyan)', bgcolor: 'var(--ac-fill)' },
             }}
           >
             Use Current Location
@@ -371,12 +371,12 @@ export default function ClinicLocationPicker({
             sx={{
               mt: { xs: 0, sm: 0.25 },
               minWidth: 120,
-              borderColor: 'rgba(34, 211, 238, 0.35)',
+              borderColor: 'var(--ac-cyan)',
               color: 'primary.main',
               textTransform: 'none',
               fontWeight: 700,
               borderRadius: '10px',
-              '&:hover': { borderColor: '#22d3ee', bgcolor: 'rgba(34, 211, 238, 0.08)' },
+              '&:hover': { borderColor: 'var(--ac-cyan)', bgcolor: 'var(--ac-fill)' },
             }}
           >
             Copy
@@ -397,7 +397,7 @@ export default function ClinicLocationPicker({
               input: {
                 endAdornment: geocodeLoading ? (
                   <InputAdornment position="end">
-                    <CircularProgress size={14} sx={{ color: '#22d3ee' }} />
+                    <CircularProgress size={14} sx={{ color: 'var(--ac-cyan)' }} />
                   </InputAdornment>
                 ) : undefined,
               },
@@ -423,7 +423,7 @@ export default function ClinicLocationPicker({
         </Box>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <MapPin size={14} color="#22d3ee" />
+          <MapPin size={14} color="var(--ac-cyan)" />
           <Typography variant="caption" sx={{ color: 'var(--ac-muted)' }}>
             Coverage: {serviceRadiusKm} km radius
             {latitude != null && longitude != null

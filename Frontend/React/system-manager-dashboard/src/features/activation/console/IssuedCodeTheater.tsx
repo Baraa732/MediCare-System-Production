@@ -37,21 +37,8 @@ export default function IssuedCodeTheater({
             <button
               type="button"
               aria-label="Close"
+              className="ac-theater-close"
               onClick={onClose}
-              style={{
-                position: 'absolute',
-                top: 14,
-                right: 14,
-                border: 0,
-                background: 'rgba(255,255,255,0.08)',
-                color: '#a5f3fc',
-                width: 32,
-                height: 32,
-                borderRadius: 10,
-                cursor: 'pointer',
-                display: 'grid',
-                placeItems: 'center',
-              }}
             >
               <X size={16} />
             </button>
@@ -60,38 +47,19 @@ export default function IssuedCodeTheater({
               initial={{ scale: 0.6, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ delay: 0.1, type: 'spring', stiffness: 320, damping: 16 }}
-              style={{
-                width: 54,
-                height: 54,
-                margin: '0 auto',
-                borderRadius: 16,
-                display: 'grid',
-                placeItems: 'center',
-                background: 'rgba(45,212,191,0.18)',
-                color: '#5eead4',
-                border: '1px solid rgba(45,212,191,0.35)',
-              }}
+              className="ac-theater-check"
             >
               <Check size={26} strokeWidth={2.5} />
             </motion.div>
 
-            <p
-              style={{
-                marginTop: 14,
-                fontSize: 11,
-                fontWeight: 800,
-                letterSpacing: '0.14em',
-                textTransform: 'uppercase',
-                color: '#67e8f9',
-              }}
-            >
+            <p className="ac-theater-kicker">
               Code issued
             </p>
-            <h2 style={{ margin: '8px 0 0', fontSize: 22, letterSpacing: '-0.03em' }}>
+            <h2 className="ac-theater-title">
               Activation ready
             </h2>
             <p className="ac-theater-code">{code}</p>
-            <p style={{ margin: 0, color: '#94a3b8', fontSize: 13 }}>
+            <p className="ac-theater-meta">
               Expires {new Date(expiresAt).toLocaleString()}
             </p>
 
@@ -100,7 +68,7 @@ export default function IssuedCodeTheater({
                 <Copy size={15} />
                 Copy code
               </button>
-              <button type="button" className="ac-btn ac-btn-ghost" onClick={onClose} style={{ color: '#e2e8f0', borderColor: 'rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.06)' }}>
+              <button type="button" className="ac-btn ac-btn-ghost" onClick={onClose}>
                 Continue
               </button>
             </div>

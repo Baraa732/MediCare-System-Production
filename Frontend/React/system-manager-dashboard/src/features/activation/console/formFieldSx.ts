@@ -1,6 +1,6 @@
 import type { SxProps, Theme } from '@mui/material/styles'
 
-/** Shared dark-console field chrome for activation forms. */
+/** Shared field chrome for activation forms — follows html --ac-* theme tokens. */
 export const consoleFieldSx: SxProps<Theme> = {
   '& .MuiOutlinedInput-root': {
     borderRadius: '12px',
@@ -8,21 +8,21 @@ export const consoleFieldSx: SxProps<Theme> = {
     color: 'var(--ac-text)',
     transition: 'border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease',
     '& fieldset': {
-      borderColor: 'rgba(125, 211, 252, 0.18)',
+      borderColor: 'var(--ac-line)',
     },
     '&:hover fieldset': {
-      borderColor: 'rgba(34, 211, 238, 0.45)',
+      borderColor: 'var(--ac-cyan)',
     },
     '&.Mui-focused': {
       bgcolor: 'var(--ac-panel-2)',
-      boxShadow: '0 0 0 3px rgba(34, 211, 238, 0.14)',
+      boxShadow: 'var(--ac-focus-ring)',
       '& fieldset': {
-        borderColor: '#22d3ee',
+        borderColor: 'var(--ac-cyan)',
         borderWidth: '1px',
       },
     },
     '&.Mui-error fieldset': {
-      borderColor: 'rgba(251, 113, 133, 0.7)',
+      borderColor: 'var(--ac-danger)',
     },
   },
   '& .MuiInputBase-input': {
@@ -30,7 +30,7 @@ export const consoleFieldSx: SxProps<Theme> = {
     fontSize: 14,
     fontWeight: 500,
     '&::placeholder': {
-      color: '#64748b',
+      color: 'var(--ac-muted)',
       opacity: 1,
     },
   },
@@ -38,24 +38,24 @@ export const consoleFieldSx: SxProps<Theme> = {
     color: 'var(--ac-muted)',
     fontWeight: 600,
     '&.Mui-focused': {
-      color: '#67e8f9',
+      color: 'var(--ac-glow)',
     },
     '&.Mui-error': {
-      color: '#fb7185',
+      color: 'var(--ac-danger)',
     },
   },
   '& .MuiFormHelperText-root': {
     color: 'var(--ac-muted)',
     marginLeft: '2px',
     '&.Mui-error': {
-      color: '#fb7185',
+      color: 'var(--ac-danger)',
     },
   },
   '& .MuiSelect-icon': {
     color: 'var(--ac-muted)',
   },
   '& input[type="date"]::-webkit-calendar-picker-indicator': {
-    filter: 'invert(0.75)',
+    filter: 'var(--ac-date-filter)',
     opacity: 0.7,
     cursor: 'pointer',
   },
@@ -64,16 +64,16 @@ export const consoleFieldSx: SxProps<Theme> = {
 export const consoleAutocompleteSx: SxProps<Theme> = {
   ...consoleFieldSx,
   '& .MuiChip-root': {
-    bgcolor: 'rgba(34, 211, 238, 0.14)',
-    color: '#a5f3fc',
-    border: '1px solid rgba(34, 211, 238, 0.28)',
+    bgcolor: 'var(--ac-fill)',
+    color: 'var(--ac-soft)',
+    border: '1px solid var(--ac-line)',
     borderRadius: '8px',
     height: 26,
     fontWeight: 650,
     '& .MuiChip-deleteIcon': {
-      color: '#67e8f9',
+      color: 'var(--ac-glow)',
       opacity: 0.8,
-      '&:hover': { color: '#ecfeff', opacity: 1 },
+      '&:hover': { color: 'var(--ac-text)', opacity: 1 },
     },
   },
 }
@@ -86,18 +86,19 @@ export const consoleMenuProps = {
         borderRadius: '12px',
         bgcolor: 'var(--ac-panel)',
         color: 'var(--ac-text)',
-        border: '1px solid rgba(125, 211, 252, 0.16)',
+        border: '1px solid var(--ac-line)',
         backgroundImage: 'none',
-        boxShadow: '0 18px 40px -20px rgba(0,0,0,0.65)',
+        boxShadow: 'var(--ac-shadow)',
         '& .MuiMenuItem-root': {
           fontSize: 13.5,
           fontWeight: 550,
           borderRadius: '8px',
           mx: 0.5,
-          '&:hover': { bgcolor: 'rgba(34, 211, 238, 0.1)' },
+          color: 'var(--ac-text)',
+          '&:hover': { bgcolor: 'var(--ac-fill)' },
           '&.Mui-selected': {
-            bgcolor: 'rgba(34, 211, 238, 0.16)',
-            '&:hover': { bgcolor: 'rgba(34, 211, 238, 0.22)' },
+            bgcolor: 'var(--ac-fill-strong)',
+            '&:hover': { bgcolor: 'var(--ac-fill-strong)' },
           },
         },
       },
@@ -106,15 +107,35 @@ export const consoleMenuProps = {
 }
 
 export const consoleCheckboxSx: SxProps<Theme> = {
-  color: '#64748b',
-  '&.Mui-checked': { color: '#22d3ee' },
+  color: 'var(--ac-muted)',
+  '&.Mui-checked': { color: 'var(--ac-cyan)' },
 }
 
 export const consoleFormLabelSx: SxProps<Theme> = {
-  color: '#cbd5e1',
+  color: 'var(--ac-text)',
   '& .MuiFormControlLabel-label': {
     fontSize: 13.5,
     fontWeight: 600,
     color: 'var(--ac-text)',
+  },
+}
+
+export const consoleAlertSx: SxProps<Theme> = {
+  borderRadius: '12px',
+  bgcolor: 'var(--ac-warn-fill)',
+  color: 'var(--ac-warn)',
+  border: '1px solid var(--ac-warn-border)',
+  '& .MuiAlert-icon': { color: 'var(--ac-warn-icon)' },
+}
+
+export const consoleReviewCardSx: SxProps<Theme> = {
+  p: 1.75,
+  borderRadius: '14px',
+  border: '1px solid var(--ac-line)',
+  bgcolor: 'var(--ac-card-bg)',
+  transition: 'border-color 0.2s ease, background 0.2s ease',
+  '&:hover': {
+    borderColor: 'var(--ac-cyan)',
+    bgcolor: 'var(--ac-card-hover)',
   },
 }

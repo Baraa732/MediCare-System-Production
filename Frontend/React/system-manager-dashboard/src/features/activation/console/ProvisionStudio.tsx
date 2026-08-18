@@ -44,7 +44,7 @@ export default function ProvisionStudio({ token, onGenerated }: ProvisionStudioP
                     width: 7,
                     height: 7,
                     borderRadius: 99,
-                    background: '#22d3ee',
+                    background: 'var(--ac-cyan)',
                   }}
                 />
               )}
@@ -73,17 +73,7 @@ export default function ProvisionStudio({ token, onGenerated }: ProvisionStudioP
 
         <div className="ac-stage-body">
           {p.submitError && (
-            <div
-              style={{
-                marginBottom: 12,
-                padding: '10px 12px',
-                borderRadius: 10,
-                background: 'rgba(251,113,133,0.1)',
-                border: '1px solid rgba(251,113,133,0.28)',
-                color: '#fda4af',
-                fontSize: 13,
-              }}
-            >
+            <div className="ac-alert">
               {p.submitError}
             </div>
           )}
@@ -169,19 +159,7 @@ function InsightRail({
         <div className="ac-kicker" style={{ marginBottom: 12 }}>
           Step {activeStep + 1}/{WIZARD_STEPS.length}
         </div>
-        <div
-          style={{
-            width: 48,
-            height: 48,
-            borderRadius: 14,
-            display: 'grid',
-            placeItems: 'center',
-            marginBottom: 12,
-            background: 'rgba(45,212,191,0.12)',
-            border: '1px solid rgba(45,212,191,0.28)',
-            color: '#2dd4bf',
-          }}
-        >
+        <div className="ac-icon-well">
           <Icon size={22} />
         </div>
         <h3 style={{ margin: 0, fontSize: 17, letterSpacing: '-0.02em' }}>{step.contextTitle}</h3>
@@ -191,7 +169,7 @@ function InsightRail({
       </div>
 
       <div className="ac-insight-card">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, color: '#67e8f9', fontSize: 11, fontWeight: 800, letterSpacing: '0.08em' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, color: 'var(--ac-glow)', fontSize: 11, fontWeight: 800, letterSpacing: '0.08em' }}>
           <Sparkles size={13} />
           GUIDANCE
         </div>
@@ -207,7 +185,7 @@ function InsightRail({
           <span style={{ fontSize: 11, fontWeight: 750, letterSpacing: '0.08em', color: 'var(--ac-muted)' }}>
             READY CHECK
           </span>
-          <span style={{ fontSize: 11, fontWeight: 750, color: '#2dd4bf' }}>
+          <span style={{ fontSize: 11, fontWeight: 750, color: 'var(--ac-mint)' }}>
             {doneCount}/{checks.length}
           </span>
         </div>
