@@ -1,81 +1,325 @@
 {
-  "apiBase": "http://localhost:3000/api",
+  "apiBase": "https://medicare-system-production-production-8ce0.up.railway.app/api",
   "password": "Demo@Test1",
-  "patient": {
-    "phoneNumber": "+963999000100",
-    "firstName": "Test",
-    "lastName": "Patient",
-    "password": "Demo@Test1"
-  },
+  "note": "All phones are +96399900XXXX seed numbers — no WhatsApp OTP was sent.",
+  "patients": [
+    {
+      "phoneNumber": "+963999008001",
+      "firstName": "Sara",
+      "lastName": "Younes",
+      "email": "patient1@demo.medicare.local",
+      "password": "Demo@Test1",
+      "userId": "7cea425e-cfd1-49c5-b39c-1f012c98a3fc"
+    },
+    {
+      "phoneNumber": "+963999008002",
+      "firstName": "Omar",
+      "lastName": "Fares",
+      "email": "patient2@demo.medicare.local",
+      "password": "Demo@Test1",
+      "userId": "e58c4c4a-d437-4dd9-99ba-c154df836c79"
+    },
+    {
+      "phoneNumber": "+963999008003",
+      "firstName": "Maya",
+      "lastName": "Haddad",
+      "email": "patient3@demo.medicare.local",
+      "password": "Demo@Test1",
+      "userId": "e1ffed03-657b-4626-a793-1c3a16214a6e"
+    },
+    {
+      "phoneNumber": "+963999008004",
+      "firstName": "Tarek",
+      "lastName": "Nasser",
+      "email": "patient4@demo.medicare.local",
+      "password": "Demo@Test1",
+      "userId": "aa34caee-75b9-40ba-936a-5a5ee98fc847"
+    },
+    {
+      "phoneNumber": "+963999008005",
+      "firstName": "Lina",
+      "lastName": "Saleh",
+      "email": "patient5@demo.medicare.local",
+      "password": "Demo@Test1",
+      "userId": "465cf50a-2b3f-4417-a3b5-b607293c25b5"
+    },
+    {
+      "phoneNumber": "+963999008006",
+      "firstName": "Karim",
+      "lastName": "Ahmad",
+      "email": "patient6@demo.medicare.local",
+      "password": "Demo@Test1",
+      "userId": "69e9aa6f-4c6f-4c34-9c76-b6994c6f5aa8"
+    },
+    {
+      "phoneNumber": "+963999008007",
+      "firstName": "Hala",
+      "lastName": "Khalil",
+      "email": "patient7@demo.medicare.local",
+      "password": "Demo@Test1",
+      "userId": "42658e1e-5e82-43ac-907c-aa4e03de98c3"
+    },
+    {
+      "phoneNumber": "+963999008008",
+      "firstName": "Fadi",
+      "lastName": "Darwish",
+      "email": "patient8@demo.medicare.local",
+      "password": "Demo@Test1",
+      "userId": "ee830f25-d3ec-4bb7-b9a5-d34a2c363f8d"
+    },
+    {
+      "phoneNumber": "+963999008009",
+      "firstName": "Rima",
+      "lastName": "Issa",
+      "email": "patient9@demo.medicare.local",
+      "password": "Demo@Test1",
+      "userId": "cad3289d-a36e-4981-9181-9e94d4365528"
+    },
+    {
+      "phoneNumber": "+963999008010",
+      "firstName": "Ziad",
+      "lastName": "Mansour",
+      "email": "patient10@demo.medicare.local",
+      "password": "Demo@Test1",
+      "userId": "567ea46d-c610-483f-8248-1fcba11cb968"
+    }
+  ],
   "clinics": [
     {
-      "id": "a3d6d4b7-1edf-4476-a25f-c7f4f70df833",
+      "id": "5cf9d7e9-2d80-45ac-81e1-72dea474c834",
       "name": "Damascus Heart Clinic",
       "city": "Damascus",
       "governorate": "Damascus",
-      "admin": { "phoneNumber": "+963999001001" },
-      "secretary": { "phoneNumber": "+963999001002" },
+      "admin": {
+        "phoneNumber": "+963999000101",
+        "password": "Demo@Test1",
+        "userId": "4371172a-6fd8-4ca9-9d2f-4d03f4783fe4"
+      },
+      "secretary": {
+        "phoneNumber": "+963999000102",
+        "password": "Demo@Test1"
+      },
       "doctors": [
-        { "phoneNumber": "+963999001010", "specialization": "Cardiology" },
-        { "phoneNumber": "+963999001011", "specialization": "Cardiology" }
+        {
+          "phoneNumber": "+963999000110",
+          "name": "Layla Khalil",
+          "specialization": "Cardiology",
+          "password": "Demo@Test1"
+        }
       ]
     },
     {
-      "id": "9b567abc-436c-4ec4-8834-d739ace6000a",
+      "id": "34d646e3-93fa-4034-8c61-bf848efc17ad",
       "name": "Aleppo Family Medical Center",
       "city": "Aleppo",
       "governorate": "Aleppo",
-      "admin": { "phoneNumber": "+963999002001" },
-      "secretary": { "phoneNumber": "+963999002002" },
+      "admin": {
+        "phoneNumber": "+963999000201",
+        "password": "Demo@Test1",
+        "userId": "28a17e0d-31a4-473f-8efd-0acf5f1e7847"
+      },
+      "secretary": {
+        "phoneNumber": "+963999000202",
+        "password": "Demo@Test1"
+      },
       "doctors": [
-        { "phoneNumber": "+963999002010", "specialization": "General Practice" }
+        {
+          "phoneNumber": "+963999000210",
+          "name": "Hassan Youssef",
+          "specialization": "General Practice",
+          "password": "Demo@Test1"
+        }
       ]
     },
     {
-      "id": "673e5d09-ee53-446b-bd6a-4f0cf3ac6f30",
+      "id": "743cb08e-a518-4d55-9c52-e4b1acedfd25",
       "name": "Homs Dental Care",
       "city": "Homs",
       "governorate": "Homs",
-      "admin": { "phoneNumber": "+963999003001" },
-      "secretary": { "phoneNumber": "+963999003002", "note": "May need re-run seed if PENDING_ACTIVATION" },
-      "doctors": []
-    }
-  ],
-  "postman": {
-    "registerPatient": {
-      "method": "POST",
-      "url": "http://localhost:3000/api/auth/register",
-      "headers": { "Idempotency-Key": "<uuid>", "Content-Type": "application/json" },
-      "body": {
-        "phoneNumber": "+963999000200",
-        "firstName": "New",
-        "lastName": "Patient",
+      "admin": {
+        "phoneNumber": "+963999000301",
         "password": "Demo@Test1",
-        "role": "PATIENT"
-      }
+        "userId": "864bc0e1-b586-402f-a43c-8208c1c76d3d"
+      },
+      "secretary": {
+        "phoneNumber": "+963999000302",
+        "password": "Demo@Test1"
+      },
+      "doctors": [
+        {
+          "phoneNumber": "+963999000310",
+          "name": "Karim Darwish",
+          "specialization": "Dentistry",
+          "password": "Demo@Test1"
+        }
+      ]
     },
-    "verifyOtp": {
-      "method": "POST",
-      "url": "http://localhost:3000/api/auth/verify-otp",
-      "body": { "phoneNumber": "+963999000200", "otp": "<devOtp>", "autoLogin": "true" }
+    {
+      "id": "239538e9-eeee-406f-b229-e4b7a9a72247",
+      "name": "Latakia Coastal Clinic",
+      "city": "Latakia",
+      "governorate": "Latakia",
+      "admin": {
+        "phoneNumber": "+963999000401",
+        "password": "Demo@Test1",
+        "userId": "fc7102d7-c0ae-4f01-8fd6-21d88187d85e"
+      },
+      "secretary": {
+        "phoneNumber": "+963999000402",
+        "password": "Demo@Test1"
+      },
+      "doctors": [
+        {
+          "phoneNumber": "+963999000410",
+          "name": "Rima Abboud",
+          "specialization": "Pediatrics",
+          "password": "Demo@Test1"
+        }
+      ]
     },
-    "loginPatient": {
-      "method": "POST",
-      "url": "http://localhost:3000/api/auth/login",
-      "body": { "phoneNumber": "+963999000100", "password": "Demo@Test1" },
-      "note": "Returns devOtp when MFA required — then POST /auth/verify-mfa"
+    {
+      "id": "a014db1a-9e9f-4803-ae77-ff7f1a95eef2",
+      "name": "Tartus Wellness Center",
+      "city": "Tartus",
+      "governorate": "Tartus",
+      "admin": {
+        "phoneNumber": "+963999000501",
+        "password": "Demo@Test1",
+        "userId": "90f0a32d-f8f5-47be-bd0c-ec68151f0840"
+      },
+      "secretary": {
+        "phoneNumber": "+963999000502",
+        "password": "Demo@Test1"
+      },
+      "doctors": [
+        {
+          "phoneNumber": "+963999000510",
+          "name": "Hala Nemeh",
+          "specialization": "Dermatology",
+          "password": "Demo@Test1"
+        }
+      ]
     },
-    "aiBooking": {
-      "method": "POST",
-      "url": "http://localhost:3000/api/ai/patient-booking-assistant",
-      "headers": { "Authorization": "Bearer <accessToken>" },
-      "body": { "sessionId": "demo-session-1", "message": "Find cardiology clinics in Damascus" }
+    {
+      "id": "096cd50e-cc09-433f-b83f-b62f6b7532ae",
+      "name": "Hama General Practice",
+      "city": "Hama",
+      "governorate": "Hama",
+      "admin": {
+        "phoneNumber": "+963999000601",
+        "password": "Demo@Test1",
+        "userId": "357538bf-4949-46c4-a922-58fa76da5435"
+      },
+      "secretary": {
+        "phoneNumber": "+963999000602",
+        "password": "Demo@Test1"
+      },
+      "doctors": [
+        {
+          "phoneNumber": "+963999000610",
+          "name": "Basel Qassem",
+          "specialization": "General Practice",
+          "password": "Demo@Test1"
+        }
+      ]
     },
-    "aiChat": {
-      "method": "POST",
-      "url": "http://localhost:3000/api/ai/patient-chat",
-      "headers": { "Authorization": "Bearer <accessToken>" },
-      "body": { "message": "What should I bring to a cardiology visit?" }
+    {
+      "id": "a8c68df0-ab51-4bdc-9256-01721e797230",
+      "name": "Daraa Care Clinic",
+      "city": "Daraa",
+      "governorate": "Daraa",
+      "admin": {
+        "phoneNumber": "+963999000701",
+        "password": "Demo@Test1",
+        "userId": "ca941e82-6289-4f4b-9a6b-0464ae8c0535"
+      },
+      "secretary": {
+        "phoneNumber": "+963999000702",
+        "password": "Demo@Test1"
+      },
+      "doctors": [
+        {
+          "phoneNumber": "+963999000710",
+          "name": "Walid Farhat",
+          "specialization": "Orthopedics",
+          "password": "Demo@Test1"
+        }
+      ]
+    },
+    {
+      "id": "a9961656-ebb2-41c0-8fe2-fccfeaac57af",
+      "name": "Sweida Mountain Clinic",
+      "city": "Sweida",
+      "governorate": "Sweida",
+      "admin": {
+        "phoneNumber": "+963999000801",
+        "password": "Demo@Test1",
+        "userId": "92a6b5bb-0be4-4213-8993-deb5a94de863"
+      },
+      "secretary": {
+        "phoneNumber": "+963999000802",
+        "password": "Demo@Test1"
+      },
+      "doctors": [
+        {
+          "phoneNumber": "+963999000810",
+          "name": "Dina Masri",
+          "specialization": "Gynecology",
+          "password": "Demo@Test1"
+        }
+      ]
+    },
+    {
+      "id": "f8cfc158-54b4-409f-bbc7-7ef79dd45fda",
+      "name": "Idlib Community Health",
+      "city": "Idlib",
+      "governorate": "Idlib",
+      "admin": {
+        "phoneNumber": "+963999000901",
+        "password": "Demo@Test1",
+        "userId": "c4613a20-ff69-4653-b8ae-330ba594f5b5"
+      },
+      "secretary": {
+        "phoneNumber": "+963999000902",
+        "password": "Demo@Test1"
+      },
+      "doctors": [
+        {
+          "phoneNumber": "+963999000910",
+          "name": "Amer Zaki",
+          "specialization": "Internal Medicine",
+          "password": "Demo@Test1"
+        }
+      ]
+    },
+    {
+      "id": "17d8e224-14d6-4955-9f52-74d09809dd9d",
+      "name": "Quneitra Family Clinic",
+      "city": "Quneitra",
+      "governorate": "Quneitra",
+      "admin": {
+        "phoneNumber": "+963999001001",
+        "password": "Demo@Test1",
+        "userId": "66503f25-f248-43ad-98a0-63e23376069b"
+      },
+      "secretary": {
+        "phoneNumber": "+963999001002",
+        "password": "Demo@Test1"
+      },
+      "doctors": [
+        {
+          "phoneNumber": "+963999001010",
+          "name": "Nour Salem",
+          "specialization": "Family Medicine",
+          "password": "Demo@Test1"
+        },
+        {
+          "phoneNumber": "+963999001011",
+          "name": "Jad Karam",
+          "specialization": "ENT",
+          "password": "Demo@Test1"
+        }
+      ]
     }
-  }
+  ]
 }

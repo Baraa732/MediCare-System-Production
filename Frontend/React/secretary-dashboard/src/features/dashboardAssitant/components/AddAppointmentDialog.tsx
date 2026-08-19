@@ -12,23 +12,56 @@ import { createAppointment } from "@/lib/api/appointments";
 import { lookupPatientByPhone } from "@/lib/api/users";
 import { normalizeCaughtError } from "@/lib/api/errors";
 import { scheduledAtFromGridMinutes } from "@/lib/api/mappers";
-import { ROW_MINUTES } from "../data/scheduleGrid";
+import { ROW_MINUTES, START_TIME_MINUTES, TOTAL_SLOTS } from "../data/scheduleGrid";
 import { useAuthStore } from "@/stores/authStore";
 import { useAppointmentDialog } from "../hooks/useAppointmentDialog";
 import { useScheduleContext } from "../context/ScheduleContext";
 import type { PatientLookup } from "@/lib/api/users";
 
+function formatAbsMinutes(mins: number) {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  const displayH = h % 12 || 12;
+  const ampm = h >= 12 ? "PM" : "AM";
+  return `${displayH}:${m.toString().padStart(2, "0")} ${ampm}`;
+}
+
 function formatSlotRange(startSlot: number, endSlot: number) {
   const startMins = startSlot * ROW_MINUTES;
   const endMins = (endSlot + 1) * ROW_MINUTES;
-  const fmt = (mins: number) => {
-    const h = Math.floor(mins / 60);
-    const m = mins % 60;
-    const displayH = h % 12 || 12;
-    const ampm = h >= 12 ? "PM" : "AM";
-    return `${displayH}:${m.toString().padStart(2, "0")} ${ampm}`;
-  };
-  return `${fmt(startMins)} – ${fmt(endMins)}`;
+  return `${formatAbsMinutes(startMins)} – ${formatAbsMinutes(endMins)}`;
+}
+
+interface AvailableSlot {
+  startMins: number;
+  endMins: number;
+  label: string;
+}
+
+function computeAvailableSlots(
+  bookedAppointments: { start: number; end: number }[],
+  durationMinutes: number,
+): AvailableSlot[] {
+  const slots: AvailableSlot[] = [];
+  const totalGridMinutes = TOTAL_SLOTS * ROW_MINUTES;
+  const step = ROW_MINUTES;
+
+  for (let offset = 0; offset + durationMinutes <= totalGridMinutes; offset += step) {
+    const slotEnd = offset + durationMinutes;
+    const hasConflict = bookedAppointments.some(
+      (apt) => Math.max(offset, apt.start) < Math.min(slotEnd, apt.end),
+    );
+    if (!hasConflict) {
+      const absStart = START_TIME_MINUTES + offset;
+      const absEnd = START_TIME_MINUTES + slotEnd;
+      slots.push({
+        startMins: offset,
+        endMins: slotEnd,
+        label: `${formatAbsMinutes(absStart)} – ${formatAbsMinutes(absEnd)}`,
+      });
+    }
+  }
+  return slots;
 }
 
 export function AddAppointmentDialog() {
@@ -48,6 +81,8 @@ export function AddAppointmentDialog() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isLookingUp, setIsLookingUp] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedSlotOffset, setSelectedSlotOffset] = useState<number | null>(null);
+  const [manualDuration, setManualDuration] = useState(30);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -57,6 +92,8 @@ export function AddAppointmentDialog() {
     setReason("");
     setLookupError(null);
     setSubmitError(null);
+    setSelectedSlotOffset(null);
+    setManualDuration(30);
     setDoctorId(prefill?.doctorId ?? doctors[0]?.id ?? "");
   }, [isOpen, prefill, doctors]);
 
@@ -66,9 +103,20 @@ export function AddAppointmentDialog() {
   }, [prefill]);
 
   const durationMinutes = useMemo(() => {
-    if (prefill?.startSlot == null || prefill?.endSlot == null) return 30;
+    if (prefill?.startSlot == null || prefill?.endSlot == null) return manualDuration;
     return (prefill.endSlot - prefill.startSlot + 1) * ROW_MINUTES;
-  }, [prefill]);
+  }, [prefill, manualDuration]);
+
+  const selectedDoctorAppointments = useMemo(() => {
+    if (!doctorId) return [];
+    const doc = doctors.find((d) => d.id === doctorId);
+    return (doc?.appointments ?? []).map((a) => ({ start: a.start, end: a.end }));
+  }, [doctors, doctorId]);
+
+  const availableSlots = useMemo(() => {
+    if (prefill?.startSlot != null) return [];
+    return computeAvailableSlots(selectedDoctorAppointments, durationMinutes);
+  }, [selectedDoctorAppointments, durationMinutes, prefill]);
 
   const handleLookup = async () => {
     if (!accessToken || !phoneNumber.trim()) {
@@ -117,8 +165,14 @@ export function AddAppointmentDialog() {
       setSubmitError("Select a doctor.");
       return;
     }
-    if (prefill?.startSlot == null) {
-      setSubmitError("Select a time slot on the schedule grid first.");
+
+    const gridOffset =
+      prefill?.startSlot != null
+        ? prefill.startSlot * ROW_MINUTES
+        : selectedSlotOffset;
+
+    if (gridOffset == null) {
+      setSubmitError("Select an available time slot.");
       return;
     }
 
@@ -126,10 +180,7 @@ export function AddAppointmentDialog() {
     setSubmitError(null);
 
     try {
-      const scheduledAt = scheduledAtFromGridMinutes(
-        prefill.startSlot * ROW_MINUTES,
-        selectedDate,
-      );
+      const scheduledAt = scheduledAtFromGridMinutes(gridOffset, selectedDate);
 
       await createAppointment(
         {
@@ -163,8 +214,8 @@ export function AddAppointmentDialog() {
           <DialogTitle>New appointment</DialogTitle>
           <DialogDescription>
             {prefill?.doctorName && timeLabel
-              ? `Book with ${prefill.doctorName} on ${timeLabel}`
-              : "Select a time slot on the grid, then fill in patient details."}
+              ? `Book with ${prefill.doctorName} at ${timeLabel}`
+              : "Fill in patient details and pick an available slot."}
           </DialogDescription>
         </DialogHeader>
 
@@ -175,7 +226,7 @@ export function AddAppointmentDialog() {
             </label>
             <select
               value={doctorId}
-              onChange={(e) => setDoctorId(e.target.value)}
+              onChange={(e) => { setDoctorId(e.target.value); setSelectedSlotOffset(null); }}
               disabled={Boolean(prefill?.doctorId)}
               className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-blue-500"
             >
@@ -186,6 +237,49 @@ export function AddAppointmentDialog() {
               ))}
             </select>
           </div>
+
+          {prefill?.startSlot == null && (
+            <>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-neutral-600">
+                  Duration (minutes)
+                </label>
+                <select
+                  value={manualDuration}
+                  onChange={(e) => { setManualDuration(Number(e.target.value)); setSelectedSlotOffset(null); }}
+                  className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-blue-500"
+                >
+                  {[15, 30, 45, 60, 90, 120].map((d) => (
+                    <option key={d} value={d}>{d} min</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-neutral-600">
+                  Available time slot
+                </label>
+                {availableSlots.length === 0 ? (
+                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                    No free slots for this doctor on the selected day.
+                  </p>
+                ) : (
+                  <select
+                    value={selectedSlotOffset ?? ""}
+                    onChange={(e) => setSelectedSlotOffset(e.target.value === "" ? null : Number(e.target.value))}
+                    className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-blue-500"
+                  >
+                    <option value="">— select a slot —</option>
+                    {availableSlots.map((s) => (
+                      <option key={s.startMins} value={s.startMins}>
+                        {s.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            </>
+          )}
 
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-neutral-600">

@@ -17,7 +17,7 @@ date:Date;
   notes?: string; // ملاحظات إضافية تم تدوينها
 
   // 👤 الملف الشخصي وبيانات المريض (Extracted from summaryRows)
-  patient: {
+  patient?: {
     name: string;
     age: number;
     phone: string;

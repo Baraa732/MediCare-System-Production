@@ -103,7 +103,7 @@ export function AppointmentCard({
   } else if (apt.title) {
     appointement.patientName = apt.title;
   } else {
-    appointement.patientName = apt.patient.name || "Patient";
+    appointement.patientName = apt.patient?.name || "Patient";
   }
 
   // States for the Urgent/Critical warning dialog
@@ -285,7 +285,7 @@ export function AppointmentCard({
               <DialogDescription className="text-sm text-neutral-500">
                 You are about to modify a high-priority, urgent, or critically
                 conflicted appointment for{" "}
-                <strong className="text-neutral-800">{apt.patient.name}</strong>
+                <strong className="text-neutral-800">{apt.patient?.name ?? "this patient"}</strong>
                 . Please ensure you have reviewed doctor availabilities before
                 continuing.
               </DialogDescription>

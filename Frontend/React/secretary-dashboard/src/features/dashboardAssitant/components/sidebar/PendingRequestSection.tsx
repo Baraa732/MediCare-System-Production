@@ -143,7 +143,7 @@ export function PendingRequestSection() {
                   <div className="flex justify-between items-start gap-2">
                     <div className="min-w-0 flex-1">
                       <h5 className="text-xs font-bold text-neutral-900 truncate">
-                        {activeItem.patient.name}
+                        {activeItem.patient?.name ?? activeItem.title ?? "Patient"}
                       </h5>
                       <p className="flex items-center text-[11px] text-neutral-400 font-medium mt-0.5 gap-1 truncate">
                         <Calendar className="w-3 h-3 text-neutral-400 shrink-0" />{" "}
@@ -288,7 +288,7 @@ function SortableRequestCard({ item, isEditMode }: SortableCardProps) {
         <div className="flex justify-between items-start gap-2">
           <div className="min-w-0 flex-1">
             <h5 className="text-xs font-bold text-neutral-900 truncate">
-              {item.patient.name}
+              {item.patient?.name ?? item.title ?? "Patient"}
             </h5>
             <p className="flex items-center text-[11px] text-neutral-400 font-medium mt-0.5 gap-1 truncate">
               <Calendar className="w-3 h-3 text-neutral-400 shrink-0" />{" "}
