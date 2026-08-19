@@ -123,8 +123,7 @@ class _DayViewScreenState extends State<DayViewScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         const timeAxisWidth = 62.0;
-        final dayWidth =
-            (constraints.maxWidth - timeAxisWidth).clamp(90.0, double.infinity);
+        final dayWidth = constraints.maxWidth - timeAxisWidth;
         final closed = _isClosed(_today);
         return Column(
           children: [
