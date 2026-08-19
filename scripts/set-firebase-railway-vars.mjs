@@ -18,6 +18,18 @@ const PATIENT_GOOGLE_SERVICES = path.resolve(
   __dirname,
   '../Frontend/Flutter/patient-app/android/app/google-services.json',
 );
+const DOCTOR_PACKAGE_NAME = 'com.medicare.cms_doctor_app';
+
+function pickClientByPackage(gs, packageName) {
+  const client = gs?.client?.find(
+    (entry) =>
+      entry?.client_info?.android_client_info?.package_name === packageName,
+  );
+  if (!client) {
+    throw new Error(`google-services.json does not contain package ${packageName}`);
+  }
+  return client;
+}
 
 function loadRailwayToken() {
   if (process.env.RAILWAY_TOKEN?.trim()) return process.env.RAILWAY_TOKEN.trim();
@@ -72,16 +84,20 @@ const doctorGs =
   doctorGoogleServicesPath && fs.existsSync(doctorGoogleServicesPath)
     ? JSON.parse(fs.readFileSync(doctorGoogleServicesPath, 'utf8'))
     : null;
+const patientClient = pickClientByPackage(patientGs, 'com.medicare.cms');
+const doctorClient = doctorGs
+  ? pickClientByPackage(doctorGs, DOCTOR_PACKAGE_NAME)
+  : null;
 
 const projectId = sa.project_id;
 const clientEmail = sa.client_email;
 const privateKeyEscaped = String(sa.private_key).replace(/\r\n/g, '\n').replace(/\n/g, '\\n');
-const patientAndroidApiKey = patientGs.client?.[0]?.api_key?.[0]?.current_key;
-const patientAndroidAppId = patientGs.client?.[0]?.client_info?.mobilesdk_app_id;
+const patientAndroidApiKey = patientClient?.api_key?.[0]?.current_key;
+const patientAndroidAppId = patientClient?.client_info?.mobilesdk_app_id;
 const messagingSenderId = patientGs.project_info?.project_number;
 const storageBucket = patientGs.project_info?.storage_bucket;
-const doctorAndroidApiKey = doctorGs?.client?.[0]?.api_key?.[0]?.current_key;
-const doctorAndroidAppId = doctorGs?.client?.[0]?.client_info?.mobilesdk_app_id;
+const doctorAndroidApiKey = doctorClient?.api_key?.[0]?.current_key;
+const doctorAndroidAppId = doctorClient?.client_info?.mobilesdk_app_id;
 
 if (!projectId || !clientEmail || !privateKeyEscaped.includes('BEGIN PRIVATE KEY')) {
   throw new Error('Invalid service account JSON');

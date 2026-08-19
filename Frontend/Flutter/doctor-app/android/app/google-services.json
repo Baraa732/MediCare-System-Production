@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "76481742033",
+    "project_id": "medicare-f65ca",
+    "storage_bucket": "medicare-f65ca.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:76481742033:android:0816f65fe5222825a671f0",
+        "android_client_info": {
+          "package_name": "com.medicare.cms"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAe2M-zMYrnuNeJyPD3I2jAY_0nu8GnC-M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:76481742033:android:44ffede83e1dd758a671f0",
+        "android_client_info": {
+          "package_name": "com.medicare.cms_doctor_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAe2M-zMYrnuNeJyPD3I2jAY_0nu8GnC-M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
