@@ -258,6 +258,87 @@ export class EmrController {
     );
   }
 
+  @Post('patients/:userId/allergies')
+  @UseGuards(RolesGuard, DoctorPatientAccessGuard)
+  @Roles(...STAFF_ROLES)
+  @DoctorPatientParam('userId')
+  async addAllergy(
+    @Param('userId') userId: string,
+    @Request() req: { user: AuthUser },
+    @Query() query: { tenantId?: string; clinicId?: string },
+    @Body() body: { allergen: string; reaction?: string; severity?: string },
+  ) {
+    return this.emrRecordService.addAllergy(
+      userId,
+      req.user,
+      body,
+      this.preferredTenant(query),
+    );
+  }
+
+  @Post('patients/:userId/medications')
+  @UseGuards(RolesGuard, DoctorPatientAccessGuard)
+  @Roles(...STAFF_ROLES)
+  @DoctorPatientParam('userId')
+  async addMedication(
+    @Param('userId') userId: string,
+    @Request() req: { user: AuthUser },
+    @Query() query: { tenantId?: string; clinicId?: string },
+    @Body() body: { name: string; dosage?: string; frequency?: string; route?: string },
+  ) {
+    return this.emrRecordService.addMedication(
+      userId,
+      req.user,
+      body,
+      this.preferredTenant(query),
+    );
+  }
+
+  @Post('patients/:userId/conditions')
+  @UseGuards(RolesGuard, DoctorPatientAccessGuard)
+  @Roles(...STAFF_ROLES)
+  @DoctorPatientParam('userId')
+  async addCondition(
+    @Param('userId') userId: string,
+    @Request() req: { user: AuthUser },
+    @Query() query: { tenantId?: string; clinicId?: string },
+    @Body() body: { name: string; icd10Code?: string; status?: string },
+  ) {
+    return this.emrRecordService.addCondition(
+      userId,
+      req.user,
+      body,
+      this.preferredTenant(query),
+    );
+  }
+
+  @Post('patients/:userId/vitals')
+  @UseGuards(RolesGuard, DoctorPatientAccessGuard)
+  @Roles(...STAFF_ROLES)
+  @DoctorPatientParam('userId')
+  async addVital(
+    @Param('userId') userId: string,
+    @Request() req: { user: AuthUser },
+    @Query() query: { tenantId?: string; clinicId?: string },
+    @Body()
+    body: {
+      bloodPressure?: string;
+      heartRate?: number;
+      respiratoryRate?: number;
+      temperatureCelsius?: number;
+      oxygenSaturation?: number;
+      heightCm?: number;
+      weightKg?: number;
+    },
+  ) {
+    return this.emrRecordService.addVital(
+      userId,
+      req.user,
+      body,
+      this.preferredTenant(query),
+    );
+  }
+
   @Get('patients/:userId/sync-status')
   @UseGuards(DoctorPatientAccessGuard)
   @DoctorPatientParam('userId')

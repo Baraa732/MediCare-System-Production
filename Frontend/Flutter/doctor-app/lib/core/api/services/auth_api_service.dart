@@ -129,20 +129,70 @@ class AuthApiService {
   }
 
   /// Loads the signed-in doctor's real name from `/users/:id`.
-  Future<void> refreshProfileNames() async {
+  Future<Map<String, dynamic>?> fetchOwnProfile() async {
     final userId = _session.userId;
-    if (userId == null || userId.isEmpty) return;
+    if (userId == null || userId.isEmpty) return null;
+    final response = await _client.get('/users/$userId');
+    final data = response.data;
+    if (data is! Map) return null;
+    final map = Map<String, dynamic>.from(data);
+    if (map['user'] is Map) {
+      return Map<String, dynamic>.from(map['user'] as Map);
+    }
+    return map;
+  }
+
+  Future<void> refreshProfileNames() async {
     try {
-      final response = await _client.get('/users/$userId');
-      final data = response.data;
-      if (data is! Map) return;
-      final map = Map<String, dynamic>.from(data);
+      final map = await fetchOwnProfile();
+      if (map == null) return;
       final first = map['firstName']?.toString();
       final last = map['lastName']?.toString();
       await _session.updateNames(firstName: first, lastName: last);
     } catch (_) {
       // Keep whatever name we already have from auth/session.
     }
+  }
+
+  Future<Map<String, dynamic>> updateOwnProfile({
+    String? firstName,
+    String? lastName,
+    String? email,
+    String? specialization,
+  }) async {
+    final userId = _session.userId;
+    if (userId == null) throw Exception('Not signed in');
+    final response = await _client.put(
+      '/users/$userId',
+      data: {
+        if (firstName != null) 'firstName': firstName,
+        if (lastName != null) 'lastName': lastName,
+        if (email != null) 'email': email,
+        if (specialization != null) 'specialization': specialization,
+      },
+    );
+    final data = response.data;
+    final map = data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
+    await _session.updateNames(
+      firstName: map['firstName']?.toString() ?? firstName,
+      lastName: map['lastName']?.toString() ?? lastName,
+    );
+    return map;
+  }
+
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final userId = _session.userId;
+    if (userId == null) throw Exception('Not signed in');
+    await _client.post(
+      '/users/$userId/change-password',
+      data: {
+        'currentPassword': currentPassword,
+        'newPassword': newPassword,
+      },
+    );
   }
 
   Future<void> forgotPasswordSendOtp(String phoneNumber) async {

@@ -18,6 +18,17 @@ import { Roles } from '../decorators/roles.decorator';
 export class ScheduleController {
   constructor(private readonly scheduleService: ScheduleService) {}
 
+  private actor(req: { user: { userId: string; role: string; tenantId?: string; clinicId?: string }; headers: Record<string, unknown> }) {
+    const headerTenant = req.headers['x-tenant-id'];
+    const fromHeader = typeof headerTenant === 'string' ? headerTenant : undefined;
+    return {
+      userId: req.user.userId,
+      role: req.user.role,
+      tenantId: req.user.tenantId || req.user.clinicId || fromHeader,
+      clinicId: req.user.clinicId || req.user.tenantId || fromHeader,
+    };
+  }
+
   @Get('slots')
   @SkipTenantGuard()
   @SkipTenantAuthorization()
@@ -33,7 +44,7 @@ export class ScheduleController {
     @Query('doctorId') doctorId: string | undefined,
     @Request() req,
   ) {
-    const availability = await this.scheduleService.listAvailability(clinicId, doctorId, req.user);
+    const availability = await this.scheduleService.listAvailability(clinicId, doctorId, this.actor(req));
     return { success: true, availability };
   }
 
@@ -41,7 +52,7 @@ export class ScheduleController {
   @UseGuards(RolesGuard)
   @Roles('CLINIC_ADMIN', 'SECRETARY', 'SYSTEM_MANAGER')
   async createAvailability(@Body() dto: CreateAvailabilityDto, @Request() req) {
-    const availability = await this.scheduleService.createAvailability(dto, req.user);
+    const availability = await this.scheduleService.createAvailability(dto, this.actor(req));
     return { success: true, availability };
   }
 
@@ -49,14 +60,35 @@ export class ScheduleController {
   @UseGuards(RolesGuard)
   @Roles('CLINIC_ADMIN', 'SECRETARY', 'DOCTOR', 'SYSTEM_MANAGER')
   async createBlock(@Body() dto: CreateBlockDto, @Request() req) {
-    const block = await this.scheduleService.createBlock(dto, req.user);
+    const block = await this.scheduleService.createBlock(dto, this.actor(req));
     return { success: true, block };
+  }
+
+  /** Tenant-scoped leave list: clinic comes from the doctor's JWT membership. */
+  @Get('me/blocked')
+  @UseGuards(RolesGuard)
+  @Roles('CLINIC_ADMIN', 'SECRETARY', 'DOCTOR', 'SYSTEM_MANAGER')
+  async listMyBlocks(@Request() req) {
+    const blocks = await this.scheduleService.listMyBlocks(this.actor(req));
+    return { success: true, blocks };
+  }
+
+  @Get('blocked')
+  @UseGuards(RolesGuard)
+  @Roles('CLINIC_ADMIN', 'SECRETARY', 'DOCTOR', 'SYSTEM_MANAGER')
+  async listBlocks(
+    @Query('clinicId') clinicId: string | undefined,
+    @Query('doctorId') doctorId: string | undefined,
+    @Request() req,
+  ) {
+    const blocks = await this.scheduleService.listBlocks(clinicId, doctorId, this.actor(req));
+    return { success: true, blocks };
   }
 
   @Get('clinics/:clinicId/hours')
   @SkipTenantAuthorization()
   async getClinicHours(@Param('clinicId', ParseUUIDPipe) clinicId: string, @Request() req) {
-    const hours = await this.scheduleService.getClinicHours(clinicId, req.user);
+    const hours = await this.scheduleService.getClinicHours(clinicId, this.actor(req));
     return { success: true, hours };
   }
 
@@ -68,7 +100,7 @@ export class ScheduleController {
     @Body() dto: SetClinicHoursDto,
     @Request() req,
   ) {
-    const hours = await this.scheduleService.setClinicHours(clinicId, dto, req.user);
+    const hours = await this.scheduleService.setClinicHours(clinicId, dto, this.actor(req));
     return { success: true, hours };
   }
 }

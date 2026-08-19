@@ -1,4 +1,6 @@
+import 'package:cms_doctor_app/core/api/services/appointment_api_service.dart';
 import 'package:cms_doctor_app/core/api/services/emr_api_service.dart';
+import 'package:cms_doctor_app/features/schedule/visit_actions.dart';
 import 'package:cms_doctor_app/injection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,6 +12,7 @@ import '../../core/layout/app_shell.dart';
 import '../../core/navigation/app_navigation.dart';
 import '../../core/widgets/common_widgets.dart';
 import 'generate_visit_report_sheet.dart';
+import 'emr_write_sheets.dart';
 
 class PatientRecordScreen extends StatefulWidget {
   const PatientRecordScreen({
@@ -47,6 +50,7 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
   static const _tabs = ['Overview', 'Visit history', 'Documents'];
 
   PatientEmrChart? _chart;
+  List<DoctorAppointment> _visits = [];
   bool _loading = true;
   bool _emrMissing = false;
   String? _error;
@@ -90,10 +94,16 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
         } catch (_) {}
       }
 
+      List<DoctorAppointment> visits = const [];
+      try {
+        visits = await appointmentApi.getForPatient(widget.patientId);
+      } catch (_) {}
+
       if (!mounted) return;
       if (chart != null) {
         setState(() {
           _chart = chart;
+          _visits = visits;
           _loading = false;
           _emrMissing = false;
         });
@@ -103,6 +113,7 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
       // Fallback workspace so doctors can still review + write notes.
       setState(() {
         _chart = _syntheticChart();
+        _visits = visits;
         _loading = false;
         _emrMissing = true;
       });
@@ -163,11 +174,13 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
       allergies: const [],
       medications: const [],
       conditions: const [],
+      problems: const [],
       encounters: encounters,
       vitalSigns: const [],
       labResults: const [],
       immunizations: const [],
       clinicalNotes: notes,
+      documents: const [],
     );
   }
 
@@ -338,6 +351,18 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
   bool get _hasAppointmentContext =>
       (widget.appointmentId != null && widget.appointmentId!.isNotEmpty) ||
       (widget.appointmentTime != null && widget.appointmentTime!.isNotEmpty);
+
+  bool get _canActOnAppointment {
+    final id = widget.appointmentId;
+    if (id == null || id.isEmpty) return false;
+    final status = widget.appointmentStatus;
+    return status != 'Completed' &&
+        status != 'Cancelled' &&
+        status != 'No show' &&
+        status != 'COMPLETED' &&
+        status != 'CANCELLED' &&
+        status != 'NO_SHOW';
+  }
 
   Future<void> _openGenerateReport() async {
     HapticFeedback.selectionClick();
@@ -510,6 +535,10 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
                           if (_hasAppointmentContext) ...[
                             _appointmentDetailsCard(),
                             const SizedBox(height: 12),
+                            if (_canActOnAppointment) ...[
+                              _visitActionBar(),
+                              const SizedBox(height: 12),
+                            ],
                           ],
                           if (_emrMissing) ...[
                             _emrSoftBanner(),
@@ -543,6 +572,96 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
           ],
         ),
       );
+
+  Widget _visitActionBar() {
+    final id = widget.appointmentId!;
+    final pending = widget.appointmentStatus == null ||
+        widget.appointmentStatus == 'Pending';
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              if (pending) ...[
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => VisitActions.markArrived(
+                      context,
+                      appointmentId: id,
+                      onDone: _load,
+                    ),
+                    child: const Text('Arrived'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => VisitActions.showCompleteSheet(
+                    context,
+                    patient: _displayName,
+                    time: widget.appointmentTime ?? '',
+                    appointmentId: id,
+                    patientId: widget.patientId,
+                    onDone: _load,
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0B74FA),
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Complete'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => VisitActions.reschedule(
+                    context,
+                    appointmentId: id,
+                    onDone: _load,
+                  ),
+                  child: const Text('Reschedule'),
+                ),
+              ),
+            ],
+          ),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => VisitActions.markNoShow(
+                    context,
+                    appointmentId: id,
+                    onDone: _load,
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFFE53935),
+                  ),
+                  child: const Text('No show'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextButton(
+                  onPressed: () => VisitActions.cancel(
+                    context,
+                    appointmentId: id,
+                    onDone: _load,
+                  ),
+                  child: const Text('Cancel visit'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _appointmentDetailsCard() {
     return Container(
@@ -833,7 +952,7 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
         _sectionCard(
           'Allergies',
           chart.allergies
-              .take(5)
+              .take(8)
               .map(
                 (a) => _line(
                   _mapTitle(a, ['allergen', 'name', 'substance', 'display']),
@@ -842,6 +961,14 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
                 ),
               )
               .toList(),
+          onAdd: () => _add((ctx) => showAddAllergySheet(ctx, widget.patientId)),
+        ),
+      ] else ...[
+        const SizedBox(height: 12),
+        _emptySection(
+          'Allergies',
+          'No allergies on file',
+          () => _add((ctx) => showAddAllergySheet(ctx, widget.patientId)),
         ),
       ],
       if (chart.medications.isNotEmpty) ...[
@@ -849,7 +976,7 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
         _sectionCard(
           'Medications',
           chart.medications
-              .take(5)
+              .take(8)
               .map(
                 (m) => _line(
                   _mapTitle(m, ['name', 'medication', 'display']),
@@ -857,6 +984,15 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
                 ),
               )
               .toList(),
+          onAdd: () =>
+              _add((ctx) => showAddMedicationSheet(ctx, widget.patientId)),
+        ),
+      ] else ...[
+        const SizedBox(height: 12),
+        _emptySection(
+          'Medications',
+          'No medications on file',
+          () => _add((ctx) => showAddMedicationSheet(ctx, widget.patientId)),
         ),
       ],
       if (chart.conditions.isNotEmpty) ...[
@@ -864,22 +1000,175 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
         _sectionCard(
           'Conditions',
           chart.conditions
-              .take(5)
+              .take(8)
               .map(
                 (c) => _line(
                   _mapTitle(c, ['name', 'code', 'display', 'condition']),
-                  _mapSubtitle(c, ['status', 'onsetDate', 'recordedDate']),
+                  _mapSubtitle(c, ['status', 'onsetDate', 'recordedDate', 'icd10Code']),
                 ),
               )
               .toList(),
+          onAdd: () =>
+              _add((ctx) => showAddConditionSheet(ctx, widget.patientId)),
+        ),
+      ] else ...[
+        const SizedBox(height: 12),
+        _emptySection(
+          'Conditions',
+          'No conditions on file',
+          () => _add((ctx) => showAddConditionSheet(ctx, widget.patientId)),
         ),
       ],
+      if (chart.vitalSigns.isNotEmpty) ...[
+        const SizedBox(height: 12),
+        _sectionCard(
+          'Vital signs',
+          chart.vitalSigns
+              .take(6)
+              .map(
+                (v) => _line(
+                  _fmtDate(v['date']),
+                  [
+                    if (v['bloodPressure'] != null) 'BP ${v['bloodPressure']}',
+                    if (v['heartRate'] != null) 'HR ${v['heartRate']}',
+                    if (v['temperatureCelsius'] != null)
+                      'Temp ${v['temperatureCelsius']}°C',
+                    if (v['oxygenSaturation'] != null)
+                      'SpO₂ ${v['oxygenSaturation']}%',
+                    if (v['weightKg'] != null) 'Wt ${v['weightKg']} kg',
+                  ].join(' · '),
+                ),
+              )
+              .toList(),
+          onAdd: () => _add((ctx) => showAddVitalSheet(ctx, widget.patientId)),
+        ),
+      ] else ...[
+        const SizedBox(height: 12),
+        _emptySection(
+          'Vital signs',
+          'No vitals recorded',
+          () => _add((ctx) => showAddVitalSheet(ctx, widget.patientId)),
+        ),
+      ],
+      ..._contactSection(chart),
+      ..._emergencySection(chart),
+      ..._immunizationSection(chart),
+    ];
+  }
+
+  Future<void> _add(
+    Future<PatientEmrChart?> Function(BuildContext ctx) open,
+  ) async {
+    final chart = await open(context);
+    if (chart != null && mounted) {
+      setState(() {
+        _chart = chart;
+        _emrMissing = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Saved to OpenEMR chart')),
+      );
+    }
+  }
+
+  List<Widget> _contactSection(PatientEmrChart chart) {
+    final c = chart.contactInformation;
+    final phone = c['phone']?.toString() ??
+        c['phoneNumber']?.toString() ??
+        chart.patient['phone']?.toString();
+    final email = c['email']?.toString();
+    final address = [
+      c['addressLine1'],
+      c['city'],
+      c['state'],
+      c['postalCode'],
+    ].where((e) => e != null && e.toString().trim().isNotEmpty).join(', ');
+    if ((phone == null || phone.isEmpty) &&
+        (email == null || email.isEmpty) &&
+        address.isEmpty) {
+      return const [];
+    }
+    return [
+      const SizedBox(height: 12),
+      _sectionCard(
+        'Contact',
+        [
+          if (phone != null && phone.isNotEmpty) _line('Phone', phone),
+          if (email != null && email.isNotEmpty) _line('Email', email),
+          if (address.isNotEmpty) _line('Address', address),
+        ],
+      ),
+    ];
+  }
+
+  List<Widget> _emergencySection(PatientEmrChart chart) {
+    if (chart.emergencyContacts.isEmpty) return const [];
+    return [
+      const SizedBox(height: 12),
+      _sectionCard(
+        'Emergency contacts',
+        chart.emergencyContacts
+            .take(4)
+            .map(
+              (e) => _line(
+                _mapTitle(e, ['name', 'display']),
+                _mapSubtitle(e, ['relationship', 'phone', 'email']),
+                accent: const Color(0xFFE65C00),
+              ),
+            )
+            .toList(),
+      ),
+    ];
+  }
+
+  List<Widget> _immunizationSection(PatientEmrChart chart) {
+    if (chart.immunizations.isEmpty) return const [];
+    return [
+      const SizedBox(height: 12),
+      _sectionCard(
+        'Immunizations',
+        chart.immunizations
+            .take(8)
+            .map(
+              (i) => _line(
+                _mapTitle(i, ['name', 'vaccine', 'display']),
+                _mapSubtitle(i, ['date', 'status', 'dose']),
+              ),
+            )
+            .toList(),
+      ),
     ];
   }
 
   List<Widget> _buildVisitHistoryContent({required bool showAll}) {
     final encounters = _chart?.encounters ?? const [];
-    final items = showAll ? encounters : encounters.take(3).toList();
+    final clinicVisits = _visits;
+    final encounterWidgets = (showAll ? encounters : encounters.take(3))
+        .map(
+          (e) => _visitTile(
+            _mapTitle(e, ['type', 'reason', 'class', 'display', 'status']),
+            [
+              if (e['periodStart'] != null || e['start'] != null)
+                _fmtDate(e['periodStart'] ?? e['start']),
+              if (e['practitioner'] != null) e['practitioner'].toString(),
+              if (e['status'] != null) e['status'].toString(),
+            ].where((s) => s.isNotEmpty).join(' · '),
+          ),
+        )
+        .toList();
+    final visitWidgets = (showAll ? clinicVisits : clinicVisits.take(5))
+        .map(
+          (a) => _visitTile(
+            a.reason?.trim().isNotEmpty == true ? a.reason!.trim() : 'Clinic visit',
+            [
+              DateFormat.yMMMd().add_jm().format(a.scheduledAt),
+              a.uiStatus ?? a.status,
+              if (a.notes != null && a.notes!.trim().isNotEmpty) 'Has notes',
+            ].join(' · '),
+          ),
+        )
+        .toList();
+    final items = [...visitWidgets, ...encounterWidgets];
     return [
       if (showAll)
         const Padding(
@@ -901,41 +1190,36 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
           ),
         )
       else
-        ...items.map(
-          (e) => Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            decoration: BoxDecoration(
-                color: Colors.white, borderRadius: BorderRadius.circular(12)),
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _mapTitle(e, ['type', 'reason', 'class', 'display', 'status']),
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF1A1B1E),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  [
-                    if (e['periodStart'] != null || e['start'] != null)
-                      _fmtDate(e['periodStart'] ?? e['start']),
-                    if (e['practitioner'] != null)
-                      e['practitioner'].toString(),
-                    if (e['status'] != null) e['status'].toString(),
-                  ].where((s) => s.isNotEmpty).join(' · '),
-                  style: const TextStyle(
-                      fontSize: 12, color: Color(0xFF929296)),
-                ),
-              ],
-            ),
-          ),
-        ),
+        ...items,
     ];
   }
+
+  Widget _visitTile(String title, String subtitle) => Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        decoration: BoxDecoration(
+            color: Colors.white, borderRadius: BorderRadius.circular(12)),
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF1A1B1E),
+              ),
+            ),
+            if (subtitle.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: const TextStyle(fontSize: 12, color: Color(0xFF929296)),
+              ),
+            ],
+          ],
+        ),
+      );
 
   List<Widget> _buildNotesContent() {
     final notes = _chart?.clinicalNotes ?? const [];
@@ -992,7 +1276,8 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
 
   List<Widget> _buildDocumentsContent() {
     final labs = _chart?.labResults ?? const [];
-    if (labs.isEmpty) {
+    final docs = _chart?.documents ?? const [];
+    if (labs.isEmpty && docs.isEmpty) {
       return [
         const Text(
           'Documents',
@@ -1017,63 +1302,94 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
             color: Color(0xFF1A1B1E)),
       ),
       const SizedBox(height: 8),
+      ...docs.map((doc) => _fileRow(
+            _mapTitle(doc, ['fileName', 'name', 'type', 'display']),
+            _mapSubtitle(doc, ['type', 'status', 'uploadedAt']),
+          )),
       ...labs.map(
-        (doc) => Container(
-          margin: const EdgeInsets.only(bottom: 8),
-          decoration: BoxDecoration(
-              color: Colors.white, borderRadius: BorderRadius.circular(12)),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
-            children: [
-              const Icon(Icons.insert_drive_file_outlined,
-                  color: Color(0xFF929296), size: 22),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _mapTitle(doc, ['name', 'test', 'display', 'code']),
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFF1A1B1E),
-                      ),
-                    ),
-                    Text(
-                      _mapSubtitle(doc, ['value', 'unit', 'status', 'date']),
-                      style: const TextStyle(
-                          fontSize: 12, color: Color(0xFF929296)),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+        (doc) => _fileRow(
+          _mapTitle(doc, ['name', 'test', 'testName', 'display', 'code']),
+          _mapSubtitle(doc, ['result', 'value', 'unit', 'status', 'date']),
         ),
       ),
     ];
   }
 
-  Widget _sectionCard(String title, List<Widget> children) => Container(
+  Widget _fileRow(String title, String subtitle) => Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        decoration: BoxDecoration(
+            color: Colors.white, borderRadius: BorderRadius.circular(12)),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          children: [
+            const Icon(Icons.insert_drive_file_outlined,
+                color: Color(0xFF929296), size: 22),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF1A1B1E),
+                    ),
+                  ),
+                  if (subtitle.isNotEmpty)
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                          fontSize: 12, color: Color(0xFF929296)),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+
+  Widget _sectionCard(String title, List<Widget> children, {VoidCallback? onAdd}) => Container(
         decoration: BoxDecoration(
             color: Colors.white, borderRadius: BorderRadius.circular(16)),
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF1A1B1E),
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF1A1B1E),
+                    ),
+                  ),
+                ),
+                if (onAdd != null)
+                  TextButton.icon(
+                    onPressed: onAdd,
+                    icon: const Icon(Icons.add, size: 16),
+                    label: const Text('Add'),
+                  ),
+              ],
             ),
             const SizedBox(height: 8),
             ...children,
           ],
         ),
+      );
+
+  Widget _emptySection(String title, String empty, VoidCallback onAdd) =>
+      _sectionCard(
+        title,
+        [
+          Text(empty, style: const TextStyle(color: Color(0xFF929296))),
+        ],
+        onAdd: onAdd,
       );
 
   Widget _line(String title, String subtitle, {Color? accent}) => Padding(

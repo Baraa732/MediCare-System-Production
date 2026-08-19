@@ -2,6 +2,7 @@ import 'package:cms_doctor_app/core/api/services/appointment_api_service.dart';
 import 'package:cms_doctor_app/injection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:intl/intl.dart';
 
 import '../../core/constants/app_assets.dart';
 import '../../core/layout/app_shell.dart';
@@ -15,12 +16,16 @@ class _PatientItem {
     required this.name,
     this.gender,
     this.age,
+    this.phone,
+    this.lastVisit,
   });
 
   final String id;
   final String name;
   final String? gender;
   final int? age;
+  final String? phone;
+  final DateTime? lastVisit;
 }
 
 class PatientsScreen extends StatefulWidget {
@@ -31,7 +36,7 @@ class PatientsScreen extends StatefulWidget {
 }
 
 class _PatientsScreenState extends State<PatientsScreen> {
-  int _navIndex = 1;
+  final int _navIndex = 1;
   final _searchCtrl = TextEditingController();
   List<_PatientItem> _patients = [];
   bool _loading = true;
@@ -77,6 +82,8 @@ class _PatientsScreenState extends State<PatientsScreen> {
               name: a.displayPatient,
               gender: a.patientGender,
               age: a.ageYears,
+              phone: a.patientPhone,
+              lastVisit: a.scheduledAt,
             ),
           )
           .toList()
@@ -185,29 +192,51 @@ class _PatientsScreenState extends State<PatientsScreen> {
                                     color: Color(0xFF1A1B1E),
                                   ),
                                 ),
-                                subtitle: Row(
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
-                                      patient.gender ?? '—',
-                                      style: const TextStyle(
-                                          fontSize: 14,
-                                          color: Color(0xFF929296)),
+                                    Row(
+                                      children: [
+                                        Text(
+                                          patient.gender ?? '—',
+                                          style: const TextStyle(
+                                              fontSize: 14,
+                                              color: Color(0xFF929296)),
+                                        ),
+                                        const Padding(
+                                          padding:
+                                              EdgeInsets.symmetric(horizontal: 6),
+                                          child: Text('|',
+                                              style: TextStyle(
+                                                  color: Color(0xFFDBDBDC))),
+                                        ),
+                                        Text(
+                                          patient.age != null
+                                              ? '${patient.age} years old'
+                                              : 'Age unknown',
+                                          style: const TextStyle(
+                                              fontSize: 14,
+                                              color: Color(0xFF929296)),
+                                        ),
+                                      ],
                                     ),
-                                    const Padding(
-                                      padding:
-                                          EdgeInsets.symmetric(horizontal: 6),
-                                      child: Text('|',
-                                          style: TextStyle(
-                                              color: Color(0xFFDBDBDC))),
-                                    ),
-                                    Text(
-                                      patient.age != null
-                                          ? '${patient.age} years old'
-                                          : 'Age unknown',
-                                      style: const TextStyle(
-                                          fontSize: 14,
-                                          color: Color(0xFF929296)),
-                                    ),
+                                    if (patient.phone != null &&
+                                        patient.phone!.isNotEmpty)
+                                      Text(
+                                        patient.phone!,
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: Color(0xFFB6B7B9),
+                                        ),
+                                      ),
+                                    if (patient.lastVisit != null)
+                                      Text(
+                                        'Last visit ${DateFormat.yMMMd().format(patient.lastVisit!)}',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: Color(0xFFB6B7B9),
+                                        ),
+                                      ),
                                   ],
                                 ),
                                 trailing: SvgPicture.asset(

@@ -22,6 +22,8 @@ class Appointment {
     required this.scheduledAt,
     this.notes,
     this.rawStatus,
+    this.gender,
+    this.age,
   });
 
   final String id;
@@ -36,11 +38,16 @@ class Appointment {
   final DateTime scheduledAt;
   final String? notes;
   final String? rawStatus;
+  final String? gender;
+  final int? age;
 
   factory Appointment.fromDoctor(DoctorAppointment a) {
     Color color = const Color(0xFFEEF4FF);
     if (a.status == 'COMPLETED') color = const Color(0xFFF5F5F5);
     if (a.status == 'REQUESTED') color = const Color(0xFFFFF9E6);
+    if (a.status == 'NO_SHOW' || a.status == 'CANCELLED') {
+      color = const Color(0xFFF5F5F5);
+    }
     final tags = <String>[
       if (a.reason != null && a.reason!.trim().isNotEmpty) a.reason!.trim(),
     ];
@@ -57,6 +64,8 @@ class Appointment {
       color: color,
       rawStatus: a.status,
       scheduledAt: a.scheduledAt,
+      gender: a.patientGender,
+      age: a.ageYears,
     );
   }
 
@@ -73,6 +82,8 @@ class Appointment {
     String? notes,
     String? rawStatus,
     DateTime? scheduledAt,
+    String? gender,
+    int? age,
   }) {
     return Appointment(
       id: id ?? this.id,
@@ -87,6 +98,8 @@ class Appointment {
       notes: notes ?? this.notes,
       rawStatus: rawStatus ?? this.rawStatus,
       scheduledAt: scheduledAt ?? this.scheduledAt,
+      gender: gender ?? this.gender,
+      age: age ?? this.age,
     );
   }
 }
@@ -98,18 +111,24 @@ class AppointmentCard extends StatelessWidget {
     required this.onComplete,
     required this.onReschedule,
     this.onMarkArrived,
+    this.onNoShow,
+    this.onCancel,
   });
 
   final Appointment appointment;
   final VoidCallback onComplete;
   final VoidCallback onReschedule;
   final VoidCallback? onMarkArrived;
+  final VoidCallback? onNoShow;
+  final VoidCallback? onCancel;
 
   @override
   Widget build(BuildContext context) {
-    Color statusColor = Colors.transparent;
+    Color statusColor = const Color(0xFF929296);
     if (appointment.status == 'Completed') statusColor = const Color(0xFF4CAF50);
     if (appointment.status == 'Arrived') statusColor = const Color(0xFF0B74FA);
+    if (appointment.status == 'No show') statusColor = const Color(0xFFE53935);
+    if (appointment.status == 'Cancelled') statusColor = const Color(0xFF929296);
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -134,6 +153,8 @@ class AppointmentCard extends StatelessWidget {
               builder: (_) => PatientRecordScreen(
                 patientId: appointment.patientId,
                 patientName: appointment.patient,
+                gender: appointment.gender,
+                age: appointment.age,
                 appointmentId: appointment.id,
                 appointmentTime: appointment.time,
                 appointmentDuration: appointment.duration,
@@ -246,7 +267,8 @@ class AppointmentCard extends StatelessWidget {
                   ),
                 ],
                 if (appointment.status != 'Completed' &&
-                    appointment.status != 'Cancelled') ...[
+                    appointment.status != 'Cancelled' &&
+                    appointment.status != 'No show') ...[
                   const SizedBox(height: 8),
                   Row(
                     children: [
@@ -274,7 +296,7 @@ class AppointmentCard extends StatelessWidget {
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8)),
                           ),
-                          child: const Text('Completed',
+                          child: const Text('Complete',
                               style:
                                   TextStyle(color: Colors.white, fontSize: 14)),
                         ),
@@ -290,11 +312,42 @@ class AppointmentCard extends StatelessWidget {
                           ),
                           child: const Text('Reschedule',
                               style: TextStyle(
-                                  color: Color(0xFF0B74FA), fontSize: 14)),
+                                  color: Color(0xFF0B74FA), fontSize: 13)),
                         ),
                       ),
                     ],
                   ),
+                  if (onNoShow != null) ...[
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        onPressed: onNoShow,
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Color(0xFFE53935)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8)),
+                        ),
+                        child: const Text('No show',
+                            style: TextStyle(
+                                color: Color(0xFFE53935), fontSize: 14)),
+                      ),
+                    ),
+                  ],
+                  if (onCancel != null) ...[
+                    const SizedBox(height: 4),
+                    SizedBox(
+                      width: double.infinity,
+                      child: TextButton(
+                        onPressed: onCancel,
+                        child: const Text(
+                          'Cancel appointment',
+                          style: TextStyle(
+                              color: Color(0xFF929296), fontSize: 13),
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ],
             ),

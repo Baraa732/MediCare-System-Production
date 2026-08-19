@@ -17,11 +17,13 @@ class ShiftsScreen extends StatefulWidget {
 }
 
 class _ShiftsScreenState extends State<ShiftsScreen> {
-  int _navIndex = 2;
+  final int _navIndex = 2;
   late DateTime _month;
   late DateTime _selected;
   List<DoctorAppointment> _monthAppointments = [];
   List<Map<String, dynamic>> _availability = [];
+  List<Map<String, dynamic>> _blocks = [];
+  List<Map<String, dynamic>> _hours = [];
   bool _loading = true;
   String? _error;
 
@@ -44,12 +46,16 @@ class _ShiftsScreenState extends State<ShiftsScreen> {
       final to = DateTime(_month.year, _month.month + 1);
       final results = await Future.wait([
         appointmentApi.getMySchedule(from: from, to: to),
-        scheduleApi.getMyAvailability(),
+        scheduleApi.getMyAvailability().catchError((_) => <Map<String, dynamic>>[]),
+        scheduleApi.getMyBlockedTimes(),
+        scheduleApi.getClinicHours().catchError((_) => <Map<String, dynamic>>[]),
       ]);
       if (!mounted) return;
       setState(() {
         _monthAppointments = results[0] as List<DoctorAppointment>;
         _availability = results[1] as List<Map<String, dynamic>>;
+        _blocks = results[2] as List<Map<String, dynamic>>;
+        _hours = results[3] as List<Map<String, dynamic>>;
         _loading = false;
       });
     } catch (e) {
@@ -164,6 +170,73 @@ class _ShiftsScreenState extends State<ShiftsScreen> {
                           ),
                           padding: const EdgeInsets.all(12),
                           child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Leave & blocked time',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF1A1B1E),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              if (_blocks.isEmpty)
+                                const Text(
+                                  'No leave on file',
+                                  style: TextStyle(color: Color(0xFF929296)),
+                                )
+                              else
+                                ..._blocks.take(12).map((b) {
+                                  final start = DateTime.tryParse(
+                                          b['startsAt']?.toString() ?? '')
+                                      ?.toLocal();
+                                  final end = DateTime.tryParse(
+                                          b['endsAt']?.toString() ?? '')
+                                      ?.toLocal();
+                                  final reason =
+                                      b['reason']?.toString() ?? 'Leave';
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 8),
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        const Icon(Icons.event_busy,
+                                            size: 16, color: Color(0xFFE65C00)),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            [
+                                              reason,
+                                              if (start != null)
+                                                DateFormat.yMMMd()
+                                                    .add_jm()
+                                                    .format(start),
+                                              if (end != null)
+                                                '→ ${DateFormat.jm().format(end)}',
+                                            ].join(' · '),
+                                            style: const TextStyle(
+                                              fontSize: 13,
+                                              color: Color(0xFF1A1B1E),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
                             children: [
                               Row(
                                 children: [
@@ -222,6 +295,131 @@ class _ShiftsScreenState extends State<ShiftsScreen> {
                                       filled: true),
                                 ],
                               ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Clinic hours',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF1A1B1E),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              if (_hours.isEmpty)
+                                const Text(
+                                  'Hours not published yet',
+                                  style: TextStyle(color: Color(0xFF929296)),
+                                )
+                              else
+                                ..._hours.map((h) {
+                                  const days = [
+                                    'Sun',
+                                    'Mon',
+                                    'Tue',
+                                    'Wed',
+                                    'Thu',
+                                    'Fri',
+                                    'Sat',
+                                  ];
+                                  final day = int.tryParse(
+                                          h['dayOfWeek']?.toString() ?? '') ??
+                                      0;
+                                  final label = day >= 0 && day < days.length
+                                      ? days[day]
+                                      : 'Day $day';
+                                  final closed = h['isClosed'] == true;
+                                  final open = h['openTime']?.toString() ?? '';
+                                  final close = h['closeTime']?.toString() ?? '';
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 6),
+                                    child: Row(
+                                      children: [
+                                        SizedBox(
+                                          width: 40,
+                                          child: Text(
+                                            label,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                        ),
+                                        Text(
+                                          closed
+                                              ? 'Closed'
+                                              : (open.isEmpty
+                                                  ? 'Open'
+                                                  : '$open – $close'),
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: closed
+                                                ? const Color(0xFF929296)
+                                                : const Color(0xFF1A1B1E),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }),
+                              if (_availability.isNotEmpty) ...[
+                                const Divider(height: 20),
+                                const Text(
+                                  'My availability',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF1A1B1E),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                ..._availability.map((a) {
+                                  const days = [
+                                    'Sun',
+                                    'Mon',
+                                    'Tue',
+                                    'Wed',
+                                    'Thu',
+                                    'Fri',
+                                    'Sat',
+                                  ];
+                                  final day = int.tryParse(
+                                          a['dayOfWeek']?.toString() ??
+                                              a['weekday']?.toString() ??
+                                              '') ??
+                                      0;
+                                  final label = day >= 0 && day < days.length
+                                      ? days[day]
+                                      : 'Day $day';
+                                  final start = a['startTime']?.toString() ??
+                                      a['startsAt']?.toString() ??
+                                      '';
+                                  final end = a['endTime']?.toString() ??
+                                      a['endsAt']?.toString() ??
+                                      '';
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 4),
+                                    child: Text(
+                                      '$label · $start – $end',
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        color: Color(0xFF1A1B1E),
+                                      ),
+                                    ),
+                                  );
+                                }),
+                              ],
                             ],
                           ),
                         ),
@@ -313,6 +511,13 @@ class _ShiftsScreenState extends State<ShiftsScreen> {
                                             patientName: a.displayPatient,
                                             gender: a.patientGender,
                                             age: a.ageYears,
+                                            appointmentId: a.id,
+                                            appointmentTime: a.timeLabel,
+                                            appointmentDuration: a.durationLabel,
+                                            appointmentStatus:
+                                                a.uiStatus ?? a.status,
+                                            appointmentReason: a.reason,
+                                            appointmentNotes: a.notes,
                                           ),
                                         ),
                                       ),

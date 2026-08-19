@@ -1,14 +1,14 @@
+import 'package:cms_doctor_app/core/api/services/appointment_api_service.dart';
 import 'package:cms_doctor_app/core/utils/date_format.dart';
+import 'package:cms_doctor_app/features/patients/patient_record_screen.dart';
 import 'package:cms_doctor_app/injection.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/layout/app_shell.dart';
 import '../../core/navigation/app_navigation.dart';
-import 'complete_visit_sheet.dart';
-import 'models/appointment.dart';
+import 'visit_actions.dart';
 import 'widgets/schedule_chrome.dart';
-import 'widgets/schedule_filter.dart';
 import 'widgets/schedule_workspace.dart';
 
 class DayViewScreen extends StatefulWidget {
@@ -21,16 +21,17 @@ class DayViewScreen extends StatefulWidget {
 
 class _DayViewScreenState extends State<DayViewScreen> {
   final int _navIndex = 0;
-  DateTime _selectedDate = DateTime.now();
-  AdvancedScheduleFilter _filter = AdvancedScheduleFilter.empty;
-  List<Appointment> _appointments = [];
+  late DateTime _weekStart;
+  List<DoctorAppointment> _appointments = [];
+  List<Map<String, dynamic>> _clinicHours = [];
   bool _loading = true;
   String? _error;
-  int _orbitIndex = 0;
 
   @override
   void initState() {
     super.initState();
+    final now = DateTime.now();
+    _weekStart = DateTime(now.year, now.month, now.day);
     _load();
   }
 
@@ -40,18 +41,16 @@ class _DayViewScreenState extends State<DayViewScreen> {
       _error = null;
     });
     try {
-      final dayStart = DateTime(
-        _selectedDate.year,
-        _selectedDate.month,
-        _selectedDate.day,
-      );
-      final dayEnd = dayStart.add(const Duration(days: 1));
-      final list = await appointmentApi.getMySchedule(from: dayStart, to: dayEnd);
+      final weekEnd = _weekStart.add(const Duration(days: 7));
+      final results = await Future.wait([
+        appointmentApi.getMySchedule(from: _weekStart, to: weekEnd),
+        scheduleApi.getClinicHours().catchError((_) => <Map<String, dynamic>>[]),
+      ]);
       if (!mounted) return;
       setState(() {
-        _appointments = list.map(Appointment.fromDoctor).toList();
+        _appointments = results[0] as List<DoctorAppointment>;
+        _clinicHours = results[1] as List<Map<String, dynamic>>;
         _loading = false;
-        _orbitIndex = 0;
       });
     } catch (e) {
       if (!mounted) return;
@@ -59,142 +58,193 @@ class _DayViewScreenState extends State<DayViewScreen> {
         _loading = false;
         _error = e.toString();
         _appointments = [];
+        _clinicHours = [];
       });
     }
   }
 
-  List<Appointment> get _visibleAppointments => _filter.apply(_appointments);
-
   int get _completedCount =>
-      _appointments.where((a) => a.status == 'Completed').length;
+      _appointments.where((a) => a.status == 'COMPLETED').length;
   int get _pendingCount =>
-      _appointments.where((a) => a.status == null || a.status == 'Pending').length;
+      _appointments.where((a) => a.status == 'REQUESTED').length;
   int get _arrivedCount =>
-      _appointments.where((a) => a.status == 'Arrived').length;
+      _appointments.where((a) => a.status == 'CONFIRMED').length;
 
-  Map<String, int> get _statusCounts => {
-        'Pending': _pendingCount,
-        'Arrived': _arrivedCount,
-        'Completed': _completedCount,
-      };
+  List<DateTime> get _days =>
+      List.generate(7, (i) => _weekStart.add(Duration(days: i)));
 
-  List<DateTime> get _stripDays {
-    final base = DateTime(
-      _selectedDate.year,
-      _selectedDate.month,
-      _selectedDate.day,
-    );
-    return List.generate(
-      14,
-      (i) => base.subtract(const Duration(days: 3)).add(Duration(days: i)),
-    );
+  Map<int, Map<String, dynamic>> get _hoursByDay {
+    final map = <int, Map<String, dynamic>>{};
+    for (final h in _clinicHours) {
+      final day = int.tryParse(h['dayOfWeek']?.toString() ?? '');
+      if (day != null) map[day] = h;
+    }
+    return map;
   }
 
-  void _goToPreviousDay() {
-    setState(() => _selectedDate = _selectedDate.subtract(const Duration(days: 1)));
+  int _minutes(String hhmm, {int fallback = 8 * 60}) {
+    final parts = hhmm.split(':');
+    if (parts.length != 2) return fallback;
+    final h = int.tryParse(parts[0]) ?? (fallback ~/ 60);
+    final m = int.tryParse(parts[1]) ?? 0;
+    return h * 60 + m;
+  }
+
+  int get _gridStartHour {
+    var minMins = 24 * 60;
+    for (final h in _hoursByDay.values) {
+      if (h['isClosed'] == true) continue;
+      minMins = _minutes(h['openTime']?.toString() ?? '09:00',
+          fallback: minMins) < minMins
+          ? _minutes(h['openTime']?.toString() ?? '09:00')
+          : minMins;
+    }
+    if (minMins == 24 * 60) return 8;
+    return (minMins ~/ 60).clamp(0, 23);
+  }
+
+  int get _gridEndHour {
+    var maxMins = 0;
+    for (final h in _hoursByDay.values) {
+      if (h['isClosed'] == true) continue;
+      maxMins = _minutes(h['closeTime']?.toString() ?? '17:00',
+              fallback: maxMins) >
+          maxMins
+          ? _minutes(h['closeTime']?.toString() ?? '17:00')
+          : maxMins;
+    }
+    if (maxMins == 0) return 17;
+    return (maxMins / 60).ceil().clamp(1, 24);
+  }
+
+  void _shiftWeek(int delta) {
+    setState(() {
+      _weekStart = _weekStart.add(Duration(days: 7 * delta));
+    });
     _load();
   }
 
-  void _goToNextDay() {
-    setState(() => _selectedDate = _selectedDate.add(const Duration(days: 1)));
-    _load();
+  List<DoctorAppointment> _forDayHour(DateTime day, int hour) {
+    return _appointments.where((a) {
+      final d = a.scheduledAt;
+      return d.year == day.year &&
+          d.month == day.month &&
+          d.day == day.day &&
+          d.hour == hour;
+    }).toList()
+      ..sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
   }
 
-  void _goToToday() {
-    setState(() => _selectedDate = DateTime.now());
-    _load();
+  bool _isClosed(DateTime day) {
+    final slot = _hoursByDay[day.weekday % 7];
+    if (slot == null) return false;
+    return slot['isClosed'] == true;
   }
 
-  Future<void> _openFilter() async {
-    final result = await showAdvancedScheduleFilterSheet(
-      context: context,
-      initial: _filter,
-      statusCounts: _statusCounts,
+  Widget _buildWeekTable(int hourStart, int hourEnd) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Column(
+        children: [
+          Row(
+            children: [
+              const SizedBox(width: 62),
+              for (final d in _days)
+                Container(
+                  width: 150,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  alignment: Alignment.center,
+                  child: Text(
+                    '${DateFormat.E().format(d)} ${d.day}',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: isSameDay(d, DateTime.now())
+                          ? const Color(0xFF0B74FA)
+                          : const Color(0xFF1A1B1E),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          for (int hour = hourStart; hour < hourEnd; hour++)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 62,
+                  padding: const EdgeInsets.only(top: 12, right: 8),
+                  child: Text(
+                    DateFormat.j().format(DateTime(2020, 1, 1, hour)),
+                    textAlign: TextAlign.right,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF929296),
+                    ),
+                  ),
+                ),
+                for (final d in _days)
+                  Builder(
+                    builder: (_) {
+                      final closed = _isClosed(d);
+                      final items = _forDayHour(d, hour);
+                      return Container(
+                        width: 150,
+                        constraints: const BoxConstraints(minHeight: 74),
+                        margin: const EdgeInsets.all(2),
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: closed
+                              ? const Color(0xFFF2F2F2)
+                              : const Color(0xFFFBFCFF),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFE4E6EB)),
+                        ),
+                        child: closed
+                            ? const Text(
+                                'Off',
+                                style: TextStyle(
+                                  color: Color(0xFF929296),
+                                  fontSize: 12,
+                                ),
+                              )
+                            : Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  for (final a in items)
+                                    _WeekAppointmentChip(
+                                      appointment: a,
+                                      onRefresh: _load,
+                                    ),
+                                ],
+                              ),
+                      );
+                    },
+                  ),
+              ],
+            ),
+        ],
+      ),
     );
-    if (result != null && mounted) {
-      setState(() => _filter = result);
-    }
-  }
-
-  Future<void> _markCompleted(Appointment apt, String notes) async {
-    try {
-      if (notes.trim().isNotEmpty) {
-        await appointmentApi.updateNotes(apt.id, notes.trim());
-      }
-      await appointmentApi.updateStatus(apt.id, 'COMPLETED');
-      await _load();
-      if (mounted) showSnack(context, 'Visit marked completed');
-    } catch (e) {
-      if (mounted) showSnack(context, e.toString());
-    }
-  }
-
-  Future<void> _markArrived(Appointment apt) async {
-    try {
-      await appointmentApi.updateStatus(apt.id, 'CONFIRMED');
-      await _load();
-    } catch (e) {
-      if (mounted) showSnack(context, e.toString());
-    }
-  }
-
-  Future<void> _reschedule(Appointment apt) async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now().add(const Duration(days: 1)),
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
-    );
-    if (picked == null || !mounted) return;
-    final time = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.now(),
-    );
-    if (time == null || !mounted) return;
-    final scheduled = DateTime(
-      picked.year,
-      picked.month,
-      picked.day,
-      time.hour,
-      time.minute,
-    );
-    try {
-      await appointmentApi.reschedule(apt.id, scheduled);
-      await _load();
-      if (mounted) showSnack(context, 'Appointment rescheduled');
-    } catch (e) {
-      if (mounted) showSnack(context, e.toString());
-    }
-  }
-
-  Color _accentFor(Appointment a) {
-    if (a.status == 'Completed') return const Color(0xFF2E7D32);
-    if (a.status == 'Arrived') return const Color(0xFF0B74FA);
-    if (a.rawStatus == 'REQUESTED' || a.status == 'Pending') {
-      return const Color(0xFFE65C00);
-    }
-    return const Color(0xFF0B74FA);
   }
 
   @override
   Widget build(BuildContext context) {
-    final visible = _visibleAppointments;
-    final showEmpty = !_loading && (_error != null || visible.isEmpty);
-    final isToday = isSameDay(_selectedDate, DateTime.now());
     final total = _appointments.length;
     final doneProgress = total == 0 ? 0.0 : _completedCount / total;
     final pendingProgress = total == 0 ? 0.0 : _pendingCount / total;
     final arrivedProgress = total == 0 ? 0.0 : _arrivedCount / total;
-    final safeOrbit =
-        visible.isEmpty ? 0 : _orbitIndex.clamp(0, visible.length - 1);
+    final hourStart = _gridStartHour;
+    final hourEnd = _gridEndHour;
+    final rangeLabel =
+        '${DateFormat.MMMd().format(_weekStart)} - ${DateFormat.MMMd().format(_weekStart.add(const Duration(days: 6)))}';
 
     return Scaffold(
       backgroundColor: const Color(0xFFF2F2F2),
       body: ScheduleWorkspace(
         activeTab: 0,
         boardCaption: total == 0
-            ? 'Your care board is ready — no visits yet.'
-            : '$total patients lined up for this day.',
+            ? 'Weekly board is ready.'
+            : '$total visits in this 7-day scheduler.',
         onNotificationTap: () => openNotifications(context),
         onRefresh: _load,
         metrics: [
@@ -222,115 +272,40 @@ class _DayViewScreenState extends State<DayViewScreen> {
         slivers: [
           SliverToBoxAdapter(
             child: ExpandingPanel(
-              child: Column(
-                children: [
-                  ScheduleCommandBar(
-                    title: formatScheduleDate(_selectedDate),
-                    subtitle:
-                        '${visible.length} on board${_filter.isActive ? ' · filtered' : ''}',
-                    onPrev: _goToPreviousDay,
-                    onNext: _goToNextDay,
-                    onCenter: _goToToday,
-                    centerLabel: isToday ? 'Jump to now' : 'Back to today',
-                    centerActive: isToday,
-                    filter: _filter,
-                    onOpenFilter: _openFilter,
-                    onClearFilter: () =>
-                        setState(() => _filter = AdvancedScheduleFilter.empty),
-                  ),
-                  const SizedBox(height: 14),
-                  FadeSlideIn(
-                    child: Container(
-                      padding: const EdgeInsets.fromLTRB(12, 14, 12, 14),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(22),
-                        boxShadow: [
-                          BoxShadow(
-                            color:
-                                const Color(0xFF0B74FA).withValues(alpha: 0.08),
-                            blurRadius: 18,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              const Text(
-                                'Appointment date',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w800,
-                                  color: Color(0xFF1A1B1E),
-                                ),
-                              ),
-                              const Spacer(),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 7,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFEEF4FF),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Text(
-                                      DateFormat.MMMM().format(_selectedDate),
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                        color: Color(0xFF0B74FA),
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    const Icon(
-                                      Icons.expand_more_rounded,
-                                      size: 18,
-                                      color: Color(0xFF0B74FA),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          PremiumDateStrip(
-                            days: _stripDays,
-                            selected: _selectedDate,
-                            onSelect: (d) {
-                              setState(() => _selectedDate = d);
-                              _load();
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  if (!_loading && visible.isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    FadeSlideIn(
-                      delay: const Duration(milliseconds: 60),
-                      child: DayOrbitRing(
-                        selectedIndex: safeOrbit,
-                        onSelect: (i) => setState(() => _orbitIndex = i),
-                        appointments: [
-                          for (final a in visible)
-                            (
-                              label: a.patient,
-                              time: a.time,
-                              color: _accentFor(a),
-                              done: a.status == 'Completed',
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        IconButton(
+                          onPressed: () => _shiftWeek(-1),
+                          icon: const Icon(Icons.chevron_left),
+                        ),
+                        Expanded(
+                          child: Text(
+                            'Week Scheduler\n$rangeLabel',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF1A1B1E),
                             ),
-                        ],
-                      ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => _shiftWeek(1),
+                          icon: const Icon(Icons.chevron_right),
+                        ),
+                      ],
                     ),
+                    const SizedBox(height: 8),
+                    _buildWeekTable(hourStart, hourEnd),
                   ],
-                ],
+                ),
               ),
             ),
           ),
@@ -341,48 +316,24 @@ class _DayViewScreenState extends State<DayViewScreen> {
                 child: CircularProgressIndicator(color: Color(0xFF0B74FA)),
               ),
             )
-          else if (showEmpty)
+          else if (_error != null)
             SliverFillRemaining(
               hasScrollBody: false,
               child: ScheduleEmptyState(
                 error: _error,
-                title: _filter.isActive
-                    ? 'No matches for these filters'
-                    : 'Your day looks clear',
-                subtitle: _filter.isActive
-                    ? 'Loosen filters or clear them to see everyone.'
-                    : 'Enjoy the calm — new appointments will appear here.',
-                actionLabel: _filter.isActive ? 'Clear filters' : null,
-                onAction: _filter.isActive
-                    ? () =>
-                        setState(() => _filter = AdvancedScheduleFilter.empty)
-                    : null,
+                title: 'Could not load weekly scheduler',
               ),
             )
           else
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, i) {
-                    final apt = visible[i];
-                    final current = i == safeOrbit;
-                    return AnimatedAppointmentTile(
-                      index: i,
-                      child: _PremiumTimelineCard(
-                        appointment: apt,
-                        accent: _accentFor(apt),
-                        isCurrent: current,
-                        isCompleted: apt.status == 'Completed',
-                        onTapHighlight: () => setState(() => _orbitIndex = i),
-                        onComplete: () =>
-                            _showCompleteVisitDialog(context, apt),
-                        onReschedule: () => _reschedule(apt),
-                        onMarkArrived: () => _markArrived(apt),
-                      ),
-                    );
-                  },
-                  childCount: visible.length,
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: Text(
+                  'Clinic hours are read-only from clinic admin configuration.',
+                  style: TextStyle(
+                    color: Colors.blueGrey.shade600,
+                    fontSize: 12,
+                  ),
                 ),
               ),
             ),
@@ -393,140 +344,122 @@ class _DayViewScreenState extends State<DayViewScreen> {
     );
   }
 
-  void _showCompleteVisitDialog(BuildContext context, Appointment apt) {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => CompleteVisitSheet(
-        appointmentTime: apt.time,
-        patient: apt.patient,
-        onCompleted: (notes) => _markCompleted(apt, notes),
-      ),
-    );
-  }
 }
 
-class _PremiumTimelineCard extends StatelessWidget {
-  const _PremiumTimelineCard({
+class _WeekAppointmentChip extends StatelessWidget {
+  const _WeekAppointmentChip({
     required this.appointment,
-    required this.accent,
-    required this.isCurrent,
-    required this.isCompleted,
-    required this.onTapHighlight,
-    required this.onComplete,
-    required this.onReschedule,
-    this.onMarkArrived,
+    required this.onRefresh,
   });
 
-  final Appointment appointment;
-  final Color accent;
-  final bool isCurrent;
-  final bool isCompleted;
-  final VoidCallback onTapHighlight;
-  final VoidCallback onComplete;
-  final VoidCallback onReschedule;
-  final VoidCallback? onMarkArrived;
+  final DoctorAppointment appointment;
+  final Future<void> Function() onRefresh;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+    final accent = appointment.status == 'COMPLETED'
+        ? const Color(0xFF2E7D32)
+        : appointment.status == 'NO_SHOW'
+            ? const Color(0xFFE53935)
+            : appointment.status == 'CANCELLED'
+                ? const Color(0xFF929296)
+                : appointment.status == 'REQUESTED'
+                    ? const Color(0xFFE65C00)
+                    : const Color(0xFF0B74FA);
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onLongPress: () => showModalBottomSheet<void>(
+        context: context,
+        builder: (ctx) => SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.check_circle_outline),
+                title: const Text('Complete'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  VisitActions.showCompleteSheet(
+                    context,
+                    patient: appointment.displayPatient,
+                    time: appointment.timeLabel,
+                    appointmentId: appointment.id,
+                    patientId: appointment.patientId,
+                    onDone: onRefresh,
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.login_rounded),
+                title: const Text('Mark arrived'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  VisitActions.markArrived(
+                    context,
+                    appointmentId: appointment.id,
+                    onDone: onRefresh,
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.event_busy, color: Color(0xFFE53935)),
+                title: const Text('No show'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  VisitActions.markNoShow(
+                    context,
+                    appointmentId: appointment.id,
+                    onDone: onRefresh,
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PatientRecordScreen(
+            patientId: appointment.patientId,
+            patientName: appointment.displayPatient,
+            gender: appointment.patientGender,
+            age: appointment.ageYears,
+            appointmentId: appointment.id,
+            appointmentTime: appointment.timeLabel,
+            appointmentDuration: appointment.durationLabel,
+            appointmentStatus: appointment.uiStatus ?? appointment.status,
+            appointmentReason: appointment.reason,
+            appointmentNotes: appointment.notes,
+          ),
+        ),
+      ),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 4),
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: accent.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: accent.withValues(alpha: 0.35)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(
-              width: 52,
-              child: Padding(
-                padding: const EdgeInsets.only(top: 22),
-                child: Text(
-                  appointment.time,
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w800,
-                    color: isCurrent ? accent : const Color(0xFF929296),
-                  ),
-                ),
+            Text(
+              '${DateFormat.jm().format(appointment.scheduledAt)} • ${appointment.durationMinutes}m',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                color: accent,
+                fontSize: 11.5,
               ),
             ),
-            SizedBox(
-              width: 24,
-              child: Column(
-                children: [
-                  Expanded(
-                    child: Container(width: 2, color: const Color(0xFFE4E6EB)),
-                  ),
-                  Container(
-                    width: isCurrent ? 18 : 12,
-                    height: isCurrent ? 18 : 12,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isCompleted
-                          ? const Color(0xFFEAF7EE)
-                          : isCurrent
-                              ? accent
-                              : Colors.white,
-                      border: Border.all(
-                        color: accent,
-                        width: isCurrent ? 4 : 2,
-                      ),
-                      boxShadow: isCurrent
-                          ? [
-                              BoxShadow(
-                                color: accent.withValues(alpha: 0.35),
-                                blurRadius: 10,
-                              ),
-                            ]
-                          : null,
-                    ),
-                    child: isCompleted
-                        ? Icon(Icons.check, size: 8, color: accent)
-                        : null,
-                  ),
-                  Expanded(
-                    child: Container(width: 2, color: const Color(0xFFE4E6EB)),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: GestureDetector(
-                onTap: onTapHighlight,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 280),
-                  margin: const EdgeInsets.only(left: 4),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(18),
-                    boxShadow: isCurrent
-                        ? [
-                            BoxShadow(
-                              color: accent.withValues(alpha: 0.2),
-                              blurRadius: 18,
-                              offset: const Offset(0, 6),
-                            ),
-                          ]
-                        : null,
-                  ),
-                  foregroundDecoration: isCurrent
-                      ? BoxDecoration(
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(
-                            color: accent.withValues(alpha: 0.4),
-                            width: 1.5,
-                          ),
-                        )
-                      : null,
-                  child: AppointmentCard(
-                    appointment: appointment,
-                    onComplete: onComplete,
-                    onReschedule: onReschedule,
-                    onMarkArrived: onMarkArrived,
-                  ),
-                ),
+            Text(
+              appointment.displayPatient,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF1A1B1E),
               ),
             ),
           ],

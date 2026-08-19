@@ -2,7 +2,8 @@ import 'dart:math' as math;
 
 import 'package:cms_doctor_app/core/api/services/appointment_api_service.dart';
 import 'package:cms_doctor_app/core/utils/date_format.dart';
-import 'package:cms_doctor_app/features/patients/patient_record_screen.dart';
+import 'package:cms_doctor_app/features/schedule/models/appointment.dart';
+import 'package:cms_doctor_app/features/schedule/visit_actions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -22,6 +23,7 @@ class AdvancedMonthCalendar {
     required String? error,
     required ValueChanged<DateTime> onMonthChanged,
     required ValueChanged<DateTime> onSelectedChanged,
+    VoidCallback? onReload,
   }) {
     return [
       SliverToBoxAdapter(
@@ -54,6 +56,7 @@ class AdvancedMonthCalendar {
         _DayAgendaSliver(
           selected: selected,
           appointments: appointments,
+          onReload: onReload,
         ),
     ];
   }
@@ -529,10 +532,12 @@ class _DayAgendaSliver extends StatelessWidget {
   const _DayAgendaSliver({
     required this.selected,
     required this.appointments,
+    this.onReload,
   });
 
   final DateTime selected;
   final List<DoctorAppointment> appointments;
+  final VoidCallback? onReload;
 
   List<DoctorAppointment> get _items {
     return appointments
@@ -581,27 +586,38 @@ class _DayAgendaSliver extends StatelessWidget {
             final a = items[i - 1];
             return AnimatedAppointmentTile(
               index: i - 1,
-              child: _TimelineRow(
-                appointment: a,
-                isFirst: i == 1,
-                isLast: i == items.length,
-                isCurrent: _isCurrent(a, DateTime.now(), i - 1, items),
-                onTap: () => Navigator.push(
+              child: AppointmentCard(
+                appointment: Appointment.fromDoctor(a),
+                onComplete: () => VisitActions.showCompleteSheet(
                   context,
-                  MaterialPageRoute(
-                    builder: (_) => PatientRecordScreen(
-                      patientId: a.patientId,
-                      patientName: a.displayPatient,
-                      gender: a.patientGender,
-                      age: a.ageYears,
-                      appointmentId: a.id,
-                      appointmentTime: DateFormat.jm().format(a.scheduledAt),
-                      appointmentDuration: '${a.durationMinutes} min',
-                      appointmentStatus: a.uiStatus ?? a.status,
-                      appointmentReason: a.reason,
-                      appointmentNotes: a.notes,
-                    ),
-                  ),
+                  patient: a.displayPatient,
+                  time: a.timeLabel,
+                  appointmentId: a.id,
+                  patientId: a.patientId,
+                  onDone: onReload,
+                ),
+                onReschedule: () => VisitActions.reschedule(
+                  context,
+                  appointmentId: a.id,
+                  initial: a.scheduledAt,
+                  onDone: onReload,
+                ),
+                onMarkArrived: a.status == 'REQUESTED'
+                    ? () => VisitActions.markArrived(
+                          context,
+                          appointmentId: a.id,
+                          onDone: onReload,
+                        )
+                    : null,
+                onNoShow: () => VisitActions.markNoShow(
+                  context,
+                  appointmentId: a.id,
+                  onDone: onReload,
+                ),
+                onCancel: () => VisitActions.cancel(
+                  context,
+                  appointmentId: a.id,
+                  onDone: onReload,
                 ),
               ),
             );
@@ -656,201 +672,4 @@ class _DayAgendaSliver extends StatelessWidget {
     );
   }
 
-  bool _isCurrent(
-    DoctorAppointment a,
-    DateTime now,
-    int index,
-    List<DoctorAppointment> all,
-  ) {
-    if (!isSameDay(a.scheduledAt, now)) return false;
-    final end = a.scheduledAt.add(Duration(minutes: a.durationMinutes));
-    if (!now.isBefore(a.scheduledAt) && now.isBefore(end)) return true;
-    if (now.isBefore(a.scheduledAt)) {
-      return index == 0 ||
-          all[index - 1]
-              .scheduledAt
-              .add(Duration(minutes: all[index - 1].durationMinutes))
-              .isBefore(now);
-    }
-    return false;
-  }
-}
-
-class _TimelineRow extends StatelessWidget {
-  const _TimelineRow({
-    required this.appointment,
-    required this.isFirst,
-    required this.isLast,
-    required this.isCurrent,
-    required this.onTap,
-  });
-
-  final DoctorAppointment appointment;
-  final bool isFirst;
-  final bool isLast;
-  final bool isCurrent;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final a = appointment;
-    final accent = a.status == 'REQUESTED'
-        ? const Color(0xFFE65C00)
-        : a.status == 'COMPLETED'
-            ? const Color(0xFF2E7D32)
-            : const Color(0xFF0B74FA);
-    final end = a.scheduledAt.add(Duration(minutes: a.durationMinutes));
-    final pastel = a.status == 'REQUESTED'
-        ? const Color(0xFFFFF0E6)
-        : a.status == 'COMPLETED'
-            ? const Color(0xFFEAF7EE)
-            : const Color(0xFFEEF4FF);
-
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SizedBox(
-            width: 62,
-            child: Padding(
-              padding: const EdgeInsets.only(top: 14),
-              child: Text(
-                DateFormat.jm().format(a.scheduledAt),
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  color: isCurrent ? accent : const Color(0xFF929296),
-                ),
-              ),
-            ),
-          ),
-          SizedBox(
-            width: 28,
-            child: Column(
-              children: [
-                Expanded(
-                  child: Container(
-                    width: 2,
-                    color: isFirst ? Colors.transparent : const Color(0xFFE4E6EB),
-                  ),
-                ),
-                Container(
-                  width: isCurrent ? 18 : 12,
-                  height: isCurrent ? 18 : 12,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: isCurrent ? accent : Colors.white,
-                    border: Border.all(
-                      color: accent,
-                      width: isCurrent ? 4 : 2.5,
-                    ),
-                    boxShadow: isCurrent
-                        ? [
-                            BoxShadow(
-                              color: accent.withValues(alpha: 0.35),
-                              blurRadius: 10,
-                            ),
-                          ]
-                        : null,
-                  ),
-                  child: a.status == 'COMPLETED'
-                      ? Icon(Icons.check, size: isCurrent ? 10 : 8, color: accent)
-                      : null,
-                ),
-                Expanded(
-                  child: Container(
-                    width: 2,
-                    color: isLast ? Colors.transparent : const Color(0xFFE4E6EB),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(left: 6, bottom: 12, top: 4),
-              child: Material(
-                color: pastel,
-                borderRadius: BorderRadius.circular(16),
-                child: InkWell(
-                  onTap: onTap,
-                  borderRadius: BorderRadius.circular(16),
-                  child: Container(
-                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      gradient: isCurrent
-                          ? LinearGradient(
-                              begin: Alignment.centerLeft,
-                              end: Alignment.centerRight,
-                              colors: [
-                                accent.withValues(alpha: 0.18),
-                                pastel,
-                                Colors.white,
-                              ],
-                            )
-                          : null,
-                      border: isCurrent
-                          ? Border.all(color: accent.withValues(alpha: 0.35))
-                          : null,
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 4,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: accent,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                a.displayPatient,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w800,
-                                  color: accent,
-                                ),
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                '${DateFormat.jm().format(a.scheduledAt)} – ${DateFormat.jm().format(end)}',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: accent.withValues(alpha: 0.75),
-                                ),
-                              ),
-                              if (a.reason?.trim().isNotEmpty == true) ...[
-                                const SizedBox(height: 4),
-                                Text(
-                                  a.reason!.trim(),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: Color(0xFF929296),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                        Icon(Icons.chevron_right_rounded, color: accent),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }

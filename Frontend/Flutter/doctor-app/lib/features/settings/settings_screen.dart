@@ -9,6 +9,7 @@ import '../../core/utils/app_dialogs.dart';
 import '../../core/widgets/language_selector.dart';
 import '../auth/forgot_password_screen.dart';
 import '../auth/login_screen.dart';
+import 'profile_sheets.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -23,6 +24,13 @@ class _SettingsScreenState extends State<SettingsScreen>
   bool _loggingOut = false;
   late final AnimationController _shimmer;
 
+  String? _specialty;
+  String? _phone;
+  String? _email;
+  String? _clinicName;
+  String? _firstName;
+  String? _lastName;
+
   @override
   void initState() {
     super.initState();
@@ -30,6 +38,25 @@ class _SettingsScreenState extends State<SettingsScreen>
       vsync: this,
       duration: const Duration(milliseconds: 2600),
     )..repeat();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    try {
+      await authApi.refreshProfileNames();
+      final map = await authApi.fetchOwnProfile();
+      final clinicName = await scheduleApi.getClinicName();
+      if (!mounted) return;
+      setState(() {
+        _firstName = map?['firstName']?.toString();
+        _lastName = map?['lastName']?.toString();
+        _specialty = map?['specialization']?.toString() ??
+            map?['specialty']?.toString();
+        _phone = map?['phoneNumber']?.toString() ?? map?['phone']?.toString();
+        _email = map?['email']?.toString();
+        _clinicName = clinicName;
+      });
+    } catch (_) {}
   }
 
   @override
@@ -55,6 +82,16 @@ class _SettingsScreenState extends State<SettingsScreen>
   @override
   Widget build(BuildContext context) {
     final top = MediaQuery.paddingOf(context).top;
+    final roleParts = <String>[
+      if (_specialty != null && _specialty!.trim().isNotEmpty) _specialty!,
+      if (_clinicName != null && _clinicName!.trim().isNotEmpty)
+        _clinicName!
+      else if (sessionStorage.clinicId != null)
+        'Clinic doctor',
+    ];
+    final roleLine = roleParts.isEmpty
+        ? (sessionStorage.clinicId == null ? 'Doctor account' : 'Clinic doctor')
+        : roleParts.join(' · ');
     return Scaffold(
       backgroundColor: const Color(0xFFF2F2F2),
       body: Column(
@@ -162,18 +199,36 @@ class _SettingsScreenState extends State<SettingsScreen>
                                       ),
                                     ),
                                     const SizedBox(width: 5),
-                                    Text(
-                                      sessionStorage.clinicId == null
-                                          ? 'Doctor account'
-                                          : 'Clinic doctor',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        color:
-                                            Colors.white.withValues(alpha: 0.85),
+                                    Expanded(
+                                      child: Text(
+                                        roleLine,
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: Colors.white
+                                              .withValues(alpha: 0.85),
+                                        ),
                                       ),
                                     ),
                                   ],
                                 ),
+                                if (_phone != null && _phone!.isNotEmpty)
+                                  Text(
+                                    _phone!,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color:
+                                          Colors.white.withValues(alpha: 0.75),
+                                    ),
+                                  ),
+                                if (_email != null && _email!.isNotEmpty)
+                                  Text(
+                                    _email!,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color:
+                                          Colors.white.withValues(alpha: 0.75),
+                                    ),
+                                  ),
                               ],
                             ),
                           ),
@@ -210,6 +265,27 @@ class _SettingsScreenState extends State<SettingsScreen>
                 _sectionLabel('Workspace'),
                 _settingsGroup([
                   _ModernSettingTile(
+                    icon: Icons.person_outline_rounded,
+                    accent: const Color(0xFF0B74FA),
+                    label: 'Edit profile',
+                    subtitle: 'Name, email, and specialization',
+                    onTap: () async {
+                      final ok = await showEditDoctorProfileSheet(
+                        context,
+                        firstName: _firstName ?? sessionStorage.firstName ?? '',
+                        lastName: _lastName ?? sessionStorage.lastName ?? '',
+                        email: _email,
+                        specialization: _specialty,
+                      );
+                      if (ok) {
+                        await _loadProfile();
+                        if (context.mounted) {
+                          showSnack(context, 'Profile updated');
+                        }
+                      }
+                    },
+                  ),
+                  _ModernSettingTile(
                     icon: Icons.notifications_outlined,
                     accent: const Color(0xFF0B74FA),
                     label: 'Notifications',
@@ -228,8 +304,20 @@ class _SettingsScreenState extends State<SettingsScreen>
                   _ModernSettingTile(
                     icon: Icons.lock_outline_rounded,
                     accent: const Color(0xFFE65C00),
-                    label: 'Password & security',
-                    subtitle: 'Reset password and protect your account',
+                    label: 'Change password',
+                    subtitle: 'Update the password for this account',
+                    onTap: () async {
+                      final ok = await showChangePasswordSheet(context);
+                      if (ok && context.mounted) {
+                        showSnack(context, 'Password updated');
+                      }
+                    },
+                  ),
+                  _ModernSettingTile(
+                    icon: Icons.lock_reset_rounded,
+                    accent: const Color(0xFFE65C00),
+                    label: 'Forgot password',
+                    subtitle: 'Reset via WhatsApp OTP if you are locked out',
                     onTap: () => Navigator.push(
                       context,
                       MaterialPageRoute(

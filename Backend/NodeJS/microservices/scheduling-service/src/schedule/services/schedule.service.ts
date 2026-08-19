@@ -21,10 +21,13 @@ import { ClinicHttpClient } from './clinic-http.client';
 import { AppointmentHttpClient, BookedRange } from './appointment-http.client';
 import { KafkaTopics } from '../../kafka-shared/topics/topics.config';
 import { withTenantEvent } from '../../tenant-shared/tenant.constants';
+import { TenantContextService } from '../../tenant-shared/tenant-context.service';
 
 export interface AuthUser {
   userId: string;
   role: string;
+  tenantId?: string;
+  clinicId?: string;
 }
 
 @Injectable()
@@ -36,6 +39,7 @@ export class ScheduleService {
     @Inject('KAFKA_CLIENT') private readonly kafkaClient: ClientProxy,
     private readonly clinicHttp: ClinicHttpClient,
     private readonly appointmentHttp: AppointmentHttpClient,
+    private readonly tenantContext: TenantContextService,
   ) {}
 
   async setClinicHours(clinicId: string, dto: SetClinicHoursDto, actor: AuthUser) {
@@ -87,6 +91,7 @@ export class ScheduleService {
   }
 
   async listAvailability(clinicId: string, doctorId: string | undefined, actor: AuthUser) {
+    clinicId = this.resolveStaffClinic(clinicId, actor);
     await this.assertCanViewClinicSchedule(clinicId, actor);
     if (actor.role === 'DOCTOR') {
       if (doctorId && doctorId !== actor.userId) {
@@ -101,6 +106,7 @@ export class ScheduleService {
   }
 
   async createBlock(dto: CreateBlockDto, actor: AuthUser) {
+    dto.clinicId = this.resolveStaffClinic(dto.clinicId, actor);
     if (actor.role === 'DOCTOR') {
       const ok = await this.clinicHttp.checkClinicAccess(dto.clinicId, actor.userId, actor.role);
       if (!ok) {
@@ -127,6 +133,24 @@ export class ScheduleService {
     );
     this.emitScheduleUpdated(dto.clinicId, 'block', dto.doctorId);
     return saved;
+  }
+
+  async listBlocks(clinicId: string | undefined, doctorId: string | undefined, actor: AuthUser) {
+    const tenantId = this.resolveStaffClinic(clinicId, actor);
+    await this.assertCanViewClinicSchedule(tenantId, actor);
+    if (actor.role === 'DOCTOR') {
+      doctorId = actor.userId;
+    }
+    const where: Record<string, string> = { tenantId };
+    if (doctorId) where.doctorId = doctorId;
+    return this.blockRepo.find({
+      where,
+      order: { startsAt: 'DESC' },
+    });
+  }
+
+  async listMyBlocks(actor: AuthUser) {
+    return this.listBlocks(undefined, undefined, actor);
   }
 
   async getSlots(query: SlotsQueryDto) {
@@ -277,6 +301,24 @@ export class ScheduleService {
     );
     await this.availabilityRepo.save(defaults);
     this.emitScheduleUpdated(clinicId, 'doctor_availability', doctorId);
+  }
+
+  private resolveStaffClinic(requestedClinicId: string | undefined, actor: AuthUser): string {
+    const homeClinic =
+      actor.clinicId || actor.tenantId || this.tenantContext.getTenantId() || undefined;
+    if (actor.role === 'SYSTEM_MANAGER') {
+      const clinicId = requestedClinicId || homeClinic;
+      if (!clinicId) throw new BadRequestException('clinicId is required');
+      return clinicId;
+    }
+    const clinicId = requestedClinicId || homeClinic;
+    if (!clinicId) {
+      throw new BadRequestException('Missing clinic context for this staff account');
+    }
+    if (homeClinic && requestedClinicId && requestedClinicId !== homeClinic) {
+      throw new ForbiddenException('You can only access the clinic you belong to');
+    }
+    return clinicId;
   }
 
   private async assertCanViewClinicSchedule(clinicId: string, actor: AuthUser) {

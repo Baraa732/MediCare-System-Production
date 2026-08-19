@@ -106,6 +106,7 @@ class AppointmentApiService {
     DateTime? from,
     DateTime? to,
     String? status,
+    String? patientId,
   }) async {
     final clinicId = _session.clinicId;
     final doctorId = _session.userId;
@@ -121,6 +122,7 @@ class AppointmentApiService {
         if (from != null) 'from': from.toUtc().toIso8601String(),
         if (to != null) 'to': to.toUtc().toIso8601String(),
         if (status != null && status.isNotEmpty) 'status': status,
+        if (patientId != null && patientId.isNotEmpty) 'patientId': patientId,
       },
     );
     final data = response.data as Map<String, dynamic>;
@@ -149,6 +151,17 @@ class AppointmentApiService {
     final data = response.data as Map<String, dynamic>;
     final json = data['appointment'] as Map<String, dynamic>? ?? data;
     return DoctorAppointment.fromJson(json);
+  }
+
+  Future<List<DoctorAppointment>> getForPatient(String patientId) async {
+    final now = DateTime.now();
+    final list = await getMySchedule(
+      from: now.subtract(const Duration(days: 730)),
+      to: now.add(const Duration(days: 180)),
+      patientId: patientId,
+    );
+    list.sort((a, b) => b.scheduledAt.compareTo(a.scheduledAt));
+    return list;
   }
 
   Future<DoctorAppointment> reschedule(String id, DateTime scheduledAt) async {

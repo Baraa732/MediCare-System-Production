@@ -355,8 +355,8 @@ export class OpenEmrDbReader {
     }));
   }
 
-  async getConditions(_pid: string): Promise<ConditionRecord[]> {
-    return [];
+  async getConditions(pid: string): Promise<ConditionRecord[]> {
+    return this.getProblems(pid);
   }
 
   async getMedications(pid: string): Promise<MedicationRecord[]> {
@@ -512,6 +512,89 @@ export class OpenEmrDbReader {
         });
       }
       return notes;
+    });
+  }
+
+  async insertListRecord(input: {
+    pid: string | number;
+    type: 'allergy' | 'medical_problem' | 'medication';
+    title: string;
+    comments?: string;
+    diagnosis?: string;
+    outcome?: string;
+    user?: string;
+  }): Promise<{ id: string }> {
+    return this.withConnection(async (connection) => {
+      const now = new Date();
+      const [result] = await connection.execute(
+        `INSERT INTO lists
+          (date, type, title, begdate, pid, user, groupname, comments, diagnosis, outcome, activity)
+         VALUES (?, ?, ?, ?, ?, ?, 'Default', ?, ?, ?, 1)`,
+        [
+          now,
+          input.type,
+          input.title,
+          now,
+          input.pid,
+          input.user?.trim() || 'doctor',
+          input.comments ?? '',
+          input.diagnosis ?? '',
+          input.outcome ?? '',
+        ],
+      );
+      return { id: String((result as any)?.insertId ?? Date.now()) };
+    });
+  }
+
+  async insertVital(input: {
+    pid: string | number;
+    user?: string;
+    bps?: string | null;
+    bpd?: string | null;
+    pulse?: number | null;
+    respiration?: number | null;
+    temperature?: number | null;
+    oxygenSaturation?: number | null;
+    height?: number | null;
+    weight?: number | null;
+    bmi?: number | null;
+  }): Promise<VitalSignRecord> {
+    return this.withConnection(async (connection) => {
+      const now = new Date();
+      const author = input.user?.trim() || 'doctor';
+      await connection.execute(
+        `INSERT INTO form_vitals
+          (date, pid, user, groupname, authorized, activity, bps, bpd, pulse, respiration,
+           temperature, oxygen_saturation, height, weight, BMI)
+         VALUES (?, ?, ?, 'Default', 1, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          now,
+          input.pid,
+          author,
+          input.bps ?? '',
+          input.bpd ?? '',
+          input.pulse ?? null,
+          input.respiration ?? null,
+          input.temperature ?? null,
+          input.oxygenSaturation ?? null,
+          input.height ?? null,
+          input.weight ?? null,
+          input.bmi ?? null,
+        ],
+      );
+      const bp = [input.bps, input.bpd].filter(Boolean).join('/');
+      return {
+        date: this.formatDateTime(now),
+        bloodPressure: bp || null,
+        heartRate: input.pulse ?? null,
+        respiratoryRate: input.respiration ?? null,
+        temperatureCelsius: input.temperature ?? null,
+        oxygenSaturation: input.oxygenSaturation ?? null,
+        heightCm: input.height ?? null,
+        weightKg: input.weight ?? null,
+        bmi: input.bmi ?? null,
+        recordedBy: author,
+      };
     });
   }
 

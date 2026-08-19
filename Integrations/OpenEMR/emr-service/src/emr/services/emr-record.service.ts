@@ -383,6 +383,165 @@ export class EmrRecordService {
     return note;
   }
 
+  async addAllergy(
+    userId: string,
+    actor: AuthUser,
+    body: { allergen: string; reaction?: string; severity?: string },
+    preferredTenantId?: string | null,
+  ): Promise<PatientEmrChart> {
+    const allergen = body.allergen?.trim();
+    if (!allergen) throw new BadRequestException('Allergen is required');
+    const ctx = await this.resolveStaffWriteContext(userId, actor, preferredTenantId);
+    await this.dbReader.insertListRecord({
+      pid: ctx.pid,
+      type: 'allergy',
+      title: allergen,
+      comments: body.reaction?.trim(),
+      outcome: body.severity?.trim(),
+      user: actor.userId,
+    });
+    this.emitStaffChartWrite(actor, ctx.tenantId, userId);
+    return this.getPatientEmr(userId, actor, ctx.tenantId);
+  }
+
+  async addMedication(
+    userId: string,
+    actor: AuthUser,
+    body: { name: string; dosage?: string; frequency?: string; route?: string },
+    preferredTenantId?: string | null,
+  ): Promise<PatientEmrChart> {
+    const name = body.name?.trim();
+    if (!name) throw new BadRequestException('Medication name is required');
+    const ctx = await this.resolveStaffWriteContext(userId, actor, preferredTenantId);
+    const comments = [body.dosage, body.frequency, body.route]
+      .map((v) => v?.trim())
+      .filter(Boolean)
+      .join(' · ');
+    await this.dbReader.insertListRecord({
+      pid: ctx.pid,
+      type: 'medication',
+      title: name,
+      comments: comments || undefined,
+      user: actor.userId,
+    });
+    this.emitStaffChartWrite(actor, ctx.tenantId, userId);
+    return this.getPatientEmr(userId, actor, ctx.tenantId);
+  }
+
+  async addCondition(
+    userId: string,
+    actor: AuthUser,
+    body: { name: string; icd10Code?: string; status?: string },
+    preferredTenantId?: string | null,
+  ): Promise<PatientEmrChart> {
+    const name = body.name?.trim();
+    if (!name) throw new BadRequestException('Condition name is required');
+    const ctx = await this.resolveStaffWriteContext(userId, actor, preferredTenantId);
+    await this.dbReader.insertListRecord({
+      pid: ctx.pid,
+      type: 'medical_problem',
+      title: name,
+      diagnosis: body.icd10Code?.trim(),
+      comments: body.status?.trim(),
+      user: actor.userId,
+    });
+    this.emitStaffChartWrite(actor, ctx.tenantId, userId);
+    return this.getPatientEmr(userId, actor, ctx.tenantId);
+  }
+
+  async addVital(
+    userId: string,
+    actor: AuthUser,
+    body: {
+      bloodPressure?: string;
+      heartRate?: number;
+      respiratoryRate?: number;
+      temperatureCelsius?: number;
+      oxygenSaturation?: number;
+      heightCm?: number;
+      weightKg?: number;
+    },
+    preferredTenantId?: string | null,
+  ): Promise<PatientEmrChart> {
+    const ctx = await this.resolveStaffWriteContext(userId, actor, preferredTenantId);
+    const bp = (body.bloodPressure || '').split('/');
+    const bps = bp[0]?.trim() || null;
+    const bpd = bp[1]?.trim() || null;
+    const hasAny =
+      bps ||
+      bpd ||
+      body.heartRate != null ||
+      body.respiratoryRate != null ||
+      body.temperatureCelsius != null ||
+      body.oxygenSaturation != null ||
+      body.heightCm != null ||
+      body.weightKg != null;
+    if (!hasAny) throw new BadRequestException('Enter at least one vital sign');
+
+    let bmi: number | null = null;
+    if (body.heightCm && body.weightKg && body.heightCm > 0) {
+      const meters = body.heightCm / 100;
+      bmi = Number((body.weightKg / (meters * meters)).toFixed(1));
+    }
+
+    await this.dbReader.insertVital({
+      pid: ctx.pid,
+      user: actor.userId,
+      bps,
+      bpd,
+      pulse: body.heartRate ?? null,
+      respiration: body.respiratoryRate ?? null,
+      temperature: body.temperatureCelsius ?? null,
+      oxygenSaturation: body.oxygenSaturation ?? null,
+      height: body.heightCm ?? null,
+      weight: body.weightKg ?? null,
+      bmi,
+    });
+    this.emitStaffChartWrite(actor, ctx.tenantId, userId);
+    return this.getPatientEmr(userId, actor, ctx.tenantId);
+  }
+
+  private emitStaffChartWrite(actor: AuthUser, tenantId: string, userId: string) {
+    this.phiAudit.emit({
+      action: PhiAuditAction.EMR_CHART_WRITE,
+      actorId: actor.userId,
+      actorRole: actor.role,
+      tenantId,
+      resourceType: PhiAuditResourceType.EMR_CHART,
+      resourceId: userId,
+      success: true,
+      classification: 'phi',
+    });
+  }
+
+  private async resolveStaffWriteContext(
+    userId: string,
+    actor: AuthUser,
+    preferredTenantId?: string | null,
+  ): Promise<{ tenantId: string; pid: string | number }> {
+    if (!['DOCTOR', 'CLINIC_ADMIN', 'SYSTEM_MANAGER'].includes(actor.role)) {
+      throw new ForbiddenException('Only clinic staff can write this chart');
+    }
+    const tenantId = preferredTenantId || this.requireTenantId();
+    await this.assertActorAccess(actor, tenantId, userId);
+
+    let link = await this.patientSyncService.getLinkByUserId(userId, tenantId);
+    if (!link || link.syncStatus !== EmrSyncStatus.SYNCED || !link.openemrPatientId) {
+      await this.ensurePatientEmr(userId, actor, tenantId);
+      link = await this.patientSyncService.getLinkByUserId(userId, tenantId);
+    }
+    if (!link?.openemrPatientId) {
+      throw new NotFoundException({
+        message: 'EMR chart is not available yet',
+        medicareUserId: userId,
+        syncStatus: link?.syncStatus ?? EmrSyncStatus.FAILED,
+        lastError: link?.lastError,
+      });
+    }
+    const row = await this.dbReader.getPatientRow(link.openemrPatientId);
+    return { tenantId, pid: row?.pid ?? link.openemrPatientId };
+  }
+
   /** Patient portal CRUD — OpenEMR Standard API `patient` resource only. */
   async updateMyEmr(
     actor: AuthUser,

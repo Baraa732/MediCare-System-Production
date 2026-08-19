@@ -5,22 +5,30 @@ class PatientEmrChart {
   final List<Map<String, dynamic>> allergies;
   final List<Map<String, dynamic>> medications;
   final List<Map<String, dynamic>> conditions;
+  final List<Map<String, dynamic>> problems;
   final List<Map<String, dynamic>> encounters;
   final List<Map<String, dynamic>> vitalSigns;
   final List<Map<String, dynamic>> labResults;
   final List<Map<String, dynamic>> immunizations;
   final List<Map<String, dynamic>> clinicalNotes;
+  final List<Map<String, dynamic>> documents;
+  final Map<String, dynamic> contactInformation;
+  final List<Map<String, dynamic>> emergencyContacts;
 
   const PatientEmrChart({
     required this.patient,
     required this.allergies,
     required this.medications,
     required this.conditions,
+    required this.problems,
     required this.encounters,
     required this.vitalSigns,
     required this.labResults,
     required this.immunizations,
     required this.clinicalNotes,
+    required this.documents,
+    this.contactInformation = const {},
+    this.emergencyContacts = const [],
   });
 
   factory PatientEmrChart.fromJson(Map<String, dynamic> json) {
@@ -33,16 +41,24 @@ class PatientEmrChart {
           .toList();
     }
 
+    final conditions = list('conditions');
+    final problems = list('problems');
     return PatientEmrChart(
       patient: Map<String, dynamic>.from(json['patient'] as Map? ?? const {}),
       allergies: list('allergies'),
       medications: list('medications'),
-      conditions: list('conditions'),
+      conditions: conditions.isEmpty ? problems : conditions,
+      problems: problems,
       encounters: list('encounters'),
       vitalSigns: list('vitalSigns'),
       labResults: list('labResults'),
       immunizations: list('immunizations'),
       clinicalNotes: list('clinicalNotes'),
+      documents: list('documents'),
+      contactInformation: Map<String, dynamic>.from(
+        json['contactInformation'] as Map? ?? const {},
+      ),
+      emergencyContacts: list('emergencyContacts'),
     );
   }
 
@@ -51,22 +67,30 @@ class PatientEmrChart {
     List<Map<String, dynamic>>? allergies,
     List<Map<String, dynamic>>? medications,
     List<Map<String, dynamic>>? conditions,
+    List<Map<String, dynamic>>? problems,
     List<Map<String, dynamic>>? encounters,
     List<Map<String, dynamic>>? vitalSigns,
     List<Map<String, dynamic>>? labResults,
     List<Map<String, dynamic>>? immunizations,
     List<Map<String, dynamic>>? clinicalNotes,
+    List<Map<String, dynamic>>? documents,
+    Map<String, dynamic>? contactInformation,
+    List<Map<String, dynamic>>? emergencyContacts,
   }) {
     return PatientEmrChart(
       patient: patient ?? this.patient,
       allergies: allergies ?? this.allergies,
       medications: medications ?? this.medications,
       conditions: conditions ?? this.conditions,
+      problems: problems ?? this.problems,
       encounters: encounters ?? this.encounters,
       vitalSigns: vitalSigns ?? this.vitalSigns,
       labResults: labResults ?? this.labResults,
       immunizations: immunizations ?? this.immunizations,
       clinicalNotes: clinicalNotes ?? this.clinicalNotes,
+      documents: documents ?? this.documents,
+      contactInformation: contactInformation ?? this.contactInformation,
+      emergencyContacts: emergencyContacts ?? this.emergencyContacts,
     );
   }
 
@@ -87,7 +111,6 @@ class EmrApiService {
     return _parseChart(response.data);
   }
 
-  /// Create / repair OpenEMR chart link for this clinic patient.
   Future<Map<String, dynamic>> ensurePatientEmr(
     String userId, {
     Map<String, dynamic>? profileHint,
@@ -116,6 +139,82 @@ class EmrApiService {
     final data = response.data;
     if (data is Map<String, dynamic>) return data;
     return const {};
+  }
+
+  Future<PatientEmrChart> addAllergy(
+    String userId, {
+    required String allergen,
+    String? reaction,
+    String? severity,
+  }) async {
+    final response = await _client.post(
+      '/emr/patients/$userId/allergies',
+      data: {
+        'allergen': allergen,
+        if (reaction != null) 'reaction': reaction,
+        if (severity != null) 'severity': severity,
+      },
+    );
+    return _parseChart(response.data);
+  }
+
+  Future<PatientEmrChart> addMedication(
+    String userId, {
+    required String name,
+    String? dosage,
+    String? frequency,
+    String? route,
+  }) async {
+    final response = await _client.post(
+      '/emr/patients/$userId/medications',
+      data: {
+        'name': name,
+        if (dosage != null) 'dosage': dosage,
+        if (frequency != null) 'frequency': frequency,
+        if (route != null) 'route': route,
+      },
+    );
+    return _parseChart(response.data);
+  }
+
+  Future<PatientEmrChart> addCondition(
+    String userId, {
+    required String name,
+    String? icd10Code,
+    String? status,
+  }) async {
+    final response = await _client.post(
+      '/emr/patients/$userId/conditions',
+      data: {
+        'name': name,
+        if (icd10Code != null) 'icd10Code': icd10Code,
+        if (status != null) 'status': status,
+      },
+    );
+    return _parseChart(response.data);
+  }
+
+  Future<PatientEmrChart> addVital(
+    String userId, {
+    String? bloodPressure,
+    double? heartRate,
+    double? temperatureCelsius,
+    double? oxygenSaturation,
+    double? weightKg,
+    double? heightCm,
+  }) async {
+    final response = await _client.post(
+      '/emr/patients/$userId/vitals',
+      data: {
+        if (bloodPressure != null) 'bloodPressure': bloodPressure,
+        if (heartRate != null) 'heartRate': heartRate,
+        if (temperatureCelsius != null) 'temperatureCelsius': temperatureCelsius,
+        if (oxygenSaturation != null) 'oxygenSaturation': oxygenSaturation,
+        if (weightKg != null) 'weightKg': weightKg,
+        if (heightCm != null) 'heightCm': heightCm,
+      },
+    );
+    return _parseChart(response.data);
   }
 
   PatientEmrChart _parseChart(dynamic data) {
