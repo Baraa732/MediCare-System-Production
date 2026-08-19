@@ -1,5 +1,4 @@
 import 'package:cms_doctor_app/core/api/services/appointment_api_service.dart';
-import 'package:cms_doctor_app/core/utils/date_format.dart';
 import 'package:cms_doctor_app/features/patients/patient_record_screen.dart';
 import 'package:cms_doctor_app/injection.dart';
 import 'package:flutter/material.dart';
@@ -21,7 +20,7 @@ class DayViewScreen extends StatefulWidget {
 
 class _DayViewScreenState extends State<DayViewScreen> {
   final int _navIndex = 0;
-  late DateTime _weekStart;
+  late DateTime _today;
   List<DoctorAppointment> _appointments = [];
   List<Map<String, dynamic>> _clinicHours = [];
   bool _loading = true;
@@ -31,7 +30,7 @@ class _DayViewScreenState extends State<DayViewScreen> {
   void initState() {
     super.initState();
     final now = DateTime.now();
-    _weekStart = DateTime(now.year, now.month, now.day);
+    _today = DateTime(now.year, now.month, now.day);
     _load();
   }
 
@@ -41,9 +40,9 @@ class _DayViewScreenState extends State<DayViewScreen> {
       _error = null;
     });
     try {
-      final weekEnd = _weekStart.add(const Duration(days: 7));
+      final dayEnd = _today.add(const Duration(days: 1));
       final results = await Future.wait([
-        appointmentApi.getMySchedule(from: _weekStart, to: weekEnd),
+        appointmentApi.getMySchedule(from: _today, to: dayEnd),
         scheduleApi.getClinicHours().catchError((_) => <Map<String, dynamic>>[]),
       ]);
       if (!mounted) return;
@@ -70,9 +69,6 @@ class _DayViewScreenState extends State<DayViewScreen> {
   int get _arrivedCount =>
       _appointments.where((a) => a.status == 'CONFIRMED').length;
 
-  List<DateTime> get _days =>
-      List.generate(7, (i) => _weekStart.add(Duration(days: i)));
-
   Map<int, Map<String, dynamic>> get _hoursByDay {
     final map = <int, Map<String, dynamic>>{};
     for (final h in _clinicHours) {
@@ -90,38 +86,20 @@ class _DayViewScreenState extends State<DayViewScreen> {
     return h * 60 + m;
   }
 
+  Map<String, dynamic>? get _todayHours => _hoursByDay[_today.weekday % 7];
+
   int get _gridStartHour {
-    var minMins = 24 * 60;
-    for (final h in _hoursByDay.values) {
-      if (h['isClosed'] == true) continue;
-      minMins = _minutes(h['openTime']?.toString() ?? '09:00',
-          fallback: minMins) < minMins
-          ? _minutes(h['openTime']?.toString() ?? '09:00')
-          : minMins;
-    }
-    if (minMins == 24 * 60) return 8;
-    return (minMins ~/ 60).clamp(0, 23);
+    final slot = _todayHours;
+    if (slot == null || slot['isClosed'] == true) return 8;
+    final openTime = slot['openTime']?.toString() ?? '09:00';
+    return (_minutes(openTime) ~/ 60).clamp(0, 23);
   }
 
   int get _gridEndHour {
-    var maxMins = 0;
-    for (final h in _hoursByDay.values) {
-      if (h['isClosed'] == true) continue;
-      maxMins = _minutes(h['closeTime']?.toString() ?? '17:00',
-              fallback: maxMins) >
-          maxMins
-          ? _minutes(h['closeTime']?.toString() ?? '17:00')
-          : maxMins;
-    }
-    if (maxMins == 0) return 17;
-    return (maxMins / 60).ceil().clamp(1, 24);
-  }
-
-  void _shiftWeek(int delta) {
-    setState(() {
-      _weekStart = _weekStart.add(Duration(days: 7 * delta));
-    });
-    _load();
+    final slot = _todayHours;
+    if (slot == null || slot['isClosed'] == true) return 17;
+    final closeTime = slot['closeTime']?.toString() ?? '17:00';
+    return (_minutes(closeTime) / 60).ceil().clamp(1, 24);
   }
 
   List<DoctorAppointment> _forDayHour(DateTime day, int hour) {
@@ -141,89 +119,69 @@ class _DayViewScreenState extends State<DayViewScreen> {
     return slot['isClosed'] == true;
   }
 
-  Widget _buildWeekTable(int hourStart, int hourEnd) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Column(
-        children: [
-          Row(
-            children: [
-              const SizedBox(width: 62),
-              for (final d in _days)
-                Container(
-                  width: 150,
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  alignment: Alignment.center,
-                  child: Text(
-                    '${DateFormat.E().format(d)} ${d.day}',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: isSameDay(d, DateTime.now())
-                          ? const Color(0xFF0B74FA)
-                          : const Color(0xFF1A1B1E),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          for (int hour = hourStart; hour < hourEnd; hour++)
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 62,
-                  padding: const EdgeInsets.only(top: 12, right: 8),
-                  child: Text(
-                    DateFormat.j().format(DateTime(2020, 1, 1, hour)),
-                    textAlign: TextAlign.right,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF929296),
-                    ),
-                  ),
-                ),
-                for (final d in _days)
-                  Builder(
-                    builder: (_) {
-                      final closed = _isClosed(d);
-                      final items = _forDayHour(d, hour);
-                      return Container(
-                        width: 150,
-                        constraints: const BoxConstraints(minHeight: 74),
-                        margin: const EdgeInsets.all(2),
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: closed
-                              ? const Color(0xFFF2F2F2)
-                              : const Color(0xFFFBFCFF),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: const Color(0xFFE4E6EB)),
+  Widget _buildDayTable(int hourStart, int hourEnd) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const timeAxisWidth = 62.0;
+        final dayWidth =
+            (constraints.maxWidth - timeAxisWidth).clamp(90.0, double.infinity);
+        final closed = _isClosed(_today);
+        return Column(
+          children: [
+            for (int hour = hourStart; hour < hourEnd; hour++)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: timeAxisWidth,
+                    child: Container(
+                      padding: const EdgeInsets.only(top: 12, right: 8),
+                      child: Text(
+                        DateFormat.j().format(DateTime(2020, 1, 1, hour)),
+                        textAlign: TextAlign.right,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF929296),
                         ),
-                        child: closed
-                            ? const Text(
-                                'Off',
-                                style: TextStyle(
-                                  color: Color(0xFF929296),
-                                  fontSize: 12,
-                                ),
-                              )
-                            : Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  for (final a in items)
-                                    _WeekAppointmentChip(
-                                      appointment: a,
-                                      onRefresh: _load,
-                                    ),
-                                ],
-                              ),
-                      );
-                    },
+                      ),
+                    ),
                   ),
-              ],
-            ),
-        ],
-      ),
+                  Container(
+                    width: dayWidth,
+                    constraints: const BoxConstraints(minHeight: 74),
+                    margin: const EdgeInsets.symmetric(horizontal: 1, vertical: 2),
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: closed
+                          ? const Color(0xFFF2F2F2)
+                          : const Color(0xFFFBFCFF),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFE4E6EB)),
+                    ),
+                    child: closed
+                        ? const Text(
+                            'Off',
+                            style: TextStyle(
+                              color: Color(0xFF929296),
+                              fontSize: 12,
+                            ),
+                          )
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              for (final a in _forDayHour(_today, hour))
+                                _WeekAppointmentChip(
+                                  appointment: a,
+                                  onRefresh: _load,
+                                ),
+                            ],
+                          ),
+                  ),
+                ],
+              ),
+          ],
+        );
+      },
     );
   }
 
@@ -235,16 +193,15 @@ class _DayViewScreenState extends State<DayViewScreen> {
     final arrivedProgress = total == 0 ? 0.0 : _arrivedCount / total;
     final hourStart = _gridStartHour;
     final hourEnd = _gridEndHour;
-    final rangeLabel =
-        '${DateFormat.MMMd().format(_weekStart)} - ${DateFormat.MMMd().format(_weekStart.add(const Duration(days: 6)))}';
+    final dateLabel = DateFormat('EEEE, MMM d').format(_today);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF2F2F2),
       body: ScheduleWorkspace(
         activeTab: 0,
         boardCaption: total == 0
-            ? 'Weekly board is ready.'
-            : '$total visits in this 7-day scheduler.',
+            ? 'Today schedule is ready.'
+            : '$total visits today.',
         onNotificationTap: () => openNotifications(context),
         onRefresh: _load,
         metrics: [
@@ -282,28 +239,81 @@ class _DayViewScreenState extends State<DayViewScreen> {
                   children: [
                     Row(
                       children: [
-                        IconButton(
-                          onPressed: () => _shiftWeek(-1),
-                          icon: const Icon(Icons.chevron_left),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Daily Schedule',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF1A1B1E),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEEF4FF),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.calendar_month_rounded,
+                                    size: 16,
+                                    color: Color(0xFF0B74FA),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    dateLabel,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 12.5,
+                                      color: Color(0xFF1A1B1E),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Icon(
+                                    Icons.keyboard_arrow_down_rounded,
+                                    size: 16,
+                                    color: Color(0xFF929296),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                        Expanded(
-                          child: Text(
-                            'Week Scheduler\n$rangeLabel',
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF1A1B1E),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEEF4FF),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: const Color(0xFF0B74FA),
+                              width: 1.0,
                             ),
                           ),
-                        ),
-                        IconButton(
-                          onPressed: () => _shiftWeek(1),
-                          icon: const Icon(Icons.chevron_right),
+                          child: const Text(
+                            'Today',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12,
+                              color: Color(0xFF0B74FA),
+                            ),
+                          ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 8),
-                    _buildWeekTable(hourStart, hourEnd),
+                    _buildDayTable(hourStart, hourEnd),
                   ],
                 ),
               ),
@@ -321,7 +331,7 @@ class _DayViewScreenState extends State<DayViewScreen> {
               hasScrollBody: false,
               child: ScheduleEmptyState(
                 error: _error,
-                title: 'Could not load weekly scheduler',
+                title: 'Could not load daily scheduler',
               ),
             )
           else

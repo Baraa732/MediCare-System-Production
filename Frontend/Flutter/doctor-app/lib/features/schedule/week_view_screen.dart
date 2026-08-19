@@ -30,7 +30,9 @@ class _WeekViewScreenState extends State<WeekViewScreen> {
   void initState() {
     super.initState();
     final now = DateTime.now();
-    _weekStart = DateTime(now.year, now.month, now.day);
+    // Monday-start week (so the board matches the calendar screenshot).
+    _weekStart = DateTime(now.year, now.month, now.day)
+        .subtract(Duration(days: now.weekday - 1));
     _load();
   }
 
@@ -134,88 +136,96 @@ class _WeekViewScreenState extends State<WeekViewScreen> {
   }
 
   Widget _buildWeekTable(int hourStart, int hourEnd) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Column(
-        children: [
-          Row(
-            children: [
-              const SizedBox(width: 62),
-              for (final d in _days)
-                Container(
-                  width: 150,
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  alignment: Alignment.center,
-                  child: Text(
-                    '${DateFormat.E().format(d)} ${d.day}',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: isSameDay(d, DateTime.now())
-                          ? const Color(0xFF0B74FA)
-                          : const Color(0xFF1A1B1E),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          for (int hour = hourStart; hour < hourEnd; hour++)
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const timeAxisWidth = 62.0;
+        final dayWidth = (constraints.maxWidth - timeAxisWidth) / 7;
+
+        return Column(
+          children: [
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 62,
-                  padding: const EdgeInsets.only(top: 12, right: 8),
-                  child: Text(
-                    DateFormat.j().format(DateTime(2020, 1, 1, hour)),
-                    textAlign: TextAlign.right,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF929296),
-                    ),
-                  ),
-                ),
+                const SizedBox(width: timeAxisWidth),
                 for (final d in _days)
-                  Builder(
-                    builder: (_) {
-                      final closed = _isClosed(d);
-                      final items = _forDayHour(d, hour);
-                      return Container(
-                        width: 150,
-                        constraints: const BoxConstraints(minHeight: 74),
-                        margin: const EdgeInsets.all(2),
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: closed
-                              ? const Color(0xFFF2F2F2)
-                              : const Color(0xFFFBFCFF),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: const Color(0xFFE4E6EB)),
-                        ),
-                        child: closed
-                            ? const Text(
-                                'Off',
-                                style: TextStyle(
-                                  color: Color(0xFF929296),
-                                  fontSize: 12,
-                                ),
-                              )
-                            : Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  for (final a in items)
-                                    _WeekAppointmentChip(
-                                      appointment: a,
-                                      onRefresh: _load,
-                                    ),
-                                ],
-                              ),
-                      );
-                    },
+                  Container(
+                    width: dayWidth,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    alignment: Alignment.center,
+                    child: Text(
+                      '${DateFormat.E().format(d)} ${d.day}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: isSameDay(d, DateTime.now())
+                            ? const Color(0xFF0B74FA)
+                            : const Color(0xFF1A1B1E),
+                      ),
+                    ),
                   ),
               ],
             ),
-        ],
-      ),
+            for (int hour = hourStart; hour < hourEnd; hour++)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: timeAxisWidth,
+                    child: Container(
+                      padding: const EdgeInsets.only(top: 12, right: 8),
+                      child: Text(
+                        DateFormat.j().format(DateTime(2020, 1, 1, hour)),
+                        textAlign: TextAlign.right,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF929296),
+                        ),
+                      ),
+                    ),
+                  ),
+                  for (final d in _days)
+                    Builder(
+                      builder: (_) {
+                        final closed = _isClosed(d);
+                        final items = _forDayHour(d, hour);
+                        return Container(
+                          width: dayWidth,
+                          constraints: const BoxConstraints(minHeight: 74),
+                          margin:
+                              const EdgeInsets.symmetric(horizontal: 1, vertical: 2),
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: closed
+                                ? const Color(0xFFF2F2F2)
+                                : const Color(0xFFFBFCFF),
+                            borderRadius: BorderRadius.circular(10),
+                            border:
+                                Border.all(color: const Color(0xFFE4E6EB)),
+                          ),
+                          child: closed
+                              ? const Text(
+                                  'Off',
+                                  style: TextStyle(
+                                    color: Color(0xFF929296),
+                                    fontSize: 12,
+                                  ),
+                                )
+                              : Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    for (final a in items)
+                                      _WeekAppointmentChip(
+                                        appointment: a,
+                                        onRefresh: _load,
+                                      ),
+                                  ],
+                                ),
+                        );
+                      },
+                    ),
+                ],
+              ),
+          ],
+        );
+      },
     );
   }
 

@@ -461,6 +461,17 @@ export class UserService {
       }
     }
 
+    if (candidate && [UserRole.CLINIC_ADMIN, UserRole.DOCTOR, UserRole.SECRETARY].includes(candidate.role)) {
+      const related = await this.tenantAccess.hasStaffClinicRelation(
+        ctxTenant,
+        id,
+        candidate.role,
+      );
+      if (related) {
+        return candidate;
+      }
+    }
+
     throw new NotFoundException('User not found');
   }
 

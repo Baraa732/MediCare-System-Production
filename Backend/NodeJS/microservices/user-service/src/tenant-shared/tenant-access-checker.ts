@@ -4,6 +4,7 @@ import { createInternalAuthHeadersForUrl } from '../internal-auth-shared/interna
 
 export interface TenantAccessChecker {
   assertStaffAccess(tenantId: string, userId: string, role: string): Promise<void>;
+  hasStaffClinicRelation(tenantId: string, userId: string, role: string): Promise<boolean>;
   assertPatientAccess(tenantId: string, patientId: string): Promise<void>;
   assertDoctorPatientAccess(tenantId: string, doctorId: string, patientId: string): Promise<void>;
 }
@@ -55,6 +56,28 @@ export class HttpTenantAccessChecker implements TenantAccessChecker {
       if (error instanceof ForbiddenException) throw error;
       this.logger.error(`assertStaffAccess failed: ${error}`);
       throw new ForbiddenException('Unable to verify clinic access');
+    }
+  }
+
+  async hasStaffClinicRelation(tenantId: string, userId: string, role: string): Promise<boolean> {
+    if (role === 'SYSTEM_MANAGER') return true;
+
+    const staffRoles = new Set(['CLINIC_ADMIN', 'SECRETARY', 'DOCTOR']);
+    if (!staffRoles.has(role)) {
+      return false;
+    }
+
+    try {
+      const url = `${this.clinicBaseUrl}/v1/clinics/internal/check-access`;
+      const body = { clinicId: tenantId, userId, role };
+      const res = await axios.post(url, body, {
+        timeout: 5000,
+        headers: this.internalHeaders('POST', url, body),
+      });
+      return res.data?.allowed === true;
+    } catch (error) {
+      this.logger.error(`hasStaffClinicRelation failed: ${error}`);
+      return false;
     }
   }
 
