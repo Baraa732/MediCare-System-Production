@@ -293,7 +293,7 @@ class _WeekViewScreenState extends State<WeekViewScreen> {
                         ),
                         Expanded(
                           child: Text(
-                            'Week Scheduler\n$rangeLabel',
+                            'Weekly Schedule\n$rangeLabel',
                             textAlign: TextAlign.center,
                             style: const TextStyle(
                               fontWeight: FontWeight.w700,
