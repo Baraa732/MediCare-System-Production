@@ -66,6 +66,8 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
       if (result.session != null) {
+        await pushNotificationService.onUserAuthenticated();
+        if (!mounted) return;
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const DayViewScreen()),

@@ -4,6 +4,7 @@ import 'package:cms_doctor_app/core/api/services/auth_api_service.dart';
 import 'package:cms_doctor_app/core/api/services/emr_api_service.dart';
 import 'package:cms_doctor_app/core/api/services/notification_api_service.dart';
 import 'package:cms_doctor_app/core/api/services/schedule_api_service.dart';
+import 'package:cms_doctor_app/core/notifications/push_notification_service.dart';
 import 'package:cms_doctor_app/core/storage/session_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -13,6 +14,7 @@ late final AuthApiService authApi;
 late final AppointmentApiService appointmentApi;
 late final EmrApiService emrApi;
 late final NotificationApiService notificationApi;
+late final PushNotificationService pushNotificationService;
 late final ScheduleApiService scheduleApi;
 
 Future<void> initDoctorApp() async {
@@ -23,5 +25,11 @@ Future<void> initDoctorApp() async {
   appointmentApi = AppointmentApiService(apiClient, sessionStorage);
   emrApi = EmrApiService(apiClient);
   notificationApi = NotificationApiService(apiClient);
+  pushNotificationService = PushNotificationService(
+    notificationApi: notificationApi,
+    sessionStorage: sessionStorage,
+    prefs: prefs,
+  );
   scheduleApi = ScheduleApiService(apiClient, sessionStorage);
+  await pushNotificationService.initialize();
 }

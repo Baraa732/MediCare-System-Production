@@ -88,7 +88,7 @@ export class NotificationController {
 
   @Post('push/register')
   @UseGuards(JwtAuthGuard, RolesGuard, TenantGuard, TenantAuthorizationGuard)
-  @Roles('SECRETARY', 'CLINIC_ADMIN', 'SYSTEM_MANAGER')
+  @Roles('SECRETARY', 'CLINIC_ADMIN', 'DOCTOR', 'SYSTEM_MANAGER')
   @HttpCode(HttpStatus.OK)
   async registerPushDevice(
     @Request() req: { user: { userId: string } },
@@ -105,7 +105,7 @@ export class NotificationController {
 
   @Delete('push/register')
   @UseGuards(JwtAuthGuard, RolesGuard, TenantGuard, TenantAuthorizationGuard)
-  @Roles('SECRETARY', 'CLINIC_ADMIN', 'SYSTEM_MANAGER')
+  @Roles('SECRETARY', 'CLINIC_ADMIN', 'DOCTOR', 'SYSTEM_MANAGER')
   @HttpCode(HttpStatus.OK)
   async unregisterPushDevice(
     @Request() req: { user: { userId: string } },

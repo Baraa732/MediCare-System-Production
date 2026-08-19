@@ -186,6 +186,26 @@ export function broadcastToPatients(
   })
 }
 
+export function broadcastToDoctors(
+  token: string,
+  body: { title: string; body: string },
+) {
+  return apiRequest<{
+    success: boolean
+    title: string
+    queued: number
+    inboxSaved: number
+    pushSuccess: number
+    pushFailed: number
+    batches: number
+    message: string
+  }>('/system-manager/platform/notifications/broadcast-doctors', {
+    method: 'POST',
+    body,
+    token,
+  })
+}
+
 /** Paginate until all platform users are loaded (for staff name lookup). */
 export async function listAllUsers(token: string, pageSize = 100) {
   const all: PlatformUser[] = []

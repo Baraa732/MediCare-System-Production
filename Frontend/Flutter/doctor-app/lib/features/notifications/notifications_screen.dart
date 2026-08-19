@@ -14,7 +14,7 @@ class NotificationsScreen extends StatefulWidget {
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
   int _filterIndex = 0;
-  static const _filters = ['All', 'Unread', 'Appointments', 'Leaves'];
+  static const _filters = ['All', 'Unread', 'Appointments', 'Broadcasts'];
 
   List<StaffNotification> _notifications = [];
   bool _loading = true;
@@ -51,9 +51,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   int get _unreadCount => _notifications.where((n) => n.isUnread).length;
 
   String _category(StaffNotification n) {
-    final hay =
-        '${n.title} ${n.body}'.toLowerCase();
-    if (hay.contains('leave') || hay.contains('blocked')) return 'Leaves';
+    switch (n.category.toUpperCase()) {
+      case 'SYSTEM':
+        return 'Broadcasts';
+      case 'APPOINTMENT_CREATED':
+      case 'APPOINTMENT_UPDATED':
+      case 'APPOINTMENT_CANCELLED':
+      case 'APPOINTMENT_REQUESTED':
+        return 'Appointments';
+    }
+    final hay = '${n.title} ${n.body}'.toLowerCase();
+    if (hay.contains('broadcast') || hay.contains('system')) return 'Broadcasts';
     if (hay.contains('appointment') ||
         hay.contains('visit') ||
         hay.contains('schedule') ||
@@ -65,7 +73,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   Color _color(StaffNotification n) {
     switch (_category(n)) {
-      case 'Leaves':
+      case 'Broadcasts':
         return const Color(0xFF43A047);
       case 'Appointments':
         return const Color(0xFF1E88E5);
@@ -83,7 +91,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             .where((n) => _category(n) == 'Appointments')
             .toList();
       case 3:
-        return _notifications.where((n) => _category(n) == 'Leaves').toList();
+        return _notifications
+            .where((n) => _category(n) == 'Broadcasts')
+            .toList();
       default:
         return _notifications;
     }

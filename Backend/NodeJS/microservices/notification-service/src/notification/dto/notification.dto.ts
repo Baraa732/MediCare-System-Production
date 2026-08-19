@@ -84,6 +84,24 @@ export class BroadcastPatientsDto {
   userIds: string[];
 }
 
+export class BroadcastDoctorsDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(80)
+  title: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(500)
+  body: string;
+
+  @IsArray()
+  @ArrayNotEmpty()
+  @ArrayMaxSize(500)
+  @IsUUID('4', { each: true })
+  userIds: string[];
+}
+
 export class NotifySystemManagersDto {
   @IsArray()
   @ArrayNotEmpty()

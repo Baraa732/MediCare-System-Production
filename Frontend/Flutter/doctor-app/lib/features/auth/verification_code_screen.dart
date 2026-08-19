@@ -114,6 +114,8 @@ class _VerificationCodeScreenState extends State<VerificationCodeScreen> {
         return;
       }
 
+      await pushNotificationService.onUserAuthenticated();
+      if (!mounted) return;
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const DayViewScreen()),

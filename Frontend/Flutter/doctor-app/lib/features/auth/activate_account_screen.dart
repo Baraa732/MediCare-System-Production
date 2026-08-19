@@ -55,6 +55,7 @@ class _ActivateAccountScreenState extends State<ActivateAccountScreen> {
         activationToken: widget.activationToken,
         newPassword: password,
       );
+      await pushNotificationService.onUserAuthenticated();
       if (!mounted) return;
       Navigator.pushAndRemoveUntil(
         context,

@@ -4,6 +4,7 @@ class StaffNotification {
   final String id;
   final String title;
   final String body;
+  final String category;
   final bool isUnread;
   final DateTime? createdAt;
 
@@ -11,6 +12,7 @@ class StaffNotification {
     required this.id,
     required this.title,
     required this.body,
+    required this.category,
     required this.isUnread,
     this.createdAt,
   });
@@ -20,6 +22,7 @@ class StaffNotification {
       id: json['id']?.toString() ?? '',
       title: json['title']?.toString() ?? 'Notification',
       body: json['body']?.toString() ?? json['message']?.toString() ?? '',
+      category: json['category']?.toString() ?? 'SYSTEM',
       isUnread: json['isUnread'] == true ||
           json['read'] == false ||
           json['readAt'] == null,
@@ -59,5 +62,27 @@ class NotificationApiService {
 
   Future<void> markAllRead() async {
     await _client.patch('/notifications/staff/inbox/read-all');
+  }
+
+  Future<void> registerPushDevice({
+    required String fcmToken,
+    String platform = 'android',
+    String? deviceLabel,
+  }) async {
+    await _client.post(
+      '/notifications/push/register',
+      data: {
+        'fcmToken': fcmToken,
+        'platform': platform,
+        if (deviceLabel != null) 'deviceLabel': deviceLabel,
+      },
+    );
+  }
+
+  Future<void> unregisterPushDevice({required String fcmToken}) async {
+    await _client.delete(
+      '/notifications/push/register',
+      data: {'fcmToken': fcmToken},
+    );
   }
 }

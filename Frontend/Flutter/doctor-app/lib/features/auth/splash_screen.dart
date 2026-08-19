@@ -24,6 +24,7 @@ class _SplashScreenState extends State<SplashScreen> {
     if (sessionStorage.isLoggedIn) {
       try {
         await authApi.refreshProfileNames();
+        await pushNotificationService.onUserAuthenticated();
       } catch (_) {}
     }
     if (!mounted) return;

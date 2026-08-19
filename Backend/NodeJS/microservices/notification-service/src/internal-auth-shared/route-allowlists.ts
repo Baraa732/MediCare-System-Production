@@ -86,6 +86,7 @@ export const INTERNAL_ROUTE_ALLOWLISTS: Record<InternalServiceName, RouteAllowli
   },
   'notification-service': {
     'POST /v1/notifications/internal/appointment-reminder': ['reminder-service'],
+    'POST /v1/notifications/internal/broadcast-doctors': ['system-manager-service'],
     'POST /v1/notifications/internal/broadcast-patients': ['system-manager-service'],
     'POST /v1/notifications/internal/system-managers': ['system-manager-service'],
   },

@@ -10,7 +10,7 @@ import {
 } from '@mui/material'
 import { alpha, useTheme } from '@mui/material/styles'
 import { Megaphone, Send } from 'lucide-react'
-import { broadcastToPatients } from '../../api/systemManager'
+import { broadcastToDoctors, broadcastToPatients } from '../../api/systemManager'
 import { normalizeError } from '../../api/errors'
 import { useAuthStore } from '../../store/authStore'
 import { notify } from '../../lib/toast'
@@ -33,9 +33,12 @@ type BroadcastResult = {
   message: string
 }
 
+type Audience = 'patients' | 'doctors'
+
 export default function BroadcastNotification() {
   const theme = useTheme()
   const token = useAuthStore((s) => s.token)
+  const [audience, setAudience] = useState<Audience>('patients')
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [loading, setLoading] = useState(false)
@@ -49,25 +52,33 @@ export default function BroadcastNotification() {
   const preview = useMemo(
     () => ({
       title: title.trim() || 'Notification title',
-      body: body.trim() || 'Message body will appear here for every patient.',
+      body:
+        body.trim() ||
+        `Message body will appear here for every ${audience === 'patients' ? 'patient' : 'doctor'}.`,
     }),
-    [title, body],
+    [title, body, audience],
   )
 
   const onSend = async () => {
     if (!token || !canSend) return
     const confirmed = window.confirm(
-      'Send this notification to ALL patients on the platform?\n\nInbox + push (where devices are registered).',
+      `Send this notification to ALL ${audience} on the platform?\n\nInbox + push (where devices are registered).`,
     )
     if (!confirmed) return
 
     setError(null)
     setLoading(true)
     try {
-      const res = await broadcastToPatients(token, {
-        title: title.trim(),
-        body: body.trim(),
-      })
+      const res =
+        audience === 'patients'
+          ? await broadcastToPatients(token, {
+              title: title.trim(),
+              body: body.trim(),
+            })
+          : await broadcastToDoctors(token, {
+              title: title.trim(),
+              body: body.trim(),
+            })
       setResult(res)
       notify.success(res.message || 'Broadcast sent.')
       setTitle('')
@@ -81,19 +92,54 @@ export default function BroadcastNotification() {
     }
   }
 
+  const audienceLabel = audience === 'patients' ? 'Patients' : 'Doctors'
+
   return (
     <PageMotion>
       <Box sx={{ p: { xs: 1.5, md: 2.5 }, display: 'flex', flexDirection: 'column', gap: 2 }}>
         <MotionHeader>
           <AdvancedPageHeader
-            title="Broadcast to Patients"
+            title="Broadcast Notifications"
             eyebrow="Platform Messaging"
-            description="Compose a manual announcement and deliver it to every patient inbox — with FCM push when devices are registered."
+            description="Compose a manual announcement and deliver it to either every patient inbox or every doctor inbox — with FCM push when devices are registered."
             icon={Megaphone}
             color={ACCENT}
             status="Manual"
           />
         </MotionHeader>
+
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+          <Button
+            variant={audience === 'patients' ? 'contained' : 'outlined'}
+            onClick={() => {
+              setAudience('patients')
+              setResult(null)
+              setError(null)
+            }}
+            sx={{
+              bgcolor: audience === 'patients' ? ACCENT : undefined,
+              color: audience === 'patients' ? '#041016' : undefined,
+              fontWeight: 700,
+            }}
+          >
+            Patients
+          </Button>
+          <Button
+            variant={audience === 'doctors' ? 'contained' : 'outlined'}
+            onClick={() => {
+              setAudience('doctors')
+              setResult(null)
+              setError(null)
+            }}
+            sx={{
+              bgcolor: audience === 'doctors' ? ACCENT : undefined,
+              color: audience === 'doctors' ? '#041016' : undefined,
+              fontWeight: 700,
+            }}
+          >
+            Doctors
+          </Button>
+        </Box>
 
         {result ? (
           <Box
@@ -103,7 +149,7 @@ export default function BroadcastNotification() {
               gap: 1.5,
             }}
           >
-            <CommandMetric label="Patients queued" value={String(result.queued)} color="#06b6d4" />
+            <CommandMetric label={`${audienceLabel} queued`} value={String(result.queued)} color="#06b6d4" />
             <CommandMetric label="Inbox saved" value={String(result.inboxSaved)} color="#22c55e" />
             <CommandMetric label="Push delivered" value={String(result.pushSuccess)} color="#22c55e" />
             <CommandMetric label="Push failed" value={String(result.pushFailed)} color="#f59e0b" />
@@ -131,13 +177,13 @@ export default function BroadcastNotification() {
                 Compose message
               </Typography>
               <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
-                Sent as category SYSTEM to all ACTIVE / PENDING patients.
+                Sent as category SYSTEM to all ACTIVE / PENDING {audience}.
               </Typography>
 
               {result && result.queued > 0 && result.pushSuccess === 0 ? (
                 <Alert severity="warning" sx={{ mb: 2 }}>
                   Inbox rows were saved ({result.inboxSaved}), but no phone push was delivered
-                  ({result.pushFailed} failed). Patients only get a tray notification if the app
+                  ({result.pushFailed} failed). {audienceLabel} only get a tray notification if the app
                   registered an FCM token and Firebase Admin is configured on notification-service.
                 </Alert>
               ) : null}
@@ -185,7 +231,7 @@ export default function BroadcastNotification() {
                     '&:hover': { bgcolor: '#22d3ee' },
                   }}
                 >
-                  {loading ? 'Sending…' : 'Send to all patients'}
+                  {loading ? 'Sending…' : `Send to all ${audience}`}
                 </Button>
               </Box>
             </Box>
@@ -201,7 +247,7 @@ export default function BroadcastNotification() {
               }}
             >
               <Typography variant="overline" sx={{ color: ACCENT, letterSpacing: 1 }}>
-                Patient preview
+                {audienceLabel} preview
               </Typography>
               <Typography variant="h6" sx={{ mt: 1, mb: 1, fontSize: 15, fontWeight: 700 }}>
                 {preview.title}
@@ -210,7 +256,7 @@ export default function BroadcastNotification() {
                 {preview.body}
               </Typography>
               <Typography variant="caption" sx={{ display: 'block', mt: 2, color: 'text.disabled' }}>
-                Appears in patient inbox and as a push notification when FCM is enabled.
+                Appears in {audience} inboxes and as a push notification when FCM is enabled.
               </Typography>
             </Box>
           </MotionPanel>

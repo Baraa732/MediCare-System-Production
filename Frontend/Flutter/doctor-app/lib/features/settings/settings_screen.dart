@@ -70,6 +70,7 @@ class _SettingsScreenState extends State<SettingsScreen>
     setState(() => _loggingOut = true);
     try {
       await authApi.logout();
+      await pushNotificationService.onUserLoggedOut();
     } catch (_) {}
     if (!mounted) return;
     Navigator.pushAndRemoveUntil(

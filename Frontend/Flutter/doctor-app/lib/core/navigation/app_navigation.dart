@@ -8,9 +8,19 @@ import '../../features/schedule/week_view_screen.dart';
 import '../../features/settings/settings_screen.dart';
 import '../../features/shifts/shifts_screen.dart';
 
+final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
+
 void showSnack(BuildContext context, String message) {
 ScaffoldMessenger.of(context).showSnackBar(
 SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+);
+}
+
+void openNotificationsFromPush() {
+final navigator = appNavigatorKey.currentState;
+if (navigator == null) return;
+navigator.push(
+MaterialPageRoute(builder: (_) => const NotificationsScreen()),
 );
 }
 

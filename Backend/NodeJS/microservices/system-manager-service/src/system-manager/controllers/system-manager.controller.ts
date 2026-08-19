@@ -317,6 +317,22 @@ export class SystemManagerController {
     );
   }
 
+  /** Manual platform broadcast — inbox + FCM push to every doctor. */
+  @UseGuards(JwtAuthGuard)
+  @Post('platform/notifications/broadcast-doctors')
+  async broadcastToDoctors(
+    @Request() req,
+    @Body() body: { title?: string; body?: string },
+  ) {
+    if (req.user.role !== 'SYSTEM_MANAGER') {
+      throw new ForbiddenException('Only system managers can broadcast notifications');
+    }
+    return this.platformBroadcastService.broadcastToAllDoctors(
+      body?.title ?? '',
+      body?.body ?? '',
+    );
+  }
+
   @UseGuards(JwtAuthGuard)
   @Get('platform/clinics/:clinicId/staff')
   async listPlatformClinicStaff(

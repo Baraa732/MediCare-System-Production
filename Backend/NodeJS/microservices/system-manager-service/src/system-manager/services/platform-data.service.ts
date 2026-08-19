@@ -137,6 +137,39 @@ export class PlatformDataService implements OnModuleDestroy {
     }
   }
 
+  async listDoctorIds(page = 1, limit = 500): Promise<string[]> {
+    const pool = this.getUserPool();
+    if (!pool) return [];
+
+    const take = Math.min(Math.max(limit, 1), 1000);
+    const skip = (Math.max(page, 1) - 1) * take;
+    const started = Date.now();
+
+    try {
+      const result = await pool.query<{ id: string }>(
+        `SELECT id
+         FROM users
+         WHERE "deletedAt" IS NULL
+           AND role::text = 'DOCTOR'
+           AND status::text IN ('ACTIVE', 'PENDING_ACTIVATION')
+         ORDER BY "createdAt" ASC
+         LIMIT $1 OFFSET $2`,
+        [take, skip],
+      );
+      return result.rows.map((row) => row.id);
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      this.log.error('Failed to list doctor IDs', {
+        event: 'db_query_failed',
+        module: 'PlatformDataService',
+        query_name: 'platform_doctor_ids',
+        duration_ms: Date.now() - started,
+        err,
+      });
+      return [];
+    }
+  }
+
   async listUsers(page = 1, limit = 20): Promise<PlatformUserRecord[]> {
     const pool = this.getUserPool();
     if (!pool) return [];

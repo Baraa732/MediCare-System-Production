@@ -57,6 +57,38 @@ export class NotificationHttpClient {
     }
   }
 
+  async broadcastToDoctors(
+    title: string,
+    body: string,
+    userIds: string[],
+  ): Promise<BroadcastBatchResult> {
+    const path = '/v1/notifications/internal/broadcast-doctors';
+    const payload = { title, body, userIds };
+    try {
+      const res = await axios.post(`${this.baseUrl}${path}`, payload, {
+        timeout: 60_000,
+        headers: createInternalAuthHeadersForUrl(
+          this.serviceName,
+          this.signingSecret,
+          'POST',
+          path,
+          payload,
+        ),
+      });
+      return {
+        success: res.data?.success === true,
+        recipients: Number(res.data?.recipients ?? 0),
+        inboxSaved: Number(res.data?.inboxSaved ?? 0),
+        pushSuccess: Number(res.data?.pushSuccess ?? 0),
+        pushFailed: Number(res.data?.pushFailed ?? 0),
+      };
+    } catch (error) {
+      const msg = error instanceof AxiosError ? error.message : String(error);
+      this.logger.error(`broadcastToDoctors failed: ${msg}`);
+      throw error;
+    }
+  }
+
   async notifySystemManagers(payload: {
     userIds: string[];
     title: string;

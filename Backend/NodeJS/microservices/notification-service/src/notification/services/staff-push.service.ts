@@ -199,6 +199,100 @@ export class StaffPushService {
     }
   }
 
+  async notifyDoctorAppointment(
+    payload: AppointmentEventPayload,
+    category: StaffNotificationCategory,
+  ): Promise<void> {
+    const tenantId = payload.tenantId ?? payload.clinicId;
+    const clinic = await this.clinicHttpClient.getClinicById(tenantId);
+    const clinicName = clinic?.name ?? 'your clinic';
+    const scheduled = new Date(payload.scheduledAt);
+    const when = scheduled.toLocaleString('en-GB', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    const copy = this.doctorCopy(category, clinicName, when, payload.status);
+    await this.deliverToUser(payload.doctorId, {
+      category,
+      title: copy.title,
+      body: copy.body,
+      appointmentId: payload.appointmentId,
+      clinicId: tenantId,
+      data: {
+        appointmentId: payload.appointmentId,
+        clinicId: tenantId,
+        tenantId,
+        doctorId: payload.doctorId,
+        patientId: payload.patientId,
+        scheduledAt: payload.scheduledAt,
+        status: payload.status,
+        category,
+        deepLink: '/schedule',
+      },
+    });
+  }
+
+  async broadcastDoctorSystemMessage(
+    userIds: string[],
+    title: string,
+    body: string,
+  ): Promise<{
+    recipients: number;
+    inboxSaved: number;
+    pushSuccess: number;
+    pushFailed: number;
+  }> {
+    const uniqueIds = [...new Set(userIds.filter(Boolean))];
+    let inboxSaved = 0;
+    let pushSuccess = 0;
+    let pushFailed = 0;
+
+    const concurrency = 25;
+    for (let i = 0; i < uniqueIds.length; i += concurrency) {
+      const chunk = uniqueIds.slice(i, i + concurrency);
+      const results = await Promise.allSettled(
+        chunk.map((userId) =>
+          this.deliverToUser(userId, {
+            category: StaffNotificationCategory.SYSTEM,
+            title,
+            body,
+            requireTenant: false,
+            data: {
+              category: StaffNotificationCategory.SYSTEM,
+              deepLink: '/notifications',
+              source: 'platform_doctor_broadcast',
+              audience: 'doctor',
+            },
+          }),
+        ),
+      );
+
+      for (const result of results) {
+        if (result.status === 'fulfilled') {
+          inboxSaved += 1;
+          pushSuccess += result.value.pushSuccess ?? 0;
+          pushFailed += result.value.pushFailed ?? 0;
+        } else {
+          this.logger.warn(`Doctor broadcast deliver failed: ${result.reason}`);
+        }
+      }
+    }
+
+    this.logger.log(
+      `Platform broadcast to ${uniqueIds.length} doctors: inbox=${inboxSaved}, pushOk=${pushSuccess}, pushFail=${pushFailed}`,
+    );
+
+    return {
+      recipients: uniqueIds.length,
+      inboxSaved,
+      pushSuccess,
+      pushFailed,
+    };
+  }
+
   private buildCopy(
     category: StaffNotificationCategory,
     clinicName: string,
@@ -236,6 +330,47 @@ export class StaffPushService {
     }
   }
 
+  private doctorCopy(
+    category: StaffNotificationCategory,
+    clinicName: string,
+    when: string,
+    status: string,
+  ): { title: string; body: string } {
+    switch (category) {
+      case StaffNotificationCategory.APPOINTMENT_CANCELLED:
+        return {
+          title: 'Appointment cancelled',
+          body: `A visit on ${when} at ${clinicName} was cancelled.`,
+        };
+      case StaffNotificationCategory.APPOINTMENT_UPDATED:
+        return {
+          title: 'Appointment updated',
+          body: `A visit at ${clinicName} was moved to ${when}.`,
+        };
+      case StaffNotificationCategory.APPOINTMENT_REQUESTED:
+        return {
+          title: 'New appointment request',
+          body: `A patient requested a new visit at ${clinicName} for ${when}.`,
+        };
+      case StaffNotificationCategory.APPOINTMENT_CREATED:
+        if (status === 'REQUESTED') {
+          return {
+            title: 'New appointment request',
+            body: `A patient requested a new visit at ${clinicName} for ${when}.`,
+          };
+        }
+        return {
+          title: 'New appointment booked',
+          body: `You have a new appointment at ${clinicName} on ${when}.`,
+        };
+      case StaffNotificationCategory.SYSTEM:
+        return {
+          title: 'System update',
+          body: `MediCare sent an update for doctors at ${clinicName}.`,
+        };
+    }
+  }
+
   private async deliverToUser(
     userId: string,
     input: {
@@ -247,17 +382,25 @@ export class StaffPushService {
       requireTenant?: boolean;
       data: Record<string, unknown>;
     },
-  ): Promise<void> {
-    const tenantId =
+  ): Promise<{ pushSuccess: number; pushFailed: number }> {
+    let tenantId =
       input.clinicId ??
       (input.data.tenantId as string | undefined) ??
       (input.data.clinicId as string | undefined) ??
       this.tenantContext.getTenantId() ??
       undefined;
 
+    if (!tenantId && input.requireTenant === false) {
+      const existingToken = await this.tokenRepo.findOne({
+        where: { userId, enabled: true },
+        order: { lastSeenAt: 'DESC', createdAt: 'DESC' },
+      });
+      tenantId = existingToken?.tenantId ?? undefined;
+    }
+
     if (input.requireTenant !== false && !tenantId) {
       this.logger.warn(`Skipping staff inbox notification — missing tenantId for user ${userId}`);
-      return;
+      return { pushSuccess: 0, pushFailed: 0 };
     }
 
     const inbox = await this.inboxRepo.save(
@@ -276,7 +419,7 @@ export class StaffPushService {
       where: { userId, enabled: true },
     });
 
-    if (!tokens.length) return;
+    if (!tokens.length) return { pushSuccess: 0, pushFailed: 0 };
 
     const stringData: Record<string, string> = {
       notificationId: inbox.id,
@@ -310,5 +453,6 @@ export class StaffPushService {
     this.logger.log(
       `Push to user ${userId}: ${result.successCount} ok, ${result.failureCount} failed`,
     );
+    return { pushSuccess: result.successCount, pushFailed: result.failureCount };
   }
 }

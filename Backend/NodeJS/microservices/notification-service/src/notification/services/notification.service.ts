@@ -60,6 +60,7 @@ export class NotificationService {
       payload.status === 'REQUESTED'
         ? StaffNotificationCategory.APPOINTMENT_REQUESTED
         : StaffNotificationCategory.APPOINTMENT_CREATED;
+    await this.staffPushService.notifyDoctorAppointment(payload, category);
     await this.staffPushService.notifyClinicSecretaries(payload, category);
   }
 
@@ -68,6 +69,10 @@ export class NotificationService {
     await this.patientPushService.notifyFromAppointmentEvent(
       payload,
       NotificationType.APPOINTMENT_CANCELLED,
+    );
+    await this.staffPushService.notifyDoctorAppointment(
+      payload,
+      StaffNotificationCategory.APPOINTMENT_CANCELLED,
     );
     await this.staffPushService.notifyClinicSecretaries(
       payload,
@@ -80,6 +85,10 @@ export class NotificationService {
     await this.patientPushService.notifyFromAppointmentEvent(
       payload,
       NotificationType.APPOINTMENT_RESCHEDULED,
+    );
+    await this.staffPushService.notifyDoctorAppointment(
+      payload,
+      StaffNotificationCategory.APPOINTMENT_UPDATED,
     );
     await this.staffPushService.notifyClinicSecretaries(
       payload,

@@ -136,6 +136,14 @@ class ApiClient {
     return _request(() => _dio.patch<T>(path, data: data, options: options));
   }
 
+  Future<Response<T>> delete<T>(
+    String path, {
+    dynamic data,
+    Options? options,
+  }) {
+    return _request(() => _dio.delete<T>(path, data: data, options: options));
+  }
+
   Future<Response<T>> _request<T>(Future<Response<T>> Function() call) async {
     try {
       return await call();
