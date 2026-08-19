@@ -1,7 +1,7 @@
 /**
  * Upsert Firebase Admin + Android client env vars on notification-service.
  * Usage:
- *   node scripts/set-firebase-railway-vars.mjs "C:\path\to\serviceAccount.json"
+ *   node scripts/set-firebase-railway-vars.mjs "C:\path\to\serviceAccount.json" ["C:\path\to\doctor-google-services.json"]
  */
 import fs from 'fs';
 import os from 'os';
@@ -14,7 +14,7 @@ const ENV = '104d5d18-6ad3-48c3-8987-6198fd3484f6';
 const NOTIFICATION_SERVICE = '2c1f006e-bea4-4da9-b16a-06efa760a598';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const GOOGLE_SERVICES = path.resolve(
+const PATIENT_GOOGLE_SERVICES = path.resolve(
   __dirname,
   '../Frontend/Flutter/patient-app/android/app/google-services.json',
 );
@@ -58,26 +58,35 @@ async function gql(token, query, variables) {
 }
 
 const saPath = process.argv[2];
+const doctorGoogleServicesPath = process.argv[3];
 if (!saPath || !fs.existsSync(saPath)) {
-  console.error('Usage: node scripts/set-firebase-railway-vars.mjs <serviceAccount.json>');
+  console.error(
+    'Usage: node scripts/set-firebase-railway-vars.mjs <serviceAccount.json> [doctor-google-services.json]',
+  );
   process.exit(1);
 }
 
 const sa = JSON.parse(fs.readFileSync(saPath, 'utf8'));
-const gs = JSON.parse(fs.readFileSync(GOOGLE_SERVICES, 'utf8'));
+const patientGs = JSON.parse(fs.readFileSync(PATIENT_GOOGLE_SERVICES, 'utf8'));
+const doctorGs =
+  doctorGoogleServicesPath && fs.existsSync(doctorGoogleServicesPath)
+    ? JSON.parse(fs.readFileSync(doctorGoogleServicesPath, 'utf8'))
+    : null;
 
 const projectId = sa.project_id;
 const clientEmail = sa.client_email;
 const privateKeyEscaped = String(sa.private_key).replace(/\r\n/g, '\n').replace(/\n/g, '\\n');
-const androidApiKey = gs.client?.[0]?.api_key?.[0]?.current_key;
-const androidAppId = gs.client?.[0]?.client_info?.mobilesdk_app_id;
-const messagingSenderId = gs.project_info?.project_number;
-const storageBucket = gs.project_info?.storage_bucket;
+const patientAndroidApiKey = patientGs.client?.[0]?.api_key?.[0]?.current_key;
+const patientAndroidAppId = patientGs.client?.[0]?.client_info?.mobilesdk_app_id;
+const messagingSenderId = patientGs.project_info?.project_number;
+const storageBucket = patientGs.project_info?.storage_bucket;
+const doctorAndroidApiKey = doctorGs?.client?.[0]?.api_key?.[0]?.current_key;
+const doctorAndroidAppId = doctorGs?.client?.[0]?.client_info?.mobilesdk_app_id;
 
 if (!projectId || !clientEmail || !privateKeyEscaped.includes('BEGIN PRIVATE KEY')) {
   throw new Error('Invalid service account JSON');
 }
-if (!androidApiKey || !androidAppId || !messagingSenderId) {
+if (!patientAndroidApiKey || !patientAndroidAppId || !messagingSenderId) {
   throw new Error('Invalid google-services.json (missing api key / app id)');
 }
 
@@ -87,13 +96,18 @@ const variables = {
   FIREBASE_PRIVATE_KEY: privateKeyEscaped,
   FIREBASE_MESSAGING_SENDER_ID: String(messagingSenderId),
   FIREBASE_STORAGE_BUCKET: storageBucket || `${projectId}.appspot.com`,
-  FIREBASE_ANDROID_API_KEY: androidApiKey,
-  FIREBASE_ANDROID_APP_ID: androidAppId,
+  FIREBASE_ANDROID_API_KEY: patientAndroidApiKey,
+  FIREBASE_ANDROID_APP_ID: patientAndroidAppId,
   // Reuse Android client values for mobile-config / web bootstrap until a web app is added.
-  FIREBASE_WEB_API_KEY: androidApiKey,
-  FIREBASE_WEB_APP_ID: androidAppId,
+  FIREBASE_WEB_API_KEY: patientAndroidApiKey,
+  FIREBASE_WEB_APP_ID: patientAndroidAppId,
   FIREBASE_AUTH_DOMAIN: `${projectId}.firebaseapp.com`,
 };
+
+if (doctorAndroidApiKey && doctorAndroidAppId) {
+  variables.FIREBASE_DOCTOR_ANDROID_API_KEY = doctorAndroidApiKey;
+  variables.FIREBASE_DOCTOR_ANDROID_APP_ID = doctorAndroidAppId;
+}
 
 let token = loadRailwayToken();
 try {

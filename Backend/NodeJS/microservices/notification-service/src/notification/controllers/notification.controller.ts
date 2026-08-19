@@ -47,8 +47,8 @@ export class NotificationController {
   /** Public Firebase mobile config for Flutter patient/staff apps (safe to expose). */
   @Get('push/mobile-config')
   @SkipTenantGuard()
-  getMobilePushConfig() {
-    const config = this.firebasePushService.getMobileConfig();
+  getMobilePushConfig(@Query('app') app?: string) {
+    const config = this.firebasePushService.getMobileConfig(app);
     if (!config) {
       return { success: false, configured: false, config: null };
     }

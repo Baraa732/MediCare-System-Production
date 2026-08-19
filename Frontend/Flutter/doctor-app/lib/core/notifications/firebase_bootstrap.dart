@@ -65,6 +65,7 @@ class FirebaseBootstrap {
       );
       final response = await dio.get(
         '${ApiConfig.baseUrl}/notifications/push/mobile-config',
+        queryParameters: const {'app': 'doctor'},
       );
       final data = response.data;
       if (data is Map && data['configured'] == true && data['config'] is Map) {

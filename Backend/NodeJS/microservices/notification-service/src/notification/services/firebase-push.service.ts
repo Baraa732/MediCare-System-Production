@@ -24,6 +24,7 @@ export interface PushSendOptions {
 export class FirebasePushService implements OnModuleInit {
   private readonly logger = new Logger(FirebasePushService.name);
   private initialized = false;
+  private static readonly DOCTOR_APP = 'doctor';
 
   onModuleInit(): void {
     const projectId = process.env.FIREBASE_PROJECT_ID;
@@ -80,15 +81,21 @@ export class FirebasePushService implements OnModuleInit {
     };
   }
 
-  getMobileConfig(): Record<string, string> | null {
+  getMobileConfig(targetApp?: string): Record<string, string> | null {
     const projectId = process.env.FIREBASE_PROJECT_ID;
     const messagingSenderId = process.env.FIREBASE_MESSAGING_SENDER_ID;
-    const apiKey =
-      process.env.FIREBASE_ANDROID_API_KEY ||
-      process.env.FIREBASE_WEB_API_KEY;
-    const appId =
-      process.env.FIREBASE_ANDROID_APP_ID ||
-      process.env.FIREBASE_WEB_APP_ID;
+    const wantsDoctorConfig =
+      targetApp?.trim().toLowerCase() === FirebasePushService.DOCTOR_APP;
+    const apiKey = wantsDoctorConfig
+      ? process.env.FIREBASE_DOCTOR_ANDROID_API_KEY ||
+        process.env.FIREBASE_ANDROID_API_KEY ||
+        process.env.FIREBASE_WEB_API_KEY
+      : process.env.FIREBASE_ANDROID_API_KEY || process.env.FIREBASE_WEB_API_KEY;
+    const appId = wantsDoctorConfig
+      ? process.env.FIREBASE_DOCTOR_ANDROID_APP_ID ||
+        process.env.FIREBASE_ANDROID_APP_ID ||
+        process.env.FIREBASE_WEB_APP_ID
+      : process.env.FIREBASE_ANDROID_APP_ID || process.env.FIREBASE_WEB_APP_ID;
     const storageBucket = process.env.FIREBASE_STORAGE_BUCKET || '';
 
     if (!projectId || !messagingSenderId || !apiKey || !appId) {
