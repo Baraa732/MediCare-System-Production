@@ -379,7 +379,7 @@ if (isWizardOpen && !prevIsWizardOpen.current) {      if (editingAppointment) {
       nameEmpty: formData.patientName.trim().length === 0,
       ageInvalid: isNaN(ageValue) || ageValue < 0 || ageValue > 120,
       genderEmpty: !formData.patientGender,
-      phoneEmpty: formData.patientPhone.trim().length < 7 || isDuplicatePhone,
+      phoneEmpty: formData.patientPhone.trim().length < 7,
     };
   }, [formData, isDuplicatePhone]);
 

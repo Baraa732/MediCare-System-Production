@@ -91,9 +91,11 @@ export class AppointmentService {
       throw new BadRequestException('Selected user is not a doctor');
     }
 
-    const patient = await this.userHttpClient.getUserById(patientId);
-    if (patient.role !== 'PATIENT') {
-      throw new BadRequestException('Selected user is not a patient');
+    if (patientId) {
+      const patient = await this.userHttpClient.getUserById(patientId);
+      if (patient.role !== 'PATIENT') {
+        throw new BadRequestException('Selected user is not a patient');
+      }
     }
 
     const doctorAssigned = await this.clinicHttpClient.verifyDoctorAtClinic(dto.clinicId, dto.doctorId);
@@ -121,6 +123,8 @@ export class AppointmentService {
       tenantId: dto.clinicId,
       doctorId: dto.doctorId,
       patientId,
+      guestPatientName: patientId ? null : dto.guestPatientName?.trim() || null,
+      guestPatientPhone: patientId ? null : dto.guestPatientPhone?.trim() || null,
       scheduledAt,
       durationMinutes,
       reason: dto.reason,
@@ -134,13 +138,15 @@ export class AppointmentService {
       scheduledAt,
       durationMinutes,
     );
-    await this.ensurePatientClinicRelation(patientId, dto.clinicId);
-    await this.ensureDoctorPatientAssignment(
-      dto.clinicId,
-      dto.doctorId,
-      patientId,
-      actor.userId,
-    );
+    if (patientId) {
+      await this.ensurePatientClinicRelation(patientId, dto.clinicId);
+      await this.ensureDoctorPatientAssignment(
+        dto.clinicId,
+        dto.doctorId,
+        patientId,
+        actor.userId,
+      );
+    }
 
     this.signedKafka.emit(KafkaTopics.APPOINTMENT_CREATED, this.toEventPayload(saved));
 
@@ -482,6 +488,8 @@ export class AppointmentService {
       clinicId: appointment.clinicId,
       doctorId: appointment.doctorId,
       patientId: appointment.patientId,
+      guestPatientName: appointment.guestPatientName,
+      guestPatientPhone: appointment.guestPatientPhone,
       scheduledAt: appointment.scheduledAt,
       durationMinutes: appointment.durationMinutes,
       status: appointment.status,
@@ -501,7 +509,9 @@ export class AppointmentService {
     const [clinic, doctors, patient] = await Promise.all([
       this.clinicHttpClient.getClinicById(appointment.clinicId),
       this.userHttpClient.getPublicDoctors([appointment.doctorId]),
-      this.userHttpClient.getUserById(appointment.patientId).catch(() => null),
+      appointment.patientId
+        ? this.userHttpClient.getUserById(appointment.patientId).catch(() => null)
+        : Promise.resolve(null),
     ]);
     const doctor = doctors[0];
     return {
@@ -513,12 +523,13 @@ export class AppointmentService {
       clinicPhone: clinic?.phone,
       doctorName: doctor ? `${doctor.firstName} ${doctor.lastName}`.trim() : undefined,
       doctorSpecialization: doctor?.specialization,
-      patientName: patient
-        ? `${patient.firstName ?? ''} ${patient.lastName ?? ''}`.trim() || undefined
-        : undefined,
+      patientName:
+        (patient
+          ? `${patient.firstName ?? ''} ${patient.lastName ?? ''}`.trim() || undefined
+          : undefined) ?? appointment.guestPatientName ?? undefined,
       patientGender: patient?.gender,
       patientBirthDate: patient?.birthDate,
-      patientPhone: patient?.phoneNumber,
+      patientPhone: patient?.phoneNumber ?? appointment.guestPatientPhone ?? undefined,
     };
   }
 
@@ -527,7 +538,13 @@ export class AppointmentService {
 
     const clinicIds = [...new Set(appointments.map((a) => a.clinicId))];
     const doctorIds = [...new Set(appointments.map((a) => a.doctorId))];
-    const patientIds = [...new Set(appointments.map((a) => a.patientId))];
+    const patientIds = [
+      ...new Set(
+        appointments
+          .map((a) => a.patientId)
+          .filter((value): value is string => Boolean(value)),
+      ),
+    ];
 
     const [clinics, doctors, patients] = await Promise.all([
       this.clinicHttpClient.getClinicsByIds(clinicIds),
@@ -543,7 +560,9 @@ export class AppointmentService {
       const base = this.toPublic(appointment);
       const clinic = clinicMap.get(appointment.clinicId);
       const doctor = doctorMap.get(appointment.doctorId);
-      const patient = patientMap.get(appointment.patientId);
+      const patient = appointment.patientId
+        ? patientMap.get(appointment.patientId)
+        : undefined;
       return {
         ...base,
         clinicName: clinic?.name,
@@ -553,12 +572,13 @@ export class AppointmentService {
         clinicPhone: clinic?.phone,
         doctorName: doctor ? `${doctor.firstName} ${doctor.lastName}`.trim() : undefined,
         doctorSpecialization: doctor?.specialization,
-        patientName: patient
-          ? `${patient.firstName ?? ''} ${patient.lastName ?? ''}`.trim() || undefined
-          : undefined,
+        patientName:
+          (patient
+            ? `${patient.firstName ?? ''} ${patient.lastName ?? ''}`.trim() || undefined
+            : undefined) ?? appointment.guestPatientName ?? undefined,
         patientGender: patient?.gender,
         patientBirthDate: patient?.birthDate,
-        patientPhone: patient?.phoneNumber,
+        patientPhone: patient?.phoneNumber ?? appointment.guestPatientPhone ?? undefined,
       };
     });
   }
@@ -648,14 +668,24 @@ export class AppointmentService {
     return actor.tenantId ?? this.tenantContext.getTenantId();
   }
 
-  private resolvePatientId(dto: CreateAppointmentDto, actor: AuthUser): string {
+  private resolvePatientId(dto: CreateAppointmentDto, actor: AuthUser): string | null {
     if (actor.role === 'PATIENT') return actor.userId;
-    if (!dto.patientId) throw new BadRequestException('patientId is required when booking for another patient');
-    return dto.patientId;
+    if (dto.patientId) return dto.patientId;
+    return null;
   }
 
-  private async assertCanCreate(dto: CreateAppointmentDto, actor: AuthUser, patientId: string) {
+  private async assertCanCreate(
+    dto: CreateAppointmentDto,
+    actor: AuthUser,
+    patientId: string | null,
+  ) {
     if (actor.role === 'PATIENT') return;
+    if (!patientId && !dto.guestPatientName?.trim()) {
+      throw new BadRequestException('guestPatientName is required for manual guest appointments');
+    }
+    if (!patientId && !dto.guestPatientPhone?.trim()) {
+      throw new BadRequestException('guestPatientPhone is required for manual guest appointments');
+    }
     if (['SECRETARY', 'CLINIC_ADMIN'].includes(actor.role)) {
       const allowed = await this.clinicHttpClient.checkClinicAccess(dto.clinicId, actor.userId, actor.role);
       if (!allowed) throw new ForbiddenException('You do not have access to this clinic');
@@ -881,6 +911,8 @@ export class AppointmentService {
       clinicId: appointment.tenantId,
       doctorId: appointment.doctorId,
       patientId: appointment.patientId,
+      guestPatientName: appointment.guestPatientName,
+      guestPatientPhone: appointment.guestPatientPhone,
       scheduledAt: appointment.scheduledAt.toISOString(),
       durationMinutes: appointment.durationMinutes,
       status: appointment.status,

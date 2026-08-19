@@ -20,7 +20,9 @@ export interface UpdateAppointmentBody {
 export interface CreateAppointmentBody {
   clinicId: string;
   doctorId: string;
-  patientId: string;
+  patientId?: string;
+  guestPatientName?: string;
+  guestPatientPhone?: string;
   scheduledAt: string;
   durationMinutes?: number;
   reason?: string;

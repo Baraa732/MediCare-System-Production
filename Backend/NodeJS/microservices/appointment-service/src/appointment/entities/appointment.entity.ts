@@ -40,8 +40,14 @@ export class Appointment {
   @Column('uuid')
   doctorId: string;
 
-  @Column('uuid')
-  patientId: string;
+  @Column('uuid', { nullable: true })
+  patientId: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  guestPatientName: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  guestPatientPhone: string | null;
 
   @Column({ type: 'timestamptz' })
   scheduledAt: Date;

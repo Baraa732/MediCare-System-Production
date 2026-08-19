@@ -1,7 +1,7 @@
 // useHandleSelection.ts
 import { create } from "zustand";
 import type { SelectionType } from "../types";
-import { ROW_MINUTES } from "../data/scheduleGrid";
+import { ROW_MINUTES, START_TIME_MINUTES } from "../data/scheduleGrid";
 import { useScheduleGridStore } from "./scheduleGridStore";
 // 1️⃣ استيراد هوك الـ Wizard لفتحه عند الحاجة
 import { useWizardDrawer } from "./useWizardDrawer";
@@ -74,7 +74,8 @@ export const useHandleSelection = create<HandleSelectionState>((set) => {
 
           useWizardDrawer.getState().onOpenNewAppointment({
             doctorId: state.selection.docId,
-            timeSlot: minSlot * ROW_MINUTES,
+            // wizard expects absolute minutes since midnight (used later as timeSlot - START_TIME_MINUTES)
+            timeSlot: START_TIME_MINUTES + minSlot * ROW_MINUTES,
             duration: duration, // إرسال المدة المحسوبة
             date: date,
           });

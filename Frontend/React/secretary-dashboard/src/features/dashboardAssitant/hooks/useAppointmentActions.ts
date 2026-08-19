@@ -108,15 +108,24 @@ export function useAppointmentActions() {
           accessToken,
         );
       } else {
-        const patient = await lookupPatientByPhone(
-          wizardData.patientPhone.trim(),
-          accessToken,
-        );
+        const phone = wizardData.patientPhone.trim();
+        const name = wizardData.patientName.trim();
+        let patientId: string | undefined;
+
+        try {
+          const patient = await lookupPatientByPhone(phone, accessToken);
+          patientId = patient.id;
+        } catch {
+          patientId = undefined;
+        }
+
         await createAppointment(
           {
             clinicId,
             doctorId: wizardData.doctorId,
-            patientId: patient.id,
+            patientId,
+            guestPatientName: patientId ? undefined : name,
+            guestPatientPhone: patientId ? undefined : phone,
             scheduledAt,
             durationMinutes: wizardData.duration,
             reason,

@@ -24,6 +24,16 @@ export class CreateAppointmentDto {
   @IsUUID()
   patientId?: string;
 
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  guestPatientName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  guestPatientPhone?: string;
+
   @IsDateString()
   scheduledAt: string;
 

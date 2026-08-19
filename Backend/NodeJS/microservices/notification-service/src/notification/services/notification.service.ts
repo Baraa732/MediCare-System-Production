@@ -25,7 +25,9 @@ export interface AppointmentEventPayload extends Record<string, unknown> {
   clinicId: string;
   tenantId?: string;
   doctorId: string;
-  patientId: string;
+  patientId?: string | null;
+  guestPatientName?: string | null;
+  guestPatientPhone?: string | null;
   scheduledAt: string;
   durationMinutes?: number;
   status: string;
@@ -52,10 +54,12 @@ export class NotificationService {
 
   async handleAppointmentCreated(payload: AppointmentEventPayload): Promise<void> {
     await this.sendAppointmentNotification(payload, NotificationType.APPOINTMENT_CONFIRMED);
-    await this.patientPushService.notifyFromAppointmentEvent(
-      payload,
-      NotificationType.APPOINTMENT_CONFIRMED,
-    );
+    if (payload.patientId) {
+      await this.patientPushService.notifyFromAppointmentEvent(
+        payload,
+        NotificationType.APPOINTMENT_CONFIRMED,
+      );
+    }
     const category =
       payload.status === 'REQUESTED'
         ? StaffNotificationCategory.APPOINTMENT_REQUESTED
@@ -66,10 +70,12 @@ export class NotificationService {
 
   async handleAppointmentCancelled(payload: AppointmentEventPayload): Promise<void> {
     await this.sendAppointmentNotification(payload, NotificationType.APPOINTMENT_CANCELLED);
-    await this.patientPushService.notifyFromAppointmentEvent(
-      payload,
-      NotificationType.APPOINTMENT_CANCELLED,
-    );
+    if (payload.patientId) {
+      await this.patientPushService.notifyFromAppointmentEvent(
+        payload,
+        NotificationType.APPOINTMENT_CANCELLED,
+      );
+    }
     await this.staffPushService.notifyDoctorAppointment(
       payload,
       StaffNotificationCategory.APPOINTMENT_CANCELLED,
@@ -82,10 +88,12 @@ export class NotificationService {
 
   async handleAppointmentUpdated(payload: AppointmentEventPayload): Promise<void> {
     await this.sendAppointmentNotification(payload, NotificationType.APPOINTMENT_RESCHEDULED);
-    await this.patientPushService.notifyFromAppointmentEvent(
-      payload,
-      NotificationType.APPOINTMENT_RESCHEDULED,
-    );
+    if (payload.patientId) {
+      await this.patientPushService.notifyFromAppointmentEvent(
+        payload,
+        NotificationType.APPOINTMENT_RESCHEDULED,
+      );
+    }
     await this.staffPushService.notifyDoctorAppointment(
       payload,
       StaffNotificationCategory.APPOINTMENT_UPDATED,
@@ -212,13 +220,14 @@ export class NotificationService {
 
   private async resolveContext(payload: AppointmentEventPayload) {
     const [patient, doctor, clinic] = await Promise.all([
-      this.userHttpClient.getUserById(payload.patientId),
+      payload.patientId ? this.userHttpClient.getUserById(payload.patientId).catch(() => null) : null,
       this.userHttpClient.getUserById(payload.doctorId),
       this.clinicHttpClient.getClinicById(payload.clinicId),
     ]);
 
-    if (!patient?.phoneNumber) {
-      this.logger.warn(`Skipping notification — patient ${payload.patientId} has no phone`);
+    const phoneNumber = patient?.phoneNumber ?? payload.guestPatientPhone ?? undefined;
+    if (!phoneNumber) {
+      this.logger.warn(`Skipping notification — appointment ${payload.appointmentId} has no patient phone`);
       return null;
     }
 
@@ -231,8 +240,11 @@ export class NotificationService {
     });
 
     return {
-      phoneNumber: patient.phoneNumber,
-      patientName: `${patient.firstName} ${patient.lastName}`.trim(),
+      phoneNumber,
+      patientName:
+        `${patient?.firstName ?? ''} ${patient?.lastName ?? ''}`.trim() ||
+        payload.guestPatientName ||
+        'Patient',
       doctorName: doctor ? `Dr. ${doctor.firstName} ${doctor.lastName}`.trim() : 'your doctor',
       clinicName: clinic?.name || 'the clinic',
       appointmentDate,

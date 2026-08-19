@@ -221,7 +221,7 @@ export function Step2PatientInfo({
         </div>
         {isDuplicatePhone && (
           <div className="flex items-center justify-end gap-1.5 text-amber-700 text-[10px] font-bold mt-1.5 bg-amber-50 border border-amber-200/50 p-2 rounded-lg animate-in fade-in duration-150">
-            <span>A patient with this phone number already exists.</span>
+            <span>A patient with this phone number already exists. You can still continue or book manually.</span>
             <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
           </div>
         )}

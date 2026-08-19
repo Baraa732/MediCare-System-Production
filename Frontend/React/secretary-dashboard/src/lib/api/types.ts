@@ -68,7 +68,9 @@ export interface ApiAppointment {
   id: string;
   clinicId: string;
   doctorId: string;
-  patientId: string;
+  patientId?: string | null;
+  guestPatientName?: string | null;
+  guestPatientPhone?: string | null;
   scheduledAt: string;
   durationMinutes: number;
   status: string;

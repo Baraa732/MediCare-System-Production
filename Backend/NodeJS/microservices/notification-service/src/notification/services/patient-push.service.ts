@@ -118,6 +118,9 @@ export class PatientPushService {
     payload: AppointmentEventPayload,
     type: NotificationType,
   ): Promise<void> {
+    if (!payload.patientId) {
+      return;
+    }
     const category = this.mapCategory(type, payload.status);
     const clinic = await this.clinicHttpClient.getClinicById(payload.clinicId);
     const clinicName = clinic?.name ?? 'your clinic';

@@ -40,6 +40,7 @@ export function AddAppointmentDialog() {
   const { doctors, selectedDate, refetch, clinicId } = useScheduleContext();
 
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [patientName, setPatientName] = useState("");
   const [patient, setPatient] = useState<PatientLookup | null>(null);
   const [doctorId, setDoctorId] = useState("");
   const [reason, setReason] = useState("");
@@ -51,6 +52,7 @@ export function AddAppointmentDialog() {
   useEffect(() => {
     if (!isOpen) return;
     setPhoneNumber("");
+    setPatientName("");
     setPatient(null);
     setReason("");
     setLookupError(null);
@@ -81,9 +83,15 @@ export function AddAppointmentDialog() {
     try {
       const result = await lookupPatientByPhone(phoneNumber.trim(), accessToken);
       setPatient(result);
+      setPatientName(
+        result.fullName || `${result.firstName ?? ""} ${result.lastName ?? ""}`.trim(),
+      );
     } catch (err) {
       setLookupError(
-        normalizeCaughtError(err, "Could not find a patient with this phone number."),
+        normalizeCaughtError(
+          err,
+          "No registered patient was found. You can still continue with a manual booking.",
+        ),
       );
     } finally {
       setIsLookingUp(false);
@@ -96,7 +104,13 @@ export function AddAppointmentDialog() {
       return;
     }
     if (!patient) {
-      setSubmitError("Look up the patient before booking.");
+      if (!patientName.trim()) {
+        setSubmitError("Enter the patient's name for manual booking.");
+        return;
+      }
+    }
+    if (!phoneNumber.trim()) {
+      setSubmitError("Enter the patient's phone number.");
       return;
     }
     if (!doctorId) {
@@ -121,7 +135,9 @@ export function AddAppointmentDialog() {
         {
           clinicId,
           doctorId,
-          patientId: patient.id,
+          patientId: patient?.id,
+          guestPatientName: patient ? undefined : patientName.trim(),
+          guestPatientPhone: patient ? undefined : phoneNumber.trim(),
           scheduledAt,
           durationMinutes,
           reason: reason.trim() || undefined,
@@ -173,6 +189,19 @@ export function AddAppointmentDialog() {
 
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-neutral-600">
+              Patient name
+            </label>
+            <input
+              type="text"
+              value={patientName}
+              onChange={(e) => setPatientName(e.target.value)}
+              placeholder="Full patient name"
+              className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-blue-500"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-neutral-600">
               Patient phone
             </label>
             <div className="flex gap-2">
@@ -198,6 +227,11 @@ export function AddAppointmentDialog() {
             {patient && (
               <p className="text-xs text-green-700 bg-green-50 border border-green-100 rounded-lg px-3 py-2">
                 Patient: {patient.fullName || `${patient.firstName} ${patient.lastName}`}
+              </p>
+            )}
+            {!patient && phoneNumber.trim() && lookupError && (
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                Booking will be saved as a manual guest appointment.
               </p>
             )}
           </div>
@@ -229,7 +263,7 @@ export function AddAppointmentDialog() {
           <Button
             type="button"
             onClick={handleSubmit}
-            disabled={isSubmitting || !patient}
+            disabled={isSubmitting}
             className="bg-[#0066ff] hover:bg-[#0052cc]"
           >
             {isSubmitting ? "Booking…" : "Book appointment"}

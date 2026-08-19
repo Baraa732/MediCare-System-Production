@@ -27,7 +27,8 @@ export function mapAppointmentToGrid(
   const title =
     patientLabel ??
     appointment.reason ??
-    `Patient ${appointment.patientId.slice(0, 8)}`;
+    appointment.guestPatientName ??
+    (appointment.patientId ? `Patient ${appointment.patientId.slice(0, 8)}` : 'Guest patient');
 
   return {
     id: appointment.id,
@@ -107,7 +108,10 @@ export function mapApiAppointmentToPendingRequest(
       name:
         appointment.patientName?.trim() ||
         appointment.reason ||
-        `Patient ${appointment.patientId.slice(0, 8)}`,
+        appointment.guestPatientName?.trim() ||
+        (appointment.patientId
+          ? `Patient ${appointment.patientId.slice(0, 8)}`
+          : "Guest patient"),
       age: 0,
       phone: appointment.patientPhone ?? "",
       gender: null,
