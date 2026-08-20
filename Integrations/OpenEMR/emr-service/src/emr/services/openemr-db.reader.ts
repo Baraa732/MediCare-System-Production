@@ -77,6 +77,18 @@ export class OpenEmrDbReader {
     const mysql = require('mysql2/promise');
     const connection = await mysql.createConnection({ host, user, password, database });
     try {
+      // OpenEMR itself disables strict SQL mode. Railway MariaDB defaults keep
+      // STRICT_TRANS_TABLES, which rejects inserts that omit NOT NULL columns
+      // whose DEFAULT is NULL (txDate, usage_category_title, …).
+      await connection
+        .query(
+          `SET SESSION sql_mode = REPLACE(REPLACE(REPLACE(REPLACE(@@sql_mode,
+            'STRICT_TRANS_TABLES', ''),
+            'STRICT_ALL_TABLES', ''),
+            'NO_ZERO_DATE', ''),
+            'NO_ZERO_IN_DATE', '')`,
+        )
+        .catch(() => undefined);
       return await fn(connection);
     } finally {
       await connection.end();
@@ -859,97 +871,157 @@ export class OpenEmrDbReader {
         .filter(Boolean)
         .join('\n');
 
-      let insertId: number | null = null;
-      const attempts: Array<() => Promise<number | null>> = [
-        async () => {
-          // Use CURDATE() so strict MariaDB never sees a missing txDate default.
-          const [result] = await connection.execute(
-            `INSERT INTO prescriptions
-              (patient_id, date_added, date_modified, start_date, drug, dosage, route, note,
-               active, txDate, drug_id, \`user\`)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, CURDATE(), 0, ?)`,
-            [
-              Number(input.pid),
-              nowStr,
-              nowStr,
-              today,
-              input.drug.slice(0, 150),
-              (input.dosage ?? '').slice(0, 100),
-              (input.route ?? '').slice(0, 100),
-              detailLines,
-              author,
-            ],
-          );
-          return Number((result as any)?.insertId) || null;
-        },
-        async () => {
-          const [result] = await connection.execute(
-            `INSERT INTO prescriptions
-              (patient_id, date_added, date_modified, start_date, drug, dosage, note, active, txDate, drug_id)
-             VALUES (?, ?, ?, ?, ?, ?, ?, 1, CURDATE(), 0)`,
-            [
-              Number(input.pid),
-              nowStr,
-              nowStr,
-              today,
-              input.drug.slice(0, 150),
-              (input.dosage ?? '').slice(0, 100),
-              detailLines,
-            ],
-          );
-          return Number((result as any)?.insertId) || null;
-        },
-        async () => {
-          const [result] = await connection.execute(
-            `INSERT INTO prescriptions
-              (patient_id, start_date, drug, dosage, note, active, txDate)
-             VALUES (?, ?, ?, ?, ?, 1, CURDATE())`,
-            [
-              Number(input.pid),
-              today,
-              input.drug.slice(0, 150),
-              (input.dosage ?? '').slice(0, 100),
-              detailLines,
-            ],
-          );
-          return Number((result as any)?.insertId) || null;
-        },
-      ];
+      // Explicit values for OpenEMR columns that are NOT NULL with DEFAULT NULL
+      // under MariaDB strict mode (same fields OpenEMR's Prescription.class.php sets).
+      const preferred: Record<string, string | number> = {
+        patient_id: Number(input.pid),
+        date_added: nowStr,
+        date_modified: nowStr,
+        start_date: today,
+        drug: input.drug.slice(0, 150),
+        dosage: (input.dosage ?? '').slice(0, 100),
+        route: (input.route ?? '').slice(0, 100),
+        note: detailLines,
+        active: 1,
+        txDate: today,
+        drug_id: 0,
+        user: author,
+        usage_category: '',
+        usage_category_title: '',
+        request_intent: 'order',
+        request_intent_title: 'Order',
+        erx_source: 0,
+        erx_uploaded: 0,
+      };
 
-      let lastError: any;
-      for (const attempt of attempts) {
-        try {
-          insertId = await attempt();
-          if (insertId) break;
-        } catch (error: any) {
-          lastError = error;
-          this.logger.warn(`Prescription insert attempt failed: ${error?.message}`);
-        }
+      const existingCols = await this.getTableColumnNames(connection, 'prescriptions');
+      const row: Record<string, string | number> = {};
+      for (const [key, value] of Object.entries(preferred)) {
+        if (existingCols.has(key)) row[key] = value;
       }
-      if (!insertId) {
+
+      // Fill any other NOT NULL / no-default columns discovered on this OpenEMR build.
+      const required = await this.getNotNullColumnsWithoutDefault(connection, 'prescriptions');
+      for (const col of required) {
+        if (row[col.name] !== undefined) continue;
+        if (col.name === 'id' || col.autoIncrement) continue;
+        row[col.name] = this.defaultForSqlType(col.dataType, col.columnType, today, nowStr);
+      }
+
+      let insertId: number | null = null;
+      let lastError: any;
+      try {
+        const columns = Object.keys(row);
+        if (columns.length === 0) throw new Error('No writable prescriptions columns found');
+        const placeholders = columns.map((c) => `\`${c}\``).join(', ');
+        const values = columns.map(() => '?').join(', ');
+        const [result] = await connection.execute(
+          `INSERT INTO prescriptions (${placeholders}) VALUES (${values})`,
+          columns.map((c) => row[c]),
+        );
+        insertId = Number((result as any)?.insertId) || null;
+      } catch (error: any) {
+        lastError = error;
+        this.logger.warn(
+          `Schema-aware prescriptions insert failed (${error?.message}); falling back to lists.medication`,
+        );
+      }
+
+      // Always mirror into lists so chart reads + OpenEMR UI stay consistent,
+      // and so medication still saves if prescriptions insert is blocked.
+      const [listResult] = await connection.execute(
+        `INSERT INTO lists
+          (date, type, title, begdate, pid, user, groupname, comments, diagnosis, outcome, activity)
+         VALUES (?, 'medication', ?, ?, ?, ?, 'Default', ?, '', 0, 1)`,
+        [
+          nowStr,
+          input.drug.slice(0, 255),
+          today,
+          Number(input.pid),
+          author,
+          [attribution, input.dosage, input.frequency, input.route]
+            .filter(Boolean)
+            .join(' · '),
+        ],
+      );
+      const listId = Number((listResult as any)?.insertId) || null;
+
+      if (!insertId && !listId) {
         throw lastError || new Error('Could not insert prescription');
       }
 
-      await connection
-        .execute(
-          `INSERT INTO lists
-            (date, type, title, begdate, pid, user, groupname, comments, diagnosis, outcome, activity)
-           VALUES (?, 'medication', ?, ?, ?, ?, 'Default', ?, '', 0, 1)`,
-          [
-            nowStr,
-            input.drug.slice(0, 255),
-            today,
-            Number(input.pid),
-            author,
-            [attribution, input.dosage, input.frequency, input.route]
-              .filter(Boolean)
-              .join(' · '),
-          ],
-        )
-        .catch(() => undefined);
-
-      return { id: String(insertId) };
+      return { id: String(insertId ?? listId ?? Date.now()) };
     });
+  }
+
+  /** Columns that MariaDB will reject if omitted under STRICT_* modes. */
+  private async getTableColumnNames(connection: any, table: string): Promise<Set<string>> {
+    try {
+      const [rows] = await connection.execute(
+        `SELECT COLUMN_NAME AS name
+         FROM INFORMATION_SCHEMA.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
+        [table],
+      );
+      return new Set((rows as any[]).map((r) => String(r.name)));
+    } catch {
+      return new Set<string>();
+    }
+  }
+
+  private async getNotNullColumnsWithoutDefault(
+    connection: any,
+    table: string,
+  ): Promise<Array<{ name: string; dataType: string; columnType: string; autoIncrement: boolean }>> {
+    try {
+      const [rows] = await connection.execute(
+        `SELECT COLUMN_NAME AS name, DATA_TYPE AS dataType, COLUMN_TYPE AS columnType,
+                EXTRA AS extra, IS_NULLABLE AS isNullable, COLUMN_DEFAULT AS columnDefault
+         FROM INFORMATION_SCHEMA.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?
+         ORDER BY ORDINAL_POSITION`,
+        [table],
+      );
+      return (rows as any[])
+        .filter((c) => String(c.isNullable).toUpperCase() === 'NO')
+        .filter((c) => c.columnDefault == null)
+        .map((c) => ({
+          name: String(c.name),
+          dataType: String(c.dataType || ''),
+          columnType: String(c.columnType || ''),
+          autoIncrement: String(c.extra || '').toLowerCase().includes('auto_increment'),
+        }));
+    } catch (error: any) {
+      this.logger.warn(`Could not introspect ${table} columns: ${error?.message}`);
+      return [];
+    }
+  }
+
+  private defaultForSqlType(
+    dataType: string,
+    columnType: string,
+    today: string,
+    nowStr: string,
+  ): string | number {
+    const t = dataType.toLowerCase();
+    if (t === 'date') return today;
+    if (t.includes('time') || t === 'timestamp') return nowStr;
+    if (
+      t.includes('int') ||
+      t === 'decimal' ||
+      t === 'float' ||
+      t === 'double' ||
+      t === 'bit' ||
+      t === 'boolean' ||
+      t === 'bool'
+    ) {
+      return 0;
+    }
+    if (columnType.toLowerCase().startsWith('enum(')) {
+      const first = columnType.match(/enum\('([^']*)'/i);
+      return first?.[1] ?? '';
+    }
+    return '';
   }
 
   async insertVital(input: {
