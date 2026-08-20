@@ -313,7 +313,7 @@ export function AddAppointmentDialog() {
                 ) : slotsError ? (
                   <p className="text-xs text-red-600">{slotsError}</p>
                 ) : slots.length === 0 ? (
-                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+                  <p className="text-xs text-neutral-700 bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2">
                     No open times for this doctor on the selected day.
                   </p>
                 ) : (
@@ -378,7 +378,7 @@ export function AddAppointmentDialog() {
               </p>
             )}
             {!patient && phoneNumber.trim() && lookupError && (
-              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+              <p className="text-xs text-neutral-700 bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2">
                 Booking will be saved as a manual guest appointment.
               </p>
             )}

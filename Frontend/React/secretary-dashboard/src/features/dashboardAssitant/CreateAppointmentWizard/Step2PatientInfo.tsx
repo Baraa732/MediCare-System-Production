@@ -213,16 +213,16 @@ export function Step2PatientInfo({
             placeholder="Patient phone number..."
             className={`w-full bg-white border rounded-xl pl-3.5 pr-10 py-2.5 text-xs font-medium outline-none text-left transition-colors ${
               isDuplicatePhone
-                ? "border-amber-400 bg-amber-50/10 focus:border-amber-400"
+                ? "border-violet-400 bg-violet-50/10 focus:border-violet-400"
                 : "border-neutral-200 focus:border-neutral-300"
             }`}
           />
           <Phone className="w-4 h-4 text-neutral-400 absolute right-3.5 pointer-events-none" />
         </div>
         {isDuplicatePhone && (
-          <div className="flex items-center justify-end gap-1.5 text-amber-700 text-[10px] font-bold mt-1.5 bg-amber-50 border border-amber-200/50 p-2 rounded-lg animate-in fade-in duration-150">
+          <div className="flex items-center justify-end gap-1.5 text-violet-700 text-[10px] font-bold mt-1.5 bg-violet-50 border border-violet-200/50 p-2 rounded-lg animate-in fade-in duration-150">
             <span>A patient with this phone number already exists. You can still continue or book manually.</span>
-            <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+            <AlertCircle className="w-3.5 h-3.5 text-violet-500 shrink-0" />
           </div>
         )}
       </div>

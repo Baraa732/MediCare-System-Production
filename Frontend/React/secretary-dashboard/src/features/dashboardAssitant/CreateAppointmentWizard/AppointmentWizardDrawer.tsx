@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import {  HelpCircle, X } from "lucide-react";
+import { HelpCircle, X } from "lucide-react";
 import {
   useAppointmentWizard,
   type WizardFormData,
@@ -19,7 +19,6 @@ import { normalizeCaughtError } from "@/lib/api/errors";
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
   DialogTitle,
   DialogDescription,
   DialogPortal,
@@ -118,38 +117,41 @@ export function AppointmentWizardDrawer({
       {/* ⚠️ 2. بوب آب تأكيد إلغاء التغييرات لحماية البيانات */}
       <Dialog open={showExitConfirm} onOpenChange={setShowExitConfirm}>
         <DialogPortal>
-          <DialogOverlay className=" bg-black/60 backdrop-blur-xs" />
+          <DialogOverlay />
           <DialogContent
-            className="fixed z-100 max-w-sm w-full rounded-2xl p-5 border border-neutral-100 shadow-2xl bg-white"
+            showCloseButton={false}
+            className="max-w-sm rounded-2xl border border-neutral-200/80 bg-white p-0 shadow-2xl"
           >
-            <DialogHeader className="space-y-3">
-              <div className="w-12 h-12 rounded-full bg-amber-50 flex items-center justify-center text-amber-500">
-                <HelpCircle className="w-6 h-6" />
+            <div className="border-b border-neutral-100 px-5 py-4">
+              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-600">
+                <HelpCircle className="h-5 w-5" />
               </div>
-              <DialogTitle className="text-sm font-black text-neutral-900">
+              <DialogTitle className="text-base font-bold text-neutral-900">
                 Discard unsaved changes?
               </DialogTitle>
-              <DialogDescription className="text-xs text-neutral-500 leading-relaxed">
+              <DialogDescription className="mt-1 text-sm leading-relaxed text-neutral-500">
                 You have unsaved appointment details. Closing now will lose your
                 changes.
               </DialogDescription>
-            </DialogHeader>
+            </div>
 
-            <div className="flex gap-2 mt-5">
+            <div className="flex gap-2 px-5 py-4">
               <button
+                type="button"
+                onClick={() => setShowExitConfirm(false)}
+                className="btn-brand h-10 flex-1 rounded-xl border-0 text-xs font-bold"
+              >
+                Keep editing
+              </button>
+              <button
+                type="button"
                 onClick={() => {
                   setShowExitConfirm(false);
                   onClose();
                 }}
-                className="flex-1 h-10 text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-xl transition-all cursor-pointer"
+                className="h-10 flex-1 rounded-xl border border-neutral-200 bg-white text-xs font-bold text-neutral-700 transition-colors hover:bg-neutral-50"
               >
                 Discard
-              </button>
-              <button
-                onClick={() => setShowExitConfirm(false)}
-                className="flex-1 h-10 text-xs font-bold bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-xl transition-all cursor-pointer"
-              >
-                Keep editing
               </button>
             </div>
           </DialogContent>

@@ -24,7 +24,7 @@ export function SideIconAppointementCard({
         apt.status === "confirmed" && "border-blue-200/50",
         apt.status === "urgent" && "border-red-200/50",
         apt.status === "in_progress" && "border-purple-200/50",
-        apt.status === "late" && "border-amber-200/50",
+        apt.status === "late" && "border-rose-200/50",
         apt.status === "unavailable" && "border-neutral-200/50",
       )}
     >

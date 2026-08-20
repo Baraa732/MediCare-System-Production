@@ -52,7 +52,7 @@ export function ForgotPasswordCheckPhoneForm() {
           connected on the server or request a new code below.
         </p>
         {devOtpHint && (
-          <p className="mt-3 text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+          <p className="mt-3 text-sm text-neutral-700 bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2">
             {devOtpHint}
           </p>
         )}

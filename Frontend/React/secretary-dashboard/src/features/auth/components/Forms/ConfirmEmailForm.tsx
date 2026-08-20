@@ -107,7 +107,7 @@ export function ConfirmEmailForm({
             On your first login you will set a permanent password next.
           </p>
           {otpWhatsappSent === false && (
-            <p className="mt-3 font-inter text-[15px] leading-snug text-[#93370D] bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+            <p className="mt-3 font-inter text-[15px] leading-snug text-neutral-700 bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2">
               {otpWhatsappHint ??
                 "We could not deliver the code via WhatsApp. Wait for the timer, then tap Resend, or contact your clinic administrator."}
             </p>

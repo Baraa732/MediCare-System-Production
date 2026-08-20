@@ -97,7 +97,7 @@ export function ForgotPasswordVerifyForm() {
           <span className="text-[#0B74FA] break-all">{phoneNumber}</span> via WhatsApp.
         </p>
         {devOtpHint && (
-          <p className="mt-2 text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+          <p className="mt-2 text-sm text-neutral-700 bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2">
             {devOtpHint}
           </p>
         )}

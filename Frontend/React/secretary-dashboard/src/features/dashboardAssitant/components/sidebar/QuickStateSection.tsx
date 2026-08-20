@@ -41,8 +41,8 @@ export function QuickStateSection() {
       label: "Pending requests",
       count: pendingRequests.length,
       icon: Clock,
-      color: "text-amber-500",
-      bg: "bg-amber-50",
+      color: "text-violet-600",
+      bg: "bg-violet-50",
     },
   ];
 

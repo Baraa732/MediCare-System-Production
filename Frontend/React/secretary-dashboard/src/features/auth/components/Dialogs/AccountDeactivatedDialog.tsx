@@ -35,7 +35,7 @@ export function AccountDeactivatedDialog({
             {/* Central Attention Banner Presentation Layer */}
             <DialogHeader className="flex flex-col items-center text-center my-10">
               {/* Warning Icon Container Element */}
-              <DialogTitle className="flex items-center justify-center w-20 h-20 rounded-full bg-amber-50 text-amber-500 mb-6 select-none">
+              <DialogTitle className="flex items-center justify-center w-20 h-20 rounded-full bg-neutral-100 text-neutral-600 mb-6 select-none">
                 <Person className="w-28 h-28 stroke-2" />
               </DialogTitle>
 

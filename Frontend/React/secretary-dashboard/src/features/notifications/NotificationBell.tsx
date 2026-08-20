@@ -1,6 +1,14 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
-import { Bell, CheckCheck, Loader2 } from "lucide-react";
+import {
+  Bell,
+  BellRing,
+  CalendarClock,
+  CheckCheck,
+  Loader2,
+  Settings2,
+  Sparkles,
+} from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import {
   Popover,
@@ -9,7 +17,6 @@ import {
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { useNotifications } from "./NotificationProvider";
-import { EnablePushBanner } from "./EnablePushBanner";
 import { cn } from "@/lib/utils";
 import { useAppointmentDrawer } from "@/features/dashboardAssitant/hooks/useAppointmentDrawer";
 import { useHandleDatePicker } from "@/features/dashboardAssitant/hooks/useHandleDatePicker";
@@ -23,12 +30,19 @@ const FILTERS = [
   { id: "APPOINTMENT_CANCELLED", label: "Cancelled" },
 ] as const;
 
-function categoryTone(category: string) {
-  if (category.includes("CANCEL")) return "border-l-red-500";
-  if (category.includes("REQUEST") || category.includes("UPDATE"))
-    return "border-l-amber-500";
-  if (category.includes("CREATE")) return "border-l-emerald-500";
-  return "border-l-blue-500";
+function categoryIcon(category: string) {
+  if (category.includes("CANCEL")) return CalendarClock;
+  if (category.includes("REQUEST")) return Sparkles;
+  if (category.includes("CREATE")) return BellRing;
+  return Bell;
+}
+
+function categoryAccent(category: string) {
+  if (category.includes("CANCEL")) return "text-red-600 bg-red-50";
+  if (category.includes("REQUEST")) return "text-violet-600 bg-violet-50";
+  if (category.includes("CREATE")) return "text-emerald-600 bg-emerald-50";
+  if (category.includes("UPDATE")) return "text-blue-600 bg-blue-50";
+  return "text-neutral-600 bg-neutral-100";
 }
 
 export function NotificationBell() {
@@ -41,10 +55,11 @@ export function NotificationBell() {
     unreadCount,
     pushEnabled,
     isLoading,
-    lastError,
     refreshInbox,
     markRead,
     markAllRead,
+    requestPushPermission,
+    isEnabling,
   } = useNotifications();
 
   const filtered = useMemo(() => {
@@ -59,11 +74,11 @@ export function NotificationBell() {
         <button
           type="button"
           title="Notifications"
-          className="w-9.5 h-9.5 rounded-xl border border-neutral-200/80 bg-white/80 flex items-center justify-center relative hover:bg-neutral-50 text-neutral-600 transition-all duration-200 hover:-translate-y-px cursor-pointer backdrop-blur-sm"
+          className="relative flex h-9.5 w-9.5 cursor-pointer items-center justify-center rounded-xl border border-neutral-200/80 bg-white/80 text-neutral-600 backdrop-blur-sm transition-all duration-200 hover:-translate-y-px hover:bg-neutral-50"
         >
-          <Bell className="w-4 h-4" />
+          <Bell className="h-4 w-4" />
           {unreadCount > 0 ? (
-            <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+            <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
               {unreadCount > 9 ? "9+" : unreadCount}
             </span>
           ) : null}
@@ -72,62 +87,79 @@ export function NotificationBell() {
 
       <PopoverContent
         align="end"
-        className="w-[28rem] p-0 overflow-hidden rounded-2xl border-neutral-200/80 bg-white/95 shadow-xl backdrop-blur-md"
+        sideOffset={8}
+        className="w-[min(24rem,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border border-neutral-200/80 bg-white p-0 shadow-2xl"
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
-        <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">
-          <div>
-            <p className="text-sm font-semibold text-neutral-900">Notifications</p>
-            <p className="text-[11px] text-neutral-500">
-              {pushEnabled ? "FCM connected" : "Inbox only · push off"}
-            </p>
-          </div>
-          <div className="flex items-center gap-1">
-            {unreadCount > 0 ? (
+        {/* Header */}
+        <div className="border-b border-neutral-100 bg-gradient-to-br from-slate-50 to-white px-4 py-3.5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-bold tracking-tight text-neutral-900">
+                Notifications
+              </p>
+              <p className="mt-0.5 text-[11px] text-neutral-500">
+                {unreadCount > 0
+                  ? `${unreadCount} unread alert${unreadCount === 1 ? "" : "s"}`
+                  : "You're all caught up"}
+              </p>
+            </div>
+            <div className="flex items-center gap-1">
+              {unreadCount > 0 ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 rounded-lg px-2 text-[11px] font-semibold"
+                  onClick={() => void markAllRead()}
+                >
+                  <CheckCheck className="mr-1 h-3.5 w-3.5" />
+                  Read all
+                </Button>
+              ) : null}
               <Button
                 type="button"
                 variant="ghost"
-                size="sm"
-                className="h-8 text-xs gap-1"
-                onClick={() => void markAllRead()}
+                size="icon-sm"
+                className="rounded-lg"
+                onClick={() => navigate("/dashboard/notifications")}
+                title="Open full inbox"
               >
-                <CheckCheck className="w-3.5 h-3.5" />
-                Mark all
+                <Settings2 className="h-3.5 w-3.5" />
               </Button>
-            ) : null}
-            <Button
+            </div>
+          </div>
+
+          {!pushEnabled ? (
+            <button
               type="button"
-              variant="ghost"
-              size="sm"
-              className="h-8 text-xs"
-              onClick={() => navigate("/dashboard/notifications")}
+              disabled={isEnabling}
+              onClick={() => void requestPushPermission()}
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-blue-100 bg-blue-50/80 px-3 py-2 text-[11px] font-semibold text-blue-700 transition-colors hover:bg-blue-50 disabled:opacity-60"
             >
-              Open
-            </Button>
-          </div>
+              <BellRing className="h-3.5 w-3.5" />
+              {isEnabling ? "Connecting push…" : "Enable browser alerts"}
+            </button>
+          ) : (
+            <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-100">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              Browser push active
+            </div>
+          )}
         </div>
 
-        <div className="px-3 py-3 border-b border-neutral-100">
-          <EnablePushBanner compact />
-        </div>
-
-        {lastError && !pushEnabled ? null : lastError && pushEnabled ? (
-          <div className="px-4 py-2 bg-red-50 border-b border-red-100 text-xs text-red-700">
-            {lastError}
-          </div>
-        ) : null}
-
-        <div className="flex flex-wrap gap-1.5 px-3 py-2 border-b border-neutral-100">
+        {/* Filters */}
+        <div className="flex gap-1 overflow-x-auto border-b border-neutral-100 px-3 py-2 no-scrollbar">
           {FILTERS.map((f) => (
             <button
               key={f.id}
               type="button"
               onClick={() => setFilter(f.id)}
               className={cn(
-                "px-2 py-1 rounded-full text-[11px] border transition-colors",
+                "shrink-0 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors",
                 filter === f.id
-                  ? "bg-blue-50 border-blue-200 text-blue-700"
-                  : "border-neutral-200 text-neutral-500 hover:bg-neutral-50",
+                  ? "bg-neutral-900 text-white"
+                  : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200/70",
               )}
             >
               {f.label}
@@ -135,28 +167,33 @@ export function NotificationBell() {
           ))}
         </div>
 
-        <div className="max-h-80 overflow-y-auto">
+        {/* List */}
+        <div className="max-h-[min(22rem,50vh)] overflow-y-auto scrollbar-thin">
           {isLoading && items.length === 0 ? (
-            <div className="flex items-center justify-center gap-2 py-10 text-neutral-400 text-xs">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Loading...
+            <div className="flex items-center justify-center gap-2 py-12 text-xs text-neutral-400">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading inbox…
             </div>
           ) : filtered.length === 0 ? (
-            <p className="py-10 text-center text-xs text-neutral-400">
-              No notifications in this view
-            </p>
+            <div className="px-4 py-12 text-center">
+              <Bell className="mx-auto mb-2 h-8 w-8 text-neutral-200" />
+              <p className="text-xs font-medium text-neutral-500">
+                No notifications here
+              </p>
+            </div>
           ) : (
-            <ul className="divide-y divide-neutral-100">
+            <ul className="divide-y divide-neutral-100 p-2">
               {filtered.map((item) => {
                 const unread = !item.readAt;
+                const Icon = categoryIcon(item.category);
+                const accent = categoryAccent(item.category);
                 return (
                   <li key={item.id}>
                     <button
                       type="button"
                       className={cn(
-                        "w-full text-left px-4 py-3 hover:bg-neutral-50 transition-colors border-l-2",
-                        categoryTone(item.category),
-                        unread && "bg-blue-50/40",
+                        "flex w-full gap-3 rounded-xl px-2 py-2.5 text-left transition-colors hover:bg-neutral-50",
+                        unread && "bg-blue-50/30",
                       )}
                       onClick={() => {
                         if (unread) void markRead(item.id);
@@ -169,29 +206,49 @@ export function NotificationBell() {
                         }
                       }}
                     >
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="text-xs font-semibold text-neutral-900">
-                          {item.title}
-                        </p>
-                        {unread ? (
-                          <span className="mt-1 w-2 h-2 rounded-full bg-[#0066ff] shrink-0" />
-                        ) : null}
-                      </div>
-                      <p className="text-[11px] text-neutral-600 mt-0.5 line-clamp-2">
-                        {item.body}
-                      </p>
-                      <p className="text-[10px] text-neutral-400 mt-1">
-                        {item.category.replace(/_/g, " ").toLowerCase()} ·{" "}
-                        {formatDistanceToNow(new Date(item.createdAt), {
-                          addSuffix: true,
-                        })}
-                      </p>
+                      <span
+                        className={cn(
+                          "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
+                          accent,
+                        )}
+                      >
+                        <Icon className="h-4 w-4" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-start justify-between gap-2">
+                          <span className="text-xs font-bold text-neutral-900">
+                            {item.title}
+                          </span>
+                          {unread ? (
+                            <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-blue-600" />
+                          ) : null}
+                        </span>
+                        <span className="mt-0.5 block line-clamp-2 text-[11px] leading-relaxed text-neutral-600">
+                          {item.body}
+                        </span>
+                        <span className="mt-1 block text-[10px] text-neutral-400">
+                          {formatDistanceToNow(new Date(item.createdAt), {
+                            addSuffix: true,
+                          })}
+                        </span>
+                      </span>
                     </button>
                   </li>
                 );
               })}
             </ul>
           )}
+        </div>
+
+        <div className="border-t border-neutral-100 px-3 py-2">
+          <Button
+            type="button"
+            variant="ghost"
+            className="h-9 w-full rounded-xl text-xs font-semibold text-blue-700 hover:bg-blue-50 hover:text-blue-800"
+            onClick={() => navigate("/dashboard/notifications")}
+          >
+            Open full notifications page
+          </Button>
         </div>
       </PopoverContent>
     </Popover>

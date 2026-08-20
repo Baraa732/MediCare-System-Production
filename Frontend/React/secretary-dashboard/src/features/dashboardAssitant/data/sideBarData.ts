@@ -37,8 +37,8 @@ export const QuickState: () => QuickStateType[] = () => {
       label: "Pending",
       count: requests.length,
       icon: Clock,
-      color: "text-amber-500",
-      bg: "bg-amber-50",
+      color: "text-violet-600",
+      bg: "bg-violet-50",
     },
   ];
 };

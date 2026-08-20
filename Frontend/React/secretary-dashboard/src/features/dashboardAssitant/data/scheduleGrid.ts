@@ -496,7 +496,7 @@ export const informationPanelData = [
     border: "border-purple-300",
     bg: "bg-purple-50",
   },
-  { name: "Late", border: "border-amber-300", bg: "bg-amber-50" },
+  { name: "Late", border: "border-rose-300", bg: "bg-rose-50" },
   {
     name: "Pending request",
     border: "border-red-200",

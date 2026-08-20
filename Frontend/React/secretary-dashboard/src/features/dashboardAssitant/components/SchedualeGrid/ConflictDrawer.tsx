@@ -60,7 +60,7 @@ export function ConflictDrawer({ onConfirm, onCancel, doctors, setDoctors }: Con
         {/* Header Layout - Matched with Dashboard Navbar Styling */}
         <div className="p-5 bg-white rounded-2xl border-b border-slate-200 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-amber-50 rounded-lg border border-amber-200 text-amber-600">
+            <div className="p-2 bg-red-50 rounded-lg border border-red-200 text-red-600">
               <ShieldAlert className="w-5 h-5" />
             </div>
             <div>
@@ -83,8 +83,8 @@ export function ConflictDrawer({ onConfirm, onCancel, doctors, setDoctors }: Con
         </div>
 
         {/* Info Notification Area - Styled exactly like the Top Dashboard Alert Rule */}
-        <div className="px-5 py-3 bg-amber-50/60 border-b border-amber-200/80 text-amber-800 text-xs flex items-center gap-2 font-medium">
-          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+        <div className="px-5 py-3 bg-blue-50/60 border-b border-blue-100 text-blue-800 text-xs flex items-center gap-2 font-medium">
+          <AlertTriangle className="w-4 h-4 text-blue-600 shrink-0" />
           <span>
             Review the conflicts below to clear overlapping schedules or
             force-confirm positions.
@@ -123,7 +123,7 @@ export function ConflictDrawer({ onConfirm, onCancel, doctors, setDoctors }: Con
                         "text-[11px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider",
                         isCritical
                           ? "bg-red-50 text-red-700 border border-red-200"
-                          : "bg-amber-50 text-amber-700 border border-amber-200",
+                          : "bg-violet-50 text-violet-700 border border-violet-200",
                       )}
                     >
                       Priority {item.priorityScore}
@@ -167,13 +167,13 @@ export function ConflictDrawer({ onConfirm, onCancel, doctors, setDoctors }: Con
                       "p-3 rounded-lg text-xs flex items-start gap-2.5 font-medium border",
                       isCritical
                         ? "bg-red-50 text-red-800 border-red-100"
-                        : "bg-amber-50 text-amber-800 border-amber-100",
+                        : "bg-violet-50 text-violet-800 border-violet-100",
                     )}
                   >
                     <AlertTriangle
                       className={cn(
                         "w-4 h-4 shrink-0 mt-0.5",
-                        isCritical ? "text-red-600" : "text-amber-600",
+                        isCritical ? "text-red-600" : "text-violet-600",
                       )}
                     />
                     <div>
@@ -187,8 +187,8 @@ export function ConflictDrawer({ onConfirm, onCancel, doctors, setDoctors }: Con
 
                   {/* Time Warning Rule (Starts within 1 hour) - Dashboard-inspired Banner component */}
                   {isWithinOneHour && (
-                    <div className="p-3 rounded-lg bg-orange-50 text-orange-800 text-xs font-medium border border-orange-200 flex items-start gap-2.5">
-                      <Clock className="w-4 h-4 text-orange-600 shrink-0 mt-0.5" />
+                    <div className="p-3 rounded-lg bg-red-50 text-red-800 text-xs font-medium border border-red-100 flex items-start gap-2.5">
+                      <Clock className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
                       <div>
                         <strong>Workflow Warning:</strong> This appointment
                         starts within 1 hour. Immediate runtime modifications

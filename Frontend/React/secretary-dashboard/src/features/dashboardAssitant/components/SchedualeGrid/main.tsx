@@ -31,9 +31,9 @@ export function ScheduleGrid() {
   return (
     <div className="relative flex h-full w-full flex-col overflow-hidden bg-white select-none contain-layout">
       <div
-        className={`z-40 w-full shrink-0 overflow-hidden bg-amber-50 text-xs font-bold text-amber-800 transition-[max-height,opacity,padding] duration-300 ease-out ${
+        className={`z-40 w-full shrink-0 overflow-hidden bg-blue-50 text-xs font-bold text-blue-900 transition-[max-height,opacity,padding] duration-300 ease-out ${
           isEditMode
-            ? "max-h-16 border-b border-amber-200 px-5 py-3 opacity-100"
+            ? "max-h-16 border-b border-blue-200 px-5 py-3 opacity-100"
             : "max-h-0 border-b-transparent px-5 py-0 opacity-0"
         }`}
       >
@@ -43,7 +43,7 @@ export function ScheduleGrid() {
           }`}
         >
           <div className="flex items-center gap-2.5">
-            <AlertTriangle className="h-4 w-4 shrink-0 animate-pulse text-amber-500" />
+            <AlertTriangle className="h-4 w-4 shrink-0 animate-pulse text-blue-600" />
             <span>
               Edit mode is activated. Any move may lead to changes in the schedules
             </span>
@@ -52,7 +52,7 @@ export function ScheduleGrid() {
           <button
             type="button"
             onClick={onToggleEdit}
-            className="cursor-pointer rounded-lg bg-amber-600 px-3 py-1.5 text-[11px] font-extrabold text-white shadow-xs transition-all duration-200 hover:bg-amber-700 active:scale-95"
+            className="cursor-pointer rounded-lg bg-blue-600 px-3 py-1.5 text-[11px] font-extrabold text-white shadow-xs transition-all duration-200 hover:bg-blue-700 active:scale-95"
           >
             Exit edit mode
           </button>

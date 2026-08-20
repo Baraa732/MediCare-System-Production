@@ -261,11 +261,11 @@ export function Step1TreatmentInfo({
             {formatAbsoluteRangeLabel(formData.timeSlot, formData.duration)}
           </div>
         ) : availableTimeSlots.length === 0 ? (
-          <div className="bg-amber-50/60 border border-amber-100 rounded-xl p-3 text-center">
-            <p className="text-xs font-semibold text-amber-800">
+          <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-3 text-center">
+            <p className="text-xs font-semibold text-neutral-700">
               No available time slots.
             </p>
-            <span className="text-[10px] text-amber-600 font-medium block mt-0.5">
+            <span className="text-[10px] text-neutral-500 font-medium block mt-0.5">
               Please modify your selected date parameters.
             </span>
           </div>

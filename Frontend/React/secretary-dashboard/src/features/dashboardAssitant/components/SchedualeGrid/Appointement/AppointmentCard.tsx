@@ -211,7 +211,7 @@ export function AppointmentCard({
             "border-red-500 bg-red-50 text-red-900 ring-2 ring-red-400 z-30 animate-pulse",
           isConflicting &&
             conflictItem.severity !== "critical" &&
-            "border-amber-500 bg-amber-50 text-amber-900 ring-2 ring-amber-400 z-30",
+            "border-violet-500 bg-violet-50 text-violet-900 ring-2 ring-violet-400 z-30",
 
           // الحالات الافتراضية المستقرة
           !isConflicting &&
@@ -225,7 +225,7 @@ export function AppointmentCard({
             "bg-purple-50 border-purple-200/80 text-purple-700",
           !isConflicting &&
             apt.status === "late" &&
-            "bg-amber-50 border-amber-200/80 text-amber-700",
+            "bg-rose-50 border-rose-200/80 text-rose-700",
           !isConflicting &&
             apt.status === "unavailable" &&
             "bg-neutral-50 border-neutral-200 text-neutral-400 line-through opacity-75",
@@ -235,13 +235,13 @@ export function AppointmentCard({
       >
         {/* 🚀 أيقونة تداخل منبثقة ملونة في أعلى الكرت المتأثر */}
         {isConflicting && (
-          <div className="absolute top-1 right-1 flex items-center gap-0.5 bg-white border border-amber-300 rounded px-1 text-[9px] font-black text-neutral-800 shadow-sm">
+          <div className="absolute top-1 right-1 flex items-center gap-0.5 bg-white border border-violet-300 rounded px-1 text-[9px] font-black text-neutral-800 shadow-sm">
             <AlertTriangle
               className={cn(
                 "w-2.5 h-2.5",
                 conflictItem.severity === "critical"
                   ? "text-red-500"
-                  : "text-amber-500",
+                  : "text-violet-500",
               )}
             />
             <span>-{conflictItem.overlapMinutes}m</span>

@@ -30,7 +30,7 @@ export function EnablePushBanner({ compact = false }: EnablePushBannerProps) {
 
   if (permission === "unsupported") {
     return (
-      <div className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+      <div className="rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-xs text-neutral-700">
         This browser cannot receive web push. Use Chrome or Edge on HTTPS.
       </div>
     );
