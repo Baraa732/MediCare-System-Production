@@ -554,7 +554,8 @@ export class OpenEmrDbReader {
   async getVitalSigns(pid: string): Promise<VitalSignRecord[]> {
     return this.withConnection(async (connection) => {
       const [rows] = await connection.execute(
-        `SELECT id, date, bps, bpd, pulse, respiration, temperature, oxygen_saturation, height, weight, BMI, user
+        `SELECT id, date, bps, bpd, pulse, respiration, temperature, oxygen_saturation,
+                height, weight, BMI, user, note
          FROM form_vitals WHERE pid = ? AND activity = 1 ORDER BY date DESC`,
         [pid],
       );
@@ -562,6 +563,7 @@ export class OpenEmrDbReader {
       const vitals: VitalSignRecord[] = [];
       for (const row of rows as any[]) {
         const bp = [this.nonEmpty(row.bps), this.nonEmpty(row.bpd)].filter(Boolean).join('/');
+        const attr = this.parseAttribution(row.note);
         vitals.push({
           date: this.formatDateTime(row.date),
           bloodPressure: bp || null,
@@ -572,7 +574,12 @@ export class OpenEmrDbReader {
           heightCm: this.toNumber(row.height),
           weightKg: this.toNumber(row.weight),
           bmi: this.toNumber(row.BMI),
-          recordedBy: await this.resolveUserName(connection, row.user),
+          recordedBy: this.displayAuthor(
+            attr.doctorName,
+            null,
+            await this.resolveUserName(connection, row.user),
+          ),
+          clinicName: attr.clinicName,
         });
       }
       return vitals;
@@ -643,13 +650,17 @@ export class OpenEmrDbReader {
   }
 
   async getImmunizations(pid: string): Promise<ImmunizationRecord[]> {
-    return this.getListRecords(pid, 'immunization', (row) => ({
-      id: String(row.id),
-      vaccine: this.nonEmpty(row.title) ?? this.nonEmpty(row.diagnosis),
-      dateAdministered: this.formatDate(row.begdate ?? row.date),
-      lotNumber: this.nonEmpty(row.extrainfo) ?? this.nonEmpty(row.udi),
-      administeredBy: this.nonEmpty(row.user),
-    }));
+    return this.getListRecords(pid, 'immunization', (row) => {
+      const attr = this.parseAttribution(row.comments);
+      return {
+        id: String(row.id),
+        vaccine: this.nonEmpty(row.title) ?? this.nonEmpty(row.diagnosis),
+        dateAdministered: this.formatDate(row.begdate ?? row.date),
+        lotNumber: this.nonEmpty(row.extrainfo) ?? this.nonEmpty(row.udi),
+        administeredBy: this.displayAuthor(attr.doctorName, null, row.user),
+        clinicName: attr.clinicName,
+      };
+    });
   }
 
   async getCarePlans(pid: string): Promise<CarePlanRecord[]> {
@@ -1027,6 +1038,8 @@ export class OpenEmrDbReader {
   async insertVital(input: {
     pid: string | number;
     user?: string;
+    doctorName?: string;
+    clinicName?: string;
     bps?: string | null;
     bpd?: string | null;
     pulse?: number | null;
@@ -1043,12 +1056,13 @@ export class OpenEmrDbReader {
       const author = this.openEmrAuthor(input.user);
       const pid = Number(input.pid);
       const encounterId = await this.ensureTodayEncounter(connection, pid, today, author);
+      const attribution = this.formatAttribution(input.doctorName, input.clinicName);
 
       const [result] = await connection.execute(
         `INSERT INTO form_vitals
           (date, pid, user, groupname, authorized, activity, bps, bpd, pulse, respiration,
-           temperature, oxygen_saturation, height, weight, BMI)
-         VALUES (?, ?, ?, 'Default', 1, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           temperature, oxygen_saturation, height, weight, BMI, note)
+         VALUES (?, ?, ?, 'Default', 1, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           now,
           pid,
@@ -1062,6 +1076,7 @@ export class OpenEmrDbReader {
           input.height ?? null,
           input.weight ?? null,
           input.bmi ?? null,
+          attribution.slice(0, 255),
         ],
       );
       const formId = Number((result as any)?.insertId);
@@ -1087,7 +1102,8 @@ export class OpenEmrDbReader {
         heightCm: input.height ?? null,
         weightKg: input.weight ?? null,
         bmi: input.bmi ?? null,
-        recordedBy: author,
+        recordedBy: this.displayAuthor(input.doctorName, null, author),
+        clinicName: input.clinicName?.trim() || null,
       };
     });
   }

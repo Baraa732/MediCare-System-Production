@@ -302,6 +302,8 @@ class ProblemRecord {
   final String? icd10Code;
   final String? status;
   final String? diagnosedDate;
+  final String? recordedBy;
+  final String? clinicName;
 
   const ProblemRecord({
     required this.id,
@@ -309,6 +311,8 @@ class ProblemRecord {
     this.icd10Code,
     this.status,
     this.diagnosedDate,
+    this.recordedBy,
+    this.clinicName,
   });
 
   factory ProblemRecord.fromJson(Map<String, dynamic> json) {
@@ -318,6 +322,8 @@ class ProblemRecord {
       icd10Code: _str(json['icd10Code']),
       status: _str(json['status']),
       diagnosedDate: _str(json['diagnosedDate']),
+      recordedBy: _str(json['recordedBy']),
+      clinicName: _str(json['clinicName']),
     );
   }
 }
@@ -328,6 +334,8 @@ class ConditionRecord {
   final String? icd10Code;
   final String? status;
   final String? diagnosedDate;
+  final String? recordedBy;
+  final String? clinicName;
 
   const ConditionRecord({
     required this.id,
@@ -335,6 +343,8 @@ class ConditionRecord {
     this.icd10Code,
     this.status,
     this.diagnosedDate,
+    this.recordedBy,
+    this.clinicName,
   });
 
   factory ConditionRecord.fromJson(Map<String, dynamic> json) {
@@ -344,6 +354,8 @@ class ConditionRecord {
       icd10Code: _str(json['icd10Code']),
       status: _str(json['status']),
       diagnosedDate: _str(json['diagnosedDate']),
+      recordedBy: _str(json['recordedBy']),
+      clinicName: _str(json['clinicName']),
     );
   }
 }
@@ -512,6 +524,7 @@ class ImmunizationRecord {
   final String? dateAdministered;
   final String? lotNumber;
   final String? administeredBy;
+  final String? clinicName;
 
   const ImmunizationRecord({
     required this.id,
@@ -519,6 +532,7 @@ class ImmunizationRecord {
     this.dateAdministered,
     this.lotNumber,
     this.administeredBy,
+    this.clinicName,
   });
 
   factory ImmunizationRecord.fromJson(Map<String, dynamic> json) {
@@ -528,6 +542,7 @@ class ImmunizationRecord {
       dateAdministered: _str(json['dateAdministered']),
       lotNumber: _str(json['lotNumber']),
       administeredBy: _str(json['administeredBy']),
+      clinicName: _str(json['clinicName']),
     );
   }
 }

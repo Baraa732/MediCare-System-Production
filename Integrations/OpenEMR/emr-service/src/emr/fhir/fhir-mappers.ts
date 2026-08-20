@@ -57,6 +57,7 @@ function mapDiagnosisResource(resource: any): ProblemRecord | ConditionRecord {
     status: resource.clinicalStatus?.coding?.[0]?.code ?? resource.clinicalStatus?.text ?? null,
     diagnosedDate: resource.onsetDateTime ?? resource.onsetPeriod?.start ?? resource.recordedDate ?? null,
     recordedBy: resource.recorder?.display ?? resource.asserter?.display ?? null,
+    clinicName: null,
   };
 }
 
@@ -163,7 +164,8 @@ export function mapFhirObservationToVital(resource: any): VitalSignRecord | null
     respiratoryRate: null,
     temperatureCelsius: null,
     oxygenSaturation: null,
-    recordedBy: null,
+    recordedBy: resource.performer?.[0]?.display ?? null,
+    clinicName: null,
   };
 
   if (code.includes('blood pressure')) vital.bloodPressure = value;

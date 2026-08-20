@@ -391,6 +391,7 @@ class _ChartBodyState extends State<_ChartBody> {
   Widget build(BuildContext context) {
     final chart = widget.chart;
     final conditions = _mergedConditions(chart);
+    final careSources = _careSources(chart);
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(
         parent: BouncingScrollPhysics(),
@@ -428,6 +429,10 @@ class _ChartBodyState extends State<_ChartBody> {
         ],
         const SizedBox(height: 16),
         _GlanceRow(chart: chart, conditionCount: conditions.length),
+        if (careSources.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _CareSourcesStrip(sources: careSources),
+        ],
         const SizedBox(height: 14),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -532,7 +537,7 @@ class _ChartBodyState extends State<_ChartBody> {
               for (final c in conditions)
                 _RecordCard(
                   title: c.title,
-                  lines: [c.subtitle].where((e) => e.trim().isNotEmpty).toList(),
+                  lines: c.lines.where((e) => e.trim().isNotEmpty).toList(),
                 ),
             ],
           ),
@@ -553,7 +558,7 @@ class _ChartBodyState extends State<_ChartBody> {
                   title: e.type ?? e.reason ?? 'Visit',
                   lines: [
                     _fmtDateTime(e.date),
-                    if (e.clinic != null) e.clinic!,
+                    if (e.clinic != null) 'Clinic: ${e.clinic}',
                     if (e.provider != null) 'Provider: ${e.provider}',
                     if (e.reason != null && e.type != null) e.reason!,
                     if (e.diagnosis.isNotEmpty)
@@ -649,7 +654,8 @@ class _ChartBodyState extends State<_ChartBody> {
                     if (i.dateAdministered != null)
                       _fmtDate(i.dateAdministered),
                     if (i.lotNumber != null) 'Lot ${i.lotNumber}',
-                    if (i.administeredBy != null) i.administeredBy!,
+                    if (i.administeredBy != null) 'By ${i.administeredBy}',
+                    if (i.clinicName != null) 'Clinic: ${i.clinicName}',
                   ].where((e) => e.isNotEmpty).toList(),
                 ),
             ],
@@ -720,6 +726,7 @@ class _ChartBodyState extends State<_ChartBody> {
                   title: d.fileName ?? d.type ?? 'Document',
                   lines: [
                     if (d.type != null) d.type!,
+                    if (d.uploadedBy != null) 'By ${d.uploadedBy}',
                     if (d.status != null) d.status!,
                     if (d.uploadedAt != null) _fmtDate(d.uploadedAt),
                   ].where((e) => e.isNotEmpty).toList(),
@@ -979,6 +986,46 @@ class _Glance extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Lean “where my care comes from” strip — unique clinic names already on chart.
+class _CareSourcesStrip extends StatelessWidget {
+  const _CareSourcesStrip({required this.sources});
+  final List<String> sources;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Your care sources',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: AppColors.grayDark,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            sources.join(' · '),
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.CustomgrayDark,
+              height: 1.35,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1378,16 +1425,24 @@ class _SyncFooter extends StatelessWidget {
 }
 
 class _ConditionItem {
-  const _ConditionItem(this.title, this.subtitle);
+  const _ConditionItem(this.title, this.lines);
   final String title;
-  final String subtitle;
+  final List<String> lines;
 }
 
 List<_ConditionItem> _mergedConditions(PatientEmrChart chart) {
   final items = <_ConditionItem>[];
   final seen = <String>{};
 
-  void add(String id, String? name, String? code, String? status, String? date) {
+  void add({
+    required String id,
+    String? name,
+    String? code,
+    String? status,
+    String? date,
+    String? recordedBy,
+    String? clinicName,
+  }) {
     final key = id.isNotEmpty ? id : (name ?? '');
     if (key.isEmpty || seen.contains(key)) return;
     seen.add(key);
@@ -1398,18 +1453,82 @@ List<_ConditionItem> _mergedConditions(PatientEmrChart chart) {
           if (code != null) 'ICD-10: $code',
           if (status != null) status,
           if (date != null) 'Diagnosed ${_fmtDate(date)}',
-        ].join(' · '),
+          if (recordedBy != null) 'By $recordedBy',
+          if (clinicName != null) 'Clinic: $clinicName',
+        ],
       ),
     );
   }
 
   for (final c in chart.conditions) {
-    add(c.id, c.name, c.icd10Code, c.status, c.diagnosedDate);
+    add(
+      id: c.id,
+      name: c.name,
+      code: c.icd10Code,
+      status: c.status,
+      date: c.diagnosedDate,
+      recordedBy: c.recordedBy,
+      clinicName: c.clinicName,
+    );
   }
   for (final p in chart.problems) {
-    add(p.id, p.name, p.icd10Code, p.status, p.diagnosedDate);
+    add(
+      id: p.id,
+      name: p.name,
+      code: p.icd10Code,
+      status: p.status,
+      date: p.diagnosedDate,
+      recordedBy: p.recordedBy,
+      clinicName: p.clinicName,
+    );
   }
   return items;
+}
+
+/// Unique clinic names already present on the chart (no extra API).
+List<String> _careSources(PatientEmrChart chart) {
+  final names = <String>{};
+
+  void add(String? raw) {
+    final value = raw?.trim();
+    if (value == null || value.isEmpty) return;
+    if (value.toLowerCase() == 'clinic') return;
+    names.add(value);
+  }
+
+  for (final e in chart.encounters) {
+    add(e.clinic);
+  }
+  for (final a in chart.allergies) {
+    add(a.clinicName);
+  }
+  for (final m in chart.medications) {
+    add(m.clinicName);
+  }
+  for (final c in chart.conditions) {
+    add(c.clinicName);
+  }
+  for (final p in chart.problems) {
+    add(p.clinicName);
+  }
+  for (final v in chart.vitalSigns) {
+    add(v.clinicName);
+  }
+  for (final l in chart.labResults) {
+    add(l.clinicName);
+  }
+  for (final plan in chart.carePlans) {
+    add(plan.clinicName);
+  }
+  for (final n in chart.clinicalNotes) {
+    add(n.clinicName);
+  }
+  for (final i in chart.immunizations) {
+    add(i.clinicName);
+  }
+
+  final list = names.toList()..sort();
+  return list;
 }
 
 String _fmtDate(String? raw) {

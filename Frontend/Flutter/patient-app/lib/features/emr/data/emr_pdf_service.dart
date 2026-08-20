@@ -93,20 +93,29 @@ class EmrPdfService {
           ]),
           _h('Allergies', 'FHIR AllergyIntolerance'),
           _table(
-            ['Allergen', 'Reaction', 'Severity', 'Recorded'],
+            ['Allergen', 'Reaction', 'Severity', 'Doctor / clinic', 'Recorded'],
             chart.allergies
-                .map((a) => [a.allergen ?? '—', a.reaction ?? '—', a.severity ?? '—', _d(a.recordedDate)])
+                .map(
+                  (a) => [
+                    a.allergen ?? '—',
+                    a.reaction ?? '—',
+                    a.severity ?? '—',
+                    _byClinic(a.recordedBy, a.clinicName),
+                    _d(a.recordedDate),
+                  ],
+                )
                 .toList(),
           ),
           _h('Medications', 'FHIR MedicationRequest'),
           _table(
-            ['Name', 'Dose / frequency', 'Route', 'Status'],
+            ['Name', 'Dose / frequency', 'Route', 'Doctor / clinic', 'Status'],
             chart.medications
                 .map(
                   (m) => [
                     m.name ?? '—',
                     [m.dosage, m.frequency].whereType<String>().join(' · ').ifEmpty('—'),
                     m.route ?? '—',
+                    _byClinic(m.prescribedBy, m.clinicName),
                     m.status ?? '—',
                   ],
                 )
@@ -114,15 +123,8 @@ class EmrPdfService {
           ),
           _h('Conditions / problems', 'FHIR Condition'),
           _table(
-            ['Name', 'ICD-10', 'Status', 'Diagnosed'],
-            [
-              ...chart.conditions.map(
-                (c) => [c.name ?? '—', c.icd10Code ?? '—', c.status ?? '—', _d(c.diagnosedDate)],
-              ),
-              ...chart.problems.map(
-                (p) => [p.name ?? '—', p.icd10Code ?? '—', p.status ?? '—', _d(p.diagnosedDate)],
-              ),
-            ],
+            ['Name', 'ICD-10', 'Status', 'Doctor / clinic', 'Diagnosed'],
+            _conditionRows(chart),
           ),
           _h('Encounters', 'FHIR Encounter'),
           _table(
@@ -140,30 +142,34 @@ class EmrPdfService {
           ),
           _h('Vital signs', 'FHIR Observation'),
           _table(
-            ['Date', 'BP', 'HR', 'Temp', 'SpO₂', 'Weight'],
+            ['Date', 'BP', 'HR', 'Temp', 'SpO₂', 'Doctor / clinic'],
             chart.vitalSigns
                 .map(
                   (v) => [
                     _dt(v.date),
                     v.bloodPressure ?? '—',
                     v.heartRate == null ? '—' : v.heartRate!.toStringAsFixed(0),
-                    v.temperatureCelsius == null ? '—' : '${v.temperatureCelsius!.toStringAsFixed(1)}°C',
-                    v.oxygenSaturation == null ? '—' : '${v.oxygenSaturation!.toStringAsFixed(0)}%',
-                    v.weightKg == null ? '—' : '${v.weightKg!.toStringAsFixed(1)} kg',
+                    v.temperatureCelsius == null
+                        ? '—'
+                        : '${v.temperatureCelsius!.toStringAsFixed(1)}°C',
+                    v.oxygenSaturation == null
+                        ? '—'
+                        : '${v.oxygenSaturation!.toStringAsFixed(0)}%',
+                    _byClinic(v.recordedBy, v.clinicName),
                   ],
                 )
                 .toList(),
           ),
           _h('Laboratory', 'FHIR Observation / DiagnosticReport'),
           _table(
-            ['Test', 'Result', 'Ref', 'Status', 'Date'],
+            ['Test', 'Result', 'Status', 'Doctor / clinic', 'Date'],
             chart.labResults
                 .map(
                   (l) => [
                     l.testName ?? '—',
                     [l.result, l.unit].whereType<String>().join(' ').ifEmpty('—'),
-                    l.referenceRange ?? '—',
                     l.status ?? '—',
+                    _byClinic(l.reviewedBy, l.clinicName),
                     _d(l.performedDate),
                   ],
                 )
@@ -171,27 +177,28 @@ class EmrPdfService {
           ),
           _h('Immunizations', 'FHIR Immunization'),
           _table(
-            ['Vaccine', 'Date', 'Lot', 'By'],
+            ['Vaccine', 'Date', 'Lot', 'Doctor / clinic'],
             chart.immunizations
                 .map(
                   (i) => [
                     i.vaccine ?? '—',
                     _d(i.dateAdministered),
                     i.lotNumber ?? '—',
-                    i.administeredBy ?? '—',
+                    _byClinic(i.administeredBy, i.clinicName),
                   ],
                 )
                 .toList(),
           ),
           _h('Care plans', 'FHIR CarePlan'),
           _table(
-            ['Title', 'Status', 'Goals', 'Start'],
+            ['Title', 'Status', 'Goals', 'Doctor / clinic', 'Start'],
             chart.carePlans
                 .map(
                   (p) => [
                     p.title ?? '—',
                     p.status ?? '—',
                     p.goals.isEmpty ? '—' : p.goals.join(', '),
+                    _byClinic(p.assignedBy, p.clinicName),
                     _d(p.startDate),
                   ],
                 )
@@ -199,21 +206,35 @@ class EmrPdfService {
           ),
           _h('Clinical notes', 'OpenEMR notes'),
           _table(
-            ['Date', 'Type', 'Author', 'Content'],
+            ['Date', 'Type', 'Doctor / clinic', 'Content'],
             chart.clinicalNotes
-                .map((n) => [_dt(n.date), n.type ?? '—', n.author ?? '—', n.content ?? '—'])
+                .map(
+                  (n) => [
+                    _dt(n.date),
+                    n.type ?? '—',
+                    _byClinic(n.author, n.clinicName),
+                    n.content ?? '—',
+                  ],
+                )
                 .toList(),
           ),
           _h('Documents', 'FHIR DocumentReference'),
           _table(
-            ['File', 'Type', 'Status', 'Uploaded'],
+            ['File', 'Type', 'Uploaded by', 'Uploaded'],
             chart.documents
-                .map((d) => [d.fileName ?? '—', d.type ?? '—', d.status ?? '—', _d(d.uploadedAt)])
+                .map(
+                  (d) => [
+                    d.fileName ?? '—',
+                    d.type ?? '—',
+                    d.uploadedBy ?? '—',
+                    _d(d.uploadedAt),
+                  ],
+                )
                 .toList(),
           ),
           pw.SizedBox(height: 14),
           pw.Text(
-            'Source: OpenEMR patient_data + FHIR R4. Empty rows mean no clinician has written that resource yet.',
+            'Source: OpenEMR patient_data + FHIR R4. Doctor/clinic columns show who authored each entry when available.',
             style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600),
           ),
         ],
@@ -221,6 +242,67 @@ class EmrPdfService {
     );
 
     return doc.save();
+  }
+
+  String _byClinic(String? by, String? clinic) {
+    final parts = [by, clinic]
+        .whereType<String>()
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+    if (parts.isEmpty) return '—';
+    return parts.join(' · ');
+  }
+
+  /// Problems and conditions often mirror the same OpenEMR list rows — dedupe by id/name.
+  List<List<String>> _conditionRows(PatientEmrChart chart) {
+    final rows = <List<String>>[];
+    final seen = <String>{};
+
+    void add({
+      required String id,
+      String? name,
+      String? code,
+      String? status,
+      String? by,
+      String? clinic,
+      String? date,
+    }) {
+      final key = id.isNotEmpty ? id : (name ?? '');
+      if (key.isEmpty || seen.contains(key)) return;
+      seen.add(key);
+      rows.add([
+        name ?? '—',
+        code ?? '—',
+        status ?? '—',
+        _byClinic(by, clinic),
+        _d(date),
+      ]);
+    }
+
+    for (final c in chart.conditions) {
+      add(
+        id: c.id,
+        name: c.name,
+        code: c.icd10Code,
+        status: c.status,
+        by: c.recordedBy,
+        clinic: c.clinicName,
+        date: c.diagnosedDate,
+      );
+    }
+    for (final p in chart.problems) {
+      add(
+        id: p.id,
+        name: p.name,
+        code: p.icd10Code,
+        status: p.status,
+        by: p.recordedBy,
+        clinic: p.clinicName,
+        date: p.diagnosedDate,
+      );
+    }
+    return rows;
   }
 
   pw.Widget _h(String title, String resource) {

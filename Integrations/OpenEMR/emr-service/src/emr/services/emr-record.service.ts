@@ -498,6 +498,7 @@ export class EmrRecordService {
     preferredTenantId?: string | null,
   ): Promise<PatientEmrChart> {
     const ctx = await this.resolveStaffWriteContext(userId, actor, preferredTenantId);
+    const meta = await this.resolveWriterMeta(actor, ctx.tenantId);
     const bp = (body.bloodPressure || '').split('/');
     const bps = bp[0]?.trim() || null;
     const bpd = bp[1]?.trim() || null;
@@ -522,6 +523,7 @@ export class EmrRecordService {
       await this.dbReader.insertVital({
         pid: ctx.pid,
         user: actor.userId,
+        ...meta,
         bps,
         bpd,
         pulse: body.heartRate ?? null,
