@@ -2,8 +2,8 @@ import { createContext, useContext, type ReactNode } from "react";
 import {
   DndContext,
   DragOverlay,
-  KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
@@ -47,8 +47,10 @@ export function ScheduleDndProvider({ children }: { children: ReactNode }) {
   const dnd = useDragHandlers();
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(KeyboardSensor),
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 180, tolerance: 8 },
+    }),
   );
 
   return (

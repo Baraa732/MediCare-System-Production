@@ -13,6 +13,7 @@ import { useGlobalConflictStore } from "@/features/dashboardAssitant/hooks/useGl
 import { useWizardDrawer } from "@/features/dashboardAssitant/hooks/useWizardDrawer";
 import { useAppointmentDrawer } from "@/features/dashboardAssitant/hooks/useAppointmentDrawer";
 import { isApiAppointmentId } from "@/features/dashboardAssitant/hooks/useAppointmentActions";
+import { isAppointmentLockedInEditMode } from "@/features/dashboardAssitant/utils/editModeDrag";
 import {
   getAppointmentCardClasses,
   resolveDisplayStatus,
@@ -44,8 +45,11 @@ export function AppointmentCard({
   const topOffset = (start / ROW_MINUTES) * SLOT_HEIGHT;
   const cardHeight = ((end - start) / ROW_MINUTES) * SLOT_HEIGHT;
 
-  // الشرط الذكي المعتمد على إحداثيات الخط الأحمر المتزامن الخاص بك
-  const isPastAppointment = start <= currentMinutesSinceGridStart;
+  const isPastAppointment = isAppointmentLockedInEditMode(
+    apt.status,
+    start,
+    currentMinutesSinceGridStart,
+  );
 
   // معالجة الأيقونات والوضعية البرمجية الدقيقة للتصميم
   const showLockIcon = isEditMode && isPastAppointment;
@@ -208,13 +212,14 @@ export function AppointmentCard({
           ...style,
           top: topOffset + 3,
           height: cardHeight - 6,
+          touchAction: isDragDisabled ? undefined : "none",
         }}
         className={cn(
           "absolute left-2 right-2 rounded-xl flex transition-all duration-350 ease-in-out shadow-xs group z-10 overflow-hidden select-none border box-border",
           isDragging &&
             "opacity-15 border-dashed bg-neutral-100 border-neutral-300 pointer-events-none",
           showGripHandle &&
-            "cursor-grab active:cursor-grabbing hover:shadow-md border-dashed",
+            "z-20 cursor-grab active:cursor-grabbing hover:shadow-md border-dashed",
           showLockIcon && "opacity-85 border-solid cursor-not-allowed",
           !isEditMode && "cursor-pointer",
 

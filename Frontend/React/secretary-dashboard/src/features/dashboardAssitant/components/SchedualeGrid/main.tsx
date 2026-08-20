@@ -45,7 +45,7 @@ export function ScheduleGrid() {
           <div className="flex items-center gap-2.5">
             <AlertTriangle className="h-4 w-4 shrink-0 animate-pulse text-blue-600" />
             <span>
-              Edit mode: drag appointments or pending requests to reschedule.
+              Edit mode: drag a card by the grip to a new time or doctor. Occupied slots are blocked. Past / finished visits stay locked.
             </span>
           </div>
 

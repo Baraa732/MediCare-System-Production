@@ -124,11 +124,12 @@ function PendingRequestCard({
       disabled: !isEditMode,
     });
 
-  const style = transform
-    ? {
-        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-      }
-    : undefined;
+  const style = {
+    ...(transform
+      ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
+      : {}),
+    ...(isEditMode ? { touchAction: "none" as const } : {}),
+  };
 
   const handleConfirm = async () => {
     if (!accessToken || !isApiAppointmentId(item.id)) return;

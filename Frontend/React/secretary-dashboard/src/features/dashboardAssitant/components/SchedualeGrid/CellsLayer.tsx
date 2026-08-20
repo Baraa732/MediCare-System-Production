@@ -39,10 +39,10 @@ function GridCell({
       slotIdx,
       timeStart: slotMinutesStart,
     },
-    disabled: !isEditMode || isOccupied,
+    disabled: !isEditMode,
   });
 
-  if (isOccupied) return <div style={{ height: SLOT_HEIGHT }} />;
+  if (isOccupied && !isEditMode) return <div style={{ height: SLOT_HEIGHT }} />;
 
   const isValidIncomingType =
     active?.data.current?.type === "appointment" ||

@@ -78,6 +78,14 @@ export function formatClinicTime(
   });
 }
 
+export function clinicDateKey(
+  value: Date | string = new Date(),
+  timezone = DEFAULT_CLINIC_TIMEZONE,
+): string {
+  const { year, month, day } = clinicTimeParts(value, timezone);
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
 export function formatClinicDate(
   value: string | Date,
   timezone = DEFAULT_CLINIC_TIMEZONE,
