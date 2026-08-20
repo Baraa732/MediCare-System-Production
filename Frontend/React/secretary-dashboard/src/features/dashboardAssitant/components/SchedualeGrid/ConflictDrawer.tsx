@@ -9,6 +9,7 @@ import {
   ShieldAlert,
   Sparkles,
 } from "lucide-react";
+import { useState } from "react";
 import { useGlobalConflictStore } from "../../hooks/useGlobalConflictStore";
 import { cn } from "@/lib/utils";
 import { START_TIME_MINUTES } from "../../data/scheduleGrid";
@@ -29,6 +30,7 @@ export function ConflictDrawer({ onConfirm, onCancel, doctors, setDoctors }: Con
     clearConflict,
     executeAutoResolution,
   } = useGlobalConflictStore();
+  const [notice, setNotice] = useState<string | null>(null);
 
   if (!isDrawerOpen || !conflictPayload) return null;
 
@@ -44,15 +46,11 @@ export function ConflictDrawer({ onConfirm, onCancel, doctors, setDoctors }: Con
     executeAutoResolution(
       doctors,
       setDoctors,
-      (successMessage) => {
-        alert(`Success: ${successMessage}`);
-      },
-      (manualMessage) => {
-        // هنا يتم تنبيه المستخدم أن المسارات الآلية مغلقة وعليه الاختيار بنفسه
-        alert(
-          `Notice: ${manualMessage} Please choose 'Force Overlap' or Reschedule manually.`,
-        );
-      },
+      (successMessage) => setNotice(successMessage),
+      (manualMessage) =>
+        setNotice(
+          `${manualMessage} Choose Confirm Position or undo the move.`,
+        ),
     );
   };
 
@@ -93,6 +91,11 @@ export function ConflictDrawer({ onConfirm, onCancel, doctors, setDoctors }: Con
             force-confirm positions.
           </span>
         </div>
+        {notice ? (
+          <div className="mx-5 mt-3 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-800">
+            {notice}
+          </div>
+        ) : null}
         <button
           onClick={handleAutoMitigate}
           className="w-full py-2.5 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-md hover:shadow-lg active:scale-98 cursor-pointer border-none"

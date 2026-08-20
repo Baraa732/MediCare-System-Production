@@ -15,8 +15,10 @@ import {
   isSupported,
   onMessage,
   type Messaging,
+  type Unsubscribe,
 } from "firebase/messaging";
 import { useAuthStore } from "@/stores/authStore";
+import { normalizeCaughtError } from "@/lib/api/errors";
 import {
   fetchPushWebConfig,
   fetchStaffInbox,
@@ -24,6 +26,7 @@ import {
   markStaffInboxRead,
   registerPushDevice,
   unregisterPushDevice,
+  type FirebaseWebConfig,
   type StaffInboxItem,
 } from "@/lib/api/notifications";
 
@@ -35,6 +38,7 @@ type NotificationContextValue = {
   permission: NotificationPermissionState;
   pushEnabled: boolean;
   isLoading: boolean;
+  isEnabling: boolean;
   lastError: string | null;
   refreshInbox: () => Promise<void>;
   markRead: (id: string) => Promise<void>;
@@ -44,7 +48,11 @@ type NotificationContextValue = {
 
 const NotificationContext = createContext<NotificationContextValue | null>(null);
 
-function showSystemNotification(title: string, body: string, data?: Record<string, string>) {
+function showSystemNotification(
+  title: string,
+  body: string,
+  data?: Record<string, string>,
+) {
   if (typeof Notification === "undefined" || Notification.permission !== "granted") {
     return;
   }
@@ -65,6 +73,27 @@ function showSystemNotification(title: string, body: string, data?: Record<strin
   };
 }
 
+async function waitForActiveWorker(
+  registration: ServiceWorkerRegistration,
+): Promise<ServiceWorker | null> {
+  if (registration.active) return registration.active;
+  await navigator.serviceWorker.ready;
+  if (registration.active) return registration.active;
+  return navigator.serviceWorker.controller;
+}
+
+function initServiceWorker(worker: ServiceWorker, config: FirebaseWebConfig) {
+  return new Promise<boolean>((resolve) => {
+    const channel = new MessageChannel();
+    const timeout = window.setTimeout(() => resolve(false), 8000);
+    channel.port1.onmessage = (event) => {
+      window.clearTimeout(timeout);
+      resolve(Boolean(event.data?.ok));
+    };
+    worker.postMessage({ type: "INIT_FCM", config }, [channel.port2]);
+  });
+}
+
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const accessToken = useAuthStore((s) => s.accessToken);
   const [items, setItems] = useState<StaffInboxItem[]>([]);
@@ -72,24 +101,26 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [permission, setPermission] = useState<NotificationPermissionState>("default");
   const [pushEnabled, setPushEnabled] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isEnabling, setIsEnabling] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
 
   const fcmTokenRef = useRef<string | null>(null);
   const firebaseAppRef = useRef<FirebaseApp | null>(null);
   const messagingRef = useRef<Messaging | null>(null);
+  const unsubscribeRef = useRef<Unsubscribe | null>(null);
+  const enablingRef = useRef(false);
 
   const refreshInbox = useCallback(async () => {
     if (!accessToken) return;
     setIsLoading(true);
     try {
-      const inbox = await fetchStaffInbox(accessToken, { page: 1, limit: 30 });
+      const inbox = await fetchStaffInbox(accessToken, { page: 1, limit: 40 });
       setItems(inbox.items);
       setUnreadCount(inbox.unreadCount);
-      setLastError(null);
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to load notifications";
-      setLastError(message);
+      setLastError(
+        normalizeCaughtError(err, "Failed to load notifications"),
+      );
     } finally {
       setIsLoading(false);
     }
@@ -117,84 +148,152 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     setUnreadCount(0);
   }, [accessToken]);
 
-  const registerServiceWorker = useCallback(async () => {
-    if (!("serviceWorker" in navigator)) return null;
-    const registration = await navigator.serviceWorker.register("/firebase-messaging-sw.js", {
-      scope: "/",
-    });
-    registration.active?.postMessage({ type: "INIT_FCM" });
-    await navigator.serviceWorker.ready;
-    return registration;
-  }, []);
+  const setupFirebaseMessaging = useCallback(
+    async (interactive: boolean) => {
+      if (!accessToken) return;
+      if (enablingRef.current) return;
+      enablingRef.current = true;
+      if (interactive) setIsEnabling(true);
 
-  const setupFirebaseMessaging = useCallback(async () => {
-    if (!accessToken) return;
+      try {
+        if (typeof Notification === "undefined" || !("serviceWorker" in navigator)) {
+          setPermission("unsupported");
+          setLastError("This browser does not support web push notifications.");
+          return;
+        }
 
-    const supported = await isSupported();
-    if (!supported) {
-      setPermission("unsupported");
-      return;
-    }
+        const supported = await isSupported();
+        if (!supported) {
+          setPermission("unsupported");
+          setLastError("Firebase messaging is not supported in this browser.");
+          return;
+        }
 
-    const config = await fetchPushWebConfig();
-    if (!config) return;
+        setPermission(Notification.permission);
 
-    const app =
-      getApps().length > 0 ? getApps()[0]! : initializeApp(config);
-    firebaseAppRef.current = app;
+        if (Notification.permission === "denied") {
+          setLastError(
+            "Browser notifications are blocked. Allow notifications for this site in the browser address bar, then try again.",
+          );
+          return;
+        }
 
-    const registration = await registerServiceWorker();
-    const messaging = getMessaging(app);
-    messagingRef.current = messaging;
+        if (Notification.permission === "default") {
+          if (!interactive) return;
+          const result = await Notification.requestPermission();
+          setPermission(result);
+          if (result !== "granted") {
+            setLastError(
+              result === "denied"
+                ? "Permission was denied. Allow notifications in the browser site settings."
+                : "Notification permission was not granted.",
+            );
+            return;
+          }
+        }
 
-    if (Notification.permission === "default") {
-      const result = await Notification.requestPermission();
-      setPermission(result);
-      if (result !== "granted") return;
-    } else {
-      setPermission(Notification.permission);
-      if (Notification.permission !== "granted") return;
-    }
+        const config = await fetchPushWebConfig();
+        if (!config?.apiKey || !config.vapidKey) {
+          setLastError(
+            "Web push is not configured on the server. Firebase web API key and VAPID key are required.",
+          );
+          return;
+        }
 
-    const fcmToken = await getToken(messaging, {
-      vapidKey: config.vapidKey,
-      serviceWorkerRegistration: registration ?? undefined,
-    });
+        const app =
+          getApps().length > 0
+            ? getApps()[0]!
+            : initializeApp({
+                apiKey: config.apiKey,
+                authDomain: config.authDomain,
+                projectId: config.projectId,
+                messagingSenderId: config.messagingSenderId,
+                appId: config.appId,
+              });
+        firebaseAppRef.current = app;
 
-    if (!fcmToken) return;
+        const registration = await navigator.serviceWorker.register(
+          "/firebase-messaging-sw.js",
+          { scope: "/", updateViaCache: "none" },
+        );
+        await registration.update().catch(() => undefined);
+        const worker = await waitForActiveWorker(registration);
+        if (!worker) {
+          setLastError("Could not start the notification service worker.");
+          return;
+        }
 
-    const previous = fcmTokenRef.current;
-    fcmTokenRef.current = fcmToken;
+        const swReady = await initServiceWorker(worker, config);
+        if (!swReady) {
+          setLastError(
+            "The notification worker could not initialize Firebase. Refresh the page and try again.",
+          );
+        }
 
-    if (previous && previous !== fcmToken) {
-      await unregisterPushDevice(previous, accessToken).catch(() => undefined);
-    }
+        const messaging = getMessaging(app);
+        messagingRef.current = messaging;
 
-    await registerPushDevice(
-      fcmToken,
-      accessToken,
-      `${navigator.platform} · ${navigator.userAgent.slice(0, 80)}`,
-    );
+        const fcmToken = await getToken(messaging, {
+          vapidKey: config.vapidKey,
+          serviceWorkerRegistration: registration,
+        });
 
-    setPushEnabled(true);
+        if (!fcmToken) {
+          setLastError(
+            "Could not create an FCM token. Check that this site is served over HTTPS.",
+          );
+          return;
+        }
 
-    onMessage(messaging, (payload) => {
-      const title =
-        payload.notification?.title || payload.data?.title || "MediCare Secretary";
-      const body = payload.notification?.body || payload.data?.body || "";
+        const previous = fcmTokenRef.current;
+        fcmTokenRef.current = fcmToken;
 
-      void refreshInbox();
+        if (previous && previous !== fcmToken) {
+          await unregisterPushDevice(previous, accessToken).catch(() => undefined);
+        }
 
-      if (document.hidden) {
-        showSystemNotification(title, body, payload.data as Record<string, string>);
-      } else {
-        showSystemNotification(title, body, payload.data as Record<string, string>);
+        await registerPushDevice(
+          fcmToken,
+          accessToken,
+          `web · ${navigator.platform} · secretary`,
+        );
+
+        if (!unsubscribeRef.current) {
+          unsubscribeRef.current = onMessage(messaging, (payload) => {
+            const title =
+              payload.notification?.title ||
+              payload.data?.title ||
+              "MediCare Secretary";
+            const body = payload.notification?.body || payload.data?.body || "";
+            void refreshInbox();
+            showSystemNotification(
+              title,
+              body,
+              payload.data as Record<string, string>,
+            );
+          });
+        }
+
+        setPushEnabled(true);
+        setLastError(null);
+      } catch (err) {
+        setPushEnabled(false);
+        setLastError(
+          normalizeCaughtError(
+            err,
+            "Could not enable browser push. Refresh and try again.",
+          ),
+        );
+      } finally {
+        enablingRef.current = false;
+        setIsEnabling(false);
       }
-    });
-  }, [accessToken, refreshInbox, registerServiceWorker]);
+    },
+    [accessToken, refreshInbox],
+  );
 
   const requestPushPermission = useCallback(async () => {
-    await setupFirebaseMessaging();
+    await setupFirebaseMessaging(true);
     await refreshInbox();
   }, [setupFirebaseMessaging, refreshInbox]);
 
@@ -204,11 +303,19 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       setUnreadCount(0);
       setPushEnabled(false);
       setLastError(null);
+      unsubscribeRef.current?.();
+      unsubscribeRef.current = null;
       return;
     }
 
+    if (typeof Notification !== "undefined") {
+      setPermission(Notification.permission);
+    }
+
     void refreshInbox();
-    void setupFirebaseMessaging();
+    if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+      void setupFirebaseMessaging(false);
+    }
   }, [accessToken, refreshInbox, setupFirebaseMessaging]);
 
   useEffect(() => {
@@ -226,22 +333,20 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       }
     };
 
+    const onSwMessage = (event: MessageEvent) => {
+      if (event.data?.type === "NOTIFICATION_CLICK") {
+        void refreshInbox();
+      }
+    };
+
     document.addEventListener("visibilitychange", onVisible);
+    navigator.serviceWorker?.addEventListener("message", onSwMessage);
     return () => {
       window.clearInterval(poll);
       document.removeEventListener("visibilitychange", onVisible);
+      navigator.serviceWorker?.removeEventListener("message", onSwMessage);
     };
   }, [accessToken, refreshInbox]);
-
-  useEffect(() => {
-    return () => {
-      const token = fcmTokenRef.current;
-      const auth = accessToken;
-      if (token && auth) {
-        void unregisterPushDevice(token, auth).catch(() => undefined);
-      }
-    };
-  }, [accessToken]);
 
   const value = useMemo<NotificationContextValue>(
     () => ({
@@ -250,6 +355,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       permission,
       pushEnabled,
       isLoading,
+      isEnabling,
       lastError,
       refreshInbox,
       markRead,
@@ -262,6 +368,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       permission,
       pushEnabled,
       isLoading,
+      isEnabling,
       lastError,
       refreshInbox,
       markRead,

@@ -28,7 +28,7 @@ export function DatePacker() {
         </button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-auto p-0 border-none bg-transparent shadow-none"
+        className="w-auto rounded-2xl border border-neutral-100 bg-white p-2 shadow-xl"
         align="start"
       >
         <Calendar

@@ -1,17 +1,22 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
-import { ArrowLeft } from "lucide-react";
+import { Bell, Lock, Shield, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { StaffShell } from "@/components/StaffShell";
+import { EnablePushBanner } from "@/features/notifications/EnablePushBanner";
 import { useAuthStore } from "@/stores/authStore";
 import { changePassword, getProfile, updateProfile } from "@/lib/api/users";
 import { normalizeCaughtError } from "@/lib/api/errors";
-import { useLogout } from "@/hooks/useLogout";
 import type { UserProfile } from "@/lib/api/types";
+import { cn } from "@/lib/utils";
+
+type Tab = "profile" | "security" | "notifications";
 
 export function ProfileSettingsPage() {
   const navigate = useNavigate();
   const userId = useAuthStore((s) => s.userId);
   const accessToken = useAuthStore((s) => s.accessToken);
+  const [tab, setTab] = useState<Tab>("profile");
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [firstName, setFirstName] = useState("");
@@ -27,7 +32,6 @@ export function ProfileSettingsPage() {
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
-  const logout = useLogout();
 
   useEffect(() => {
     if (!accessToken || !userId) return;
@@ -40,12 +44,19 @@ export function ProfileSettingsPage() {
         setEmail(data.email ?? "");
       })
       .catch((err) => {
-        setProfileError(
-          normalizeCaughtError(err, "Could not load your profile."),
-        );
+        setProfileError(normalizeCaughtError(err, "Could not load your profile."));
       })
       .finally(() => setLoadingProfile(false));
   }, [accessToken, userId]);
+
+  const tabs = useMemo(
+    () => [
+      { id: "profile" as const, label: "Profile", icon: UserRound },
+      { id: "security" as const, label: "Security", icon: Lock },
+      { id: "notifications" as const, label: "Notifications", icon: Bell },
+    ],
+    [],
+  );
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,7 +75,7 @@ export function ProfileSettingsPage() {
         accessToken,
       );
       setProfile(updated);
-      setProfileSuccess("Profile updated successfully.");
+      setProfileSuccess("Profile updated.");
     } catch (err) {
       setProfileError(normalizeCaughtError(err, "Could not update profile."));
     } finally {
@@ -88,7 +99,7 @@ export function ProfileSettingsPage() {
         { currentPassword, newPassword },
         accessToken,
       );
-      setPasswordSuccess(res.message || "Password changed successfully.");
+      setPasswordSuccess(res.message || "Password changed.");
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
@@ -100,40 +111,46 @@ export function ProfileSettingsPage() {
   };
 
   return (
-    <div className="flex h-screen w-screen bg-neutral-50 overflow-hidden font-sans text-neutral-900">
-      <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-16 border-b border-neutral-200 bg-white px-6 flex items-center gap-4 shrink-0">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => navigate("/dashboard")}
-            className="gap-1.5"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to schedule
-          </Button>
-          <h1 className="text-lg font-semibold flex-1">Profile &amp; security</h1>
-          <Button type="button" variant="outline" size="sm" onClick={() => void logout()}>
-            Log out
-          </Button>
-        </header>
+    <StaffShell title="Settings" subtitle="Profile, security, and browser alerts">
+      <div className="mx-auto w-full max-w-4xl p-6">
+        <div className="mb-5 flex flex-wrap gap-2">
+          {tabs.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setTab(item.id)}
+                className={cn(
+                  "inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-bold transition-colors",
+                  tab === item.id
+                    ? "border-blue-200 bg-blue-50 text-[#0066ff]"
+                    : "border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50",
+                )}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {item.label}
+              </button>
+            );
+          })}
+        </div>
 
-        <main className="flex-1 overflow-y-auto p-6 max-w-2xl mx-auto w-full space-y-8">
-          <section className="bg-white border border-neutral-200 rounded-2xl p-6 shadow-xs">
-            <h2 className="text-base font-semibold mb-1">Profile</h2>
-            <p className="text-sm text-neutral-500 mb-4">
-              Update your name and contact email.
+        {tab === "profile" ? (
+          <section className="rounded-2xl border border-neutral-100 bg-white p-6 shadow-xs">
+            <h2 className="text-base font-bold">Your profile</h2>
+            <p className="mb-5 mt-1 text-sm text-neutral-500">
+              This name is used on the schedule and exported reports.
             </p>
-
             {loadingProfile ? (
               <p className="text-sm text-neutral-500">Loading profile…</p>
             ) : (
               <form onSubmit={handleSaveProfile} className="space-y-4">
                 {profile && (
-                  <p className="text-sm text-neutral-600">
-                    Phone: <span className="font-medium">{profile.phoneNumber}</span>
-                  </p>
+                  <div className="rounded-xl border border-neutral-100 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
+                    Phone <span className="font-semibold text-neutral-900">{profile.phoneNumber}</span>
+                    <span className="mx-2 text-neutral-300">·</span>
+                    Role <span className="font-semibold capitalize">{profile.role.toLowerCase()}</span>
+                  </div>
                 )}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
@@ -141,7 +158,7 @@ export function ProfileSettingsPage() {
                     <input
                       value={firstName}
                       onChange={(e) => setFirstName(e.target.value)}
-                      className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-blue-500"
+                      className="w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
                       required
                     />
                   </div>
@@ -150,7 +167,7 @@ export function ProfileSettingsPage() {
                     <input
                       value={lastName}
                       onChange={(e) => setLastName(e.target.value)}
-                      className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-blue-500"
+                      className="w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
                       required
                     />
                   </div>
@@ -161,31 +178,32 @@ export function ProfileSettingsPage() {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-blue-500"
+                    className="w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
                   />
                 </div>
-                {profileError && (
-                  <p className="text-sm text-red-600">{profileError}</p>
-                )}
-                {profileSuccess && (
-                  <p className="text-sm text-green-700">{profileSuccess}</p>
-                )}
-                <Button
-                  type="submit"
-                  disabled={savingProfile}
-                  className="bg-[#0066ff] hover:bg-[#0052cc]"
-                >
+                {profileError && <p className="text-sm text-red-600">{profileError}</p>}
+                {profileSuccess && <p className="text-sm text-green-700">{profileSuccess}</p>}
+                <Button type="submit" disabled={savingProfile} className="rounded-xl bg-[#0066ff] hover:bg-[#0052cc]">
                   {savingProfile ? "Saving…" : "Save profile"}
                 </Button>
               </form>
             )}
           </section>
+        ) : null}
 
-          <section className="bg-white border border-neutral-200 rounded-2xl p-6 shadow-xs">
-            <h2 className="text-base font-semibold mb-1">Change password</h2>
-            <p className="text-sm text-neutral-500 mb-4">
-              Use a strong password with uppercase, lowercase, number, and symbol.
-            </p>
+        {tab === "security" ? (
+          <section className="rounded-2xl border border-neutral-100 bg-white p-6 shadow-xs">
+            <div className="mb-5 flex items-start gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-neutral-50 text-neutral-700">
+                <Shield className="h-5 w-5" />
+              </span>
+              <div>
+                <h2 className="text-base font-bold">Change password</h2>
+                <p className="mt-1 text-sm text-neutral-500">
+                  Use at least 8 characters with mixed case, a number, and a symbol.
+                </p>
+              </div>
+            </div>
             <form onSubmit={handleChangePassword} className="space-y-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-neutral-600">Current password</label>
@@ -193,7 +211,7 @@ export function ProfileSettingsPage() {
                   type="password"
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
-                  className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-blue-500"
+                  className="w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
                   required
                 />
               </div>
@@ -203,7 +221,7 @@ export function ProfileSettingsPage() {
                   type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-blue-500"
+                  className="w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
                   required
                   minLength={8}
                 />
@@ -214,28 +232,40 @@ export function ProfileSettingsPage() {
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-blue-500"
+                  className="w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
                   required
                   minLength={8}
                 />
               </div>
-              {passwordError && (
-                <p className="text-sm text-red-600">{passwordError}</p>
-              )}
-              {passwordSuccess && (
-                <p className="text-sm text-green-700">{passwordSuccess}</p>
-              )}
-              <Button
-                type="submit"
-                variant="outline"
-                disabled={savingPassword}
-              >
+              {passwordError && <p className="text-sm text-red-600">{passwordError}</p>}
+              {passwordSuccess && <p className="text-sm text-green-700">{passwordSuccess}</p>}
+              <Button type="submit" variant="outline" disabled={savingPassword} className="rounded-xl">
                 {savingPassword ? "Updating…" : "Change password"}
               </Button>
             </form>
           </section>
-        </main>
+        ) : null}
+
+        {tab === "notifications" ? (
+          <section className="space-y-4 rounded-2xl border border-neutral-100 bg-white p-6 shadow-xs">
+            <h2 className="text-base font-bold">Alert settings</h2>
+            <p className="text-sm text-neutral-500">
+              Secretaries should receive a browser alert for new patient requests,
+              bookings, reschedules, and cancellations — including when this tab is
+              in the background.
+            </p>
+            <EnablePushBanner />
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-xl"
+              onClick={() => navigate("/dashboard/notifications")}
+            >
+              Open notification inbox
+            </Button>
+          </section>
+        ) : null}
       </div>
-    </div>
+    </StaffShell>
   );
 }

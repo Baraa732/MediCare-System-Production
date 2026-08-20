@@ -15,6 +15,7 @@ import {
 } from "@/features/auth/components/Forms";
 import DashboardPage from "@/features/dashboardAssitant";
 import { ProfileSettingsPage } from "@/features/settings/ProfileSettingsPage";
+import { NotificationsPage } from "@/features/notifications/NotificationsPage";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
 import { GuestRoute, ProtectedRoute } from "./ProtectedRoute";
 import { sendPasswordResetOtp } from "@/lib/api/auth";
@@ -60,6 +61,15 @@ export default function AppRouter() {
         element={
           <ProtectedRoute>
             <DashboardPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="dashboard/notifications"
+        element={
+          <ProtectedRoute>
+            <NotificationsPage />
           </ProtectedRoute>
         }
       />

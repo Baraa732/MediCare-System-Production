@@ -3,6 +3,7 @@ import { useNavigate } from "react-router";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
+  Bell,
   Download,
   FileText,
   LogOut,
@@ -227,6 +228,13 @@ export function RightSection() {
             Edit profile
           </DropdownMenuItem>
           <DropdownMenuItem
+            onClick={() => navigate("/dashboard/notifications")}
+            className="text-xs font-semibold cursor-pointer"
+          >
+            <Bell className="w-3.5 h-3.5 mr-2" />
+            Notifications
+          </DropdownMenuItem>
+          <DropdownMenuItem
             onClick={() => navigate("/dashboard/settings")}
             className="text-xs font-semibold cursor-pointer"
           >
@@ -247,20 +255,22 @@ export function RightSection() {
       <Sheet open={isProfileOpen} onOpenChange={setIsProfileOpen}>
         <SheetContent
           side="right"
-          style={{ height: "95%" }}
-          className="w-[360px] sm:w-[400px] m-[24px] rounded-2xl bg-white p-6 shadow-2xl border-l border-neutral-100 flex flex-col justify-between"
+          className="w-[380px] sm:w-[420px] m-6 h-[calc(100%-48px)] rounded-2xl border border-neutral-100 bg-white p-0 shadow-2xl flex flex-col overflow-hidden"
         >
           <form
             onSubmit={handleSubmit(onSaveProfile)}
-            className="flex flex-col h-full justify-between w-full"
+            className="flex flex-col h-full"
           >
-            <div>
-              <SheetHeader className="pb-4 mb-6 border-b border-neutral-100">
-                <SheetTitle className="text-sm font-bold text-neutral-800 uppercase tracking-wide">
-                  Edit User Profile
-                </SheetTitle>
-              </SheetHeader>
+            <SheetHeader className="px-6 py-5 border-b border-neutral-100 bg-gradient-to-br from-blue-50/80 to-white">
+              <SheetTitle className="text-base font-bold text-neutral-900">
+                Edit profile
+              </SheetTitle>
+              <p className="text-xs text-neutral-500">
+                Update how your name appears on the clinic schedule.
+              </p>
+            </SheetHeader>
 
+            <div className="flex-1 overflow-y-auto px-6 py-5">
               {profileLoading ? (
                 <p className="text-xs text-neutral-500">Loading profile...</p>
               ) : (
@@ -308,7 +318,7 @@ export function RightSection() {
               )}
             </div>
 
-            <div className="flex items-center gap-3 pt-4 border-t border-neutral-100 mt-auto">
+            <div className="flex items-center gap-3 px-6 py-4 border-t border-neutral-100 bg-neutral-50/70">
               <Button
                 type="button"
                 onClick={handleCancelProfile}

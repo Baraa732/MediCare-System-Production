@@ -147,12 +147,12 @@ export function AppointmentDetailDrawer() {
       onOpenChange={(open) => !open && close()}
       direction="right"
     >
-      <DrawerContent className="data-[vaul-drawer-direction=right]:w-full data-[vaul-drawer-direction=right]:sm:max-w-md">
-        <DrawerHeader>
-          <DrawerTitle>Appointment details</DrawerTitle>
+      <DrawerContent className="data-[vaul-drawer-direction=right]:w-full data-[vaul-drawer-direction=right]:sm:max-w-md rounded-l-2xl border-l border-neutral-100">
+        <DrawerHeader className="border-b border-neutral-100 bg-gradient-to-br from-blue-50/70 to-white">
+          <DrawerTitle className="text-base font-bold">Appointment details</DrawerTitle>
           <DrawerDescription>
             {appointment
-              ? `${appointment.doctorName ?? "Doctor"} · ${formatDateTime(appointment.scheduledAt)}`
+              ? `${appointment.patientName || appointment.guestPatientName || "Patient"} · ${appointment.doctorName ?? "Doctor"} · ${formatDateTime(appointment.scheduledAt)}`
               : "Loading appointment…"}
           </DrawerDescription>
         </DrawerHeader>
@@ -169,17 +169,22 @@ export function AppointmentDetailDrawer() {
           {appointment && !loading && (
             <>
               <div className="grid grid-cols-2 gap-3 text-sm">
-                <div>
+                <div className="rounded-xl border border-neutral-100 bg-neutral-50 px-3 py-2">
                   <p className="text-xs font-semibold text-neutral-400 uppercase">Status</p>
                   <p className="font-medium">{appointment.status}</p>
                 </div>
-                <div>
+                <div className="rounded-xl border border-neutral-100 bg-neutral-50 px-3 py-2">
                   <p className="text-xs font-semibold text-neutral-400 uppercase">Duration</p>
                   <p className="font-medium">{appointment.durationMinutes} min</p>
                 </div>
-                <div className="col-span-2">
-                  <p className="text-xs font-semibold text-neutral-400 uppercase">Patient ID</p>
-                  <p className="font-mono text-xs break-all">{appointment.patientId}</p>
+                <div className="col-span-2 rounded-xl border border-neutral-100 bg-neutral-50 px-3 py-2">
+                  <p className="text-xs font-semibold text-neutral-400 uppercase">Patient</p>
+                  <p className="font-medium">
+                    {appointment.patientName || appointment.guestPatientName || "Guest patient"}
+                  </p>
+                  <p className="text-xs text-neutral-500">
+                    {appointment.patientPhone || appointment.guestPatientPhone || "No phone on file"}
+                  </p>
                 </div>
               </div>
 
