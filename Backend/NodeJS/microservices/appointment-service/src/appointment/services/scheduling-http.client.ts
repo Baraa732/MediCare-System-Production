@@ -20,10 +20,11 @@ export class SchedulingHttpClient {
     doctorId: string,
     scheduledAt: string,
     durationMinutes: number,
+    strictHours = false,
   ): Promise<void> {
     try {
       const path = '/v1/schedule/internal/validate-slot';
-      const body = { clinicId, doctorId, scheduledAt, durationMinutes };
+      const body = { clinicId, doctorId, scheduledAt, durationMinutes, strictHours };
       const res = await axios.post(`${this.baseUrl}${path}`, body, {
         timeout: 5000,
         headers: createInternalAuthHeadersForUrl(

@@ -183,27 +183,65 @@ export class ScheduleService {
       return { valid: false, reason: 'SLOT_NOT_AVAILABLE' };
     }
     const duration = dto.durationMinutes ?? 30;
+    const startMs = scheduledAt.getTime();
+    const endMs = startMs + duration * 60_000;
+    if (startMs <= Date.now() - 15_000) {
+      return { valid: false, reason: 'SLOT_NOT_AVAILABLE' };
+    }
+
+    const assigned = await this.clinicHttp.verifyDoctorAtClinic(dto.clinicId, dto.doctorId);
+    if (!assigned) return { valid: false, reason: 'DOCTOR_NOT_AT_CLINIC' };
+
     const timezone = await this.clinicHttp.getClinicTimezone(dto.clinicId);
     const offsetMinutes = this.timezoneOffsetMinutes(timezone);
     const date = this.localDateKey(scheduledAt, offsetMinutes);
     const dayOfWeek = this.dayOfWeekFromDate(date, offsetMinutes);
 
-    const assigned = await this.clinicHttp.verifyDoctorAtClinic(dto.clinicId, dto.doctorId);
-    if (!assigned) return { valid: false, reason: 'DOCTOR_NOT_AT_CLINIC' };
+    const clinicDay = await this.hoursRepo.findOne({
+      where: { tenantId: dto.clinicId, dayOfWeek },
+    });
+    if (clinicDay?.isClosed) return { valid: false, reason: 'SLOT_NOT_AVAILABLE' };
 
-    const bookedRanges = await this.appointmentHttp.getBookedRanges(dto.clinicId, dto.doctorId, date);
-    const slots = await this.buildSlotsForDay(
+    const bookedRanges = await this.appointmentHttp.getBookedRanges(
       dto.clinicId,
       dto.doctorId,
       date,
-      dayOfWeek,
-      duration,
-      offsetMinutes,
-      bookedRanges,
     );
-    const startMs = scheduledAt.getTime();
-    const match = slots.some((s) => Math.abs(new Date(s).getTime() - startMs) < 60_000);
-    if (!match) return { valid: false, reason: 'SLOT_NOT_AVAILABLE' };
+
+    if (dto.strictHours) {
+      const slots = await this.buildSlotsForDay(
+        dto.clinicId,
+        dto.doctorId,
+        date,
+        dayOfWeek,
+        duration,
+        offsetMinutes,
+        bookedRanges,
+      );
+      const match = slots.some((s) => Math.abs(new Date(s).getTime() - startMs) < 60_000);
+      if (!match) return { valid: false, reason: 'SLOT_NOT_AVAILABLE' };
+      return { valid: true };
+    }
+
+    const dayStart = new Date(`${date}T00:00:00.000Z`);
+    const dayEnd = new Date(`${date}T23:59:59.999Z`);
+    const blocks = await this.blockRepo
+      .createQueryBuilder('b')
+      .where('b.tenantId = :tenantId', { tenantId: dto.clinicId })
+      .andWhere('(b.doctorId = :doctorId OR b.doctorId IS NULL)', { doctorId: dto.doctorId })
+      .andWhere('b.startsAt < :dayEnd AND b.endsAt > :dayStart', { dayStart, dayEnd })
+      .getMany();
+
+    if (blocks.some((b) => startMs < b.endsAt.getTime() && endMs > b.startsAt.getTime())) {
+      return { valid: false, reason: 'SLOT_NOT_AVAILABLE' };
+    }
+    if (
+      bookedRanges.some(
+        (r) => startMs < new Date(r.end).getTime() && endMs > new Date(r.start).getTime(),
+      )
+    ) {
+      return { valid: false, reason: 'SLOT_NOT_AVAILABLE' };
+    }
 
     return { valid: true };
   }
@@ -267,7 +305,7 @@ export class ScheduleService {
     for (const window of dayWindows) {
       const winStart = Math.max(this.toMinutes(window.startTime), clinicOpen);
       const winEnd = Math.min(this.toMinutes(window.endTime), clinicClose);
-      const step = window.slotDurationMinutes || durationMinutes;
+      const step = Math.min(window.slotDurationMinutes || durationMinutes, 15);
 
       for (let m = winStart; m + durationMinutes <= winEnd; m += step) {
         const startIso = this.localMinutesToIso(date, m, offsetMinutes);

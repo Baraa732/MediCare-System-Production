@@ -114,6 +114,7 @@ export class AppointmentService {
       dto.doctorId,
       scheduledAt.toISOString(),
       durationMinutes,
+      actor.role === 'PATIENT',
     );
     // Patients request; clinic staff (secretary/admin) can book as confirmed.
     const initialStatus =
@@ -404,6 +405,7 @@ export class AppointmentService {
         targetDoctorId,
         scheduledAt.toISOString(),
         duration,
+        actor.role === 'PATIENT',
       );
       if (dto.scheduledAt) {
         appointment.scheduledAt = scheduledAt;

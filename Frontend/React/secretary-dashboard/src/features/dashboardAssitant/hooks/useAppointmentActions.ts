@@ -5,7 +5,7 @@ import {
   updateAppointmentStatus,
 } from "@/lib/api/appointments";
 import { lookupPatientByPhone } from "@/lib/api/users";
-import { scheduledAtFromGridMinutes } from "@/lib/api/mappers";
+import { scheduledAtFromAbsoluteMinutes, scheduledAtFromGridMinutes } from "@/lib/api/mappers";
 import { useAuthStore } from "@/stores/authStore";
 import { useScheduleContext } from "../context/ScheduleContext";
 import type { AppointmentType } from "../types";
@@ -63,12 +63,8 @@ export function useAppointmentActions() {
         throw new Error("Your session has expired. Please sign in again.");
       }
 
-      const gridStart =
-        wizardData.timeSlot !== null
-          ? wizardData.timeSlot - START_TIME_MINUTES
-          : 0;
-      const scheduledAt = scheduledAtFromGridMinutes(
-        gridStart,
+      const scheduledAt = scheduledAtFromAbsoluteMinutes(
+        wizardData.timeSlot ?? START_TIME_MINUTES,
         wizardData.date ?? selectedDate,
       );
       const treatmentName =

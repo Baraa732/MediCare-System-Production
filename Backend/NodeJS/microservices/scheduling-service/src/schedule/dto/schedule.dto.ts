@@ -110,4 +110,9 @@ export class ValidateSlotDto {
   @Min(5)
   @Max(240)
   durationMinutes?: number;
+
+  /** When true (patient self-booking), the time must sit on generated clinic slots. */
+  @IsOptional()
+  @IsBoolean()
+  strictHours?: boolean;
 }

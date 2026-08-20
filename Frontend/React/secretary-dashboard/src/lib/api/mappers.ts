@@ -72,14 +72,31 @@ export function mapDoctorToGrid(
   };
 }
 
+export function scheduledAtFromAbsoluteMinutes(
+  absoluteMinutes: number,
+  referenceDate = new Date(),
+): string {
+  const date = new Date(
+    referenceDate.getFullYear(),
+    referenceDate.getMonth(),
+    referenceDate.getDate(),
+    0,
+    0,
+    0,
+    0,
+  );
+  date.setHours(Math.floor(absoluteMinutes / 60), absoluteMinutes % 60, 0, 0);
+  return date.toISOString();
+}
+
 export function scheduledAtFromGridMinutes(
   minutesSinceStart: number,
   referenceDate = new Date(),
 ): string {
-  const totalMinutes = START_TIME_MINUTES + minutesSinceStart;
-  const date = new Date(referenceDate);
-  date.setHours(Math.floor(totalMinutes / 60), totalMinutes % 60, 0, 0);
-  return date.toISOString();
+  return scheduledAtFromAbsoluteMinutes(
+    START_TIME_MINUTES + minutesSinceStart,
+    referenceDate,
+  );
 }
 
 export function dayRangeIso(date = new Date()) {
