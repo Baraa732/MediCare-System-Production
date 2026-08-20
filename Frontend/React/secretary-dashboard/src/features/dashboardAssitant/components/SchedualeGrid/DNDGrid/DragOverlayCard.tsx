@@ -15,7 +15,10 @@ export const DragOverlayCard = memo(function DragOverlayCard({
   const { appointmentData } = data;
   if (!appointmentData) return null;
 
-  const statusStyles = getStatusOverlayStyles(appointmentData.status);
+  const statusStyles = getStatusOverlayStyles(appointmentData.status, {
+    startMinutes: appointmentData.start,
+    endMinutes: appointmentData.end,
+  });
   const patientName = appointmentData.title?.split(" - ")[0] || "Patient Name";
 
   return (
@@ -33,7 +36,8 @@ export const DragOverlayCard = memo(function DragOverlayCard({
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          {appointmentData.status === "urgent" && (
+          {(appointmentData.status === "urgent" ||
+            appointmentData.complexity === "urgent") && (
             <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-red-100 text-red-600 text-[10px] font-bold">
               !
             </span>

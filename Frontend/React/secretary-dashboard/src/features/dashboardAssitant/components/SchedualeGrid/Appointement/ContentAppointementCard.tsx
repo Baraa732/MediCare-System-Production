@@ -1,8 +1,7 @@
-import type { AppointmentType } from "@/features/dashboardAssitant/types";
+import type { AppointmentDisplayStatus } from "@/features/dashboardAssitant/utils/appointmentStatusStyles";
 import { cn } from "@/lib/utils";
 
 export function ContentAppointementCard({
-  apt,
   showLockIcon,
   showGripHandle,
   appointement,
@@ -11,8 +10,9 @@ export function ContentAppointementCard({
   startM,
   endH,
   endM,
+  showUrgentIndicator = false,
+  displayStatus,
 }: {
-  apt: AppointmentType;
   showLockIcon: boolean;
   showGripHandle: boolean;
   appointement: { patientName: string; visitType: string };
@@ -21,15 +21,17 @@ export function ContentAppointementCard({
   startM: number;
   endH: number;
   endM: number;
+  showUrgentIndicator?: boolean;
+  displayStatus?: AppointmentDisplayStatus;
 }) {
   return (
     <div className="flex-1 p-3 flex flex-col justify-between text-xs min-w-0 transition-all duration-350">
       <div className="flex items-start gap-1.5 min-w-0">
-        {/* النقطة الحمراء للمواعيد المستعجلة - تختفي في التعديل لراحة بصرية أفضل */}
+        {/* URGENT additional indicator — matches information panel legend */}
         <div
           className={cn(
             "transition-all duration-200 overflow-hidden animate-bounce",
-            apt.status === "urgent" && !showLockIcon && !showGripHandle
+            showUrgentIndicator && !showLockIcon && !showGripHandle
               ? "w-1.5 opacity-100 mr-1"
               : "w-0 opacity-0 mr-0",
           )}
@@ -47,6 +49,11 @@ export function ContentAppointementCard({
           <p className="text-[10px] font-semibold opacity-75 mt-1.5 leading-none truncate">
             {formatTimeLabel(startH, startM)} - {formatTimeLabel(endH, endM)}
           </p>
+          {displayStatus === "pending_request" ? (
+            <p className="mt-1 text-[9px] font-bold uppercase tracking-wide text-red-600">
+              Pending request
+            </p>
+          ) : null}
         </div>
       </div>
     </div>

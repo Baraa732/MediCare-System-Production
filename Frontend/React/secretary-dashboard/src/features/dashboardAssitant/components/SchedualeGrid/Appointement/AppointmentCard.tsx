@@ -13,6 +13,10 @@ import { useGlobalConflictStore } from "@/features/dashboardAssitant/hooks/useGl
 import { useWizardDrawer } from "@/features/dashboardAssitant/hooks/useWizardDrawer";
 import { useAppointmentDrawer } from "@/features/dashboardAssitant/hooks/useAppointmentDrawer";
 import { isApiAppointmentId } from "@/features/dashboardAssitant/hooks/useAppointmentActions";
+import {
+  getAppointmentCardClasses,
+  resolveDisplayStatus,
+} from "@/features/dashboardAssitant/utils/appointmentStatusStyles";
 import { useEffect, useRef, useState } from "react";
 import {
   Dialog,
@@ -172,6 +176,15 @@ export function AppointmentCard({
     // Directly open edit drawer now that the warning is acknowledged
     openWithEditAppointment(apt, false);
   };
+
+  const displayStatus = resolveDisplayStatus(apt.status, {
+    startMinutes: start,
+    endMinutes: end,
+    nowMinutes: currentMinutesSinceGridStart,
+  });
+  const isUrgentIndicator =
+    apt.complexity === "urgent" || apt.status === "urgent";
+
   return (
     <>
       <div
@@ -213,22 +226,13 @@ export function AppointmentCard({
             conflictItem.severity !== "critical" &&
             "border-violet-500 bg-violet-50 text-violet-900 ring-2 ring-violet-400 z-30",
 
-          // الحالات الافتراضية المستقرة
+          // Status colors aligned with the information panel legend
           !isConflicting &&
-            apt.status === "confirmed" &&
-            "bg-[#E2F1FF] border-blue-200/80 text-[#0055cc]",
-          !isConflicting &&
-            apt.status === "urgent" &&
-            "bg-red-50 border-red-200/80 text-red-700",
-          !isConflicting &&
-            apt.status === "in_progress" &&
-            "bg-purple-50 border-purple-200/80 text-purple-700",
-          !isConflicting &&
-            apt.status === "late" &&
-            "bg-rose-50 border-rose-200/80 text-rose-700",
-          !isConflicting &&
-            apt.status === "unavailable" &&
-            "bg-neutral-50 border-neutral-200 text-neutral-400 line-through opacity-75",
+            getAppointmentCardClasses(apt.status, {
+              startMinutes: start,
+              endMinutes: end,
+              nowMinutes: currentMinutesSinceGridStart,
+            }),
 
           isConflicting && "-z-10",
         )}
@@ -254,11 +258,13 @@ export function AppointmentCard({
           apt={apt}
           showGripHandle={showGripHandle}
           showLockIcon={showLockIcon}
+          startMinutes={start}
+          endMinutes={end}
+          nowMinutes={currentMinutesSinceGridStart}
         />
 
         {/* حاوية المحتوى والمعلومات المكتوبة */}
         <ContentAppointementCard
-          apt={apt}
           showLockIcon={showLockIcon}
           showGripHandle={showGripHandle}
           appointement={appointement}
@@ -267,6 +273,8 @@ export function AppointmentCard({
           startM={startM}
           endH={endH}
           endM={endM}
+          showUrgentIndicator={isUrgentIndicator}
+          displayStatus={displayStatus}
         />
       </div>
       {/* Warning Dialog for Urgent or Conflict Critical Actions */}

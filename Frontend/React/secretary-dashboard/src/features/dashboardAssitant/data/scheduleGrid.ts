@@ -1,4 +1,5 @@
 import type { AppointmentType, DoctorType } from "../types";
+import { APPOINTMENT_STATUS_LEGEND } from "../utils/appointmentStatusStyles";
 
 export const APPOINTMENTS: AppointmentType[] = [
   // --- DR. TARIQ AL-SAEED (doc-1) ---
@@ -480,30 +481,9 @@ export const INITIAL_DOCTORS: DoctorType[] = [
   },
 ];
 
-export const informationPanelData = [
-  {
-    name: "Confirmed",
-    border: "border-blue-300",
-    bg: "bg-[#E2F1FF]",
-  },
-  {
-    name: "Done/Checked-In",
-    border: "border-green-300",
-    bg: "bg-green-50",
-  },
-  {
-    name: "In progress",
-    border: "border-purple-300",
-    bg: "bg-purple-50",
-  },
-  { name: "Late", border: "border-rose-300", bg: "bg-rose-50" },
-  {
-    name: "Pending request",
-    border: "border-red-200",
-    bg: "bg-red-50/50",
-  },
-  { name: "No-Show", border: "border-red-300", bg: "bg-red-50" },
-];
+export const informationPanelData = APPOINTMENT_STATUS_LEGEND.map(
+  ({ name, border, bg }) => ({ name, border, bg }),
+);
 
 export const ROW_MINUTES = 15;
 export const START_TIME_MINUTES = 8 * 60; // 8:00 AM grid start

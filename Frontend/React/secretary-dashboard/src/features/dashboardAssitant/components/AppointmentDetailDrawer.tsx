@@ -23,6 +23,12 @@ import {
 import { normalizeCaughtError } from "@/lib/api/errors";
 import type { EnrichedAppointment } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
+import { getApiStatusBadgeMeta } from "../utils/appointmentStatusStyles";
+import {
+  absoluteMinutesFromDate,
+  gridMinutesFromAbsolute,
+  gridMinutesFromIso,
+} from "@/lib/time/gridTime";
 
 function formatDateTime(iso: string) {
   const d = new Date(iso);
@@ -33,41 +39,6 @@ function formatDateTime(iso: string) {
     hour: "numeric",
     minute: "2-digit",
   });
-}
-
-function statusMeta(status: string) {
-  switch (status) {
-    case "CONFIRMED":
-      return {
-        label: "Confirmed",
-        className: "bg-blue-50 text-blue-700 ring-blue-100",
-      };
-    case "REQUESTED":
-      return {
-        label: "Pending review",
-        className: "bg-violet-50 text-violet-700 ring-violet-100",
-      };
-    case "COMPLETED":
-      return {
-        label: "Completed",
-        className: "bg-emerald-50 text-emerald-700 ring-emerald-100",
-      };
-    case "CANCELLED":
-      return {
-        label: "Cancelled",
-        className: "bg-red-50 text-red-700 ring-red-100",
-      };
-    case "NO_SHOW":
-      return {
-        label: "No-show",
-        className: "bg-neutral-100 text-neutral-700 ring-neutral-200",
-      };
-    default:
-      return {
-        label: status,
-        className: "bg-neutral-100 text-neutral-700 ring-neutral-200",
-      };
-  }
 }
 
 export function AppointmentDetailDrawer() {
@@ -210,7 +181,17 @@ export function AppointmentDetailDrawer() {
 
   const isTerminal =
     appointment?.status === "CANCELLED" || appointment?.status === "COMPLETED";
-  const status = appointment ? statusMeta(appointment.status) : null;
+  const status = useMemo(() => {
+    if (!appointment) return null;
+    const startMinutes = gridMinutesFromIso(appointment.scheduledAt);
+    const duration = appointment.durationMinutes ?? 30;
+    return getApiStatusBadgeMeta(appointment.status, {
+      startMinutes,
+      endMinutes: startMinutes + duration,
+      nowMinutes: gridMinutesFromAbsolute(absoluteMinutesFromDate(new Date())),
+      scheduledDate: new Date(appointment.scheduledAt),
+    });
+  }, [appointment]);
 
   return (
     <div className="fixed inset-0 z-[75] flex justify-end">

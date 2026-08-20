@@ -1,17 +1,24 @@
 import type { AppointmentType } from "@/features/dashboardAssitant/types";
 import { cn } from "@/lib/utils";
-import { GripVertical ,Lock} from "lucide-react";
+import { GripVertical, Lock } from "lucide-react";
+import { getAppointmentBorderClass } from "@/features/dashboardAssitant/utils/appointmentStatusStyles";
 
 export function SideIconAppointementCard({
   isEditMode,
   apt,
   showGripHandle,
   showLockIcon,
+  startMinutes,
+  endMinutes,
+  nowMinutes,
 }: {
   isEditMode: boolean;
   apt: AppointmentType;
   showGripHandle: boolean;
   showLockIcon: boolean;
+  startMinutes: number;
+  endMinutes: number;
+  nowMinutes: number;
 }) {
   return (
     <div
@@ -20,12 +27,11 @@ export function SideIconAppointementCard({
         isEditMode
           ? "w-8 opacity-100"
           : "w-0 opacity-0 pointer-events-none border-r-transparent",
-
-        apt.status === "confirmed" && "border-blue-200/50",
-        apt.status === "urgent" && "border-red-200/50",
-        apt.status === "in_progress" && "border-purple-200/50",
-        apt.status === "late" && "border-rose-200/50",
-        apt.status === "unavailable" && "border-neutral-200/50",
+        getAppointmentBorderClass(apt.status, {
+          startMinutes,
+          endMinutes,
+          nowMinutes,
+        }),
       )}
     >
       {showGripHandle && (

@@ -2,6 +2,7 @@ import { cn } from "@/lib/utils";
 import { Info, ChevronDown } from "lucide-react";
 import React from "react";
 import { informationPanelData } from "../../data/scheduleGrid";
+import { UNAVAILABLE_STATUS_STYLE } from "../../utils/appointmentStatusStyles";
 
 export function InformationPanel() {
   const [showLegend, setShowLegend] = React.useState(true);
@@ -38,8 +39,14 @@ export function InformationPanel() {
                 </div>
               ))}
               <div className="flex items-center gap-2.5">
-                <div className="w-4 h-4 rounded-md border border-neutral-300 border-dashed bg-neutral-50" />
-                <span>Unavailable</span>
+                <div
+                  className={cn(
+                    "w-4 h-4 rounded-md border",
+                    UNAVAILABLE_STATUS_STYLE.border,
+                    UNAVAILABLE_STATUS_STYLE.bg,
+                  )}
+                />
+                <span>{UNAVAILABLE_STATUS_STYLE.name}</span>
               </div>
             </div>
           </div>
