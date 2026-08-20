@@ -1,239 +1,105 @@
-import {
-  X,
-  AlertTriangle,
-  Calendar,
-  Clock,
-  Check,
-  RotateCcw,
-  User,
-  ShieldAlert,
-  Sparkles,
-} from "lucide-react";
-import { useState } from "react";
+import { X, AlertTriangle, Calendar, Clock, User } from "lucide-react";
 import { useGlobalConflictStore } from "../../hooks/useGlobalConflictStore";
-import { cn } from "@/lib/utils";
 import { START_TIME_MINUTES } from "../../data/scheduleGrid";
-import type { DoctorType } from "../../types";
 
 interface ConflictDrawerProps {
-  onConfirm: () => void;
-  onCancel: () => void;
-  // تمرير مصفوفة الأطباء الحالية ودالة التحديث التابعة للمكون الأب (DNDGrid / useDragHandlers)
-  doctors: DoctorType[];
-  setDoctors: (updatedDoctors: DoctorType[]) => void;
+  onClose: () => void;
 }
 
-export function ConflictDrawer({ onConfirm, onCancel, doctors, setDoctors }: ConflictDrawerProps) {
-  const {
-    isDrawerOpen,
-    conflictPayload,
-    clearConflict,
-    executeAutoResolution,
-  } = useGlobalConflictStore();
-  const [notice, setNotice] = useState<string | null>(null);
+function formatTime(minutes: number) {
+  const total = START_TIME_MINUTES + minutes;
+  const h = Math.floor(total / 60) % 24;
+  const m = total % 60;
+  const displayH = h === 0 || h === 12 ? 12 : h % 12;
+  return `${displayH}:${m === 0 ? "00" : m < 10 ? "0" + m : m} ${h >= 12 ? "PM" : "AM"}`;
+}
+
+export function ConflictDrawer({ onClose }: ConflictDrawerProps) {
+  const { isDrawerOpen, conflictPayload, clearConflict } =
+    useGlobalConflictStore();
 
   if (!isDrawerOpen || !conflictPayload) return null;
 
-  const formatTime = (minutes: number) => {
-    const total = START_TIME_MINUTES + minutes;
-    const h = Math.floor(total / 60) % 24;
-    const m = total % 60;
-    const displayH = h === 0 || h === 12 ? 12 : h % 12;
-    return `${displayH}:${m === 0 ? "00" : m < 10 ? "0" + m : m} ${h >= 12 ? "PM" : "AM"}`;
-  };
-  // معالج الضغط على زر التخفيف وحل النزاع الذكي
-  const handleAutoMitigate = () => {
-    executeAutoResolution(
-      doctors,
-      setDoctors,
-      (successMessage) => setNotice(successMessage),
-      (manualMessage) =>
-        setNotice(
-          `${manualMessage} Choose Confirm Position or undo the move.`,
-        ),
-    );
+  const isAssign = conflictPayload.attemptedAction === "assign";
+
+  const handleClose = () => {
+    clearConflict();
+    onClose();
   };
 
   return (
     <div className="overlay-backdrop fixed inset-0 z-50 flex justify-start">
       <div className="panel-slide-left m-6 flex h-[95.5%] w-[min(28.8vw,440px)] flex-col rounded-2xl border border-slate-200/80 bg-white/95 text-slate-900 shadow-2xl backdrop-blur-md">
-        {/* Header Layout - Matched with Dashboard Navbar Styling */}
-        <div className="p-5 bg-white rounded-2xl border-b border-slate-200 flex items-center justify-between">
+        <div className="flex items-center justify-between rounded-2xl border-b border-slate-200 bg-white p-5">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-red-50 rounded-lg border border-red-200 text-red-600">
-              <ShieldAlert className="w-5 h-5" />
+            <div className="rounded-lg border border-red-200 bg-red-50 p-2 text-red-600">
+              <AlertTriangle className="h-5 w-5" />
             </div>
             <div>
               <h2 className="text-base font-semibold tracking-tight text-slate-900">
-                Scheduling Conflict Detected
+                Time slot unavailable
               </h2>
-              <p className="text-xs text-slate-500 mt-0.5 font-medium">
-                {conflictPayload.conflictingItems.length} affected appointment
-                {conflictPayload.conflictingItems.length > 1 ? "s" : ""} sorted
-                by priority
+              <p className="mt-0.5 text-xs font-medium text-slate-500">
+                {isAssign
+                  ? "Choose an empty slot for this pending request."
+                  : "This slot already has an appointment."}
               </p>
             </div>
           </div>
           <button
-            onClick={onCancel}
-            className="p-1.5 rounded-md hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors border border-transparent hover:border-slate-200"
+            type="button"
+            onClick={handleClose}
+            className="rounded-md border border-transparent p-1.5 text-slate-400 transition-colors hover:border-slate-200 hover:bg-slate-100 hover:text-slate-600"
           >
-            <X className="w-4 h-4" />
+            <X className="h-4 w-4" />
           </button>
         </div>
 
-        {/* Info Notification Area - Styled exactly like the Top Dashboard Alert Rule */}
-        <div className="px-5 py-3 bg-blue-50/60 border-b border-blue-100 text-blue-800 text-xs flex items-center gap-2 font-medium">
-          <AlertTriangle className="w-4 h-4 text-blue-600 shrink-0" />
+        <div className="flex items-center gap-2 border-b border-amber-100 bg-amber-50/80 px-5 py-3 text-xs font-medium text-amber-900">
+          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
           <span>
-            Review the conflicts below to clear overlapping schedules or
-            force-confirm positions.
+            Pick another time or move the conflicting appointment first.
           </span>
         </div>
-        {notice ? (
-          <div className="mx-5 mt-3 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-800">
-            {notice}
-          </div>
-        ) : null}
-        <button
-          onClick={handleAutoMitigate}
-          className="w-full py-2.5 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-md hover:shadow-lg active:scale-98 cursor-pointer border-none"
-        >
-          <Sparkles className="w-4 h-4 text-blue-200" />
-          <span>⚡ Run Auto-Mitigation Engine</span>
-        </button>
-        <div className="stagger-list flex-1 space-y-4 overflow-y-auto p-5">
-          {conflictPayload.conflictingItems.map((item) => {
-            const isCritical = item.severity === "critical";
-            const isWithinOneHour = item.start <= 60;
 
-            return (
-              <div
-                key={item.appointmentId}
-                className="surface-card surface-card-hover overflow-hidden"
-              >
-                {/* Top Badge Matrix - Reflecting Calendar Cell Top States */}
-                <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-slate-800">
-                      {item.patientName}
-                    </span>
-                    <span
-                      className={cn(
-                        "text-[11px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider",
-                        isCritical
-                          ? "bg-red-50 text-red-700 border border-red-200"
-                          : "bg-violet-50 text-violet-700 border border-violet-200",
-                      )}
-                    >
-                      Priority {item.priorityScore}
-                    </span>
-                  </div>
-                  <span className="text-[11px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded font-medium">
-                    Elderly
+        <div className="stagger-list flex-1 space-y-3 overflow-y-auto p-5">
+          {conflictPayload.conflictingItems.map((item) => (
+            <div
+              key={item.appointmentId}
+              className="surface-card overflow-hidden"
+            >
+              <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+                <span className="text-sm font-semibold text-slate-800">
+                  {item.patientName}
+                </span>
+              </div>
+              <div className="space-y-2 p-4 text-xs text-slate-600">
+                <div className="flex items-center gap-2">
+                  <User className="h-3.5 w-3.5 text-slate-400" />
+                  <span>{item.doctorName}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Clock className="h-3.5 w-3.5 text-slate-400" />
+                  <span>
+                    {formatTime(item.start)} · {item.end - item.start} min
                   </span>
                 </div>
-
-                {/* Core Medical Details - Aligned with Quick Stats/Info Panel layout */}
-                <div className="p-4 space-y-4 text-xs">
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 text-slate-600 font-medium">
-                    <div className="flex items-center gap-2">
-                      <User className="w-3.5 h-3.5 text-slate-400" />
-                      <span>{item.doctorName}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-3.5 h-3.5 text-slate-400" />
-                      <span>
-                        {formatTime(item.start)} - {item.end - item.start} mins
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                      <span>05/05/2026</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-400 font-bold text-[10px] tracking-wider uppercase">
-                        Type:
-                      </span>
-                      <span className="text-slate-700 truncate font-semibold">
-                        {item.visitType}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Conflict Impact Warning Container - Styled cleanly like Dashboard elements */}
-                  <div
-                    className={cn(
-                      "p-3 rounded-lg text-xs flex items-start gap-2.5 font-medium border",
-                      isCritical
-                        ? "bg-red-50 text-red-800 border-red-100"
-                        : "bg-violet-50 text-violet-800 border-violet-100",
-                    )}
-                  >
-                    <AlertTriangle
-                      className={cn(
-                        "w-4 h-4 shrink-0 mt-0.5",
-                        isCritical ? "text-red-600" : "text-violet-600",
-                      )}
-                    />
-                    <div>
-                      Overlaps with another booking by{" "}
-                      <span className="font-bold underline">
-                        {item.overlapMinutes} minutes
-                      </span>
-                      .
-                    </div>
-                  </div>
-
-                  {/* Time Warning Rule (Starts within 1 hour) - Dashboard-inspired Banner component */}
-                  {isWithinOneHour && (
-                    <div className="p-3 rounded-lg bg-red-50 text-red-800 text-xs font-medium border border-red-100 flex items-start gap-2.5">
-                      <Clock className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-                      <div>
-                        <strong>Workflow Warning:</strong> This appointment
-                        starts within 1 hour. Immediate runtime modifications
-                        affect live clinic workflows.
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Individual Action Triggers */}
-                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
-                    {item.phone}
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={onCancel}
-                        className="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors border border-slate-200"
-                      >
-                        Cancel Move
-                      </button>
-                      <button className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition-colors shadow-xs">
-                        Reschedule
-                      </button>
-                    </div>
-                  </div>
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                  <span>Overlaps by {item.overlapMinutes} min</span>
                 </div>
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
 
-        {/* Global Footer Actions - Uniform with Dashboard Interaction Controls */}
-        <div className="p-4 bg-white rounded-2xl border-t border-slate-200 grid grid-cols-2 gap-3 shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
+        <div className="rounded-2xl border-t border-slate-200 bg-white p-4 shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
           <button
-            onClick={onCancel}
-            className="w-full py-2.5 px-4 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-semibold rounded-xl text-xs flex items-center justify-center gap-2 transition-all active:scale-98"
+            type="button"
+            onClick={handleClose}
+            className="flex w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 transition-all hover:bg-slate-50 active:scale-98"
           >
-            <RotateCcw className="w-4 h-4 text-slate-500" /> Undo Changes
-          </button>
-          <button
-            onClick={() => {
-              onConfirm();
-              clearConflict();
-            }}
-            className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-sm active:scale-98"
-          >
-            <Check className="w-4 h-4" /> Confirm Position
+            Got it
           </button>
         </div>
       </div>

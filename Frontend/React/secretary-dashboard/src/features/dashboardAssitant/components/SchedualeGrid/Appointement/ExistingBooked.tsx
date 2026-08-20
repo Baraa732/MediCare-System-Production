@@ -20,7 +20,7 @@ export function ExistingBooked({
   const conflictPayload = useGlobalConflictStore(
     (state) => state.conflictPayload,
   );
-  const isThisColumnConflicted = conflictPayload?.targetDoctorId === docId;
+  const isTargetColumn = overSlotInfo?.docId === docId;
   return (
     <>
       {/* التظليل التوقعي السلس عند تحليق بطاقة السحب فوق خانة طبيب فارغة */}
@@ -37,20 +37,19 @@ export function ExistingBooked({
       {columnAppointments
         .filter((apt) => apt && apt.id && Number.isFinite(apt.start) && Number.isFinite(apt.end))
         .map((apt) => {
-        // حماية تامة من التعتيم إذا كان الكرت طرفاً في النزاع
-        const isCardConflicting =
-          isThisColumnConflicted &&
-          conflictPayload!.conflictingItems.some(
-            (c) => c.appointmentId === apt.id,
-          );
+        const isCardConflicting = conflictPayload?.conflictingItems.some(
+          (c) => c.appointmentId === apt.id,
+        );
+        const shouldDim =
+          conflictPayload && isTargetColumn && !isCardConflicting;
 
         return (
           <div
             key={apt.id}
             className="transition-all duration-200"
             style={{
-              opacity: conflictPayload && !isCardConflicting ? 0.1 : 1,
-              zIndex: conflictPayload && !isCardConflicting ? -1 : 60,
+              opacity: shouldDim ? 0.25 : 1,
+              zIndex: shouldDim ? -1 : 60,
             }}
           >
             <AppointmentCard

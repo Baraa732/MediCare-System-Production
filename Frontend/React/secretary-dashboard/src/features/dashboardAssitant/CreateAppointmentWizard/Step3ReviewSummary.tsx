@@ -1,4 +1,4 @@
-import { useDragHandlers } from "../components/SchedualeGrid/DNDGrid/hooks/useDragHandlers";
+import { useScheduleContext } from "../context/ScheduleContext";
 import {
   formatFullLocalDate,
   formatMinutesToAMPM,
@@ -16,7 +16,7 @@ export function Step3ReviewSummary({
   computedDuration,
   computedPrice,
 }: Step3ReviewSummaryType) {
-  const { doctors } = useDragHandlers();
+  const { doctors } = useScheduleContext();
   const treatmentName =
     TREATMENT_OPTIONS.find((t) => t.id === formData.treatmentId)?.name || "";
   const doctorName =

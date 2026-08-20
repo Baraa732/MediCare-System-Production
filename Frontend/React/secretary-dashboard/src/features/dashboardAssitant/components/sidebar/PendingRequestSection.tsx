@@ -1,31 +1,9 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Calendar, Clock, GripVertical } from "lucide-react";
+import { useDraggable } from "@dnd-kit/core";
 import { useEditeMode } from "../../hooks/useEditeMode";
-
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragOverlay,
-  type DragStartEvent,
-  type DragEndEvent,
-} from "@dnd-kit/core";
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-  useSortable,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-
-import { restrictToParentElement } from "@dnd-kit/modifiers";
 import type { PendingRequest } from "../../types";
-
 import { useWizardDrawer } from "../../hooks/useWizardDrawer";
 import { usePendingRequest } from "../../hooks/usePendingRequest";
 import { useScheduleGridStore } from "../../hooks/scheduleGridStore";
@@ -41,10 +19,7 @@ import { normalizeCaughtError } from "@/lib/api/errors";
 
 export function PendingRequestSection() {
   const isEditMode = useEditeMode((state) => state.isEditMode);
-  const [activeId, setActiveId] = useState<string | null>(null);
-  // const [requests, setRequests] = useState(INITIAL_REQUESTS)
   const requests = usePendingRequest((state) => state.requests);
-  const setRequests = usePendingRequest((state) => state.setRequests);
   const searchQuery = useScheduleGridStore((s) => s.searchQuery);
   const { doctors } = useScheduleContext();
 
@@ -64,119 +39,44 @@ export function PendingRequestSection() {
       })
     : requests;
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    }),
-  );
-
-  function handleDragStart(event: DragStartEvent) {
-    setActiveId(event.active.id as string);
-  }
-
-  function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
-    setActiveId(null);
-
-    if (!over) return;
-
-    if (active.id !== over.id) {
-      const newRquests = (items: PendingRequest[]): PendingRequest[] => {
-        const oldIndex: number = items.findIndex((i) => i.id === active.id);
-        const newIndex = items.findIndex((i) => i.id === over.id);
-        return arrayMove(items, oldIndex, newIndex);
-      };
-      setRequests(newRquests(requests));
-    }
-  }
-
-  const activeItem = requests.find((r) => r.id === activeId);
-
   if (requests.length == 0) return null;
 
-  const doctor = doctors.find((doc) => doc.id == activeItem?.docId);
   return (
-    <div className="flex-1 flex flex-col min-h-0 p-5">
-      <div className="flex items-center justify-between mb-4 shrink-0">
+    <div className="flex min-h-0 flex-1 flex-col p-5">
+      <div className="mb-4 flex shrink-0 items-center justify-between">
         <div className="flex items-center gap-1.5">
           <h4 className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">
-            Pending requests:
+            Pending requests
           </h4>
-          {requests.length == 0 ? null : (
-            <span className="bg-red-50 text-red-500 text-[10px] font-extrabold w-4 h-4 rounded-full flex items-center justify-center border border-red-100">
-              {requests.length}
-            </span>
-          )}
+          <span className="flex h-4 w-4 items-center justify-center rounded-full border border-red-100 bg-red-50 text-[10px] font-extrabold text-red-500">
+            {requests.length}
+          </span>
         </div>
+        {isEditMode ? (
+          <span className="text-[10px] font-semibold text-blue-600">
+            Drag to schedule
+          </span>
+        ) : null}
       </div>
 
-      <div className="flex-1 overflow-y-auto pr-1 space-y-3 scrollbar-thin scrollbar-thumb-neutral-200">
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
-          // 2. تمرير المُعدّل هنا لمنع الكارت الطائر من الخروج أفقياً نهائياً خارج الحاوية الجانبية
-          modifiers={[restrictToParentElement]}
-        >
-          <SortableContext
-            items={visibleRequests.map((r) => r.id)}
-            strategy={verticalListSortingStrategy}
-          >
-            {visibleRequests.map((item) => (
-              <SortableRequestCard
-                key={item.id}
-                item={item}
-                isEditMode={isEditMode}
-              />
-            ))}
-          </SortableContext>
-
-          <DragOverlay dropAnimation={null}>
-            {activeId && activeItem ? (
-              <div className="bg-white border border-neutral-300 rounded-xl shadow-xl flex relative overflow-hidden min-h-[110px] w-full opacity-90 select-none pointer-events-none scale-[1.01] border-r-4 border-r-blue-500">
-                <div className="bg-neutral-50/80 border-r border-neutral-200 flex items-center justify-center shrink-0 w-9">
-                  <GripVertical className="w-4 h-4 text-neutral-400 shrink-0" />
-                </div>
-                <div className="flex-1 p-3 flex flex-col justify-between min-w-0 text-right">
-                  <div className="flex justify-between items-start gap-2">
-                    <div className="min-w-0 flex-1">
-                      <h5 className="text-xs font-bold text-neutral-900 truncate">
-                        {activeItem.patient?.name ?? activeItem.title ?? "Patient"}
-                      </h5>
-                      <p className="flex items-center text-[11px] text-neutral-400 font-medium mt-0.5 gap-1 truncate">
-                        <Calendar className="w-3 h-3 text-neutral-400 shrink-0" />{" "}
-                        {doctor?.name}
-                      </p>
-                    </div>
-                    <span className="text-[10px] font-bold text-[#0066ff] bg-blue-50/70 border border-blue-100 px-1.5 py-0.5 rounded-md shrink-0">
-                      {formatTimeAgo(activeItem.timeRequistAgo)}
-                    </span>
-                  </div>
-                  <div className="flex flex-col justify-between text-[11px] font-semibold text-neutral-500 mt-2">
-                    <div className="flex items-center gap-1">
-                      <Calendar className="w-3 h-3 text-neutral-400" />{" "}
-                      {formatAppointmentDay(activeItem.date)}
-                    </div>
-                    <div className="flex items-center gap-1 mt-0.5">
-                      <Clock className="w-3 h-3 text-neutral-400" />{" "}
-                      {formatAppointmentTime(activeItem)}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : null}
-          </DragOverlay>
-        </DndContext>
+      <div className="scrollbar-thin scrollbar-thumb-neutral-200 flex-1 space-y-3 overflow-y-auto pr-1">
+        {visibleRequests.map((item) => (
+          <PendingRequestCard
+            key={item.id}
+            item={item}
+            isEditMode={isEditMode}
+            doctorName={doctors.find((doc) => doc.id == item.docId)?.name}
+          />
+        ))}
       </div>
     </div>
   );
 }
 
-interface SortableCardProps {
+interface PendingRequestCardProps {
   item: PendingRequest;
   isEditMode: boolean;
+  doctorName?: string;
 }
 
 function formatAppointmentDay(value?: Date | string | null): string {
@@ -185,27 +85,24 @@ function formatAppointmentDay(value?: Date | string | null): string {
 }
 
 function formatAppointmentTime(item: PendingRequest): string {
-  if (item.scheduledAt) {
-    return formatClinicTime(item.scheduledAt);
-  }
-  if (item.date) {
-    return formatClinicTime(item.date);
-  }
+  if (item.scheduledAt) return formatClinicTime(item.scheduledAt);
+  if (item.date) return formatClinicTime(item.date);
   return "";
 }
 
 function formatTimeAgo(minutesAgo: number): string {
   if (minutesAgo <= 0) return "now";
-  // إذا كان الوقت أقل من ساعة (60 دقيقة)
-  if (minutesAgo < 60) return `${minutesAgo} Min Ago`;
+  if (minutesAgo < 60) return `${minutesAgo}m ago`;
   const hoursAgo = Math.floor(minutesAgo / 60);
-  // إذا كان الوقت أقل من يوم (1440 دقيقة)
-  if (hoursAgo < 24) return `${hoursAgo} Hours Ago`;
-  const daysAgo = Math.floor(hoursAgo / 24);
-  return `${daysAgo} Day Ago`;
+  if (hoursAgo < 24) return `${hoursAgo}h ago`;
+  return `${Math.floor(hoursAgo / 24)}d ago`;
 }
 
-function SortableRequestCard({ item, isEditMode }: SortableCardProps) {
+function PendingRequestCard({
+  item,
+  isEditMode,
+  doctorName,
+}: PendingRequestCardProps) {
   const openWithPendingRequest = useWizardDrawer(
     (state) => state.openWithPendingRequest,
   );
@@ -213,28 +110,25 @@ function SortableRequestCard({ item, isEditMode }: SortableCardProps) {
     (s) => s.onRemovePendingRequest,
   );
   const accessToken = useAuthStore((s) => s.accessToken);
-  const { refetch, doctors } = useScheduleContext();
+  const { refetch } = useScheduleContext();
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({
-    id: item.id,
-    disabled: !isEditMode,
-  });
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.3 : 1,
-  };
+  const { attributes, listeners, setNodeRef, transform, isDragging } =
+    useDraggable({
+      id: `pending-${item.id}`,
+      data: {
+        type: "pending_request",
+        pendingRequestData: item,
+      },
+      disabled: !isEditMode,
+    });
 
-  const doctor = doctors.find((doc) => doc.id == item.docId);
+  const style = transform
+    ? {
+        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+      }
+    : undefined;
 
   const handleConfirm = async () => {
     if (!accessToken || !isApiAppointmentId(item.id)) return;
@@ -258,11 +152,7 @@ function SortableRequestCard({ item, isEditMode }: SortableCardProps) {
     setBusy(true);
     setActionError(null);
     try {
-      await cancelAppointment(
-        item.id,
-        accessToken,
-        "Declined by secretary",
-      );
+      await cancelAppointment(item.id, accessToken, "Declined by secretary");
       onRemovePendingRequest(item.id);
       refetch();
     } catch (err) {
@@ -278,90 +168,86 @@ function SortableRequestCard({ item, isEditMode }: SortableCardProps) {
     <div
       ref={setNodeRef}
       style={style}
-      className={`surface-card surface-card-hover text-right transition-all duration-300 ease-out flex relative overflow-hidden min-h-[110px] ${
-        isEditMode
-          ? "border-neutral-300"
-          : "border-neutral-200 hover:border-blue-200/80"
-      }`}
+      className={`surface-card surface-card-hover relative flex min-h-[110px] overflow-hidden text-right transition-all duration-300 ${
+        isEditMode ? "border-neutral-300" : "border-neutral-200 hover:border-blue-200/80"
+      } ${isDragging ? "opacity-40" : ""}`}
     >
       <div
         {...(isEditMode ? { ...attributes, ...listeners } : {})}
-        className={`bg-neutral-50/80 border-r border-neutral-200 flex items-center justify-center shrink-0 transition-all duration-350 ease-in-out select-none ${
+        className={`flex shrink-0 items-center justify-center border-r border-neutral-200 bg-neutral-50/80 transition-all duration-350 select-none ${
           isEditMode
-            ? "w-9 opacity-100 scale-100 cursor-grab active:cursor-grabbing"
-            : "w-0 opacity-0 scale-90 pointer-events-none border-r-transparent"
+            ? "w-9 cursor-grab opacity-100 active:cursor-grabbing"
+            : "pointer-events-none w-0 border-r-transparent opacity-0"
         }`}
       >
-        <GripVertical
-          className={`w-4 h-4 text-neutral-400 shrink-0 transition-transform duration-300 ${
-            isEditMode ? "rotate-0 scale-100" : "-rotate-90 scale-75"
-          }`}
-        />
+        <GripVertical className="h-4 w-4 shrink-0 text-neutral-400" />
       </div>
 
-      <div className="flex-1 p-3 flex flex-col justify-between min-w-0 transition-all duration-350">
-        <div className="flex justify-between items-start gap-2">
+      <div className="flex min-w-0 flex-1 flex-col justify-between p-3 transition-all duration-350">
+        <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <h5 className="text-xs font-bold text-neutral-900 truncate">
+            <h5 className="truncate text-xs font-bold text-neutral-900">
               {item.patient?.name ?? item.title ?? "Patient"}
             </h5>
-            <p className="flex items-center text-[11px] text-neutral-400 font-medium mt-0.5 gap-1 truncate">
-              <Calendar className="w-3 h-3 text-neutral-400 shrink-0" />{" "}
-              {doctor?.name}
+            <p className="mt-0.5 flex items-center gap-1 truncate text-[11px] font-medium text-neutral-400">
+              <Calendar className="h-3 w-3 shrink-0 text-neutral-400" />
+              {doctorName}
             </p>
           </div>
-          <span className="text-[10px] font-bold text-[#0066ff] bg-blue-50/70 border border-blue-100 px-1.5 py-0.5 rounded-md shrink-0">
+          <span className="shrink-0 rounded-md border border-blue-100 bg-blue-50/70 px-1.5 py-0.5 text-[10px] font-bold text-[#0066ff]">
             {formatTimeAgo(item.timeRequistAgo)}
           </span>
         </div>
 
-        <div className="flex flex-col justify-between text-[11px] font-semibold text-neutral-500 mt-2">
+        <div className="mt-2 flex flex-col justify-between text-[11px] font-semibold text-neutral-500">
           <div className="flex items-center gap-1">
-            <Calendar className="w-3 h-3 text-neutral-400" />{" "}
+            <Calendar className="h-3 w-3 text-neutral-400" />
             {formatAppointmentDay(item.date)}
           </div>
-          <div className="flex items-center gap-1 mt-0.5">
-            <Clock className="w-3 h-3 text-neutral-400" />{" "}
+          <div className="mt-0.5 flex items-center gap-1">
+            <Clock className="h-3 w-3 text-neutral-400" />
             {formatAppointmentTime(item)}
           </div>
         </div>
 
-        <div
-          className={`transition-all duration-300 ease-in-out overflow-hidden ${
-            isEditMode
-              ? "max-h-0 mt-0 opacity-0 pointer-events-none"
-              : "max-h-32 mt-3 opacity-100"
-          }`}
-        >
-          {actionError ? (
-            <p className="text-[10px] text-red-500 mb-1 leading-tight">{actionError}</p>
-          ) : null}
-          <div className="flex gap-2">
+        {!isEditMode ? (
+          <div className="mt-3 overflow-hidden opacity-100 transition-all duration-300">
+            {actionError ? (
+              <p className="mb-1 text-[10px] leading-tight text-red-500">
+                {actionError}
+              </p>
+            ) : null}
+            <div className="flex gap-2">
+              <Button
+                className="h-8 flex-1 rounded-lg bg-[#16a34a] text-xs font-bold text-white shadow-2xs hover:bg-[#15803d]"
+                disabled={busy}
+                onClick={() => void handleConfirm()}
+              >
+                Confirm
+              </Button>
+              <Button
+                variant="outline"
+                className="h-8 flex-1 rounded-lg border-red-200 text-xs font-bold text-red-600 hover:bg-red-50"
+                disabled={busy}
+                onClick={() => void handleDecline()}
+              >
+                Decline
+              </Button>
+            </div>
             <Button
-              className="flex-1 h-8 bg-[#16a34a] hover:bg-[#15803d] text-white text-xs font-bold rounded-lg shadow-2xs"
+              variant="ghost"
+              className="mt-1 h-7 w-full text-[11px] font-semibold text-neutral-500"
               disabled={busy}
-              onClick={() => void handleConfirm()}
+              onClick={() => openWithPendingRequest(item)}
             >
-              Confirm
-            </Button>
-            <Button
-              variant="outline"
-              className="flex-1 h-8 text-xs font-bold rounded-lg text-red-600 border-red-200 hover:bg-red-50"
-              disabled={busy}
-              onClick={() => void handleDecline()}
-            >
-              Decline
+              Review / reassign
             </Button>
           </div>
-          <Button
-            variant="ghost"
-            className="w-full h-7 mt-1 text-[11px] font-semibold text-neutral-500"
-            disabled={busy}
-            onClick={() => openWithPendingRequest(item)}
-          >
-            Review / reassign
-          </Button>
-        </div>
+        ) : (
+          <p className="mt-2 text-[10px] font-semibold text-blue-600">
+            Drag onto an empty grid slot
+          </p>
+        )}
       </div>
     </div>
   );

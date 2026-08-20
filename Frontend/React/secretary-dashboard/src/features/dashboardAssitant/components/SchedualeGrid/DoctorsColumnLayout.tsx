@@ -40,10 +40,8 @@ export function DoctorsColumnLayout({
       selectionHeight = (maxS - minS + 1) * SLOT_HEIGHT;
     }
 
-    // 🧠 التحقق مما إذا كان هناك نزاع نشط يخص طبيب آخر لتعتيم هذا العمود
     const isAnyConflictActive = !!conflictPayload;
-    const isThisDoctorConflicted =
-      conflictPayload?.targetDoctorId === doctor.id;
+    const isTargetDoctor = overSlotInfo?.docId === doctor.id;
 
     return (
       <div
@@ -53,11 +51,7 @@ export function DoctorsColumnLayout({
           DOCTOR_COL_WIDTH,
         )}
         style={{
-          opacity: isAnyConflictActive && !isThisDoctorConflicted ? 0.25 : 1,
-          filter:
-            isAnyConflictActive && !isThisDoctorConflicted
-              ? "blur(0.8px)"
-              : "none",
+          opacity: isAnyConflictActive && !isTargetDoctor ? 0.35 : 1,
         }}
       >
         {/* طبقة الخلايا الزمنية الفارغة */}

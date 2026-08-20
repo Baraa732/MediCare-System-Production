@@ -44,8 +44,9 @@ function GridCell({
 
   if (isOccupied) return <div style={{ height: SLOT_HEIGHT }} />;
 
-  const isValidIncomingType = active?.data.current?.type === "appointment";
-  // ||    active?.data.current?.type === "pending_request";
+  const isValidIncomingType =
+    active?.data.current?.type === "appointment" ||
+    active?.data.current?.type === "pending_request";
 
   return (
     <div

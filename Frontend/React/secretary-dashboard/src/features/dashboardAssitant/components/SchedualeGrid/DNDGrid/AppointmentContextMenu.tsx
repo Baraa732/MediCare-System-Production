@@ -15,6 +15,8 @@ interface ContextMenuState {
 
 type SubmenuType = "transfer" | "earlier" | "later" | null;
 
+import { useWizardDrawer } from "@/features/dashboardAssitant/hooks/useWizardDrawer";
+
 export function AppointmentContextMenu({
   doctors,
   onExecuteAction,
@@ -22,6 +24,9 @@ export function AppointmentContextMenu({
   doctors: DoctorType[];
   onExecuteAction: (updatedApt: AppointmentType) => void;
 }) {
+  const openWithEditAppointment = useWizardDrawer(
+    (s) => s.openWithEditAppointment,
+  );
   const [menuState, setMenuState] = useState<ContextMenuState | null>(null);
   const [activeSubmenu, setActiveSubmenu] = useState<SubmenuType>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -98,7 +103,10 @@ export function AppointmentContextMenu({
       {/* Reschedule Button */}
       <button 
         className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-neutral-700 hover:bg-neutral-50 rounded-lg transition-colors cursor-pointer"
-        onClick={() => { alert("Reschedule requested for appointment: " + appointment.id); setMenuState(null); }}
+        onClick={() => {
+          openWithEditAppointment(appointment, false);
+          setMenuState(null);
+        }}
         onMouseEnter={() => handleMouseEnterItem(null, false)}
       >
         <Calendar className="w-3.5 h-3.5 text-neutral-400 shrink-0" />

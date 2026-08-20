@@ -4,7 +4,6 @@ import {
   type DragStartEvent,
   type DragOverEvent,
 } from "@dnd-kit/core";
-import { arrayMove } from "@dnd-kit/sortable";
 import {
   SLOT_HEIGHT,
   ROW_MINUTES,
@@ -15,17 +14,14 @@ import type {
   DoctorType,
   DragDataPayload,
   AppointmentType,
+  PendingRequest,
 } from "@/features/dashboardAssitant/types";
 import type {
   OverSlotInfo,
   ToastInfo,
   ActiveDragType,
 } from "../types/dragTypes";
-import {
-  calculatePriorityScore,
-  useGlobalConflictStore,
-  type ConflictingItem,
-} from "@/features/dashboardAssitant/hooks/useGlobalConflictStore";
+import { useGlobalConflictStore } from "@/features/dashboardAssitant/hooks/useGlobalConflictStore";
 import { useScheduleContext } from "@/features/dashboardAssitant/context/ScheduleContext";
 import {
   isApiAppointmentId,
@@ -33,10 +29,36 @@ import {
 } from "@/features/dashboardAssitant/hooks/useAppointmentActions";
 import { normalizeCaughtError } from "@/lib/api/errors";
 import { useScheduleGridStore } from "@/features/dashboardAssitant/hooks/scheduleGridStore";
+import { hasSchedulingConflict } from "../utils/conflictValidator";
+import { useWizardDrawer } from "@/features/dashboardAssitant/hooks/useWizardDrawer";
+
+function patientNameFromTitle(title?: string) {
+  if (!title) return "Unknown patient";
+  return title.split(" - ")[0]?.trim() || title;
+}
+
+function buildConflictItems(
+  collisions: AppointmentType[],
+  targetStart: number,
+  targetEnd: number,
+  doctorName: string,
+) {
+  return collisions.map((c) => ({
+    appointmentId: c.id,
+    patientName: patientNameFromTitle(c.title),
+    doctorName,
+    start: c.start,
+    end: c.end,
+    overlapMinutes: Math.min(targetEnd, c.end) - Math.max(targetStart, c.start),
+  }));
+}
 
 export function useDragHandlers() {
-  const { doctors: scheduleDoctors } = useScheduleContext();
-  const { persistGridUpdate, refetch } = useAppointmentActions();
+  const { doctors: scheduleDoctors, selectedDate } = useScheduleContext();
+  const { persistGridUpdate } = useAppointmentActions();
+  const openWithPendingRequestAtSlot = useWizardDrawer(
+    (s) => s.openWithPendingRequestAtSlot,
+  );
   const searchQuery = useScheduleGridStore((s) => s.searchQuery);
 
   const [doctors, setDoctors] = useState<DoctorType[]>([]);
@@ -52,10 +74,11 @@ export function useDragHandlers() {
       source
         .map((doc) => ({
           ...doc,
-          appointments: doc.appointments.filter((a) =>
-            (a.title ?? "").toLowerCase().includes(q) ||
-            (a.patient?.name ?? "").toLowerCase().includes(q) ||
-            (a.patient?.phone ?? "").toLowerCase().includes(q),
+          appointments: doc.appointments.filter(
+            (a) =>
+              (a.title ?? "").toLowerCase().includes(q) ||
+              (a.patient?.name ?? "").toLowerCase().includes(q) ||
+              (a.patient?.phone ?? "").toLowerCase().includes(q),
           ),
         }))
         .filter(
@@ -70,9 +93,6 @@ export function useDragHandlers() {
   const isEditMode = useEditeMode((state) => state.isEditMode);
   const setConflict = useGlobalConflictStore((state) => state.setConflict);
   const setDrawerOpen = useGlobalConflictStore((state) => state.setDrawerOpen);
-  const conflictPayload = useGlobalConflictStore(
-    (state) => state.conflictPayload,
-  );
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeType, setActiveType] = useState<ActiveDragType>(null);
@@ -81,13 +101,6 @@ export function useDragHandlers() {
   const [snapshotDoctors, setSnapshotDoctors] = useState<DoctorType[] | null>(
     null,
   );
-
-  const [pendingMove, setPendingMove] = useState<{
-    payloadData: AppointmentType;
-    targetDoctorId: string;
-    newStart: number;
-    newEnd: number;
-  } | null>(null);
 
   const [isToastOpen, setIsToastOpen] = useState(false);
   const [toastInfo, setToastInfo] = useState<ToastInfo>({
@@ -98,11 +111,11 @@ export function useDragHandlers() {
   const applyLocalUpdate = useCallback((updatedApt: AppointmentType) => {
     setDoctors((prev) =>
       prev.map((doc) => {
-        const filteredApts: AppointmentType[] = doc.appointments.filter(
+        const filteredApts = doc.appointments.filter(
           (a) => a && a.id !== updatedApt.id,
         );
         if (doc.id === updatedApt.docId) {
-          filteredApts.push(updatedApt as AppointmentType);
+          filteredApts.push(updatedApt);
         }
         return { ...doc, appointments: filteredApts };
       }),
@@ -127,6 +140,15 @@ export function useDragHandlers() {
       if (isApiAppointmentId(updatedApt.id)) {
         try {
           await persistGridUpdate(updatedApt);
+          const titleString = updatedApt.title || "Appointment";
+          setToastInfo({
+            patientName: titleString.split(" - ")[0],
+            newTimeLabel: formatMinutesToTime(
+              updatedApt.start,
+              updatedApt.end - updatedApt.start,
+            ),
+          });
+          setIsToastOpen(true);
           return;
         } catch (err) {
           alert(
@@ -147,21 +169,35 @@ export function useDragHandlers() {
     [applyLocalUpdate, doctors, persistGridUpdate, snapshotDoctors],
   );
 
+  const getDragDuration = useCallback(
+    (type: ActiveDragType, data: DragDataPayload | null) => {
+      if (type === "appointment" && data?.appointmentData) {
+        return data.appointmentData.end - data.appointmentData.start;
+      }
+      if (type === "pending_request" && data?.pendingRequestData) {
+        const req = data.pendingRequestData;
+        return req.end - req.start || req.duration || 30;
+      }
+      return 0;
+    },
+    [],
+  );
+
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
       if (!isEditMode) return;
       const { active } = event;
       const currentData = active.data.current as DragDataPayload | undefined;
+      if (!currentData?.type) return;
 
       setActiveId(active.id as string);
-      setActiveType(
-        currentData?.type ?? (active.data.current?.sortable ? "doctor" : null),
-      );
-      setActiveData(currentData ?? null);
+      setActiveType(currentData.type);
+      setActiveData(currentData);
       setSnapshotDoctors(JSON.parse(JSON.stringify(doctors)));
       setIsToastOpen(false);
+      setConflict(null);
     },
-    [isEditMode, doctors],
+    [isEditMode, doctors, setConflict],
   );
 
   const handleDragOver = useCallback(
@@ -170,74 +206,64 @@ export function useDragHandlers() {
       if (
         !over ||
         !isEditMode ||
-        activeType !== "appointment" ||
-        !activeData?.appointmentData
+        (activeType !== "appointment" && activeType !== "pending_request")
       ) {
         return;
       }
 
-      if (over.data.current?.type === "slot") {
-        const targetDoctorId = over.data.current.idDoctor;
-        const targetSlotIdx = over.data.current.slotIdx;
-        const aptData = activeData.appointmentData;
+      if (over.data.current?.type !== "slot") return;
 
-        const duration = aptData.end - aptData.start;
-        const targetStart = targetSlotIdx * ROW_MINUTES;
-        const targetEnd = targetStart + duration;
+      const targetDoctorId = over.data.current.idDoctor as string;
+      const targetSlotIdx = over.data.current.slotIdx as number;
+      const duration = getDragDuration(activeType, activeData);
+      if (duration <= 0) return;
 
-        setOverSlotInfo({
-          docId: targetDoctorId,
-          slotIdx: targetSlotIdx,
-          top: targetSlotIdx * SLOT_HEIGHT,
-          height: (duration / ROW_MINUTES) * SLOT_HEIGHT,
+      const targetStart = targetSlotIdx * ROW_MINUTES;
+      const targetEnd = targetStart + duration;
+
+      setOverSlotInfo({
+        docId: targetDoctorId,
+        slotIdx: targetSlotIdx,
+        top: targetSlotIdx * SLOT_HEIGHT,
+        height: (duration / ROW_MINUTES) * SLOT_HEIGHT,
+      });
+
+      const targetDocObj = doctors.find((d) => d.id === targetDoctorId);
+      if (!targetDocObj) return;
+
+      const excludeId =
+        activeType === "appointment"
+          ? activeData?.appointmentData?.id
+          : undefined;
+
+      const collisions = (targetDocObj.appointments || []).filter(
+        (apt) =>
+          apt.id !== excludeId &&
+          Math.max(targetStart, apt.start) < Math.min(targetEnd, apt.end),
+      );
+
+      if (collisions.length > 0) {
+        setConflict({
+          attemptedAction: activeType === "pending_request" ? "assign" : "move",
+          conflictingItems: buildConflictItems(
+            collisions,
+            targetStart,
+            targetEnd,
+            targetDocObj.name,
+          ),
         });
-
-        const targetDocObj = doctors.find((d) => d.id === targetDoctorId);
-        if (targetDocObj) {
-          const collisions: AppointmentType[] = (
-            targetDocObj.appointments || []
-          ).filter(
-            (apt) =>
-              apt.id !== aptData.id &&
-              Math.max(targetStart, apt.start) < Math.min(targetEnd, apt.end),
-          );
-
-          if (collisions.length > 0) {
-            const conflictingItems: ConflictingItem[] = collisions.map((c) => {
-              const overlap =
-                Math.min(targetEnd, c.end) - Math.max(targetStart, c.start);
-              const { score, severity } = calculatePriorityScore(c, overlap);
-              const parts = (c.title || "").split(" - ");
-              return {
-                appointmentId: c.id,
-                patientName: parts[0] || "Unknown Patient",
-                doctorName: targetDocObj.name,
-                visitType: parts[1] || "Consultation",
-                start: c.start,
-                end: c.end,
-                overlapMinutes: overlap,
-                severity,
-                priorityScore: score,
-                phone: c.patient?.phone ?? "",
-              };
-            });
-
-            conflictingItems.sort((a, b) => b.priorityScore - a.priorityScore);
-
-            setConflict({
-              draggedApt: aptData,
-              targetDoctorId,
-              targetStart,
-              targetEnd,
-              conflictingItems,
-            });
-          } else {
-            setConflict(null);
-          }
-        }
+      } else {
+        setConflict(null);
       }
     },
-    [isEditMode, activeType, activeData, doctors, setConflict],
+    [
+      isEditMode,
+      activeType,
+      activeData,
+      doctors,
+      setConflict,
+      getDragDuration,
+    ],
   );
 
   const executeMove = useCallback(
@@ -257,6 +283,12 @@ export function useDragHandlers() {
       if (isApiAppointmentId(moved.id)) {
         try {
           await persistGridUpdate(moved);
+          const titleString = moved.title || "Appointment";
+          setToastInfo({
+            patientName: titleString.split(" - ")[0],
+            newTimeLabel: formatMinutesToTime(newStart, newEnd - newStart),
+          });
+          setIsToastOpen(true);
         } catch (err) {
           alert(
             normalizeCaughtError(
@@ -267,34 +299,15 @@ export function useDragHandlers() {
           if (snapshotDoctors) {
             setDoctors(snapshotDoctors);
           }
-          return;
         }
       } else {
         applyLocalUpdate(moved);
       }
 
-      setPendingMove(null);
       setConflict(null);
     },
-    [applyLocalUpdate, persistGridUpdate, snapshotDoctors],
+    [applyLocalUpdate, persistGridUpdate, snapshotDoctors, setConflict],
   );
-
-  const confirmPendingMove = useCallback(() => {
-    if (pendingMove) {
-      void executeMove(
-        pendingMove.payloadData,
-        pendingMove.targetDoctorId,
-        pendingMove.newStart,
-        pendingMove.newEnd,
-      );
-    }
-  }, [pendingMove, executeMove]);
-
-  const cancelPendingMove = useCallback(() => {
-    setPendingMove(null);
-    setConflict(null);
-    setDrawerOpen(false);
-  }, [setConflict, setDrawerOpen]);
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
@@ -304,65 +317,129 @@ export function useDragHandlers() {
       setActiveData(null);
       setOverSlotInfo(null);
 
-      if (!over || !isEditMode) return;
+      if (!over || !isEditMode || over.data.current?.type !== "slot") return;
 
-      if (
-        active.data.current?.type === "doctor" ||
-        active.data.current?.sortable
-      ) {
-        if (active.id !== over.id) {
-          setDoctors((items) => {
-            const oldIndex = items.findIndex((i) => i.id === active.id);
-            const newIndex = items.findIndex((i) => i.id === over.id);
-            return arrayMove(items, oldIndex, newIndex) as DoctorType[];
-          });
-        }
-        return;
-      }
+      const targetDoctorId = over.data.current.idDoctor as string;
+      const targetSlotIdx = over.data.current.slotIdx as number;
+      const dragType = active.data.current?.type as ActiveDragType;
 
-      if (activeType === "appointment" && over.data.current?.type === "slot") {
-        const targetDoctorId = over.data.current.idDoctor;
-        const targetSlotIdx = over.data.current.slotIdx;
-        const payloadData = active.data.current?.appointmentData;
-
+      if (dragType === "appointment") {
+        const payloadData = active.data.current
+          ?.appointmentData as AppointmentType | undefined;
         if (!payloadData) return;
 
         const duration = payloadData.end - payloadData.start;
         const newStart = targetSlotIdx * ROW_MINUTES;
         const newEnd = newStart + duration;
 
-        if (conflictPayload && conflictPayload.conflictingItems.length > 0) {
-          setPendingMove({ payloadData, targetDoctorId, newStart, newEnd });
+        if (
+          hasSchedulingConflict(
+            newStart,
+            newEnd,
+            targetDoctorId,
+            doctors,
+            payloadData.id,
+          )
+        ) {
+          const targetDoc = doctors.find((d) => d.id === targetDoctorId);
+          const collisions = (targetDoc?.appointments || []).filter(
+            (apt) =>
+              apt.id !== payloadData.id &&
+              Math.max(newStart, apt.start) < Math.min(newEnd, apt.end),
+          );
+          setConflict({
+            attemptedAction: "move",
+            conflictingItems: buildConflictItems(
+              collisions,
+              newStart,
+              newEnd,
+              targetDoc?.name ?? "Doctor",
+            ),
+          });
           setDrawerOpen(true);
           return;
         }
 
         void executeMove(payloadData, targetDoctorId, newStart, newEnd);
+        return;
+      }
+
+      if (dragType === "pending_request") {
+        const request = active.data.current
+          ?.pendingRequestData as PendingRequest | undefined;
+        if (!request) return;
+
+        const duration = request.end - request.start || request.duration || 30;
+        const newStart = targetSlotIdx * ROW_MINUTES;
+        const newEnd = newStart + duration;
+
+        if (
+          hasSchedulingConflict(newStart, newEnd, targetDoctorId, doctors)
+        ) {
+          const targetDoc = doctors.find((d) => d.id === targetDoctorId);
+          const collisions = (targetDoc?.appointments || []).filter(
+            (apt) =>
+              Math.max(newStart, apt.start) < Math.min(newEnd, apt.end),
+          );
+          setConflict({
+            attemptedAction: "assign",
+            conflictingItems: buildConflictItems(
+              collisions,
+              newStart,
+              newEnd,
+              targetDoc?.name ?? "Doctor",
+            ),
+          });
+          setDrawerOpen(true);
+          return;
+        }
+
+        openWithPendingRequestAtSlot(
+          {
+            ...request,
+            docId: targetDoctorId,
+            start: newStart,
+            end: newEnd,
+          },
+          selectedDate,
+        );
+        setConflict(null);
       }
     },
-    [isEditMode, activeType, conflictPayload, executeMove, setDrawerOpen],
+    [
+      isEditMode,
+      doctors,
+      executeMove,
+      openWithPendingRequestAtSlot,
+      selectedDate,
+      setConflict,
+      setDrawerOpen,
+    ],
   );
 
   const overlayMeta = useMemo(() => {
-    const duration = activeData?.appointmentData
-      ? activeData.appointmentData.end - activeData.appointmentData.start
-      : 0;
+    const duration = getDragDuration(activeType, activeData);
     return {
       cardHeight: (duration / ROW_MINUTES) * SLOT_HEIGHT,
       duration,
     };
-  }, [activeData]);
+  }, [activeData, activeType, getDragDuration]);
 
   const handleUndoAction = useCallback(() => {
     if (snapshotDoctors) {
       setDoctors(snapshotDoctors);
       setSnapshotDoctors(null);
     }
+    setIsToastOpen(false);
   }, [snapshotDoctors]);
 
-  const addAppointment = useCallback((_newApt: AppointmentType) => {
-    void refetch();
-  }, [refetch]);
+  const cancelConflict = useCallback(() => {
+    setConflict(null);
+    if (snapshotDoctors) {
+      setDoctors(snapshotDoctors);
+      setSnapshotDoctors(null);
+    }
+  }, [setConflict, snapshotDoctors]);
 
   return {
     doctors,
@@ -380,8 +457,6 @@ export function useDragHandlers() {
     handleUndoAction,
     closeToast: () => setIsToastOpen(false),
     updateAppointment,
-    addAppointment,
-    confirmPendingMove,
-    cancelPendingMove,
+    cancelConflict,
   };
 }

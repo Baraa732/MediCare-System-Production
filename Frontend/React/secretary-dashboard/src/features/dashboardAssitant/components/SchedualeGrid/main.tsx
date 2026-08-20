@@ -45,7 +45,7 @@ export function ScheduleGrid() {
           <div className="flex items-center gap-2.5">
             <AlertTriangle className="h-4 w-4 shrink-0 animate-pulse text-blue-600" />
             <span>
-              Edit mode is activated. Any move may lead to changes in the schedules
+              Edit mode: drag appointments or pending requests to reschedule.
             </span>
           </div>
 

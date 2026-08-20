@@ -161,7 +161,7 @@ export function AppointmentCard({
       const isUrgentOrCritical =
         apt.complexity === "urgent" ||
         apt.status === "urgent" ||
-        (isConflicting && conflictItem?.severity === "critical");
+        isConflicting;
 
       if (isUrgentOrCritical) {
         setIsWarningOpen(true);
@@ -218,13 +218,9 @@ export function AppointmentCard({
           showLockIcon && "opacity-85 border-solid cursor-not-allowed",
           !isEditMode && "cursor-pointer",
 
-          // 🚀 حقن الهوية التحذيرية الملونة المتوهجة للنزاعات الحية (Visual Highlights)
+          // Live overlap highlight while dragging
           isConflicting &&
-            conflictItem.severity === "critical" &&
-            "border-red-500 bg-red-50 text-red-900 ring-2 ring-red-400 z-30 animate-pulse",
-          isConflicting &&
-            conflictItem.severity !== "critical" &&
-            "border-violet-500 bg-violet-50 text-violet-900 ring-2 ring-violet-400 z-30",
+            "z-30 border-red-400 bg-red-50 text-red-900 ring-2 ring-red-300",
 
           // Status colors aligned with the information panel legend
           !isConflicting &&
@@ -239,16 +235,9 @@ export function AppointmentCard({
       >
         {/* 🚀 أيقونة تداخل منبثقة ملونة في أعلى الكرت المتأثر */}
         {isConflicting && (
-          <div className="absolute top-1 right-1 flex items-center gap-0.5 bg-white border border-violet-300 rounded px-1 text-[9px] font-black text-neutral-800 shadow-sm">
-            <AlertTriangle
-              className={cn(
-                "w-2.5 h-2.5",
-                conflictItem.severity === "critical"
-                  ? "text-red-500"
-                  : "text-violet-500",
-              )}
-            />
-            <span>-{conflictItem.overlapMinutes}m</span>
+          <div className="absolute top-1 right-1 flex items-center gap-0.5 rounded border border-red-200 bg-white px-1 text-[9px] font-black text-red-700 shadow-sm">
+            <AlertTriangle className="h-2.5 w-2.5 text-red-500" />
+            <span>-{conflictItem?.overlapMinutes}m</span>
           </div>
         )}
 

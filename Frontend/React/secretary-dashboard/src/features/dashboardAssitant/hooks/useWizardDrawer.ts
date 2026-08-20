@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { PendingRequest, AppointmentType } from "../types";
+import { absoluteMinutesFromGridMinutes } from "@/lib/time/gridTime";
 
 interface Type {
   isWizardOpen: boolean;
@@ -16,6 +17,10 @@ interface Type {
   }) => void;
   pendingRequestData: PendingRequest | null;
   openWithPendingRequest: (request: PendingRequest) => void;
+  openWithPendingRequestAtSlot: (
+    request: PendingRequest,
+    date: Date,
+  ) => void;
   initialData: {
     doctorId: string;
     doctorName?: string;
@@ -65,6 +70,21 @@ export const useWizardDrawer = create<Type>((set) => ({
       initialData: null, 
       editingAppointment: null,
       viewOnlyMode: false 
+    }),
+
+  openWithPendingRequestAtSlot: (request, date) =>
+    set({
+      isWizardOpen: true,
+      pendingRequestData: request,
+      initialData: {
+        doctorId: request.docId,
+        timeSlot: absoluteMinutesFromGridMinutes(request.start),
+        duration: request.end - request.start || request.duration || 30,
+        date,
+        fromGridSelection: true,
+      },
+      editingAppointment: null,
+      viewOnlyMode: false,
     }),
 
   openWithEditAppointment: (appointment, viewOnly = false) =>

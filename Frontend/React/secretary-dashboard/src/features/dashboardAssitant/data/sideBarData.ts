@@ -1,13 +1,13 @@
 import { Calendar, CheckCircle2, XCircle, Clock } from "lucide-react";
 import type { PendingRequest, QuickStateType } from "../types";
 import { usePendingRequest } from "../hooks/usePendingRequest";
-import { useDragHandlers } from "../components/SchedualeGrid/DNDGrid/hooks/useDragHandlers";
+import { useScheduleContext } from "../context/ScheduleContext";
 
 export const QuickState: () => QuickStateType[] = () => {
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const requests = usePendingRequest((state) => state.requests);
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const { doctors } = useDragHandlers();
+  const { doctors } = useScheduleContext();
   const countAppointments = doctors.reduce<number>((acc, doc) => {
     return acc + doc.appointments.length;
   }, 0);

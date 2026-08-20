@@ -1,41 +1,37 @@
-import {
-  SortableContext,
-  horizontalListSortingStrategy,
-} from "@dnd-kit/sortable";
 import { cn } from "@/lib/utils";
 import { DOCTOR_COL_WIDTH } from "../../data/scheduleGrid";
-import { useEditeMode } from "../../hooks";
-import { SortableDoctorHeader } from ".";
 import type { DoctorType } from "../../types";
 
 interface TopStickyHeaderProps {
   doctors: DoctorType[];
 }
 
-export function TopStickyHeader({
-  doctors,
-}: TopStickyHeaderProps) {
-  const isEditMode = useEditeMode((state) => state.isEditMode);
+export function TopStickyHeader({ doctors }: TopStickyHeaderProps) {
   return (
-    <div className="sticky top-0 z-40 flex bg-neutral-50 border-b border-neutral-200 divide-x divide-neutral-200">
-      {/* <div className="w-24 sticky left-0 z-50 bg-neutral-100 border-r border-neutral-200 shrink-0 h-[65px]" /> */}
-      <div className="w-24 sticky left-0 z-50 bg-neutral-100 border-r border-neutral-200 shrink-0 h-16.25" />
+    <div className="sticky top-0 z-40 flex divide-x divide-neutral-200 border-b border-neutral-200 bg-neutral-50">
+      <div className="sticky left-0 z-50 h-16.25 w-24 shrink-0 border-r border-neutral-200 bg-neutral-100" />
       <div className="flex flex-1 divide-x divide-neutral-200">
-    
-        <SortableContext
-          items={doctors.map((d) => d.id)}
-          strategy={horizontalListSortingStrategy}
-        >
-          {doctors.map((doctor) => (
-            <div key={doctor.id} className={cn(DOCTOR_COL_WIDTH)}>
-              <SortableDoctorHeader
-                id={doctor.id}
-                doctor={doctor}
-                disabled={!isEditMode}
-              />
+        {doctors.map((doctor) => (
+          <div key={doctor.id} className={cn(DOCTOR_COL_WIDTH)}>
+            <div className="box-border flex h-16 w-full items-center justify-between bg-white p-3.5">
+              <div className="flex min-w-0 items-center gap-3">
+                <img
+                  src={doctor.avatar}
+                  alt={doctor.name}
+                  className="h-9 w-9 shrink-0 rounded-xl border border-neutral-200/80 object-cover"
+                />
+                <div className="min-w-0 flex-1">
+                  <h4 className="truncate text-xs font-bold leading-none text-neutral-900">
+                    {doctor.name}
+                  </h4>
+                  <p className="mt-1.5 text-[11px] font-semibold leading-none text-neutral-400">
+                    {doctor.appointments.length} patients
+                  </p>
+                </div>
+              </div>
             </div>
-          ))}
-        </SortableContext>
+          </div>
+        ))}
       </div>
     </div>
   );

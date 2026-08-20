@@ -135,6 +135,32 @@ export function useAppointmentWizard(
         };
         setFormData(formattedData);
         originalDataRef.current = JSON.stringify(formattedData);
+      } else if (pendingRequestData && initialData) {
+        const formattedData: WizardFormData = {
+          ...INITIAL_FORM_DATA,
+          doctorId: initialData.doctorId,
+          date: new Date(initialData.date),
+          treatmentId: pendingRequestData.treatmentId || "t1",
+          timeSlot: absoluteMinutesFromGridMinutes(pendingRequestData.start),
+          duration: Math.max(
+            15,
+            pendingRequestData.end - pendingRequestData.start ||
+              initialData.duration,
+          ),
+          complexity:
+            (pendingRequestData.complexity as ComplexityType) || "standard",
+          isLockedToDoctor: pendingRequestData.refuseTransfer ?? false,
+          patientName: pendingRequestData.patient?.name ?? "",
+          patientPhone: pendingRequestData.patient?.phone ?? "",
+          patientAge: pendingRequestData.patient?.age?.toString() ?? "",
+          patientGender: pendingRequestData.patient?.gender ?? null,
+          patientAddress: pendingRequestData.patient?.adddress ?? "",
+          isExistingPatient: false,
+          notes: "Assigned from pending request via schedule grid",
+          fromGridSelection: true,
+        };
+        setFormData(formattedData);
+        originalDataRef.current = JSON.stringify(formattedData);
       } else if (initialData) {
         const formattedData: WizardFormData = {
           ...INITIAL_FORM_DATA,
