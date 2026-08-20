@@ -9,7 +9,7 @@ import {
   absoluteMinutesFromGridSlot,
   slotRangeDurationMinutes,
 } from "@/lib/time/gridTime";
-import { isGridSlotInPast } from "../utils/editModeDrag";
+import { isGridSlotInPast, isClinicDateBeforeToday } from "../utils/editModeDrag";
 
 interface HandleSelectionState {
   selection: SelectionType;
@@ -94,6 +94,7 @@ export const useHandleSelection = create<HandleSelectionState>((set) => {
     onMouseDown: (e, { idDoctor, isEditMode, slotIdx }) => {
       if (isEditMode || e.button !== 0) return;
       const date = useHandleDatePicker.getState().date;
+      if (isClinicDateBeforeToday(date)) return;
       if (isGridSlotInPast(slotIdx * ROW_MINUTES, date)) return;
       set({
         isSelecting: true,

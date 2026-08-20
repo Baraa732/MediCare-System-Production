@@ -64,11 +64,20 @@ function filterDoctors(source: DoctorType[], searchQuery: string): DoctorType[] 
   return source
     .map((doc) => ({
       ...doc,
-      appointments: doc.appointments.filter(
-        (a) =>
-          (a.title ?? "").toLowerCase().includes(q) ||
-          (a.patient?.name ?? "").toLowerCase().includes(q) ||
-          (a.patient?.phone ?? "").toLowerCase().includes(q),
+      appointments: doc.appointments.filter((a) =>
+        [
+          a.title,
+          a.notes,
+          a.status,
+          a.patient?.name,
+          a.patient?.phone,
+          doc.name,
+          doc.specialty,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(q),
       ),
     }))
     .filter(

@@ -28,7 +28,7 @@ export function Step3ReviewSummary({
     { label: "Duration", value: `${computedDuration} minutes` },
     { label: "Doctor", value: doctorName },
     { label: "Require Doctor", value: formData.isLockedToDoctor },
-    { label: "Date", value: formatFullLocalDate(new Date(formData.date)) },
+    { label: "Date", value: formData.date ? formatFullLocalDate(new Date(formData.date)) : "—" },
     {
       label: "Time",
       value:

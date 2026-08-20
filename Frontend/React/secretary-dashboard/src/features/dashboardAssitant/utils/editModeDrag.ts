@@ -30,12 +30,21 @@ export function isGridSlotInPast(
   return slotStartMinutes < clinicNowGridMinutes(selectedDate, now);
 }
 
-/** Absolute minutes since midnight — used by the booking wizard. */
-export function isAbsoluteSlotInPast(
-  absoluteMinutes: number,
+/** True when the selected clinic day is strictly before today (show-only). */
+export function isClinicDateBeforeToday(
   selectedDate: Date,
   now = new Date(),
 ): boolean {
+  return clinicDateKey(selectedDate) < clinicDateKey(now);
+}
+
+/** Absolute minutes since midnight — used by the booking wizard. */
+export function isAbsoluteSlotInPast(
+  absoluteMinutes: number,
+  selectedDate: Date | null | undefined,
+  now = new Date(),
+): boolean {
+  if (!selectedDate) return true;
   return isGridSlotInPast(
     absoluteMinutes - START_TIME_MINUTES,
     selectedDate,

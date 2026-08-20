@@ -1,5 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CalendarClock, Search, Stethoscope, UserRound, X } from "lucide-react";
 import { addDays, subDays } from "date-fns";
 import { formatClinicDateTime } from "@/lib/time/clinicTime";
@@ -29,22 +28,14 @@ function hay(...parts: Array<string | null | undefined>) {
   return parts.filter(Boolean).join(" ").toLowerCase();
 }
 
-function measurePanel(anchor: HTMLElement | null): React.CSSProperties | null {
-  if (!anchor) return null;
-  const rect = anchor.getBoundingClientRect();
-  if (rect.width <= 0) return null;
-  return {
-    position: "fixed",
-    top: rect.bottom + 8,
-    left: Math.max(8, rect.left),
-    width: Math.min(rect.width, window.innerWidth - 16),
-    zIndex: 60,
-  };
-}
-
+/**
+ * Inline dropdown under the input — NO full-screen overlay/portal.
+ * Root cause of the "search behind blur" bug: a fixed inset-0 backdrop at z-55
+ * sat above the header (z-10), so the typing field looked overlapped.
+ */
 export function SearchBar() {
+  const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const anchorRef = useRef<HTMLDivElement>(null);
   const searchQuery = useScheduleGridStore((s) => s.searchQuery);
   const setSearchQuery = useScheduleGridStore((s) => s.setSearchQuery);
   const { doctors, clinicId, selectedDate } = useScheduleContext();
@@ -58,7 +49,6 @@ export function SearchBar() {
   const [open, setOpen] = useState(false);
   const [remote, setRemote] = useState<ApiAppointment[]>([]);
   const [loading, setLoading] = useState(false);
-  const [panelStyle, setPanelStyle] = useState<React.CSSProperties | null>(null);
 
   const q = searchQuery.trim().toLowerCase();
 
@@ -79,23 +69,15 @@ export function SearchBar() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  useLayoutEffect(() => {
-    if (!open) {
-      setPanelStyle(null);
-      return;
-    }
-
-    const updatePosition = () => {
-      setPanelStyle(measurePanel(anchorRef.current));
+  useEffect(() => {
+    if (!open) return;
+    const onPointer = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
     };
-
-    updatePosition();
-    window.addEventListener("resize", updatePosition);
-    window.addEventListener("scroll", updatePosition, true);
-    return () => {
-      window.removeEventListener("resize", updatePosition);
-      window.removeEventListener("scroll", updatePosition, true);
-    };
+    document.addEventListener("mousedown", onPointer);
+    return () => document.removeEventListener("mousedown", onPointer);
   }, [open]);
 
   useEffect(() => {
@@ -151,7 +133,13 @@ export function SearchBar() {
 
       for (const apt of doc.appointments) {
         if (
-          hay(apt.title, apt.patient?.name, apt.patient?.phone, apt.status).includes(q)
+          hay(
+            apt.title,
+            apt.notes,
+            apt.patient?.name,
+            apt.patient?.phone,
+            apt.status,
+          ).includes(q)
         ) {
           hits.push({
             id: `apt-${apt.id}`,
@@ -166,7 +154,9 @@ export function SearchBar() {
     }
 
     for (const req of requests) {
-      if (hay(req.patient?.name, req.patient?.phone, req.title).includes(q)) {
+      if (
+        hay(req.patient?.name, req.patient?.phone, req.title, req.notes).includes(q)
+      ) {
         hits.push({
           id: `req-${req.id}`,
           kind: "request",
@@ -187,6 +177,7 @@ export function SearchBar() {
           patient,
           apt.guestPatientPhone,
           apt.reason,
+          apt.notes,
           apt.status,
           apt.patientId,
         ).includes(q)
@@ -211,87 +202,19 @@ export function SearchBar() {
 
   const applyHit = (hit: SearchHit) => {
     setOpen(false);
-    setPanelStyle(null);
-    setSearchQuery(hit.kind === "doctor" ? hit.title : "");
-    // Defer opening drawers so search portal unmounts first (avoids stacking fight).
-    window.setTimeout(() => {
-      if (hit.date) changeDate(hit.date);
-      if (hit.appointmentId) openAppointment(hit.appointmentId);
-      if (hit.requestId) {
-        const request = requests.find((item) => item.id === hit.requestId);
-        if (request) openPending(request);
-      }
-    }, 0);
+    if (hit.kind === "doctor") {
+      setSearchQuery(hit.title);
+    }
+    if (hit.date) changeDate(hit.date);
+    if (hit.appointmentId) openAppointment(hit.appointmentId);
+    if (hit.requestId) {
+      const request = requests.find((item) => item.id === hit.requestId);
+      if (request) openPending(request);
+    }
   };
 
-  const portal =
-    open && panelStyle && typeof document !== "undefined"
-      ? createPortal(
-          <>
-            <button
-              type="button"
-              className="fixed inset-0 z-[55] cursor-default bg-slate-900/25 backdrop-blur-[2px]"
-              onClick={() => setOpen(false)}
-              aria-label="Close search"
-            />
-            <div
-              style={panelStyle}
-              className="overflow-hidden rounded-2xl border border-neutral-100/80 bg-white shadow-2xl"
-              role="listbox"
-              aria-label="Search results"
-            >
-              <div className="border-b border-neutral-100 px-4 py-2 text-[11px] font-medium text-neutral-500">
-                Find a patient, doctor, phone number, or upcoming booking
-                {loading ? " · searching clinic…" : ""}
-              </div>
-              {q.length < 2 ? (
-                <p className="px-4 py-8 text-center text-xs text-neutral-400">
-                  Type at least 2 characters. Use this to jump to a booking or
-                  pending request.
-                </p>
-              ) : results.length === 0 ? (
-                <p className="px-4 py-8 text-center text-xs text-neutral-400">
-                  No matches on this day or the next 3 weeks.
-                </p>
-              ) : (
-                <ul className="max-h-80 overflow-y-auto py-1">
-                  {results.map((hit) => (
-                    <li key={hit.id}>
-                      <button
-                        type="button"
-                        onClick={() => applyHit(hit)}
-                        className="interactive-row flex w-full items-start gap-3 px-4 py-2.5 text-left"
-                      >
-                        <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-xl bg-neutral-50 text-neutral-500">
-                          {hit.kind === "doctor" ? (
-                            <Stethoscope className="h-4 w-4" />
-                          ) : hit.kind === "request" ? (
-                            <CalendarClock className="h-4 w-4" />
-                          ) : (
-                            <UserRound className="h-4 w-4" />
-                          )}
-                        </span>
-                        <span className="min-w-0">
-                          <span className="block text-xs font-semibold text-neutral-900">
-                            {hit.title}
-                          </span>
-                          <span className="block truncate text-[11px] text-neutral-500">
-                            {hit.kind} · {hit.subtitle}
-                          </span>
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </>,
-          document.body,
-        )
-      : null;
-
   return (
-    <div ref={anchorRef} className="relative w-full max-w-105">
+    <div ref={rootRef} className="relative z-40 w-full max-w-105">
       <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
       <input
         ref={inputRef}
@@ -303,10 +226,10 @@ export function SearchBar() {
           setSearchQuery(e.target.value);
           setOpen(true);
         }}
-        placeholder="Search patients, doctors, phone, bookings"
-        className="h-9.5 w-full rounded-xl border border-neutral-200/80 bg-white/70 pl-10 pr-16 text-xs font-medium placeholder-neutral-400 shadow-sm backdrop-blur-sm transition-all duration-200 focus:border-[#0066ff] focus:bg-white focus:outline-hidden focus:shadow-md"
+        placeholder="Search patients, doctors, phone, notes…"
+        className="relative z-10 h-9.5 w-full rounded-xl border border-neutral-200/80 bg-white pl-10 pr-16 text-xs font-medium placeholder-neutral-400 shadow-sm transition-all duration-200 focus:border-[#0066ff] focus:outline-hidden focus:shadow-md"
       />
-      <kbd className="absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-md border border-neutral-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-neutral-400 sm:inline">
+      <kbd className="pointer-events-none absolute right-3 top-1/2 z-10 hidden -translate-y-1/2 rounded-md border border-neutral-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-neutral-400 sm:inline">
         ⌘K
       </kbd>
       {searchQuery ? (
@@ -315,13 +238,65 @@ export function SearchBar() {
           onClick={() => {
             setSearchQuery("");
             setOpen(false);
+            inputRef.current?.focus();
           }}
-          className="absolute right-12 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 sm:right-14"
+          className="absolute right-12 top-1/2 z-10 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 sm:right-14"
         >
           <X className="h-3.5 w-3.5" />
         </button>
       ) : null}
-      {portal}
+
+      {open ? (
+        <div
+          className="absolute left-0 right-0 top-[calc(100%+6px)] z-50 overflow-hidden rounded-2xl border border-neutral-200/80 bg-white shadow-xl"
+          role="listbox"
+          aria-label="Search results"
+        >
+          <div className="border-b border-neutral-100 px-4 py-2 text-[11px] font-medium text-neutral-500">
+            Live filter on this day · jump to bookings clinic-wide
+            {loading ? " · searching…" : ""}
+          </div>
+          {q.length < 1 ? (
+            <p className="px-4 py-6 text-center text-xs text-neutral-400">
+              Type to filter patients, doctors, phones, and notes on the grid.
+            </p>
+          ) : results.length === 0 ? (
+            <p className="px-4 py-6 text-center text-xs text-neutral-400">
+              No matches. The schedule above still filters as you type.
+            </p>
+          ) : (
+            <ul className="max-h-72 overflow-y-auto py-1">
+              {results.map((hit) => (
+                <li key={hit.id}>
+                  <button
+                    type="button"
+                    onClick={() => applyHit(hit)}
+                    className="interactive-row flex w-full items-start gap-3 px-4 py-2.5 text-left"
+                  >
+                    <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-xl bg-neutral-50 text-neutral-500">
+                      {hit.kind === "doctor" ? (
+                        <Stethoscope className="h-4 w-4" />
+                      ) : hit.kind === "request" ? (
+                        <CalendarClock className="h-4 w-4" />
+                      ) : (
+                        <UserRound className="h-4 w-4" />
+                      )}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-xs font-semibold text-neutral-900">
+                        {hit.title}
+                      </span>
+                      <span className="block truncate text-[11px] text-neutral-500">
+                        {hit.kind} · {hit.subtitle}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

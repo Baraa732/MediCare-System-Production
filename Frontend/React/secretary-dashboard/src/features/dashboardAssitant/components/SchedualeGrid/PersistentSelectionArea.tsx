@@ -7,12 +7,13 @@ import {
   absoluteMinutesFromGridSlot,
   slotRangeDurationMinutes,
 } from "@/lib/time/gridTime";
+import { isClinicDateBeforeToday } from "../../utils/editModeDrag";
 
 interface PersistentSelectionAreaProps {
   hasSelectionInColumn: boolean;
   selectionHeight: number;
   selectionTop: number;
-  doctorId: string;     // 👈 نمرر معرّف طبيب العمود هنا
+  doctorId: string;
 }
 
 export function PersistentSelectionArea({
@@ -21,8 +22,12 @@ export function PersistentSelectionArea({
   selectionTop,
   doctorId,
 }: PersistentSelectionAreaProps): React.ReactNode {
-    const selectedDate = useHandleDatePicker((state) => state.date);
-  const onOpenNewAppointment = useWizardDrawer((state) => state.onOpenNewAppointment);
+  const selectedDate = useHandleDatePicker((state) => state.date);
+  const onOpenNewAppointment = useWizardDrawer(
+    (state) => state.onOpenNewAppointment,
+  );
+
+  if (isClinicDateBeforeToday(selectedDate)) return null;
 
   const handleTriggerWizardWithSelection = () => {
     const startSlot = Math.round(selectionTop / SLOT_HEIGHT);
@@ -52,15 +57,15 @@ export function PersistentSelectionArea({
           top: selectionTop + 3,
           height: selectionHeight - 6,
         }}
-        className="absolute left-2 right-2 rounded-xl border border-dashed border-[#0066ff]/60 bg-blue-100/50 shadow-xs flex items-center justify-center transition-all duration-75 z-20"
+        className="absolute left-2 right-2 z-20 flex items-center justify-center rounded-xl border border-dashed border-[#0066ff]/60 bg-blue-100/50 shadow-xs transition-all duration-75"
       >
         <button
           onClick={handleTriggerWizardWithSelection}
-          className="h-8 px-4 bg-[#0066ff] hover:bg-[#0052cc] active:scale-95 transition-all rounded-lg shadow-sm flex items-center gap-1.5 text-white text-[11px] font-bold cursor-pointer"
+          className="flex h-8 cursor-pointer items-center gap-1.5 rounded-lg bg-[#0066ff] px-4 text-[11px] font-bold text-white shadow-sm transition-all hover:bg-[#0052cc] active:scale-95"
         >
-          <Plus className="w-3.5 h-3.5 stroke-3" />
+          <Plus className="h-3.5 w-3.5 stroke-3" />
         </button>
       </div>
-    ) 
+    )
   );
 }

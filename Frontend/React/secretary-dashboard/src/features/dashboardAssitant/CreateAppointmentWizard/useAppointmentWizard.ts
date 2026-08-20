@@ -33,12 +33,11 @@ export interface PatientProfile {
 export interface WizardFormData {
   treatmentId: string;
   complexity: ComplexityType;
-  date: Date;
+  date: Date | null;
   timeSlot: number | null;
   doctorId: string;
   isLockedToDoctor: boolean;
   notes: string;
-  // Step 2 Form Attributes upgraded from image_312683.png
   patientName: string;
   patientPhone: string;
   patientAge: string;
@@ -52,7 +51,7 @@ export interface WizardFormData {
 const INITIAL_FORM_DATA: WizardFormData = {
   treatmentId: "",
   complexity: "standard",
-  date: new Date(),
+  date: null,
   timeSlot: null,
   doctorId: "",
   isLockedToDoctor: false,
@@ -201,7 +200,8 @@ export function useAppointmentWizard(
         setFormData(formattedData);
         originalDataRef.current = JSON.stringify(formattedData);
       } else {
-        const formattedData = { ...INITIAL_FORM_DATA, date: new Date() };
+        // Manual "New appointment": no default date — secretary picks it.
+        const formattedData = { ...INITIAL_FORM_DATA, date: null as Date | null };
         setFormData(formattedData);
         originalDataRef.current = JSON.stringify(formattedData);
       }
@@ -465,7 +465,8 @@ export function useAppointmentWizard(
   }, [formData.timeSlot, formData.date]);
 
   useEffect(() => {
-    if (!isWizardOpen || !formData.date || !clinicId || !accessToken) {
+    const selectedDay = formData.date;
+    if (!isWizardOpen || !selectedDay || !clinicId || !accessToken) {
       setApiSlotMinutes([]);
       return;
     }
@@ -485,7 +486,7 @@ export function useAppointmentWizard(
           {
             clinicId,
             doctorId,
-            date: formData.date,
+            date: selectedDay,
             durationMinutes: computedDuration || 30,
           },
           accessToken,

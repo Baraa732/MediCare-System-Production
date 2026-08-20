@@ -11,12 +11,12 @@ import {
 } from "@/lib/time/gridTime";
 import { useAuthStore } from "@/stores/authStore";
 import { useScheduleContext } from "../context/ScheduleContext";
+import { useHandleDatePicker } from "./useHandleDatePicker";
 import type { AppointmentType } from "../types";
 import {
   TREATMENT_OPTIONS,
   type WizardFormData,
 } from "../CreateAppointmentWizard/useAppointmentWizard";
-import { START_TIME_MINUTES } from "../data/scheduleGrid";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -28,6 +28,7 @@ export function isApiAppointmentId(id: string) {
 export function useAppointmentActions() {
   const { refetch, selectedDate, clinicId } = useScheduleContext();
   const accessToken = useAuthStore((s) => s.accessToken);
+  const changeDate = useHandleDatePicker((s) => s.handleChangeDate);
 
   const persistGridUpdate = useCallback(
     async (updatedApt: AppointmentType, options?: { skipRefetch?: boolean }) => {
@@ -93,10 +94,17 @@ export function useAppointmentActions() {
       if (!accessToken || !clinicId) {
         throw new Error("Your session has expired. Please sign in again.");
       }
+      if (!wizardData.date) {
+        throw new Error("Please select an appointment date.");
+      }
+      if (wizardData.timeSlot == null) {
+        throw new Error("Please select an available time slot.");
+      }
 
+      const bookingDate = wizardData.date;
       const scheduledAt = scheduledAtFromAbsoluteMinutes(
-        wizardData.timeSlot ?? START_TIME_MINUTES,
-        wizardData.date ?? selectedDate,
+        wizardData.timeSlot,
+        bookingDate,
       );
       const treatmentName =
         TREATMENT_OPTIONS.find((t) => t.id === wizardData.treatmentId)?.name ??
@@ -161,9 +169,11 @@ export function useAppointmentActions() {
         );
       }
 
+      // Jump the schedule grid to the booked day so the new card is visible.
+      changeDate(bookingDate);
       refetch();
     },
-    [accessToken, clinicId, refetch, selectedDate],
+    [accessToken, changeDate, clinicId, refetch, selectedDate],
   );
 
   return {

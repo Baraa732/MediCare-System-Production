@@ -6,6 +6,7 @@ import {
 } from "@/features/dashboardAssitant/hooks/useScheduleData";
 import { usePendingRequestsSync } from "@/features/dashboardAssitant/hooks/usePendingRequestsSync";
 import { useScheduleGridStore } from "@/features/dashboardAssitant/hooks/scheduleGridStore";
+import { useHandleSelection } from "@/features/dashboardAssitant/hooks/useHandleSelection";
 import type { ApiAppointment } from "@/lib/api/types";
 
 interface ScheduleContextValue {
@@ -29,6 +30,11 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     useScheduleGridStore.getState().setDoctors(schedule.doctors);
   }, [schedule.doctors]);
+
+  // Clear drag-selection when navigating between days/pages.
+  useEffect(() => {
+    useHandleSelection.setState({ selection: null, isSelecting: false });
+  }, [selectedDate]);
 
   return (
     <ScheduleContext.Provider value={{ ...schedule, selectedDate }}>

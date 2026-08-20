@@ -30,6 +30,7 @@ export function PendingRequestSection() {
           item.patient?.name,
           item.patient?.phone,
           item.title,
+          item.notes,
           doctors.find((doc) => doc.id == item.docId)?.name,
         ]
           .filter(Boolean)

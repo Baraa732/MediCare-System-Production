@@ -234,15 +234,15 @@ export function Step1TreatmentInfo({
               <div className="absolute top-[102%] right-0 left-0 z-[100] bg-white border border-neutral-100 rounded-2xl shadow-xl p-3 flex justify-center">
                 <Calendar
                   mode="single"
-                  disabled={{ before: new Date() }}
-                  selected={formData.date}
+                  disabled={{ before: new Date(new Date().setHours(0, 0, 0, 0)) }}
+                  selected={formData.date ?? undefined}
                   onSelect={(day) => {
                     if (day) {
                       handleFieldChange("date", day);
                       setShowCalendar(false);
                     }
                   }}
-                  defaultMonth={new Date(formData.date ?? Date.now())}
+                  defaultMonth={formData.date ?? new Date()}
                   captionLayout="label"
                   className="border-none shadow-none w-full"
                 />
@@ -259,6 +259,15 @@ export function Step1TreatmentInfo({
         {isGridLocked && formData.timeSlot != null ? (
           <div className="rounded-xl border border-blue-100 bg-blue-50/40 px-4 py-3 text-sm font-bold text-blue-700">
             {formatAbsoluteRangeLabel(formData.timeSlot, formData.duration)}
+          </div>
+        ) : !formData.date ? (
+          <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-3 text-center">
+            <p className="text-xs font-semibold text-neutral-700">
+              Select a date first.
+            </p>
+            <span className="text-[10px] text-neutral-500 font-medium block mt-0.5">
+              Available slots appear for the day you choose.
+            </span>
           </div>
         ) : availableTimeSlots.length === 0 ? (
           <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-3 text-center">
