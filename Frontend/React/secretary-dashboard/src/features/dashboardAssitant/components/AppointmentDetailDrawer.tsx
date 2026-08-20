@@ -30,15 +30,10 @@ import {
   gridMinutesFromIso,
 } from "@/lib/time/gridTime";
 
+import { formatClinicDateTime } from "@/lib/time/clinicTime";
+
 function formatDateTime(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleString([], {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  return formatClinicDateTime(iso);
 }
 
 export function AppointmentDetailDrawer() {

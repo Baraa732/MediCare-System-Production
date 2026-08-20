@@ -2,6 +2,7 @@ import {
   ROW_MINUTES,
   START_TIME_MINUTES,
 } from "@/features/dashboardAssitant/data/scheduleGrid";
+import { absoluteMinutesInClinic } from "./clinicTime";
 
 /** Minutes since local midnight (e.g. 8:00 AM => 480). */
 export function absoluteMinutesFromDate(date: Date): number {
@@ -65,9 +66,7 @@ export function scheduledAtFromGridMinutes(
 }
 
 export function absoluteMinutesFromIso(iso: string): number {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return START_TIME_MINUTES;
-  return absoluteMinutesFromDate(date);
+  return absoluteMinutesInClinic(iso);
 }
 
 export function gridMinutesFromIso(iso: string): number {

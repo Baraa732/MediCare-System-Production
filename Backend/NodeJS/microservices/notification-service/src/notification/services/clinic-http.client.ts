@@ -5,6 +5,7 @@ import { createInternalAuthHeadersForUrl } from '../../internal-auth-shared/inte
 export interface ClinicProfile {
   id: string;
   name: string;
+  timezone?: string;
 }
 
 @Injectable()
@@ -40,7 +41,11 @@ export class ClinicHttpClient {
         headers: this.headers('POST', path, {}),
       });
       if (!res.data?.success || !res.data?.clinic) return null;
-      return { id: res.data.clinic.id, name: res.data.clinic.name };
+      return {
+        id: res.data.clinic.id,
+        name: res.data.clinic.name,
+        timezone: res.data.clinic.timezone,
+      };
     } catch (error) {
       this.logger.error(`getClinicById failed: ${error}`);
       throw new ServiceUnavailableException('Clinic service temporarily unavailable');

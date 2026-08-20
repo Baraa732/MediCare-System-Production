@@ -110,6 +110,7 @@ export function mapApiAppointmentToPendingRequest(
     id: appointment.id,
     docId: appointment.doctorId,
     title: appointment.reason ?? "Patient appointment request",
+    scheduledAt: appointment.scheduledAt,
     start,
     end: start + duration,
     status: "pending_request",

@@ -1051,7 +1051,7 @@ class _RescheduleSheetState extends State<_RescheduleSheet> {
   void initState() {
     super.initState();
     final now = DateTime.now();
-    _date = DateTime(now.year, now.month, now.day).add(const Duration(days: 1));
+    _date = DateTime(now.year, now.month, now.day);
     _load();
   }
 
@@ -1110,12 +1110,12 @@ class _RescheduleSheetState extends State<_RescheduleSheet> {
               height: 40,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
-                itemCount: 14,
+                itemCount: 7,
                 separatorBuilder: (_, _) => const SizedBox(width: 8),
                 itemBuilder: (context, i) {
                   final now = DateTime.now();
                   final day = DateTime(now.year, now.month, now.day)
-                      .add(Duration(days: i + 1));
+                      .add(Duration(days: i));
                   final selected = day.year == _date.year &&
                       day.month == _date.month &&
                       day.day == _date.day;

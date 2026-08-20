@@ -13,6 +13,7 @@ import { UserHttpClient } from './user-http.client';
 import { ClinicHttpClient } from './clinic-http.client';
 import { StaffPushService } from './staff-push.service';
 import { PatientPushService } from './patient-push.service';
+import { formatClinicDate, formatClinicTime } from '../utils/clinic-datetime.util';
 import { StaffNotificationCategory } from '../entities/staff-inbox-notification.entity';
 import { AppointmentReminderDto } from '../dto/notification.dto';
 import { KafkaTopics } from '../../kafka-shared/topics/topics.config';
@@ -232,12 +233,9 @@ export class NotificationService {
     }
 
     const scheduled = new Date(payload.scheduledAt);
-    const appointmentDate = scheduled.toLocaleDateString('en-GB', {
-      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-    });
-    const appointmentTime = scheduled.toLocaleTimeString('en-GB', {
-      hour: '2-digit', minute: '2-digit', hour12: false,
-    });
+    const clinicTimezone = clinic?.timezone;
+    const appointmentDate = formatClinicDate(scheduled, clinicTimezone);
+    const appointmentTime = formatClinicTime(scheduled, clinicTimezone);
 
     return {
       phoneNumber,

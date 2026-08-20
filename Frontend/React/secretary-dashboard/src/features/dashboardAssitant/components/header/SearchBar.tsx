@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CalendarClock, Search, Stethoscope, UserRound, X } from "lucide-react";
-import { addDays, format, subDays } from "date-fns";
+import { addDays, subDays } from "date-fns";
+import { formatClinicDateTime } from "@/lib/time/clinicTime";
 import { listAppointments } from "@/lib/api/appointments";
 import { useAuthStore } from "@/stores/authStore";
 import { useScheduleContext } from "../../context/ScheduleContext";
@@ -158,7 +159,7 @@ export function SearchBar() {
         id: `remote-${apt.id}`,
         kind: "appointment",
         title: patient,
-        subtitle: `${doctorName} · ${apt.status} · ${format(new Date(apt.scheduledAt), "EEE d MMM, h:mm a")}`,
+        subtitle: `${doctorName} · ${apt.status} · ${formatClinicDateTime(apt.scheduledAt)}`,
         date: new Date(apt.scheduledAt),
         appointmentId: apt.id,
       });

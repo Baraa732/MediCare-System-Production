@@ -30,8 +30,7 @@ import { useWizardDrawer } from "../../hooks/useWizardDrawer";
 import { usePendingRequest } from "../../hooks/usePendingRequest";
 import { useScheduleGridStore } from "../../hooks/scheduleGridStore";
 import { useScheduleContext } from "../../context/ScheduleContext";
-import { formatMinutesToAMPM } from "../SchedualeGrid/DNDGrid/utils/timeFormatters";
-import { absoluteMinutesFromGridMinutes } from "@/lib/time/gridTime";
+import { formatClinicDate, formatClinicTime } from "@/lib/time/clinicTime";
 import { useAuthStore } from "@/stores/authStore";
 import {
   cancelAppointment,
@@ -162,7 +161,7 @@ export function PendingRequestSection() {
                     </div>
                     <div className="flex items-center gap-1 mt-0.5">
                       <Clock className="w-3 h-3 text-neutral-400" />{" "}
-                      {formatMinutesToAMPM(absoluteMinutesFromGridMinutes(activeItem.start))}
+                      {formatAppointmentTime(activeItem)}
                     </div>
                   </div>
                 </div>
@@ -182,9 +181,17 @@ interface SortableCardProps {
 
 function formatAppointmentDay(value?: Date | string | null): string {
   if (!value) return "";
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toDateString();
+  return formatClinicDate(value);
+}
+
+function formatAppointmentTime(item: PendingRequest): string {
+  if (item.scheduledAt) {
+    return formatClinicTime(item.scheduledAt);
+  }
+  if (item.date) {
+    return formatClinicTime(item.date);
+  }
+  return "";
 }
 
 function formatTimeAgo(minutesAgo: number): string {
@@ -315,7 +322,7 @@ function SortableRequestCard({ item, isEditMode }: SortableCardProps) {
           </div>
           <div className="flex items-center gap-1 mt-0.5">
             <Clock className="w-3 h-3 text-neutral-400" />{" "}
-            {formatMinutesToAMPM(absoluteMinutesFromGridMinutes(item.start))}
+            {formatAppointmentTime(item)}
           </div>
         </div>
 

@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { formatClinicDateTime } from '../utils/clinic-datetime.util';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, IsNull } from 'typeorm';
 import { PushDeviceToken } from '../entities/push-device-token.entity';
@@ -124,14 +125,7 @@ export class PatientPushService {
     const category = this.mapCategory(type, payload.status);
     const clinic = await this.clinicHttpClient.getClinicById(payload.clinicId);
     const clinicName = clinic?.name ?? 'your clinic';
-    const scheduled = new Date(payload.scheduledAt);
-    const when = scheduled.toLocaleString('en-GB', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    const when = formatClinicDateTime(payload.scheduledAt, clinic?.timezone);
     const { title, body } = this.buildCopy(category, clinicName, when);
 
     await this.deliverToPatient(payload.patientId, {

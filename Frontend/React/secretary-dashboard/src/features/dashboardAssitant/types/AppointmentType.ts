@@ -7,6 +7,7 @@ export interface AppointmentType {
   end: number; // وقت النهاية بالدقائق النسبية للجدول
   docId: string; // معرّف الطبيب المسؤول
   status: string; // حالة الموعد (confirmed, urgent, in_progress, unavailable)
+  scheduledAt?: string;
   title?: string; // عنوان أو اسم الإجراء الطبي
 date?: Date;
   // 🦷 تفاصيل العلاج والزيارة الطبية (Extracted from summaryRows)

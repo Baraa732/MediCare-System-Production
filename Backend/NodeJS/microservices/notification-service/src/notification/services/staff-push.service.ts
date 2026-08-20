@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { formatClinicDateTime } from '../utils/clinic-datetime.util';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, IsNull } from 'typeorm';
 import { PushDeviceToken } from '../entities/push-device-token.entity';
@@ -166,14 +167,7 @@ export class StaffPushService {
 
     const clinic = await this.clinicHttpClient.getClinicById(tenantId);
     const clinicName = clinic?.name ?? 'your clinic';
-    const scheduled = new Date(payload.scheduledAt);
-    const when = scheduled.toLocaleString('en-GB', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    const when = formatClinicDateTime(payload.scheduledAt, clinic?.timezone);
 
     const { title, body } = this.buildCopy(category, clinicName, when, payload.status);
 
@@ -206,14 +200,7 @@ export class StaffPushService {
     const tenantId = payload.tenantId ?? payload.clinicId;
     const clinic = await this.clinicHttpClient.getClinicById(tenantId);
     const clinicName = clinic?.name ?? 'your clinic';
-    const scheduled = new Date(payload.scheduledAt);
-    const when = scheduled.toLocaleString('en-GB', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    const when = formatClinicDateTime(payload.scheduledAt, clinic?.timezone);
     const copy = this.doctorCopy(category, clinicName, when, payload.status);
     await this.deliverToUser(payload.doctorId, {
       category,
