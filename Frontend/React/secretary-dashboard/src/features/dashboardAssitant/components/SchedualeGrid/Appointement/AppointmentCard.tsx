@@ -269,6 +269,7 @@ export function AppointmentCard({
           endM={endM}
           showUrgentIndicator={isUrgentIndicator}
           displayStatus={displayStatus}
+          note={apt.notes}
         />
       </div>
       {/* Warning Dialog for Urgent or Conflict Critical Actions */}

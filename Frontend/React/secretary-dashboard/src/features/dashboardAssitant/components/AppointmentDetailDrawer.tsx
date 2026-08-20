@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   CalendarClock,
   CheckCircle2,
@@ -29,8 +29,10 @@ import {
   gridMinutesFromAbsolute,
   gridMinutesFromIso,
 } from "@/lib/time/gridTime";
-
 import { formatClinicDateTime } from "@/lib/time/clinicTime";
+
+/** Short note shown on the schedule card — keep it readable on the grid. */
+export const GRID_NOTE_MAX_LENGTH = 60;
 
 function formatDateTime(iso: string) {
   return formatClinicDateTime(iso);
@@ -40,14 +42,14 @@ export function AppointmentDetailDrawer() {
   const appointmentId = useAppointmentDrawer((s) => s.appointmentId);
   const close = useAppointmentDrawer((s) => s.close);
   const accessToken = useAuthStore((s) => s.accessToken);
-  const { doctors, refetch } = useScheduleContext();
+  const { refetch } = useScheduleContext();
 
-  const [appointment, setAppointment] = useState<EnrichedAppointment | null>(null);
+  const [appointment, setAppointment] = useState<EnrichedAppointment | null>(
+    null,
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [reason, setReason] = useState("");
   const [notes, setNotes] = useState("");
-  const [doctorId, setDoctorId] = useState("");
   const [cancelReason, setCancelReason] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
@@ -68,9 +70,8 @@ export function AppointmentDetailDrawer() {
       .then((res) => {
         if (cancelled) return;
         setAppointment(res.appointment);
-        setReason(res.appointment.reason ?? "");
-        setNotes(res.appointment.notes ?? "");
-        setDoctorId(res.appointment.doctorId);
+        setNotes((res.appointment.notes ?? "").slice(0, GRID_NOTE_MAX_LENGTH));
+        setCancelReason("");
       })
       .catch((err) => {
         if (!cancelled) {
@@ -115,27 +116,25 @@ export function AppointmentDetailDrawer() {
     [patientName],
   );
 
-  const handleSave = async () => {
+  const notesDirty =
+    (notes.trim() || "") !== (appointment?.notes?.trim() || "");
+
+  const handleSaveNote = async () => {
     if (!accessToken || !appointment) return;
     setIsSaving(true);
     setError(null);
     try {
-      const body: {
-        reason?: string;
-        notes?: string;
-        doctorId?: string;
-      } = {
-        reason: reason.trim() || undefined,
-        notes: notes.trim() || undefined,
-      };
-      if (doctorId && doctorId !== appointment.doctorId) {
-        body.doctorId = doctorId;
-      }
-      const res = await updateAppointment(appointment.id, body, accessToken);
+      const trimmed = notes.trim().slice(0, GRID_NOTE_MAX_LENGTH);
+      const res = await updateAppointment(
+        appointment.id,
+        { notes: trimmed || "" },
+        accessToken,
+      );
       setAppointment(res.appointment);
+      setNotes((res.appointment.notes ?? "").slice(0, GRID_NOTE_MAX_LENGTH));
       refetch();
     } catch (err) {
-      setError(normalizeCaughtError(err, "Could not save changes."));
+      setError(normalizeCaughtError(err, "Could not save note."));
     } finally {
       setIsSaving(false);
     }
@@ -172,7 +171,6 @@ export function AppointmentDetailDrawer() {
     }
   };
 
-  // Hooks must stay above any early return (opening the drawer must not change hook order).
   const isTerminal =
     appointment?.status === "CANCELLED" || appointment?.status === "COMPLETED";
   const status = useMemo(() => {
@@ -199,7 +197,6 @@ export function AppointmentDetailDrawer() {
       />
 
       <aside className="panel-slide-right relative z-10 m-4 flex h-[calc(100%-2rem)] w-[min(420px,100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-neutral-200/80 bg-white shadow-2xl">
-        {/* Header */}
         <div className="shrink-0 border-b border-neutral-100 bg-gradient-to-br from-slate-50 via-white to-blue-50/40 px-5 py-4">
           <div className="mb-3 flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
@@ -238,7 +235,6 @@ export function AppointmentDetailDrawer() {
           ) : null}
         </div>
 
-        {/* Body */}
         <div className="flex-1 overflow-y-auto px-5 py-4 scrollbar-thin">
           {loading ? (
             <div className="flex items-center justify-center gap-2 py-16 text-sm text-neutral-400">
@@ -272,6 +268,14 @@ export function AppointmentDetailDrawer() {
                   value={appointment.doctorName ?? "—"}
                   className="col-span-2"
                 />
+                {appointment.reason ? (
+                  <InfoTile
+                    icon={UserRound}
+                    label="Reason"
+                    value={appointment.reason}
+                    className="col-span-2"
+                  />
+                ) : null}
                 {patientPhone ? (
                   <InfoTile
                     icon={Phone}
@@ -283,43 +287,36 @@ export function AppointmentDetailDrawer() {
               </div>
 
               {!isTerminal ? (
-                <section className="space-y-4 rounded-2xl border border-neutral-100 bg-neutral-50/50 p-4">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">
-                    Edit details
+                <section className="space-y-3 rounded-2xl border border-neutral-100 bg-neutral-50/50 p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[11px] font-bold tracking-wider text-neutral-400 uppercase">
+                      Grid note
+                    </p>
+                    <span className="text-[10px] font-semibold text-neutral-400">
+                      {notes.length}/{GRID_NOTE_MAX_LENGTH}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-neutral-500">
+                    Short note shown on the schedule card. Other details are
+                    read-only.
                   </p>
-
-                  <Field label="Doctor">
-                    <select
-                      value={doctorId}
-                      onChange={(e) => setDoctorId(e.target.value)}
-                      className="select-modern text-sm"
-                    >
-                      {doctors.map((doc) => (
-                        <option key={doc.id} value={doc.id}>
-                          {doc.name}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-
-                  <Field label="Reason">
-                    <input
-                      type="text"
-                      value={reason}
-                      onChange={(e) => setReason(e.target.value)}
-                      className="input-modern text-sm"
-                    />
-                  </Field>
-
-                  <Field label="Notes">
-                    <textarea
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      rows={3}
-                      className="textarea-modern text-sm resize-none"
-                      placeholder="Internal notes for the clinic team"
-                    />
-                  </Field>
+                  <textarea
+                    value={notes}
+                    onChange={(e) =>
+                      setNotes(e.target.value.slice(0, GRID_NOTE_MAX_LENGTH))
+                    }
+                    rows={2}
+                    maxLength={GRID_NOTE_MAX_LENGTH}
+                    className="textarea-modern resize-none text-sm"
+                    placeholder="e.g. Bring X-rays, allergic to penicillin"
+                  />
+                </section>
+              ) : appointment.notes ? (
+                <section className="rounded-2xl border border-neutral-100 bg-neutral-50/50 p-4">
+                  <p className="mb-1 text-[11px] font-bold tracking-wider text-neutral-400 uppercase">
+                    Grid note
+                  </p>
+                  <p className="text-sm text-neutral-700">{appointment.notes}</p>
                 </section>
               ) : null}
 
@@ -348,7 +345,7 @@ export function AppointmentDetailDrawer() {
 
               {!isTerminal && appointment.status !== "REQUESTED" ? (
                 <section className="space-y-3 rounded-2xl border border-neutral-100 p-4">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">
+                  <p className="text-[11px] font-bold tracking-wider text-neutral-400 uppercase">
                     Quick actions
                   </p>
                   <div className="grid grid-cols-2 gap-2">
@@ -394,7 +391,6 @@ export function AppointmentDetailDrawer() {
           ) : null}
         </div>
 
-        {/* Footer */}
         <div className="flex shrink-0 items-center gap-2 border-t border-neutral-100 bg-white px-5 py-4">
           <Button
             type="button"
@@ -407,11 +403,11 @@ export function AppointmentDetailDrawer() {
           {!isTerminal && appointment ? (
             <Button
               type="button"
-              onClick={() => void handleSave()}
-              disabled={isSaving}
-              className="btn-brand h-10 flex-[1.4] rounded-xl border-0"
+              onClick={() => void handleSaveNote()}
+              disabled={isSaving || !notesDirty}
+              className="btn-brand h-10 flex-[1.4] rounded-xl border-0 disabled:opacity-40"
             >
-              {isSaving ? "Saving…" : "Save changes"}
+              {isSaving ? "Saving…" : "Save note"}
             </Button>
           ) : null}
         </div>
@@ -438,26 +434,11 @@ function InfoTile({
         className,
       )}
     >
-      <div className="mb-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-neutral-400">
+      <div className="mb-1 flex items-center gap-1.5 text-[10px] font-bold tracking-wide text-neutral-400 uppercase">
         <Icon className="h-3 w-3" />
         {label}
       </div>
       <p className="text-sm font-semibold text-neutral-900">{value}</p>
-    </div>
-  );
-}
-
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <label className="text-xs font-semibold text-neutral-600">{label}</label>
-      {children}
     </div>
   );
 }

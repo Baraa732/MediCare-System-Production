@@ -52,6 +52,7 @@ export function mapAppointmentToGrid(
     status: STATUS_MAP[appointment.status] ?? appointment.status.toLowerCase(),
     date: new Date(appointment.scheduledAt),
     duration,
+    notes: appointment.notes ?? undefined,
     patient: {
       name: title,
       age: 0,

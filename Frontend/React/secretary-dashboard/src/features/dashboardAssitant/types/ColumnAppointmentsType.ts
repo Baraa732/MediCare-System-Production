@@ -8,6 +8,8 @@ export interface ColumnAppointmentsType {
   status: string;
   date?: Date;
   duration?: number;
+  /** Short secretary note shown on the grid card. */
+  notes?: string;
   patient?: {
     name: string;
     age: number;
