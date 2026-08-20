@@ -19,6 +19,7 @@ import {
 } from "firebase/messaging";
 import { useAuthStore } from "@/stores/authStore";
 import { normalizeCaughtError } from "@/lib/api/errors";
+import { emitStaffRealtime } from "@/lib/realtimeEvents";
 import {
   fetchPushWebConfig,
   fetchStaffInbox,
@@ -32,6 +33,12 @@ import {
 
 type NotificationPermissionState = NotificationPermission | "unsupported";
 
+export type LiveAlert = {
+  title: string;
+  body: string;
+  at: number;
+};
+
 type NotificationContextValue = {
   items: StaffInboxItem[];
   unreadCount: number;
@@ -40,6 +47,8 @@ type NotificationContextValue = {
   isLoading: boolean;
   isEnabling: boolean;
   lastError: string | null;
+  liveAlert: LiveAlert | null;
+  dismissLiveAlert: () => void;
   refreshInbox: () => Promise<void>;
   markRead: (id: string) => Promise<void>;
   markAllRead: () => Promise<void>;
@@ -47,6 +56,32 @@ type NotificationContextValue = {
 };
 
 const NotificationContext = createContext<NotificationContextValue | null>(null);
+
+function playAlertChime() {
+  try {
+    const AudioCtx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext?: typeof AudioContext })
+        .webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.value = 880;
+    gain.gain.value = 0.0001;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    const now = ctx.currentTime;
+    gain.gain.exponentialRampToValueAtTime(0.08, now + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.35);
+    osc.start(now);
+    osc.stop(now + 0.4);
+    window.setTimeout(() => void ctx.close(), 500);
+  } catch {
+    // Audio may be blocked until a user gesture; ignore.
+  }
+}
 
 function showSystemNotification(
   title: string,
@@ -57,20 +92,24 @@ function showSystemNotification(
     return;
   }
 
-  const tag = data?.appointmentId || data?.category || "medicare-secretary";
-  const notification = new Notification(title, {
-    body,
-    icon: "/favicon.svg",
-    badge: "/favicon.svg",
-    tag,
-    requireInteraction: true,
-    data,
-  });
+  try {
+    const tag = data?.appointmentId || data?.category || "medicare-secretary";
+    const notification = new Notification(title, {
+      body,
+      icon: `${window.location.origin}/favicon.svg`,
+      badge: `${window.location.origin}/favicon.svg`,
+      tag,
+      requireInteraction: true,
+      data,
+    });
 
-  notification.onclick = () => {
-    window.focus();
-    notification.close();
-  };
+    notification.onclick = () => {
+      window.focus();
+      notification.close();
+    };
+  } catch {
+    // Some browsers suppress Notification() while the tab is focused.
+  }
 }
 
 async function waitForActiveWorker(
@@ -103,20 +142,99 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isEnabling, setIsEnabling] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
+  const [liveAlert, setLiveAlert] = useState<LiveAlert | null>(null);
 
   const fcmTokenRef = useRef<string | null>(null);
   const firebaseAppRef = useRef<FirebaseApp | null>(null);
   const messagingRef = useRef<Messaging | null>(null);
   const unsubscribeRef = useRef<Unsubscribe | null>(null);
   const enablingRef = useRef(false);
+  const unreadCountRef = useRef(0);
+  const liveAlertTimerRef = useRef<number | null>(null);
+  const inboxPrimedRef = useRef(false);
+  const suppressPollAlertUntilRef = useRef(0);
+
+  const dismissLiveAlert = useCallback(() => {
+    setLiveAlert(null);
+    if (liveAlertTimerRef.current) {
+      window.clearTimeout(liveAlertTimerRef.current);
+      liveAlertTimerRef.current = null;
+    }
+  }, []);
+
+  const presentAlert = useCallback(
+    (title: string, body: string, data?: Record<string, string>) => {
+      setLiveAlert({ title, body, at: Date.now() });
+      if (liveAlertTimerRef.current) {
+        window.clearTimeout(liveAlertTimerRef.current);
+      }
+      liveAlertTimerRef.current = window.setTimeout(() => {
+        setLiveAlert(null);
+        liveAlertTimerRef.current = null;
+      }, 14_000);
+
+      suppressPollAlertUntilRef.current = Date.now() + 4000;
+      playAlertChime();
+      showSystemNotification(title, body, data);
+      emitStaffRealtime({
+        source: "fcm",
+        title,
+        body,
+        category: data?.category,
+        appointmentId: data?.appointmentId,
+      });
+    },
+    [],
+  );
 
   const refreshInbox = useCallback(async () => {
     if (!accessToken) return;
     setIsLoading(true);
     try {
       const inbox = await fetchStaffInbox(accessToken, { page: 1, limit: 40 });
+      const previousUnread = unreadCountRef.current;
       setItems(inbox.items);
       setUnreadCount(inbox.unreadCount);
+      unreadCountRef.current = inbox.unreadCount;
+
+      if (!inboxPrimedRef.current) {
+        inboxPrimedRef.current = true;
+        return;
+      }
+
+      if (
+        inbox.unreadCount > previousUnread &&
+        Date.now() > suppressPollAlertUntilRef.current
+      ) {
+        const newest = inbox.items.find((item) => !item.readAt) ?? inbox.items[0];
+        if (newest) {
+          setLiveAlert({
+            title: newest.title,
+            body: newest.body,
+            at: Date.now(),
+          });
+          if (liveAlertTimerRef.current) {
+            window.clearTimeout(liveAlertTimerRef.current);
+          }
+          liveAlertTimerRef.current = window.setTimeout(() => {
+            setLiveAlert(null);
+            liveAlertTimerRef.current = null;
+          }, 14_000);
+          playAlertChime();
+        }
+        emitStaffRealtime({
+          source: "inbox-poll",
+          title: newest?.title,
+          body: newest?.body,
+          category: newest?.category,
+          appointmentId: newest?.appointmentId ?? undefined,
+        });
+      } else if (inbox.unreadCount > previousUnread) {
+        emitStaffRealtime({
+          source: "inbox-poll",
+          appointmentId: inbox.items[0]?.appointmentId ?? undefined,
+        });
+      }
     } catch (err) {
       setLastError(
         normalizeCaughtError(err, "Failed to load notifications"),
@@ -135,7 +253,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           item.id === id ? { ...item, readAt: new Date().toISOString() } : item,
         ),
       );
-      setUnreadCount((count) => Math.max(0, count - 1));
+      setUnreadCount((count) => {
+        const next = Math.max(0, count - 1);
+        unreadCountRef.current = next;
+        return next;
+      });
     },
     [accessToken],
   );
@@ -146,6 +268,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     const now = new Date().toISOString();
     setItems((prev) => prev.map((item) => ({ ...item, readAt: item.readAt ?? now })));
     setUnreadCount(0);
+    unreadCountRef.current = 0;
   }, [accessToken]);
 
   const setupFirebaseMessaging = useCallback(
@@ -266,11 +389,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
               "MediCare Secretary";
             const body = payload.notification?.body || payload.data?.body || "";
             void refreshInbox();
-            showSystemNotification(
-              title,
-              body,
-              payload.data as Record<string, string>,
-            );
+            presentAlert(title, body, payload.data as Record<string, string>);
           });
         }
 
@@ -289,7 +408,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         setIsEnabling(false);
       }
     },
-    [accessToken, refreshInbox],
+    [accessToken, presentAlert, refreshInbox],
   );
 
   const requestPushPermission = useCallback(async () => {
@@ -301,8 +420,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     if (!accessToken) {
       setItems([]);
       setUnreadCount(0);
+      unreadCountRef.current = 0;
+      inboxPrimedRef.current = false;
       setPushEnabled(false);
       setLastError(null);
+      setLiveAlert(null);
       unsubscribeRef.current?.();
       unsubscribeRef.current = null;
       return;
@@ -325,7 +447,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       if (document.visibilityState === "visible") {
         void refreshInbox();
       }
-    }, 45_000);
+    }, 12_000);
 
     const onVisible = () => {
       if (document.visibilityState === "visible") {
@@ -336,6 +458,13 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     const onSwMessage = (event: MessageEvent) => {
       if (event.data?.type === "NOTIFICATION_CLICK") {
         void refreshInbox();
+        emitStaffRealtime({ source: "manual" });
+      }
+      if (event.data?.type === "FCM_BACKGROUND") {
+        const title = String(event.data.title || "MediCare Secretary");
+        const body = String(event.data.body || "");
+        void refreshInbox();
+        presentAlert(title, body, event.data.data || undefined);
       }
     };
 
@@ -345,8 +474,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       window.clearInterval(poll);
       document.removeEventListener("visibilitychange", onVisible);
       navigator.serviceWorker?.removeEventListener("message", onSwMessage);
+      if (liveAlertTimerRef.current) {
+        window.clearTimeout(liveAlertTimerRef.current);
+      }
     };
-  }, [accessToken, refreshInbox]);
+  }, [accessToken, presentAlert, refreshInbox]);
 
   const value = useMemo<NotificationContextValue>(
     () => ({
@@ -357,6 +489,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       isLoading,
       isEnabling,
       lastError,
+      liveAlert,
+      dismissLiveAlert,
       refreshInbox,
       markRead,
       markAllRead,
@@ -370,6 +504,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       isLoading,
       isEnabling,
       lastError,
+      liveAlert,
+      dismissLiveAlert,
       refreshInbox,
       markRead,
       markAllRead,

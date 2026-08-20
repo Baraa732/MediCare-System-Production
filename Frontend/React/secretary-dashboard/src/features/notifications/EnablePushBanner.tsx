@@ -21,8 +21,8 @@ export function EnablePushBanner({ compact = false }: EnablePushBannerProps) {
           Browser push is on
         </p>
         <p className="mt-0.5 text-[11px] text-emerald-700">
-          New bookings and status changes will alert this browser even if the tab
-          is in the background.
+          New bookings and status changes alert this browser. If the tab is
+          open, a banner appears at the top of the dashboard immediately.
         </p>
       </div>
     );

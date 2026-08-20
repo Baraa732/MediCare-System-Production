@@ -8,6 +8,7 @@ import {
   mapDoctorToGrid,
 } from "@/lib/api/mappers";
 import { useAuthStore } from "@/stores/authStore";
+import { subscribeStaffRealtime } from "@/lib/realtimeEvents";
 import type { ApiAppointment } from "@/lib/api/types";
 import type { ColumnAppointmentsType } from "../types";
 import type { DoctorType } from "../types";
@@ -102,7 +103,7 @@ export function useScheduleData(selectedDate = new Date()) {
     let cancelled = false;
 
     async function load() {
-      setLoading(true);
+      if (refreshKey === 0) setLoading(true);
       setError(null);
 
       try {
@@ -153,8 +154,12 @@ export function useScheduleData(selectedDate = new Date()) {
 
   useEffect(() => {
     if (!accessToken || !clinicId) return;
-    const interval = setInterval(refetch, 30_000);
-    return () => clearInterval(interval);
+    const interval = setInterval(refetch, 15_000);
+    const unsubscribe = subscribeStaffRealtime(() => refetch());
+    return () => {
+      clearInterval(interval);
+      unsubscribe();
+    };
   }, [accessToken, clinicId, refetch]);
 
   useEffect(() => {

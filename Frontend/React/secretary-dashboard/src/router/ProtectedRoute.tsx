@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { useAuthHydration } from "@/hooks/useAuthHydration";
 import { useAuthStore } from "@/stores/authStore";
 import { NotificationProvider } from "@/features/notifications/NotificationProvider";
+import { LivePushToast } from "@/features/notifications/LivePushToast";
 
 const PASSWORD_RESET_PREFIXES = [
   "/auth/forget_password",
@@ -32,7 +33,12 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
     return <Navigate to="/auth/login" replace state={{ from: location }} />;
   }
 
-  return <NotificationProvider>{children}</NotificationProvider>;
+  return (
+    <NotificationProvider>
+      <LivePushToast />
+      {children}
+    </NotificationProvider>
+  );
 }
 
 export function GuestRoute({ children }: { children: ReactNode }) {

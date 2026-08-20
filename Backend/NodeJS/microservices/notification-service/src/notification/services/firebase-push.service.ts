@@ -136,6 +136,9 @@ export class FirebasePushService implements OnModuleInit {
 
     const androidChannelId = options?.androidChannelId ?? 'medicare_secretary';
     const deepLink = options?.deepLink ?? payload.data?.deepLink ?? '/dashboard';
+    const webOrigin = this.resolveWebPublicOrigin();
+    const webLink = this.toAbsoluteWebUrl(webOrigin, deepLink);
+    const webIcon = this.toAbsoluteWebUrl(webOrigin, '/favicon.svg');
     // Default to notification+data so killed/swiped apps still get a system tray
     // item via Play Services. Opt into data-only only when explicitly requested.
     const androidDataOnly = options?.androidDataOnly === true;
@@ -189,14 +192,17 @@ export class FirebasePushService implements OnModuleInit {
             notification: {
               title: payload.title,
               body: payload.body,
-              icon: '/favicon.svg',
-              badge: '/favicon.svg',
+              ...(webIcon ? { icon: webIcon, badge: webIcon } : {}),
               requireInteraction: true,
               tag: payload.data?.appointmentId || payload.data?.category || 'medicare',
             },
-            fcmOptions: {
-              link: deepLink,
-            },
+            ...(webLink
+              ? {
+                  fcmOptions: {
+                    link: webLink,
+                  },
+                }
+              : {}),
           },
           apns: {
             headers: {
@@ -256,5 +262,28 @@ export class FirebasePushService implements OnModuleInit {
     }
 
     return { successCount, failureCount, invalidTokens };
+  }
+
+  private resolveWebPublicOrigin(): string {
+    const explicit =
+      process.env.SECRETARY_DASHBOARD_PUBLIC_URL ||
+      process.env.SECRETARY_PUBLIC_URL ||
+      '';
+    if (explicit.trim()) {
+      return explicit.trim().replace(/\/$/, '');
+    }
+    const railway = process.env.RAILWAY_SERVICE_SECRETARY_DASHBOARD_URL || '';
+    if (!railway.trim()) return '';
+    return railway.startsWith('http')
+      ? railway.trim().replace(/\/$/, '')
+      : `https://${railway.trim()}`;
+  }
+
+  private toAbsoluteWebUrl(origin: string, pathOrUrl: string): string | undefined {
+    if (!pathOrUrl) return undefined;
+    if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
+    if (!origin) return undefined;
+    const path = pathOrUrl.startsWith('/') ? pathOrUrl : `/${pathOrUrl}`;
+    return `${origin}${path}`;
   }
 }

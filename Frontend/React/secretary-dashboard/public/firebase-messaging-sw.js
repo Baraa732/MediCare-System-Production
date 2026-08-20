@@ -1,27 +1,40 @@
 /* eslint-disable no-undef */
 /**
  * Firebase Cloud Messaging service worker for the Secretary dashboard.
- * Config is injected from the page via INIT_FCM (production has no /api proxy).
+ * Config is injected from the page via INIT_FCM, and also fetched on activate
+ * so background messages still work after the worker restarts.
  */
 importScripts('https://www.gstatic.com/firebasejs/11.6.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/11.6.0/firebase-messaging-compat.js');
 
 let messagingReady = false;
+const API_BASE = '__API_BASE_URL__';
+
+async function fetchWebConfig() {
+  const urls = [];
+  if (API_BASE && !API_BASE.includes('__API_BASE_URL__')) {
+    urls.push(`${API_BASE.replace(/\/$/, '')}/notifications/push/web-config`);
+  }
+  urls.push('/fcm-web-config.json');
+
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) continue;
+      const payload = await res.json();
+      const config = payload?.config || payload;
+      if (config?.apiKey && config?.projectId) return config;
+    } catch {
+      // try next source
+    }
+  }
+  return null;
+}
 
 async function initMessaging(incomingConfig) {
-  if (messagingReady) return true;
-
   let config = incomingConfig;
   if (!config?.apiKey || !config?.projectId) {
-    try {
-      const res = await fetch('/fcm-web-config.json', { cache: 'no-store' });
-      if (res.ok) {
-        const payload = await res.json();
-        config = payload?.config || payload;
-      }
-    } catch {
-      // Page INIT_FCM is the primary path.
-    }
+    config = await fetchWebConfig();
   }
 
   if (!config?.apiKey || !config?.projectId || !config?.messagingSenderId || !config?.appId) {
@@ -39,6 +52,8 @@ async function initMessaging(incomingConfig) {
     });
   }
 
+  if (messagingReady) return true;
+
   const messaging = firebase.messaging();
   messaging.onBackgroundMessage((message) => {
     const title =
@@ -49,7 +64,20 @@ async function initMessaging(incomingConfig) {
       message.data?.category ||
       'medicare-secretary';
 
-    return self.registration.showNotification(title, {
+    const clientsNotify = self.clients
+      .matchAll({ type: 'window', includeUncontrolled: true })
+      .then((windowClients) => {
+        for (const client of windowClients) {
+          client.postMessage({
+            type: 'FCM_BACKGROUND',
+            title,
+            body,
+            data: message.data || {},
+          });
+        }
+      });
+
+    const show = self.registration.showNotification(title, {
       body,
       icon: '/favicon.svg',
       badge: '/favicon.svg',
@@ -58,6 +86,8 @@ async function initMessaging(incomingConfig) {
       renotify: true,
       data: message.data || {},
     });
+
+    return Promise.all([show, clientsNotify]);
   });
 
   messagingReady = true;
@@ -69,7 +99,9 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    Promise.all([self.clients.claim(), initMessaging(null)]),
+  );
 });
 
 self.addEventListener('message', (event) => {
