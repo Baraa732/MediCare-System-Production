@@ -29,14 +29,25 @@ export type StaffInboxResponse = {
   unreadCount: number;
 };
 
-export async function fetchPushWebConfig(): Promise<FirebaseWebConfig | null> {
+export async function fetchPushWebConfig(
+  token?: string | null,
+): Promise<FirebaseWebConfig | null> {
   try {
-    const res = await apiRequest<{ success: boolean; config: FirebaseWebConfig }>(
-      "/notifications/push/web-config",
-    );
-    return res.config ?? null;
-  } catch {
-    return null;
+    const res = await apiRequest<{
+      success: boolean;
+      configured?: boolean;
+      config: FirebaseWebConfig | null;
+    }>("/notifications/push/web-config", {
+      token: token ?? undefined,
+    });
+    if (!res.config?.apiKey || !res.config?.vapidKey) {
+      return null;
+    }
+    return res.config;
+  } catch (err) {
+    // Surface transport failures to the caller via throw so the UI can show
+    // the real reason (tenant middleware, gateway, etc.).
+    throw err;
   }
 }
 

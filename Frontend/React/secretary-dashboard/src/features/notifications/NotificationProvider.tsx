@@ -192,7 +192,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           }
         }
 
-        const config = await fetchPushWebConfig();
+        const config = await fetchPushWebConfig(accessToken);
         if (!config?.apiKey || !config.vapidKey) {
           setLastError(
             "Web push is not configured on the server. Firebase web API key and VAPID key are required.",
