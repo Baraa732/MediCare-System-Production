@@ -10,6 +10,7 @@ class PatientEmrChart {
   final List<Map<String, dynamic>> vitalSigns;
   final List<Map<String, dynamic>> labResults;
   final List<Map<String, dynamic>> immunizations;
+  final List<Map<String, dynamic>> carePlans;
   final List<Map<String, dynamic>> clinicalNotes;
   final List<Map<String, dynamic>> documents;
   final Map<String, dynamic> contactInformation;
@@ -25,6 +26,7 @@ class PatientEmrChart {
     required this.vitalSigns,
     required this.labResults,
     required this.immunizations,
+    required this.carePlans,
     required this.clinicalNotes,
     required this.documents,
     this.contactInformation = const {},
@@ -53,6 +55,7 @@ class PatientEmrChart {
       vitalSigns: list('vitalSigns'),
       labResults: list('labResults'),
       immunizations: list('immunizations'),
+      carePlans: list('carePlans'),
       clinicalNotes: list('clinicalNotes'),
       documents: list('documents'),
       contactInformation: Map<String, dynamic>.from(
@@ -72,6 +75,7 @@ class PatientEmrChart {
     List<Map<String, dynamic>>? vitalSigns,
     List<Map<String, dynamic>>? labResults,
     List<Map<String, dynamic>>? immunizations,
+    List<Map<String, dynamic>>? carePlans,
     List<Map<String, dynamic>>? clinicalNotes,
     List<Map<String, dynamic>>? documents,
     Map<String, dynamic>? contactInformation,
@@ -87,6 +91,7 @@ class PatientEmrChart {
       vitalSigns: vitalSigns ?? this.vitalSigns,
       labResults: labResults ?? this.labResults,
       immunizations: immunizations ?? this.immunizations,
+      carePlans: carePlans ?? this.carePlans,
       clinicalNotes: clinicalNotes ?? this.clinicalNotes,
       documents: documents ?? this.documents,
       contactInformation: contactInformation ?? this.contactInformation,
@@ -212,6 +217,44 @@ class EmrApiService {
         if (oxygenSaturation != null) 'oxygenSaturation': oxygenSaturation,
         if (weightKg != null) 'weightKg': weightKg,
         if (heightCm != null) 'heightCm': heightCm,
+      },
+    );
+    return _parseChart(response.data);
+  }
+
+  Future<PatientEmrChart> addLabResult(
+    String userId, {
+    required String testName,
+    String? result,
+    String? unit,
+    String? referenceRange,
+    String? status,
+  }) async {
+    final response = await _client.post(
+      '/emr/patients/$userId/lab-results',
+      data: {
+        'testName': testName,
+        if (result != null) 'result': result,
+        if (unit != null) 'unit': unit,
+        if (referenceRange != null) 'referenceRange': referenceRange,
+        if (status != null) 'status': status,
+      },
+    );
+    return _parseChart(response.data);
+  }
+
+  Future<PatientEmrChart> addCarePlan(
+    String userId, {
+    required String title,
+    String? goals,
+    String? status,
+  }) async {
+    final response = await _client.post(
+      '/emr/patients/$userId/care-plans',
+      data: {
+        'title': title,
+        if (goals != null) 'goals': goals,
+        if (status != null) 'status': status,
       },
     );
     return _parseChart(response.data);

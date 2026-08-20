@@ -270,6 +270,8 @@ class AllergyRecord {
   final String? reaction;
   final String? severity;
   final String? recordedDate;
+  final String? recordedBy;
+  final String? clinicName;
 
   const AllergyRecord({
     required this.id,
@@ -277,6 +279,8 @@ class AllergyRecord {
     this.reaction,
     this.severity,
     this.recordedDate,
+    this.recordedBy,
+    this.clinicName,
   });
 
   factory AllergyRecord.fromJson(Map<String, dynamic> json) {
@@ -286,6 +290,8 @@ class AllergyRecord {
       reaction: _str(json['reaction']),
       severity: _str(json['severity']),
       recordedDate: _str(json['recordedDate']),
+      recordedBy: _str(json['recordedBy']),
+      clinicName: _str(json['clinicName']),
     );
   }
 }
@@ -351,6 +357,7 @@ class MedicationRecord {
   final String? startDate;
   final String? status;
   final String? prescribedBy;
+  final String? clinicName;
 
   const MedicationRecord({
     required this.id,
@@ -361,6 +368,7 @@ class MedicationRecord {
     this.startDate,
     this.status,
     this.prescribedBy,
+    this.clinicName,
   });
 
   factory MedicationRecord.fromJson(Map<String, dynamic> json) {
@@ -373,6 +381,7 @@ class MedicationRecord {
       startDate: _str(json['startDate']),
       status: _str(json['status']),
       prescribedBy: _str(json['prescribedBy']),
+      clinicName: _str(json['clinicName']),
     );
   }
 }
@@ -426,6 +435,7 @@ class VitalSignRecord {
   final double? temperatureCelsius;
   final double? oxygenSaturation;
   final String? recordedBy;
+  final String? clinicName;
 
   const VitalSignRecord({
     this.date,
@@ -438,6 +448,7 @@ class VitalSignRecord {
     this.temperatureCelsius,
     this.oxygenSaturation,
     this.recordedBy,
+    this.clinicName,
   });
 
   factory VitalSignRecord.fromJson(Map<String, dynamic> json) {
@@ -452,6 +463,7 @@ class VitalSignRecord {
       temperatureCelsius: _num(json['temperatureCelsius']),
       oxygenSaturation: _num(json['oxygenSaturation']),
       recordedBy: _str(json['recordedBy']),
+      clinicName: _str(json['clinicName']),
     );
   }
 }
@@ -464,6 +476,8 @@ class LabResultRecord {
   final String? referenceRange;
   final String? status;
   final String? performedDate;
+  final String? reviewedBy;
+  final String? clinicName;
 
   const LabResultRecord({
     required this.id,
@@ -473,6 +487,8 @@ class LabResultRecord {
     this.referenceRange,
     this.status,
     this.performedDate,
+    this.reviewedBy,
+    this.clinicName,
   });
 
   factory LabResultRecord.fromJson(Map<String, dynamic> json) {
@@ -484,6 +500,8 @@ class LabResultRecord {
       referenceRange: _str(json['referenceRange']),
       status: _str(json['status']),
       performedDate: _str(json['performedDate']),
+      reviewedBy: _str(json['reviewedBy']),
+      clinicName: _str(json['clinicName']),
     );
   }
 }
@@ -520,6 +538,8 @@ class CarePlanRecord {
   final List<String> goals;
   final String? startDate;
   final String? status;
+  final String? assignedBy;
+  final String? clinicName;
 
   const CarePlanRecord({
     required this.id,
@@ -527,6 +547,8 @@ class CarePlanRecord {
     this.goals = const [],
     this.startDate,
     this.status,
+    this.assignedBy,
+    this.clinicName,
   });
 
   factory CarePlanRecord.fromJson(Map<String, dynamic> json) {
@@ -539,6 +561,8 @@ class CarePlanRecord {
           : const [],
       startDate: _str(json['startDate']),
       status: _str(json['status']),
+      assignedBy: _str(json['assignedBy']),
+      clinicName: _str(json['clinicName']),
     );
   }
 }
@@ -549,6 +573,7 @@ class ClinicalNoteRecord {
   final String? author;
   final String? type;
   final String? content;
+  final String? clinicName;
 
   const ClinicalNoteRecord({
     required this.id,
@@ -556,6 +581,7 @@ class ClinicalNoteRecord {
     this.author,
     this.type,
     this.content,
+    this.clinicName,
   });
 
   factory ClinicalNoteRecord.fromJson(Map<String, dynamic> json) {
@@ -565,6 +591,7 @@ class ClinicalNoteRecord {
       author: _str(json['author']),
       type: _str(json['type']),
       content: _str(json['content']),
+      clinicName: _str(json['clinicName']),
     );
   }
 }

@@ -179,6 +179,7 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
       vitalSigns: const [],
       labResults: const [],
       immunizations: const [],
+      carePlans: const [],
       clinicalNotes: notes,
       documents: const [],
     );
@@ -1048,6 +1049,66 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
           'Vital signs',
           'No vitals recorded',
           () => _add((ctx) => showAddVitalSheet(ctx, widget.patientId)),
+        ),
+      ],
+      if (chart.labResults.isNotEmpty) ...[
+        const SizedBox(height: 12),
+        _sectionCard(
+          'Laboratory',
+          chart.labResults
+              .take(8)
+              .map(
+                (l) => _line(
+                  _mapTitle(l, ['testName', 'name', 'test', 'display']),
+                  _mapSubtitle(l, [
+                    'result',
+                    'unit',
+                    'referenceRange',
+                    'status',
+                    'reviewedBy',
+                    'clinicName',
+                  ]),
+                ),
+              )
+              .toList(),
+          onAdd: () =>
+              _add((ctx) => showAddLabResultSheet(ctx, widget.patientId)),
+        ),
+      ] else ...[
+        const SizedBox(height: 12),
+        _emptySection(
+          'Laboratory',
+          'No lab results on file',
+          () => _add((ctx) => showAddLabResultSheet(ctx, widget.patientId)),
+        ),
+      ],
+      if (chart.carePlans.isNotEmpty) ...[
+        const SizedBox(height: 12),
+        _sectionCard(
+          'Care plans',
+          chart.carePlans
+              .take(8)
+              .map(
+                (p) => _line(
+                  _mapTitle(p, ['title', 'name', 'display']),
+                  _mapSubtitle(p, [
+                    'status',
+                    'goals',
+                    'assignedBy',
+                    'clinicName',
+                  ]),
+                ),
+              )
+              .toList(),
+          onAdd: () =>
+              _add((ctx) => showAddCarePlanSheet(ctx, widget.patientId)),
+        ),
+      ] else ...[
+        const SizedBox(height: 12),
+        _emptySection(
+          'Care plans',
+          'No care plans on file',
+          () => _add((ctx) => showAddCarePlanSheet(ctx, widget.patientId)),
         ),
       ],
       ..._contactSection(chart),

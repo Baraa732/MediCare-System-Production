@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
+import axios from 'axios';
 import { EmrSyncStatus, PatientEmrLink } from '../entities/patient-emr-link.entity';
 import { ClinicalNoteRecord, emptyPatientChart, PatientEmrChart } from '../types/patient-emr.types';
 import { OpenEmrChartService } from './openemr-chart.service';
@@ -11,6 +12,7 @@ import { PhiAuditAction, PhiAuditResourceType } from '../../phi-audit-shared/typ
 import { UserKafkaCorroborator } from './user-kafka-corroborator.service';
 import { OpenEmrDbReader } from './openemr-db.reader';
 import { OpenEmrClient } from './openemr.client';
+import { createInternalAuthHeadersForUrl } from '../../internal-auth-shared/internal-http.signer';
 import {
   UpdateMyEmrDto,
   UpdateMyEmrEmergencyContactDto,
@@ -367,6 +369,7 @@ export class EmrRecordService {
       content,
       type: body.type?.trim() || 'Visit note',
       author: actor.userId,
+      ...(await this.resolveWriterMeta(actor, tenantId)),
     }).catch((error: any) => {
       this.logger.error(`OpenEMR clinical note write failed: ${error?.message}`, error?.stack);
       throw new BadRequestException(
@@ -399,6 +402,7 @@ export class EmrRecordService {
     const allergen = body.allergen?.trim();
     if (!allergen) throw new BadRequestException('Allergen is required');
     const ctx = await this.resolveStaffWriteContext(userId, actor, preferredTenantId);
+    const meta = await this.resolveWriterMeta(actor, ctx.tenantId);
     try {
       await this.dbReader.insertListRecord({
         pid: ctx.pid,
@@ -407,6 +411,7 @@ export class EmrRecordService {
         comments: body.reaction?.trim(),
         outcome: body.severity?.trim(),
         user: actor.userId,
+        ...meta,
       });
     } catch (error: any) {
       this.logger.error(`OpenEMR allergy write failed: ${error?.message}`, error?.stack);
@@ -427,6 +432,7 @@ export class EmrRecordService {
     const name = body.name?.trim();
     if (!name) throw new BadRequestException('Medication name is required');
     const ctx = await this.resolveStaffWriteContext(userId, actor, preferredTenantId);
+    const meta = await this.resolveWriterMeta(actor, ctx.tenantId);
     try {
       await this.dbReader.insertPrescription({
         pid: ctx.pid,
@@ -435,6 +441,7 @@ export class EmrRecordService {
         frequency: body.frequency?.trim(),
         route: body.route?.trim(),
         user: actor.userId,
+        ...meta,
       });
     } catch (error: any) {
       this.logger.error(`OpenEMR medication write failed: ${error?.message}`, error?.stack);
@@ -455,6 +462,7 @@ export class EmrRecordService {
     const name = body.name?.trim();
     if (!name) throw new BadRequestException('Condition name is required');
     const ctx = await this.resolveStaffWriteContext(userId, actor, preferredTenantId);
+    const meta = await this.resolveWriterMeta(actor, ctx.tenantId);
     try {
       await this.dbReader.insertListRecord({
         pid: ctx.pid,
@@ -463,6 +471,7 @@ export class EmrRecordService {
         diagnosis: body.icd10Code?.trim(),
         comments: body.status?.trim(),
         user: actor.userId,
+        ...meta,
       });
     } catch (error: any) {
       this.logger.error(`OpenEMR condition write failed: ${error?.message}`, error?.stack);
@@ -533,6 +542,72 @@ export class EmrRecordService {
     return this.getPatientEmr(userId, actor, ctx.tenantId);
   }
 
+  async addLabResult(
+    userId: string,
+    actor: AuthUser,
+    body: {
+      testName: string;
+      result?: string;
+      unit?: string;
+      referenceRange?: string;
+      status?: string;
+    },
+    preferredTenantId?: string | null,
+  ): Promise<PatientEmrChart> {
+    const testName = body.testName?.trim();
+    if (!testName) throw new BadRequestException('Lab test name is required');
+    const ctx = await this.resolveStaffWriteContext(userId, actor, preferredTenantId);
+    const meta = await this.resolveWriterMeta(actor, ctx.tenantId);
+    try {
+      await this.dbReader.insertLabResult({
+        pid: ctx.pid,
+        testName,
+        result: body.result?.trim(),
+        unit: body.unit?.trim(),
+        referenceRange: body.referenceRange?.trim(),
+        status: body.status?.trim() || 'final',
+        user: actor.userId,
+        ...meta,
+      });
+    } catch (error: any) {
+      this.logger.error(`OpenEMR lab write failed: ${error?.message}`, error?.stack);
+      throw new BadRequestException(
+        `Could not save lab result to OpenEMR (${error?.message || 'database error'})`,
+      );
+    }
+    this.emitStaffChartWrite(actor, ctx.tenantId, userId);
+    return this.getPatientEmr(userId, actor, ctx.tenantId);
+  }
+
+  async addCarePlan(
+    userId: string,
+    actor: AuthUser,
+    body: { title: string; goals?: string; status?: string },
+    preferredTenantId?: string | null,
+  ): Promise<PatientEmrChart> {
+    const title = body.title?.trim();
+    if (!title) throw new BadRequestException('Care plan title is required');
+    const ctx = await this.resolveStaffWriteContext(userId, actor, preferredTenantId);
+    const meta = await this.resolveWriterMeta(actor, ctx.tenantId);
+    try {
+      await this.dbReader.insertCarePlan({
+        pid: ctx.pid,
+        title,
+        goals: body.goals?.trim(),
+        status: body.status?.trim() || 'active',
+        user: actor.userId,
+        ...meta,
+      });
+    } catch (error: any) {
+      this.logger.error(`OpenEMR care plan write failed: ${error?.message}`, error?.stack);
+      throw new BadRequestException(
+        `Could not save care plan to OpenEMR (${error?.message || 'database error'})`,
+      );
+    }
+    this.emitStaffChartWrite(actor, ctx.tenantId, userId);
+    return this.getPatientEmr(userId, actor, ctx.tenantId);
+  }
+
   private emitStaffChartWrite(actor: AuthUser, tenantId: string, userId: string) {
     this.phiAudit.emit({
       action: PhiAuditAction.EMR_CHART_WRITE,
@@ -544,6 +619,54 @@ export class EmrRecordService {
       success: true,
       classification: 'phi',
     });
+  }
+
+  private async resolveWriterMeta(
+    actor: AuthUser,
+    tenantId: string,
+  ): Promise<{ doctorName: string; clinicName: string }> {
+    let doctorName = 'Doctor';
+    try {
+      const profile = await this.userCorroborator.fetchUserProfile(actor.userId);
+      const full = [profile?.firstName, profile?.lastName]
+        .map((v) => v?.trim())
+        .filter(Boolean)
+        .join(' ');
+      if (full) doctorName = full.startsWith('Dr') ? full : `Dr. ${full}`;
+    } catch {
+      /* keep default */
+    }
+
+    let clinicName = 'Clinic';
+    try {
+      const clinicBase =
+        process.env.CLINIC_SERVICE_URL || 'http://clinic-service:3003';
+      const path = `/v1/clinics/internal/get-by-id/${tenantId}`;
+      const url = `${clinicBase}${path}`;
+      const headers = createInternalAuthHeadersForUrl(
+        process.env.INTERNAL_AUTH_SERVICE_NAME || 'emr-service',
+        process.env.INTERNAL_AUTH_SECRET || '',
+        'POST',
+        path,
+      );
+      const response = await axios.post(
+        url,
+        {},
+        { headers, timeout: 4000, validateStatus: () => true },
+      );
+      const clinic =
+        response.data?.clinic ?? response.data?.data ?? response.data;
+      const name =
+        clinic?.name ??
+        clinic?.clinicName ??
+        clinic?.title ??
+        clinic?.displayName;
+      if (typeof name === 'string' && name.trim()) clinicName = name.trim();
+    } catch (error: any) {
+      this.logger.warn(`Clinic name lookup failed: ${error?.message}`);
+    }
+
+    return { doctorName, clinicName };
   }
 
   private async resolveStaffWriteContext(

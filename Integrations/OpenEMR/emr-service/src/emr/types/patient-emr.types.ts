@@ -61,6 +61,7 @@ export interface AllergyRecord {
   severity: string | null;
   recordedDate: string | null;
   recordedBy: string | null;
+  clinicName?: string | null;
 }
 
 export interface ProblemRecord {
@@ -70,6 +71,7 @@ export interface ProblemRecord {
   status: string | null;
   diagnosedDate: string | null;
   recordedBy: string | null;
+  clinicName?: string | null;
 }
 
 export interface ConditionRecord {
@@ -79,6 +81,7 @@ export interface ConditionRecord {
   status: string | null;
   diagnosedDate: string | null;
   recordedBy: string | null;
+  clinicName?: string | null;
 }
 
 export interface MedicationRecord {
@@ -90,6 +93,7 @@ export interface MedicationRecord {
   startDate: string | null;
   status: string | null;
   prescribedBy: string | null;
+  clinicName?: string | null;
 }
 
 export interface EncounterRecord {
@@ -114,6 +118,7 @@ export interface VitalSignRecord {
   temperatureCelsius: number | null;
   oxygenSaturation: number | null;
   recordedBy: string | null;
+  clinicName?: string | null;
 }
 
 export interface LabResultRecord {
@@ -125,6 +130,7 @@ export interface LabResultRecord {
   status: string | null;
   performedDate: string | null;
   reviewedBy: string | null;
+  clinicName?: string | null;
 }
 
 export interface ImmunizationRecord {
@@ -133,6 +139,7 @@ export interface ImmunizationRecord {
   dateAdministered: string | null;
   lotNumber: string | null;
   administeredBy: string | null;
+  clinicName?: string | null;
 }
 
 export interface CarePlanRecord {
@@ -142,6 +149,7 @@ export interface CarePlanRecord {
   startDate: string | null;
   status: string | null;
   assignedBy: string | null;
+  clinicName?: string | null;
 }
 
 export interface ClinicalNoteRecord {
@@ -150,6 +158,7 @@ export interface ClinicalNoteRecord {
   author: string | null;
   type: string | null;
   content: string | null;
+  clinicName?: string | null;
 }
 
 export interface DocumentRecord {

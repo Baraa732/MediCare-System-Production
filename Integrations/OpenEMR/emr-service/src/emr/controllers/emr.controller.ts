@@ -339,6 +339,49 @@ export class EmrController {
     );
   }
 
+  @Post('patients/:userId/lab-results')
+  @UseGuards(RolesGuard, DoctorPatientAccessGuard)
+  @Roles(...STAFF_ROLES)
+  @DoctorPatientParam('userId')
+  async addLabResult(
+    @Param('userId') userId: string,
+    @Request() req: { user: AuthUser },
+    @Query() query: { tenantId?: string; clinicId?: string },
+    @Body()
+    body: {
+      testName: string;
+      result?: string;
+      unit?: string;
+      referenceRange?: string;
+      status?: string;
+    },
+  ) {
+    return this.emrRecordService.addLabResult(
+      userId,
+      req.user,
+      body,
+      this.preferredTenant(query),
+    );
+  }
+
+  @Post('patients/:userId/care-plans')
+  @UseGuards(RolesGuard, DoctorPatientAccessGuard)
+  @Roles(...STAFF_ROLES)
+  @DoctorPatientParam('userId')
+  async addCarePlan(
+    @Param('userId') userId: string,
+    @Request() req: { user: AuthUser },
+    @Query() query: { tenantId?: string; clinicId?: string },
+    @Body() body: { title: string; goals?: string; status?: string },
+  ) {
+    return this.emrRecordService.addCarePlan(
+      userId,
+      req.user,
+      body,
+      this.preferredTenant(query),
+    );
+  }
+
   @Get('patients/:userId/sync-status')
   @UseGuards(DoctorPatientAccessGuard)
   @DoctorPatientParam('userId')

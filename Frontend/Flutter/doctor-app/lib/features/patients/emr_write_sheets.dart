@@ -94,6 +94,52 @@ Future<PatientEmrChart?> showAddVitalSheet(
   );
 }
 
+Future<PatientEmrChart?> showAddLabResultSheet(
+  BuildContext context,
+  String patientId,
+) {
+  return _showFields(
+    context,
+    title: 'Add lab result',
+    fields: const [
+      _Field('testName', 'Test name', required: true),
+      _Field('result', 'Result'),
+      _Field('unit', 'Unit'),
+      _Field('referenceRange', 'Reference range'),
+      _Field('status', 'Status'),
+    ],
+    save: (v) => emrApi.addLabResult(
+      patientId,
+      testName: v['testName']!,
+      result: v['result'],
+      unit: v['unit'],
+      referenceRange: v['referenceRange'],
+      status: v['status'],
+    ),
+  );
+}
+
+Future<PatientEmrChart?> showAddCarePlanSheet(
+  BuildContext context,
+  String patientId,
+) {
+  return _showFields(
+    context,
+    title: 'Add care plan',
+    fields: const [
+      _Field('title', 'Title', required: true),
+      _Field('goals', 'Goals'),
+      _Field('status', 'Status'),
+    ],
+    save: (v) => emrApi.addCarePlan(
+      patientId,
+      title: v['title']!,
+      goals: v['goals'],
+      status: v['status'],
+    ),
+  );
+}
+
 double? _num(String? raw) =>
     raw == null || raw.isEmpty ? null : double.tryParse(raw);
 

@@ -480,6 +480,8 @@ class _ChartBodyState extends State<_ChartBody> {
                   lines: [
                     if (a.severity != null) 'Severity: ${a.severity}',
                     if (a.reaction != null) 'Reaction: ${a.reaction}',
+                    if (a.recordedBy != null) 'By ${a.recordedBy}',
+                    if (a.clinicName != null) 'Clinic: ${a.clinicName}',
                     if (a.recordedDate != null)
                       'Recorded ${_fmtDate(a.recordedDate)}',
                   ],
@@ -508,6 +510,7 @@ class _ChartBodyState extends State<_ChartBody> {
                     if (m.route != null) 'Route: ${m.route}',
                     if (m.prescribedBy != null)
                       'Prescribed by ${m.prescribedBy}',
+                    if (m.clinicName != null) 'Clinic: ${m.clinicName}',
                     if (m.startDate != null) 'Started ${_fmtDate(m.startDate)}',
                     if (m.status != null) m.status!,
                   ].where((e) => e.trim().isNotEmpty).toList(),
@@ -590,6 +593,8 @@ class _ChartBodyState extends State<_ChartBody> {
                     if (v.bmi != null) 'BMI ${v.bmi!.toStringAsFixed(1)}',
                     if (v.respiratoryRate != null)
                       'RR ${v.respiratoryRate!.toStringAsFixed(0)}',
+                    if (v.recordedBy != null) 'By ${v.recordedBy}',
+                    if (v.clinicName != null) 'Clinic: ${v.clinicName}',
                   ],
                 ),
             ],
@@ -619,6 +624,8 @@ class _ChartBodyState extends State<_ChartBody> {
                     if (lab.status != null) lab.status!,
                     if (lab.performedDate != null)
                       _fmtDate(lab.performedDate),
+                    if (lab.reviewedBy != null) 'By ${lab.reviewedBy}',
+                    if (lab.clinicName != null) 'Clinic: ${lab.clinicName}',
                   ].where((e) => e.trim().isNotEmpty).toList(),
                 ),
             ],
@@ -665,6 +672,8 @@ class _ChartBodyState extends State<_ChartBody> {
                   lines: [
                     if (p.status != null) p.status!,
                     if (p.goals.isNotEmpty) p.goals.join(', '),
+                    if (p.assignedBy != null) 'By ${p.assignedBy}',
+                    if (p.clinicName != null) 'Clinic: ${p.clinicName}',
                     if (p.startDate != null) _fmtDate(p.startDate),
                   ].where((e) => e.isNotEmpty).toList(),
                 ),
@@ -687,7 +696,8 @@ class _ChartBodyState extends State<_ChartBody> {
                   title: n.type ?? 'Note',
                   lines: [
                     _fmtDateTime(n.date),
-                    if (n.author != null) n.author!,
+                    if (n.author != null) 'By ${n.author}',
+                    if (n.clinicName != null) 'Clinic: ${n.clinicName}',
                     if (n.content != null) n.content!,
                   ].where((e) => e.isNotEmpty && e != '—').toList(),
                 ),

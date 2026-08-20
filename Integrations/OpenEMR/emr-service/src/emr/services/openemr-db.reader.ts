@@ -414,25 +414,35 @@ export class OpenEmrDbReader {
   }
 
   async getAllergies(pid: string): Promise<AllergyRecord[]> {
-    return this.getListRecords(pid, 'allergy', (row) => ({
-      id: String(row.id),
-      allergen: this.nonEmpty(row.title) ?? this.nonEmpty(row.diagnosis),
-      reaction: this.nonEmpty(row.comments),
-      severity: row.outcome != null ? String(row.outcome) : null,
-      recordedBy: this.nonEmpty(row.user),
-      recordedDate: this.formatDate(row.begdate ?? row.date),
-    }));
+    return this.getListRecords(pid, 'allergy', (row) => {
+      const attr = this.parseAttribution(row.comments);
+      return {
+        id: String(row.id),
+        allergen: this.nonEmpty(row.title) ?? this.nonEmpty(row.diagnosis),
+        reaction: attr.remainder || null,
+        severity: null,
+        recordedBy: this.displayAuthor(attr.doctorName, null, row.user),
+        recordedDate: this.formatDate(row.begdate ?? row.date),
+        clinicName: attr.clinicName,
+      };
+    });
   }
 
   async getProblems(pid: string): Promise<ProblemRecord[]> {
-    return this.getListRecords(pid, 'medical_problem', (row) => ({
-      id: String(row.id),
-      name: this.nonEmpty(row.title) ?? this.nonEmpty(row.diagnosis),
-      icd10Code: this.nonEmpty(row.diagnosis),
-      status: this.capitalizeStatus(row.activity === 1 ? 'active' : 'inactive'),
-      diagnosedDate: this.formatDate(row.begdate),
-      recordedBy: this.nonEmpty(row.user),
-    }));
+    return this.getListRecords(pid, 'medical_problem', (row) => {
+      const attr = this.parseAttribution(row.comments);
+      return {
+        id: String(row.id),
+        name: this.nonEmpty(row.title) ?? this.nonEmpty(row.diagnosis),
+        icd10Code: this.nonEmpty(row.diagnosis),
+        status:
+          attr.remainder ||
+          this.capitalizeStatus(row.activity === 1 ? 'active' : 'inactive'),
+        diagnosedDate: this.formatDate(row.begdate),
+        recordedBy: this.displayAuthor(attr.doctorName, null, row.user),
+        clinicName: attr.clinicName,
+      };
+    });
   }
 
   async getConditions(pid: string): Promise<ConditionRecord[]> {
@@ -442,37 +452,65 @@ export class OpenEmrDbReader {
   async getMedications(pid: string): Promise<MedicationRecord[]> {
     return this.withConnection(async (connection) => {
       const [rows] = await connection.execute(
-        `SELECT id, drug, dosage, route, start_date, date_modified, provider_id, \`interval\`, active
+        `SELECT id, drug, dosage, route, start_date, date_modified, provider_id, \`interval\`,
+                active, note, \`user\`
          FROM prescriptions WHERE patient_id = ? ORDER BY date_modified DESC`,
         [pid],
       );
 
       const medications: MedicationRecord[] = [];
       for (const row of rows as any[]) {
+        const attr = this.parseAttribution(row.note);
+        const frequencyFromNote = attr.remainder
+          .split(/\r?\n/)
+          .find((l) => /^Frequency:/i.test(l))
+          ?.replace(/^Frequency:\s*/i, '')
+          .trim();
+        const dosageFromNote = attr.remainder
+          .split(/\r?\n/)
+          .find((l) => /^Dosage:/i.test(l))
+          ?.replace(/^Dosage:\s*/i, '')
+          .trim();
+        const routeFromNote = attr.remainder
+          .split(/\r?\n/)
+          .find((l) => /^Route:/i.test(l))
+          ?.replace(/^Route:\s*/i, '')
+          .trim();
         medications.push({
           id: String(row.id),
           name: this.nonEmpty(row.drug),
-          dosage: this.nonEmpty(row.dosage),
-          frequency: row.interval != null ? String(row.interval) : null,
-          route: this.nonEmpty(row.route),
+          dosage: this.nonEmpty(row.dosage) ?? dosageFromNote ?? null,
+          frequency:
+            frequencyFromNote ??
+            (row.interval != null ? String(row.interval) : null),
+          route: this.nonEmpty(row.route) ?? routeFromNote ?? null,
           startDate: this.formatDate(row.start_date),
           status: row.active === 1 ? 'Active' : 'Inactive',
-          prescribedBy: await this.resolveUserName(connection, row.provider_id),
+          prescribedBy: this.displayAuthor(
+            attr.doctorName,
+            null,
+            await this.resolveUserName(connection, row.provider_id ?? row.user),
+          ),
+          clinicName: attr.clinicName,
         });
       }
 
       if (medications.length > 0) return medications;
 
-      return this.getListRecords(pid, 'medication', (row) => ({
-        id: String(row.id),
-        name: this.nonEmpty(row.title),
-        dosage: null,
-        frequency: null,
-        route: null,
-        startDate: this.formatDate(row.begdate),
-        status: this.capitalizeStatus(row.activity === 1 ? 'active' : 'inactive'),
-        prescribedBy: this.nonEmpty(row.user),
-      }));
+      return this.getListRecords(pid, 'medication', (row) => {
+        const attr = this.parseAttribution(row.comments);
+        return {
+          id: String(row.id),
+          name: this.nonEmpty(row.title),
+          dosage: null,
+          frequency: null,
+          route: null,
+          startDate: this.formatDate(row.begdate),
+          status: this.capitalizeStatus(row.activity === 1 ? 'active' : 'inactive'),
+          prescribedBy: this.displayAuthor(attr.doctorName, null, row.user),
+          clinicName: attr.clinicName,
+        };
+      });
     });
   }
 
@@ -531,31 +569,64 @@ export class OpenEmrDbReader {
 
   async getLabResults(pid: string): Promise<LabResultRecord[]> {
     return this.withConnection(async (connection) => {
-      const [rows] = await connection.execute(
-        `SELECT pr.procedure_result_id AS id, pr.result_code, pr.result_text, pr.result, pr.units,
-                pr.range, pr.result_status, pr.abnormal, po.provider_id, pr.date
-         FROM procedure_result pr
-         INNER JOIN procedure_report rep ON rep.procedure_report_id = pr.procedure_report_id
-         INNER JOIN procedure_order po ON po.procedure_order_id = rep.procedure_order_id
-         WHERE po.patient_id = ?
-         ORDER BY pr.date DESC`,
-        [pid],
-      );
-
       const results: LabResultRecord[] = [];
-      for (const row of rows as any[]) {
-        results.push({
-          id: String(row.id),
-          testName: this.nonEmpty(row.result_text),
-          result: this.nonEmpty(row.result),
-          unit: this.nonEmpty(row.units),
-          referenceRange: this.nonEmpty(row.range),
-          status: this.nonEmpty(row.abnormal) ?? this.nonEmpty(row.result_status),
-          performedDate: this.formatDate(row.date),
-          reviewedBy: await this.resolveUserName(connection, row.provider_id),
-        });
+      try {
+        const [rows] = await connection.execute(
+          `SELECT pr.procedure_result_id AS id, pr.result_code, pr.result_text, pr.result, pr.units,
+                  pr.range, pr.result_status, pr.abnormal, po.provider_id, pr.date, pr.comments
+           FROM procedure_result pr
+           INNER JOIN procedure_report rep ON rep.procedure_report_id = pr.procedure_report_id
+           INNER JOIN procedure_order po ON po.procedure_order_id = rep.procedure_order_id
+           WHERE po.patient_id = ?
+           ORDER BY pr.date DESC`,
+          [pid],
+        );
+
+        for (const row of rows as any[]) {
+          const attr = this.parseAttribution(row.comments);
+          results.push({
+            id: String(row.id),
+            testName: this.nonEmpty(row.result_text),
+            result: this.nonEmpty(row.result),
+            unit: this.nonEmpty(row.units),
+            referenceRange: this.nonEmpty(row.range),
+            status: this.nonEmpty(row.abnormal) ?? this.nonEmpty(row.result_status),
+            performedDate: this.formatDate(row.date),
+            reviewedBy: this.displayAuthor(
+              attr.doctorName,
+              null,
+              await this.resolveUserName(connection, row.provider_id),
+            ),
+            clinicName: attr.clinicName,
+          });
+        }
+      } catch (error: any) {
+        this.logger.warn(`procedure_result lab read failed: ${error?.message}`);
       }
-      return results;
+
+      const listLabs = await this.getListRecords(pid, 'lab_result', (row) => {
+        const attr = this.parseAttribution(row.comments);
+        const parts = Object.fromEntries(
+          attr.remainder
+            .split(' · ')
+            .map((p) => p.split(':').map((s) => s.trim()))
+            .filter((kv) => kv.length >= 2)
+            .map(([k, ...rest]) => [k.toLowerCase(), rest.join(':')]),
+        );
+        return {
+          id: `list-${row.id}`,
+          testName: this.nonEmpty(row.title),
+          result: parts['result'] ?? null,
+          unit: parts['unit'] ?? null,
+          referenceRange: parts['ref'] ?? parts['range'] ?? null,
+          status: parts['status'] ?? this.capitalizeStatus(row.activity === 1 ? 'final' : 'inactive'),
+          performedDate: this.formatDate(row.begdate ?? row.date),
+          reviewedBy: this.displayAuthor(attr.doctorName, null, row.user),
+          clinicName: attr.clinicName,
+        };
+      });
+
+      return [...results, ...listLabs];
     });
   }
 
@@ -569,8 +640,22 @@ export class OpenEmrDbReader {
     }));
   }
 
-  async getCarePlans(_pid: string): Promise<CarePlanRecord[]> {
-    return [];
+  async getCarePlans(pid: string): Promise<CarePlanRecord[]> {
+    return this.getListRecords(pid, 'careplan', (row) => {
+      const attr = this.parseAttribution(row.comments);
+      const goals = attr.remainder
+        ? attr.remainder.split(/\r?\n| · /).map((g) => g.trim()).filter(Boolean)
+        : [];
+      return {
+        id: String(row.id),
+        title: this.nonEmpty(row.title),
+        goals,
+        startDate: this.formatDate(row.begdate ?? row.date),
+        status: this.capitalizeStatus(row.activity === 1 ? 'active' : 'inactive'),
+        assignedBy: this.displayAuthor(attr.doctorName, null, row.user),
+        clinicName: attr.clinicName,
+      };
+    });
   }
 
   async getClinicalNotes(pid: string): Promise<ClinicalNoteRecord[]> {
@@ -583,12 +668,18 @@ export class OpenEmrDbReader {
 
       const notes: ClinicalNoteRecord[] = [];
       for (const row of rows as any[]) {
+        const attr = this.parseAttribution(row.description);
         notes.push({
           id: String(row.id),
           date: this.formatDateTime(row.date),
-          author: await this.resolveUserName(connection, row.user),
+          author: this.displayAuthor(
+            attr.doctorName,
+            null,
+            await this.resolveUserName(connection, row.user),
+          ),
           type: this.nonEmpty(row.codetext) ?? this.nonEmpty(row.code),
-          content: this.nonEmpty(row.description),
+          content: attr.remainder || this.nonEmpty(row.description),
+          clinicName: attr.clinicName,
         });
       }
       return notes;
@@ -597,18 +688,21 @@ export class OpenEmrDbReader {
 
   async insertListRecord(input: {
     pid: string | number;
-    type: 'allergy' | 'medical_problem' | 'medication';
+    type: 'allergy' | 'medical_problem' | 'medication' | 'lab_result' | 'careplan';
     title: string;
     comments?: string;
     diagnosis?: string;
     /** Free-text severity/reaction notes — lists.outcome is an INT option id, not text. */
     outcome?: string;
     user?: string;
+    doctorName?: string;
+    clinicName?: string;
   }): Promise<{ id: string }> {
     return this.withConnection(async (connection) => {
       const now = new Date();
       const author = this.openEmrAuthor(input.user);
-      const comments = [input.comments, input.outcome]
+      const attribution = this.formatAttribution(input.doctorName, input.clinicName);
+      const comments = [attribution, input.comments, input.outcome]
         .map((v) => v?.trim())
         .filter(Boolean)
         .join(' · ');
@@ -631,6 +725,116 @@ export class OpenEmrDbReader {
     });
   }
 
+  async insertLabResult(input: {
+    pid: string | number;
+    testName: string;
+    result?: string;
+    unit?: string;
+    referenceRange?: string;
+    status?: string;
+    user?: string;
+    doctorName?: string;
+    clinicName?: string;
+  }): Promise<{ id: string }> {
+    const attribution = this.formatAttribution(input.doctorName, input.clinicName);
+    const detail = [
+      input.result ? `Result: ${input.result}` : null,
+      input.unit ? `Unit: ${input.unit}` : null,
+      input.referenceRange ? `Ref: ${input.referenceRange}` : null,
+      input.status ? `Status: ${input.status}` : null,
+    ]
+      .filter(Boolean)
+      .join(' · ');
+
+    // Prefer OpenEMR procedure tables; fall back to lists.type=lab_result.
+    try {
+      return await this.withConnection(async (connection) => {
+        const now = new Date();
+        const today = now.toISOString().slice(0, 10);
+        const author = this.openEmrAuthor(input.user);
+        const pid = Number(input.pid);
+        const encounterId = await this.ensureTodayEncounter(connection, pid, today, author);
+
+        const [orderResult] = await connection.execute(
+          `INSERT INTO procedure_order
+            (provider_id, patient_id, encounter_id, date_ordered, date_collected, order_status,
+             patient_instructions, activity)
+           VALUES (0, ?, ?, ?, ?, 'complete', ?, 1)`,
+          [pid, encounterId, now, now, attribution],
+        );
+        const orderId = Number((orderResult as any)?.insertId);
+        if (!orderId) throw new Error('procedure_order insert returned no id');
+
+        await connection
+          .execute(
+            `INSERT INTO procedure_order_code
+              (procedure_order_id, procedure_order_seq, procedure_code, procedure_name, procedure_order_title)
+             VALUES (?, 1, 'MEDICARE-LAB', ?, 'Laboratory Test')`,
+            [orderId, input.testName.slice(0, 255)],
+          )
+          .catch(() => undefined);
+
+        const [reportResult] = await connection.execute(
+          `INSERT INTO procedure_report
+            (procedure_order_id, procedure_order_seq, date_report, date_collected, report_status, review_status)
+           VALUES (?, 1, ?, ?, 'final', 'reviewed')`,
+          [orderId, now, now],
+        );
+        const reportId = Number((reportResult as any)?.insertId);
+        if (!reportId) throw new Error('procedure_report insert returned no id');
+
+        const [resultRow] = await connection.execute(
+          `INSERT INTO procedure_result
+            (procedure_report_id, result_data_type, result_code, result_text, date, units, result,
+             \`range\`, result_status, comments)
+           VALUES (?, 'S', 'MEDICARE', ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            reportId,
+            input.testName.slice(0, 255),
+            now,
+            (input.unit ?? '').slice(0, 31),
+            (input.result ?? '').slice(0, 255),
+            (input.referenceRange ?? '').slice(0, 255),
+            (input.status ?? 'final').slice(0, 31),
+            [attribution, detail].filter(Boolean).join(' · '),
+          ],
+        );
+        return { id: String((resultRow as any)?.insertId ?? orderId) };
+      });
+    } catch (error: any) {
+      this.logger.warn(`Lab procedure insert failed, using lists fallback: ${error?.message}`);
+      return this.insertListRecord({
+        pid: input.pid,
+        type: 'lab_result',
+        title: input.testName,
+        comments: detail,
+        user: input.user,
+        doctorName: input.doctorName,
+        clinicName: input.clinicName,
+      });
+    }
+  }
+
+  async insertCarePlan(input: {
+    pid: string | number;
+    title: string;
+    goals?: string;
+    status?: string;
+    user?: string;
+    doctorName?: string;
+    clinicName?: string;
+  }): Promise<{ id: string }> {
+    return this.insertListRecord({
+      pid: input.pid,
+      type: 'careplan',
+      title: input.title,
+      comments: [input.goals?.trim(), input.status?.trim()].filter(Boolean).join('\n'),
+      user: input.user,
+      doctorName: input.doctorName,
+      clinicName: input.clinicName,
+    });
+  }
+
   async insertPrescription(input: {
     pid: string | number;
     drug: string;
@@ -638,13 +842,16 @@ export class OpenEmrDbReader {
     frequency?: string;
     route?: string;
     user?: string;
+    doctorName?: string;
+    clinicName?: string;
   }): Promise<{ id: string }> {
     return this.withConnection(async (connection) => {
-      const now = new Date();
-      const today = now.toISOString().slice(0, 10);
-      // prescriptions.user is VARCHAR(50); keep OpenEMR username-safe.
+      const today = new Date().toISOString().slice(0, 10);
+      const nowStr = new Date().toISOString().slice(0, 19).replace('T', ' ');
       const author = this.openEmrAuthor(input.user);
-      const note = [
+      const attribution = this.formatAttribution(input.doctorName, input.clinicName);
+      const detailLines = [
+        attribution,
         input.dosage ? `Dosage: ${input.dosage}` : null,
         input.frequency ? `Frequency: ${input.frequency}` : null,
         input.route ? `Route: ${input.route}` : null,
@@ -653,46 +860,74 @@ export class OpenEmrDbReader {
         .join('\n');
 
       let insertId: number | null = null;
-      try {
-        const [result] = await connection.execute(
-          `INSERT INTO prescriptions
-            (patient_id, date_added, date_modified, start_date, drug, dosage, route, note,
-             active, txDate, drug_id, \`user\`)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, 0, ?)`,
-          [
-            Number(input.pid),
-            now,
-            now,
-            today,
-            input.drug.slice(0, 150),
-            (input.dosage ?? '').slice(0, 100),
-            (input.route ?? '').slice(0, 100),
-            note,
-            today,
-            author,
-          ],
-        );
-        insertId = Number((result as any)?.insertId) || null;
-      } catch (primaryError: any) {
-        // Older schemas omit route / user / txDate — retry with a minimal column set.
-        this.logger.warn(
-          `Prescription insert failed, retrying minimal columns: ${primaryError?.message}`,
-        );
-        const [result] = await connection.execute(
-          `INSERT INTO prescriptions
-            (patient_id, date_added, date_modified, start_date, drug, dosage, note, active, drug_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0)`,
-          [
-            Number(input.pid),
-            now,
-            now,
-            today,
-            input.drug.slice(0, 150),
-            (input.dosage ?? '').slice(0, 100),
-            note,
-          ],
-        );
-        insertId = Number((result as any)?.insertId) || null;
+      const attempts: Array<() => Promise<number | null>> = [
+        async () => {
+          // Use CURDATE() so strict MariaDB never sees a missing txDate default.
+          const [result] = await connection.execute(
+            `INSERT INTO prescriptions
+              (patient_id, date_added, date_modified, start_date, drug, dosage, route, note,
+               active, txDate, drug_id, \`user\`)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, CURDATE(), 0, ?)`,
+            [
+              Number(input.pid),
+              nowStr,
+              nowStr,
+              today,
+              input.drug.slice(0, 150),
+              (input.dosage ?? '').slice(0, 100),
+              (input.route ?? '').slice(0, 100),
+              detailLines,
+              author,
+            ],
+          );
+          return Number((result as any)?.insertId) || null;
+        },
+        async () => {
+          const [result] = await connection.execute(
+            `INSERT INTO prescriptions
+              (patient_id, date_added, date_modified, start_date, drug, dosage, note, active, txDate, drug_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, 1, CURDATE(), 0)`,
+            [
+              Number(input.pid),
+              nowStr,
+              nowStr,
+              today,
+              input.drug.slice(0, 150),
+              (input.dosage ?? '').slice(0, 100),
+              detailLines,
+            ],
+          );
+          return Number((result as any)?.insertId) || null;
+        },
+        async () => {
+          const [result] = await connection.execute(
+            `INSERT INTO prescriptions
+              (patient_id, start_date, drug, dosage, note, active, txDate)
+             VALUES (?, ?, ?, ?, ?, 1, CURDATE())`,
+            [
+              Number(input.pid),
+              today,
+              input.drug.slice(0, 150),
+              (input.dosage ?? '').slice(0, 100),
+              detailLines,
+            ],
+          );
+          return Number((result as any)?.insertId) || null;
+        },
+      ];
+
+      let lastError: any;
+      for (const attempt of attempts) {
+        try {
+          insertId = await attempt();
+          if (insertId) break;
+        } catch (error: any) {
+          lastError = error;
+          this.logger.warn(`Prescription insert attempt failed: ${error?.message}`);
+        }
+      }
+      if (!insertId) {
+        throw lastError || new Error('Could not insert prescription');
       }
 
       await connection
@@ -701,17 +936,19 @@ export class OpenEmrDbReader {
             (date, type, title, begdate, pid, user, groupname, comments, diagnosis, outcome, activity)
            VALUES (?, 'medication', ?, ?, ?, ?, 'Default', ?, '', 0, 1)`,
           [
-            now,
+            nowStr,
             input.drug.slice(0, 255),
-            now,
+            today,
             Number(input.pid),
             author,
-            [input.dosage, input.frequency, input.route].filter(Boolean).join(' · '),
+            [attribution, input.dosage, input.frequency, input.route]
+              .filter(Boolean)
+              .join(' · '),
           ],
         )
         .catch(() => undefined);
 
-      return { id: String(insertId ?? Date.now()) };
+      return { id: String(insertId) };
     });
   }
 
@@ -791,6 +1028,53 @@ export class OpenEmrDbReader {
     return 'doctor';
   }
 
+  /** Persist doctor + clinic so the patient app can show who wrote each entry. */
+  formatAttribution(doctorName?: string | null, clinicName?: string | null): string {
+    const doctor = (doctorName || '').trim() || 'Doctor';
+    const clinic = (clinicName || '').trim() || 'Clinic';
+    return `MC|${doctor}|${clinic}`;
+  }
+
+  parseAttribution(raw?: string | null): {
+    doctorName: string | null;
+    clinicName: string | null;
+    remainder: string;
+  } {
+    const text = (raw || '').trim();
+    if (!text) return { doctorName: null, clinicName: null, remainder: '' };
+    const lineMatch = text.match(/^MC\|([^|]*)\|([^|]*)\|?\s*(?:·\s*)?(.*)$/s);
+    if (lineMatch) {
+      return {
+        doctorName: lineMatch[1]?.trim() || null,
+        clinicName: lineMatch[2]?.trim() || null,
+        remainder: (lineMatch[3] || '').trim(),
+      };
+    }
+    const firstLine = text.split(/\r?\n/, 1)[0];
+    const firstMatch = firstLine.match(/^MC\|([^|]*)\|([^|]*)/);
+    if (firstMatch) {
+      return {
+        doctorName: firstMatch[1]?.trim() || null,
+        clinicName: firstMatch[2]?.trim() || null,
+        remainder: text.slice(firstLine.length).replace(/^\r?\n/, '').trim(),
+      };
+    }
+    return { doctorName: null, clinicName: null, remainder: text };
+  }
+
+  private displayAuthor(
+    doctorName?: string | null,
+    clinicName?: string | null,
+    fallback?: string | null,
+  ): string | null {
+    const doctor = doctorName?.trim();
+    const clinic = clinicName?.trim();
+    if (doctor && clinic) return `${doctor} · ${clinic}`;
+    if (doctor) return doctor;
+    if (clinic) return clinic;
+    return this.nonEmpty(fallback);
+  }
+
   /**
    * Writes a clinical note the OpenEMR way:
    * encounter → forms index → form_clinical_notes (requires form_id).
@@ -800,6 +1084,8 @@ export class OpenEmrDbReader {
     content: string;
     type?: string;
     author?: string;
+    doctorName?: string;
+    clinicName?: string;
   }): Promise<ClinicalNoteRecord> {
     return this.withConnection(async (connection) => {
       const pid = Number(input.pid);
@@ -807,6 +1093,8 @@ export class OpenEmrDbReader {
       const type = input.type?.trim() || 'Visit note';
       const now = new Date();
       const today = now.toISOString().slice(0, 10);
+      const attribution = this.formatAttribution(input.doctorName, input.clinicName);
+      const description = `${attribution}\n${input.content}`.trim();
 
       const encounterId = await this.ensureTodayEncounter(connection, pid, today, author);
 
@@ -837,7 +1125,7 @@ export class OpenEmrDbReader {
             author,
             'medicare-visit-note',
             type.slice(0, 255),
-            input.content,
+            description,
             'progress_note',
           ],
         );
@@ -860,7 +1148,7 @@ export class OpenEmrDbReader {
             author,
             'medicare-visit-note',
             type.slice(0, 255),
-            input.content,
+            description,
           ],
         );
         insertId = String((result as any)?.insertId ?? Date.now());
@@ -869,9 +1157,10 @@ export class OpenEmrDbReader {
       return {
         id: insertId,
         date: this.formatDateTime(now),
-        author,
+        author: this.displayAuthor(input.doctorName, null, author),
         type,
         content: input.content,
+        clinicName: input.clinicName?.trim() || null,
       };
     });
   }
