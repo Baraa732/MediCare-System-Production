@@ -17,11 +17,19 @@ String messageFromResponse(dynamic data, {String fallback = 'Request failed'}) {
       if (nestedMessage is String && nestedMessage.isNotEmpty) {
         return nestedMessage;
       }
+      if (nestedMessage is Map) {
+        final deep = nestedMessage['message'];
+        if (deep is String && deep.isNotEmpty) return deep;
+      }
     }
     final message = data['message'];
     if (message is String && message.isNotEmpty) return message;
     if (message is List && message.isNotEmpty) {
       return message.map((e) => e.toString()).join('\n');
+    }
+    if (message is Map) {
+      final deep = message['message'];
+      if (deep is String && deep.isNotEmpty) return deep;
     }
   }
   return fallback;

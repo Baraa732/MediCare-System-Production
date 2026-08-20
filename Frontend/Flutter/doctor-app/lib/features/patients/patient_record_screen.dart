@@ -1059,14 +1059,25 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
   Future<void> _add(
     Future<PatientEmrChart?> Function(BuildContext ctx) open,
   ) async {
-    final chart = await open(context);
-    if (chart != null && mounted) {
-      setState(() {
-        _chart = chart;
-        _emrMissing = false;
-      });
+    try {
+      final chart = await open(context);
+      if (chart != null && mounted) {
+        setState(() {
+          _chart = chart;
+          _emrMissing = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Saved to OpenEMR chart')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Saved to OpenEMR chart')),
+        SnackBar(
+          content: Text(
+            e.toString().replaceFirst(RegExp(r'^Exception:\s*'), ''),
+          ),
+        ),
       );
     }
   }

@@ -176,9 +176,24 @@ class _WriteSheetState extends State<_WriteSheet> {
       if (!mounted) return;
       setState(() {
         _busy = false;
-        _error = e.toString();
+        _error = _friendlyError(e);
       });
     }
+  }
+
+  String _friendlyError(Object e) {
+    final raw = e.toString();
+    final cleaned = raw
+        .replaceFirst(RegExp(r'^Exception:\s*'), '')
+        .replaceFirst(RegExp(r'^ApiException:\s*'), '')
+        .trim();
+    if (cleaned.isEmpty) {
+      return 'Could not save to OpenEMR. Please try again.';
+    }
+    if (cleaned.toLowerCase().contains('something went wrong')) {
+      return 'OpenEMR could not save this entry. Check the chart link and try again.';
+    }
+    return cleaned;
   }
 
   @override

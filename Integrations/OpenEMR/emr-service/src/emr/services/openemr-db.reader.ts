@@ -521,28 +521,117 @@ export class OpenEmrDbReader {
     title: string;
     comments?: string;
     diagnosis?: string;
+    /** Free-text severity/reaction notes — lists.outcome is an INT option id, not text. */
     outcome?: string;
     user?: string;
   }): Promise<{ id: string }> {
     return this.withConnection(async (connection) => {
       const now = new Date();
+      const author = this.openEmrAuthor(input.user);
+      const comments = [input.comments, input.outcome]
+        .map((v) => v?.trim())
+        .filter(Boolean)
+        .join(' · ');
       const [result] = await connection.execute(
         `INSERT INTO lists
           (date, type, title, begdate, pid, user, groupname, comments, diagnosis, outcome, activity)
-         VALUES (?, ?, ?, ?, ?, ?, 'Default', ?, ?, ?, 1)`,
+         VALUES (?, ?, ?, ?, ?, ?, 'Default', ?, ?, 0, 1)`,
         [
           now,
           input.type,
-          input.title,
+          input.title.slice(0, 255),
           now,
-          input.pid,
-          input.user?.trim() || 'doctor',
-          input.comments ?? '',
-          input.diagnosis ?? '',
-          input.outcome ?? '',
+          Number(input.pid),
+          author,
+          comments,
+          (input.diagnosis ?? '').slice(0, 255),
         ],
       );
       return { id: String((result as any)?.insertId ?? Date.now()) };
+    });
+  }
+
+  async insertPrescription(input: {
+    pid: string | number;
+    drug: string;
+    dosage?: string;
+    frequency?: string;
+    route?: string;
+    user?: string;
+  }): Promise<{ id: string }> {
+    return this.withConnection(async (connection) => {
+      const now = new Date();
+      const today = now.toISOString().slice(0, 10);
+      // prescriptions.user is VARCHAR(50); keep OpenEMR username-safe.
+      const author = this.openEmrAuthor(input.user);
+      const note = [
+        input.dosage ? `Dosage: ${input.dosage}` : null,
+        input.frequency ? `Frequency: ${input.frequency}` : null,
+        input.route ? `Route: ${input.route}` : null,
+      ]
+        .filter(Boolean)
+        .join('\n');
+
+      let insertId: number | null = null;
+      try {
+        const [result] = await connection.execute(
+          `INSERT INTO prescriptions
+            (patient_id, date_added, date_modified, start_date, drug, dosage, route, note,
+             active, txDate, drug_id, \`user\`)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, 0, ?)`,
+          [
+            Number(input.pid),
+            now,
+            now,
+            today,
+            input.drug.slice(0, 150),
+            (input.dosage ?? '').slice(0, 100),
+            (input.route ?? '').slice(0, 100),
+            note,
+            today,
+            author,
+          ],
+        );
+        insertId = Number((result as any)?.insertId) || null;
+      } catch (primaryError: any) {
+        // Older schemas omit route / user / txDate — retry with a minimal column set.
+        this.logger.warn(
+          `Prescription insert failed, retrying minimal columns: ${primaryError?.message}`,
+        );
+        const [result] = await connection.execute(
+          `INSERT INTO prescriptions
+            (patient_id, date_added, date_modified, start_date, drug, dosage, note, active, drug_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0)`,
+          [
+            Number(input.pid),
+            now,
+            now,
+            today,
+            input.drug.slice(0, 150),
+            (input.dosage ?? '').slice(0, 100),
+            note,
+          ],
+        );
+        insertId = Number((result as any)?.insertId) || null;
+      }
+
+      await connection
+        .execute(
+          `INSERT INTO lists
+            (date, type, title, begdate, pid, user, groupname, comments, diagnosis, outcome, activity)
+           VALUES (?, 'medication', ?, ?, ?, ?, 'Default', ?, '', 0, 1)`,
+          [
+            now,
+            input.drug.slice(0, 255),
+            now,
+            Number(input.pid),
+            author,
+            [input.dosage, input.frequency, input.route].filter(Boolean).join(' · '),
+          ],
+        )
+        .catch(() => undefined);
+
+      return { id: String(insertId ?? Date.now()) };
     });
   }
 
@@ -561,15 +650,19 @@ export class OpenEmrDbReader {
   }): Promise<VitalSignRecord> {
     return this.withConnection(async (connection) => {
       const now = new Date();
-      const author = input.user?.trim() || 'doctor';
-      await connection.execute(
+      const today = now.toISOString().slice(0, 10);
+      const author = this.openEmrAuthor(input.user);
+      const pid = Number(input.pid);
+      const encounterId = await this.ensureTodayEncounter(connection, pid, today, author);
+
+      const [result] = await connection.execute(
         `INSERT INTO form_vitals
           (date, pid, user, groupname, authorized, activity, bps, bpd, pulse, respiration,
            temperature, oxygen_saturation, height, weight, BMI)
          VALUES (?, ?, ?, 'Default', 1, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           now,
-          input.pid,
+          pid,
           author,
           input.bps ?? '',
           input.bpd ?? '',
@@ -582,6 +675,18 @@ export class OpenEmrDbReader {
           input.bmi ?? null,
         ],
       );
+      const formId = Number((result as any)?.insertId);
+      if (Number.isFinite(formId) && formId > 0) {
+        await connection
+          .execute(
+            `INSERT INTO forms
+              (date, encounter, form_name, form_id, pid, user, groupname, authorized, deleted, formdir)
+             VALUES (?, ?, 'Vitals', ?, ?, ?, 'Default', 1, 0, 'vitals')`,
+            [now, encounterId, formId, pid, author],
+          )
+          .catch(() => undefined);
+      }
+
       const bp = [input.bps, input.bpd].filter(Boolean).join('/');
       return {
         date: this.formatDateTime(now),
@@ -598,30 +703,89 @@ export class OpenEmrDbReader {
     });
   }
 
+  /** OpenEMR form/list user fields are short usernames, not MediCare UUIDs. */
+  private openEmrAuthor(raw?: string | null): string {
+    const value = (raw || '').trim();
+    if (!value) return 'doctor';
+    if (value.length <= 50 && !value.includes('-')) return value;
+    return 'doctor';
+  }
+
+  /**
+   * Writes a clinical note the OpenEMR way:
+   * encounter → forms index → form_clinical_notes (requires form_id).
+   */
   async insertClinicalNote(input: {
-    pid: string;
+    pid: string | number;
     content: string;
     type?: string;
     author?: string;
   }): Promise<ClinicalNoteRecord> {
     return this.withConnection(async (connection) => {
+      const pid = Number(input.pid);
+      const author = this.openEmrAuthor(input.author);
+      const type = input.type?.trim() || 'Visit note';
       const now = new Date();
-      const author = input.author?.trim() || 'doctor';
-      const type = input.type?.trim() || 'Clinical note';
-      const [result] = await connection.execute(
-        `INSERT INTO form_clinical_notes
-          (date, pid, encounter, user, groupname, authorized, activity, code, codetext, description)
-         VALUES (?, ?, 0, ?, 'Default', 1, 1, ?, ?, ?)`,
-        [
-          now,
-          input.pid,
-          author,
-          'medicare-visit-note',
-          type,
-          input.content,
-        ],
+      const today = now.toISOString().slice(0, 10);
+
+      const encounterId = await this.ensureTodayEncounter(connection, pid, today, author);
+
+      const [maxRows] = await connection.execute(
+        `SELECT COALESCE(MAX(form_id), 0) AS largestId FROM form_clinical_notes`,
       );
-      const insertId = String((result as any)?.insertId ?? Date.now());
+      const formId = Number((maxRows as any[])[0]?.largestId ?? 0) + 1;
+
+      await connection.execute(
+        `INSERT INTO forms
+          (date, encounter, form_name, form_id, pid, user, groupname, authorized, deleted, formdir)
+         VALUES (?, ?, 'Clinical Notes Form', ?, ?, ?, 'Default', 1, 0, 'clinical_notes')`,
+        [now, encounterId, formId, pid, author],
+      );
+
+      let insertId: string;
+      try {
+        const [result] = await connection.execute(
+          `INSERT INTO form_clinical_notes
+            (form_id, date, pid, encounter, user, groupname, authorized, activity,
+             code, codetext, description, clinical_notes_type)
+           VALUES (?, ?, ?, ?, ?, 'Default', 1, 1, ?, ?, ?, ?)`,
+          [
+            formId,
+            today,
+            pid,
+            String(encounterId),
+            author,
+            'medicare-visit-note',
+            type.slice(0, 255),
+            input.content,
+            'progress_note',
+          ],
+        );
+        insertId = String((result as any)?.insertId ?? Date.now());
+      } catch (primaryError: any) {
+        // Older OpenEMR builds may reject clinical_notes_type option ids — retry without it.
+        this.logger.warn(
+          `Clinical note insert with type failed, retrying minimal columns: ${primaryError?.message}`,
+        );
+        const [result] = await connection.execute(
+          `INSERT INTO form_clinical_notes
+            (form_id, date, pid, encounter, user, groupname, authorized, activity,
+             code, codetext, description)
+           VALUES (?, ?, ?, ?, ?, 'Default', 1, 1, ?, ?, ?)`,
+          [
+            formId,
+            today,
+            pid,
+            String(encounterId),
+            author,
+            'medicare-visit-note',
+            type.slice(0, 255),
+            input.content,
+          ],
+        );
+        insertId = String((result as any)?.insertId ?? Date.now());
+      }
+
       return {
         id: insertId,
         date: this.formatDateTime(now),
@@ -630,6 +794,75 @@ export class OpenEmrDbReader {
         content: input.content,
       };
     });
+  }
+
+  /** Create or reuse today's encounter so clinical forms can attach. */
+  private async ensureTodayEncounter(
+    connection: any,
+    pid: number,
+    today: string,
+    author: string,
+  ): Promise<number> {
+    const [existing] = await connection.execute(
+      `SELECT encounter, id FROM form_encounter
+       WHERE pid = ? AND DATE(date) = ?
+       ORDER BY id DESC LIMIT 1`,
+      [pid, today],
+    );
+    const row = (existing as any[])[0];
+    if (row?.encounter != null && Number(row.encounter) > 0) {
+      return Number(row.encounter);
+    }
+    if (row?.id != null) {
+      const id = Number(row.id);
+      if (row.encounter == null || Number(row.encounter) === 0) {
+        await connection.execute(
+          `UPDATE form_encounter SET encounter = ? WHERE id = ?`,
+          [id, id],
+        );
+      }
+      return id;
+    }
+
+    // Explicit defaults avoid NOT NULL failures on facility_id / pc_catid.
+    let newId: number;
+    try {
+      const [insertResult] = await connection.execute(
+        `INSERT INTO form_encounter
+          (date, reason, facility, facility_id, pid, encounter, pc_catid, provider_id,
+           billing_facility, class_code)
+         VALUES (?, 'MediCare clinical documentation', 'MediCare Clinic', 3, ?, 0, 5, 0, 3, 'AMB')`,
+        [`${today} 12:00:00`, pid],
+      );
+      newId = Number((insertResult as any)?.insertId);
+    } catch (primaryError: any) {
+      this.logger.warn(
+        `Encounter insert with facility defaults failed, retrying minimal: ${primaryError?.message}`,
+      );
+      const [insertResult] = await connection.execute(
+        `INSERT INTO form_encounter (date, reason, pid, encounter, pc_catid, facility_id)
+         VALUES (?, 'MediCare clinical documentation', ?, 0, 5, 3)`,
+        [`${today} 12:00:00`, pid],
+      );
+      newId = Number((insertResult as any)?.insertId);
+    }
+
+    if (!Number.isFinite(newId) || newId <= 0) {
+      throw new Error('Could not create OpenEMR encounter for clinical note');
+    }
+    await connection.execute(
+      `UPDATE form_encounter SET encounter = ? WHERE id = ?`,
+      [newId, newId],
+    );
+    await connection
+      .execute(
+        `INSERT INTO forms
+          (date, encounter, form_name, form_id, pid, user, groupname, authorized, deleted, formdir)
+         VALUES (?, ?, 'New Patient Encounter', ?, ?, ?, 'Default', 1, 0, 'newpatient')`,
+        [new Date(), newId, newId, pid, author],
+      )
+      .catch(() => undefined);
+    return newId;
   }
 
   async getDocuments(pid: string): Promise<DocumentRecord[]> {

@@ -367,6 +367,13 @@ export class EmrRecordService {
       content,
       type: body.type?.trim() || 'Visit note',
       author: actor.userId,
+    }).catch((error: any) => {
+      this.logger.error(`OpenEMR clinical note write failed: ${error?.message}`, error?.stack);
+      throw new BadRequestException(
+        error?.message?.includes('OPENEMR_MYSQL_PASSWORD')
+          ? 'OpenEMR database is not configured on the server'
+          : `Could not save clinical note to OpenEMR (${error?.message || 'database error'})`,
+      );
     });
 
     this.phiAudit.emit({
@@ -392,14 +399,21 @@ export class EmrRecordService {
     const allergen = body.allergen?.trim();
     if (!allergen) throw new BadRequestException('Allergen is required');
     const ctx = await this.resolveStaffWriteContext(userId, actor, preferredTenantId);
-    await this.dbReader.insertListRecord({
-      pid: ctx.pid,
-      type: 'allergy',
-      title: allergen,
-      comments: body.reaction?.trim(),
-      outcome: body.severity?.trim(),
-      user: actor.userId,
-    });
+    try {
+      await this.dbReader.insertListRecord({
+        pid: ctx.pid,
+        type: 'allergy',
+        title: allergen,
+        comments: body.reaction?.trim(),
+        outcome: body.severity?.trim(),
+        user: actor.userId,
+      });
+    } catch (error: any) {
+      this.logger.error(`OpenEMR allergy write failed: ${error?.message}`, error?.stack);
+      throw new BadRequestException(
+        `Could not save allergy to OpenEMR (${error?.message || 'database error'})`,
+      );
+    }
     this.emitStaffChartWrite(actor, ctx.tenantId, userId);
     return this.getPatientEmr(userId, actor, ctx.tenantId);
   }
@@ -413,17 +427,21 @@ export class EmrRecordService {
     const name = body.name?.trim();
     if (!name) throw new BadRequestException('Medication name is required');
     const ctx = await this.resolveStaffWriteContext(userId, actor, preferredTenantId);
-    const comments = [body.dosage, body.frequency, body.route]
-      .map((v) => v?.trim())
-      .filter(Boolean)
-      .join(' · ');
-    await this.dbReader.insertListRecord({
-      pid: ctx.pid,
-      type: 'medication',
-      title: name,
-      comments: comments || undefined,
-      user: actor.userId,
-    });
+    try {
+      await this.dbReader.insertPrescription({
+        pid: ctx.pid,
+        drug: name,
+        dosage: body.dosage?.trim(),
+        frequency: body.frequency?.trim(),
+        route: body.route?.trim(),
+        user: actor.userId,
+      });
+    } catch (error: any) {
+      this.logger.error(`OpenEMR medication write failed: ${error?.message}`, error?.stack);
+      throw new BadRequestException(
+        `Could not save medication to OpenEMR (${error?.message || 'database error'})`,
+      );
+    }
     this.emitStaffChartWrite(actor, ctx.tenantId, userId);
     return this.getPatientEmr(userId, actor, ctx.tenantId);
   }
@@ -437,14 +455,21 @@ export class EmrRecordService {
     const name = body.name?.trim();
     if (!name) throw new BadRequestException('Condition name is required');
     const ctx = await this.resolveStaffWriteContext(userId, actor, preferredTenantId);
-    await this.dbReader.insertListRecord({
-      pid: ctx.pid,
-      type: 'medical_problem',
-      title: name,
-      diagnosis: body.icd10Code?.trim(),
-      comments: body.status?.trim(),
-      user: actor.userId,
-    });
+    try {
+      await this.dbReader.insertListRecord({
+        pid: ctx.pid,
+        type: 'medical_problem',
+        title: name,
+        diagnosis: body.icd10Code?.trim(),
+        comments: body.status?.trim(),
+        user: actor.userId,
+      });
+    } catch (error: any) {
+      this.logger.error(`OpenEMR condition write failed: ${error?.message}`, error?.stack);
+      throw new BadRequestException(
+        `Could not save condition to OpenEMR (${error?.message || 'database error'})`,
+      );
+    }
     this.emitStaffChartWrite(actor, ctx.tenantId, userId);
     return this.getPatientEmr(userId, actor, ctx.tenantId);
   }
@@ -484,19 +509,26 @@ export class EmrRecordService {
       bmi = Number((body.weightKg / (meters * meters)).toFixed(1));
     }
 
-    await this.dbReader.insertVital({
-      pid: ctx.pid,
-      user: actor.userId,
-      bps,
-      bpd,
-      pulse: body.heartRate ?? null,
-      respiration: body.respiratoryRate ?? null,
-      temperature: body.temperatureCelsius ?? null,
-      oxygenSaturation: body.oxygenSaturation ?? null,
-      height: body.heightCm ?? null,
-      weight: body.weightKg ?? null,
-      bmi,
-    });
+    try {
+      await this.dbReader.insertVital({
+        pid: ctx.pid,
+        user: actor.userId,
+        bps,
+        bpd,
+        pulse: body.heartRate ?? null,
+        respiration: body.respiratoryRate ?? null,
+        temperature: body.temperatureCelsius ?? null,
+        oxygenSaturation: body.oxygenSaturation ?? null,
+        height: body.heightCm ?? null,
+        weight: body.weightKg ?? null,
+        bmi,
+      });
+    } catch (error: any) {
+      this.logger.error(`OpenEMR vitals write failed: ${error?.message}`, error?.stack);
+      throw new BadRequestException(
+        `Could not save vitals to OpenEMR (${error?.message || 'database error'})`,
+      );
+    }
     this.emitStaffChartWrite(actor, ctx.tenantId, userId);
     return this.getPatientEmr(userId, actor, ctx.tenantId);
   }
