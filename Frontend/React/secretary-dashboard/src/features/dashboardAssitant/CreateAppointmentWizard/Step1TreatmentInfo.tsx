@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Search, ChevronDown } from "lucide-react";
 import {
   TREATMENT_OPTIONS,
@@ -68,13 +68,18 @@ export function Step1TreatmentInfo({
     );
   }, [searchTreatment]);
 
-  const nowDate = new Date();
-
-  if (
-    formData.timeSlot &&
-    formData.timeSlot <= nowDate.getHours() * 60 + nowDate.getMinutes()
-  )
-    handleFieldChange("timeSlot", null);
+  useEffect(() => {
+    if (!formData.date || formData.timeSlot == null) return;
+    const now = new Date();
+    const selected = new Date(formData.date);
+    const isToday = selected.toDateString() === now.toDateString();
+    if (
+      isToday &&
+      formData.timeSlot <= now.getHours() * 60 + now.getMinutes()
+    ) {
+      handleFieldChange("timeSlot", null);
+    }
+  }, [formData.date, formData.timeSlot]);
   const selectedTreatment = useMemo(
     () =>
       TREATMENT_OPTIONS.find((t) => {

@@ -34,7 +34,9 @@ export function ExistingBooked({
         />
       )}
 
-      {columnAppointments.map((apt) => {
+      {columnAppointments
+        .filter((apt) => apt && apt.id && Number.isFinite(apt.start) && Number.isFinite(apt.end))
+        .map((apt) => {
         // حماية تامة من التعتيم إذا كان الكرت طرفاً في النزاع
         const isCardConflicting =
           isThisColumnConflicted &&

@@ -12,56 +12,24 @@ import { createAppointment } from "@/lib/api/appointments";
 import { lookupPatientByPhone } from "@/lib/api/users";
 import { normalizeCaughtError } from "@/lib/api/errors";
 import { scheduledAtFromGridMinutes } from "@/lib/api/mappers";
-import { ROW_MINUTES, START_TIME_MINUTES, TOTAL_SLOTS } from "../data/scheduleGrid";
+import { formatSlotLabel, listAvailableSlots } from "@/lib/api/schedule";
+import { ROW_MINUTES } from "../data/scheduleGrid";
 import { useAuthStore } from "@/stores/authStore";
 import { useAppointmentDialog } from "../hooks/useAppointmentDialog";
 import { useScheduleContext } from "../context/ScheduleContext";
 import type { PatientLookup } from "@/lib/api/users";
 
-function formatAbsMinutes(mins: number) {
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  const displayH = h % 12 || 12;
-  const ampm = h >= 12 ? "PM" : "AM";
-  return `${displayH}:${m.toString().padStart(2, "0")} ${ampm}`;
-}
-
 function formatSlotRange(startSlot: number, endSlot: number) {
   const startMins = startSlot * ROW_MINUTES;
   const endMins = (endSlot + 1) * ROW_MINUTES;
-  return `${formatAbsMinutes(startMins)} – ${formatAbsMinutes(endMins)}`;
-}
-
-interface AvailableSlot {
-  startMins: number;
-  endMins: number;
-  label: string;
-}
-
-function computeAvailableSlots(
-  bookedAppointments: { start: number; end: number }[],
-  durationMinutes: number,
-): AvailableSlot[] {
-  const slots: AvailableSlot[] = [];
-  const totalGridMinutes = TOTAL_SLOTS * ROW_MINUTES;
-  const step = ROW_MINUTES;
-
-  for (let offset = 0; offset + durationMinutes <= totalGridMinutes; offset += step) {
-    const slotEnd = offset + durationMinutes;
-    const hasConflict = bookedAppointments.some(
-      (apt) => Math.max(offset, apt.start) < Math.min(slotEnd, apt.end),
-    );
-    if (!hasConflict) {
-      const absStart = START_TIME_MINUTES + offset;
-      const absEnd = START_TIME_MINUTES + slotEnd;
-      slots.push({
-        startMins: offset,
-        endMins: slotEnd,
-        label: `${formatAbsMinutes(absStart)} – ${formatAbsMinutes(absEnd)}`,
-      });
-    }
-  }
-  return slots;
+  const fmt = (mins: number) => {
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    const displayH = h % 12 || 12;
+    const ampm = h >= 12 ? "PM" : "AM";
+    return `${displayH}:${m.toString().padStart(2, "0")} ${ampm}`;
+  };
+  return `${fmt(startMins)} – ${fmt(endMins)}`;
 }
 
 export function AddAppointmentDialog() {
@@ -81,8 +49,11 @@ export function AddAppointmentDialog() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isLookingUp, setIsLookingUp] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [selectedSlotOffset, setSelectedSlotOffset] = useState<number | null>(null);
+  const [selectedSlotIso, setSelectedSlotIso] = useState("");
   const [manualDuration, setManualDuration] = useState(30);
+  const [slots, setSlots] = useState<string[]>([]);
+  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [slotsError, setSlotsError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -92,7 +63,7 @@ export function AddAppointmentDialog() {
     setReason("");
     setLookupError(null);
     setSubmitError(null);
-    setSelectedSlotOffset(null);
+    setSelectedSlotIso("");
     setManualDuration(30);
     setDoctorId(prefill?.doctorId ?? doctors[0]?.id ?? "");
   }, [isOpen, prefill, doctors]);
@@ -107,16 +78,54 @@ export function AddAppointmentDialog() {
     return (prefill.endSlot - prefill.startSlot + 1) * ROW_MINUTES;
   }, [prefill, manualDuration]);
 
-  const selectedDoctorAppointments = useMemo(() => {
-    if (!doctorId) return [];
-    const doc = doctors.find((d) => d.id === doctorId);
-    return (doc?.appointments ?? []).map((a) => ({ start: a.start, end: a.end }));
-  }, [doctors, doctorId]);
+  useEffect(() => {
+    if (!isOpen || prefill?.startSlot != null) return;
+    if (!accessToken || !clinicId || !doctorId) {
+      setSlots([]);
+      return;
+    }
 
-  const availableSlots = useMemo(() => {
-    if (prefill?.startSlot != null) return [];
-    return computeAvailableSlots(selectedDoctorAppointments, durationMinutes);
-  }, [selectedDoctorAppointments, durationMinutes, prefill]);
+    let cancelled = false;
+    setSlotsLoading(true);
+    setSlotsError(null);
+    setSelectedSlotIso("");
+
+    void listAvailableSlots(
+      {
+        clinicId,
+        doctorId,
+        date: selectedDate,
+        durationMinutes,
+      },
+      accessToken,
+    )
+      .then((res) => {
+        if (cancelled) return;
+        setSlots(res.slots ?? []);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setSlots([]);
+        setSlotsError(
+          normalizeCaughtError(err, "Could not load available time slots."),
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setSlotsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    isOpen,
+    prefill?.startSlot,
+    accessToken,
+    clinicId,
+    doctorId,
+    selectedDate,
+    durationMinutes,
+  ]);
 
   const handleLookup = async () => {
     if (!accessToken || !phoneNumber.trim()) {
@@ -151,11 +160,9 @@ export function AddAppointmentDialog() {
       setSubmitError("Your session is invalid. Please sign in again.");
       return;
     }
-    if (!patient) {
-      if (!patientName.trim()) {
-        setSubmitError("Enter the patient's name for manual booking.");
-        return;
-      }
+    if (!patient && !patientName.trim()) {
+      setSubmitError("Enter the patient's name for manual booking.");
+      return;
     }
     if (!phoneNumber.trim()) {
       setSubmitError("Enter the patient's phone number.");
@@ -166,12 +173,14 @@ export function AddAppointmentDialog() {
       return;
     }
 
-    const gridOffset =
-      prefill?.startSlot != null
-        ? prefill.startSlot * ROW_MINUTES
-        : selectedSlotOffset;
-
-    if (gridOffset == null) {
+    let scheduledAt = selectedSlotIso;
+    if (prefill?.startSlot != null) {
+      scheduledAt = scheduledAtFromGridMinutes(
+        prefill.startSlot * ROW_MINUTES,
+        selectedDate,
+      );
+    }
+    if (!scheduledAt) {
       setSubmitError("Select an available time slot.");
       return;
     }
@@ -180,8 +189,6 @@ export function AddAppointmentDialog() {
     setSubmitError(null);
 
     try {
-      const scheduledAt = scheduledAtFromGridMinutes(gridOffset, selectedDate);
-
       await createAppointment(
         {
           clinicId,
@@ -226,7 +233,10 @@ export function AddAppointmentDialog() {
             </label>
             <select
               value={doctorId}
-              onChange={(e) => { setDoctorId(e.target.value); setSelectedSlotOffset(null); }}
+              onChange={(e) => {
+                setDoctorId(e.target.value);
+                setSelectedSlotIso("");
+              }}
               disabled={Boolean(prefill?.doctorId)}
               className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-blue-500"
             >
@@ -246,11 +256,16 @@ export function AddAppointmentDialog() {
                 </label>
                 <select
                   value={manualDuration}
-                  onChange={(e) => { setManualDuration(Number(e.target.value)); setSelectedSlotOffset(null); }}
+                  onChange={(e) => {
+                    setManualDuration(Number(e.target.value));
+                    setSelectedSlotIso("");
+                  }}
                   className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-blue-500"
                 >
                   {[15, 30, 45, 60, 90, 120].map((d) => (
-                    <option key={d} value={d}>{d} min</option>
+                    <option key={d} value={d}>
+                      {d} min
+                    </option>
                   ))}
                 </select>
               </div>
@@ -259,20 +274,24 @@ export function AddAppointmentDialog() {
                 <label className="text-xs font-semibold text-neutral-600">
                   Available time slot
                 </label>
-                {availableSlots.length === 0 ? (
+                {slotsLoading ? (
+                  <p className="text-xs text-neutral-500">Loading open times…</p>
+                ) : slotsError ? (
+                  <p className="text-xs text-red-600">{slotsError}</p>
+                ) : slots.length === 0 ? (
                   <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-                    No free slots for this doctor on the selected day.
+                    No open times for this doctor on the selected day.
                   </p>
                 ) : (
                   <select
-                    value={selectedSlotOffset ?? ""}
-                    onChange={(e) => setSelectedSlotOffset(e.target.value === "" ? null : Number(e.target.value))}
+                    value={selectedSlotIso}
+                    onChange={(e) => setSelectedSlotIso(e.target.value)}
                     className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-blue-500"
                   >
                     <option value="">— select a slot —</option>
-                    {availableSlots.map((s) => (
-                      <option key={s.startMins} value={s.startMins}>
-                        {s.label}
+                    {slots.map((iso) => (
+                      <option key={iso} value={iso}>
+                        {formatSlotLabel(iso, durationMinutes)}
                       </option>
                     ))}
                   </select>
@@ -356,8 +375,8 @@ export function AddAppointmentDialog() {
           </Button>
           <Button
             type="button"
-            onClick={handleSubmit}
-            disabled={isSubmitting}
+            onClick={() => void handleSubmit()}
+            disabled={isSubmitting || (prefill?.startSlot == null && !selectedSlotIso)}
             className="bg-[#0066ff] hover:bg-[#0052cc]"
           >
             {isSubmitting ? "Booking…" : "Book appointment"}

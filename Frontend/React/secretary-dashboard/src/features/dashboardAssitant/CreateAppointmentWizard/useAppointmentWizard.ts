@@ -5,6 +5,8 @@ import { START_TIME_MINUTES } from "../data/scheduleGrid";
 import { formatMinutesToAMPM } from "../components/SchedualeGrid/DNDGrid/utils/timeFormatters";
 import { lookupPatientByPhone } from "@/lib/api/users";
 import { useAuthStore } from "@/stores/authStore";
+import { listAvailableSlots, minutesFromMidnight } from "@/lib/api/schedule";
+import { useScheduleContext } from "../context/ScheduleContext";
 
 export interface TreatmentOption {
   id: string;
@@ -84,6 +86,8 @@ export function useAppointmentWizard(
   const [isDuplicatePhone, setIsDuplicatePhone] = useState(false);
   const [lookupPatients, setLookupPatients] = useState<PatientProfile[]>([]);
   const accessToken = useAuthStore((s) => s.accessToken);
+  const { clinicId } = useScheduleContext();
+  const [apiSlotMinutes, setApiSlotMinutes] = useState<number[]>([]);
   const isWizardOpen = useWizardDrawer((state) => state.isWizardOpen);
   const pendingRequestData = useWizardDrawer(
     (state) => state.pendingRequestData,
@@ -104,7 +108,7 @@ if (isWizardOpen && !prevIsWizardOpen.current) {      if (editingAppointment) {
         const treatmentDuration =
           editingAppointment.end - editingAppointment.start;
         const formattedData: WizardFormData = {
-          treatmentId: editingAppointment.treatmentId,
+          treatmentId: editingAppointment.treatmentId || "t1",
           complexity:
             (editingAppointment.complexity as ComplexityType) || "standard",
           date: editingAppointment.date
@@ -157,12 +161,12 @@ if (isWizardOpen && !prevIsWizardOpen.current) {      if (editingAppointment) {
         setFormData((prev) => ({
           ...prev,
           doctorId: matchedDoctor ? matchedDoctor.id : "",
-          date: pendingRequestData.date,
-          treatmentId: pendingRequestData.treatmentId,
+          date: pendingRequestData.date ?? new Date(),
+          treatmentId: pendingRequestData.treatmentId || "t1",
           timeSlot: pendingRequestData.start,
-          duration: pendingRequestData.duration,
-          complexity: pendingRequestData.complexity,
-          isLockedToDoctor: pendingRequestData.refuseTransfer,
+          duration: pendingRequestData.duration || 30,
+          complexity: pendingRequestData.complexity || "standard",
+          isLockedToDoctor: pendingRequestData.refuseTransfer ?? false,
           patientName: pendingRequestData.patient?.name ?? "",
           patientPhone: pendingRequestData.patient?.phone ?? "",
           patientAge: pendingRequestData.patient?.age?.toString() ?? "",
@@ -312,10 +316,11 @@ if (isWizardOpen && !prevIsWizardOpen.current) {      if (editingAppointment) {
       doctors
         .map((doc) => {
           // 1. استخراج مواعيد الطبيب الخاصة باليوم المختار فقط
-          const appointmentsToday = (doc.appointments || []).filter(
-            (apt) =>
-              apt.date && new Date(apt.date).toDateString() === targetDateStr,
-          );
+          const appointmentsToday = (doc.appointments || []).filter((apt) => {
+            if (!targetDateStr) return true;
+            if (!apt.date) return true;
+            return new Date(apt.date).toDateString() === targetDateStr;
+          });
 
           const dailyCount = appointmentsToday.length;
           let isAvailableAtSlot = true;
@@ -387,68 +392,60 @@ if (isWizardOpen && !prevIsWizardOpen.current) {      if (editingAppointment) {
     return !Object.values(step2Errors).some(Boolean);
   }, [step2Errors]);
 
-  // حساب أوقات المواعيد المتاحة للعيادة
-  const availableTimeSlots = useMemo(() => {
-    if (!formData.date || computedDuration === 0) return [];
+  // حساب أوقات المواعيد المتاحة للعيادة من scheduling-service
+  const availableTimeSlots = apiSlotMinutes;
 
-    const slots: number[] = [];
-    const DAY_START_OFFICIAL = START_TIME_MINUTES; // بداية الدوام الرسمي للعيادة (مثلاً 480 دقيقة = 8:00 AM)
-    const DAY_END = START_TIME_MINUTES * 4; // نهاية الدوام الرسمي للعيادة (6:00 PM تعادل 1080 دقيقة من منتصف الليل)
-
-    // 1. حساب التاريخ المختار واليوم الحالي لمقارنتهما
-    const selectedDate = new Date(formData.date);
-    // console.log(selectedDate.toDateString())
-    const now = new Date();
-
-    const isToday = selectedDate.toDateString() === now.toDateString();
-    const targetDateStr = selectedDate.toDateString();
-
-    // 2. تحديد نقطة البداية للفحص:
-    let searchStartMinutes = DAY_START_OFFICIAL;
-
-    if (isToday) {
-      // 1. حساب الدقائق الحالية من منتصف الليل بشكل دقيق
-      const currentMinutesFromMidnight = now.getHours() * 60 + now.getMinutes();
-
-      // 2. تقريب الوقت الحالي لأقرب 15 دقيقة دائماً إلى الأعلى (مثال: 16 تصبح 30)
-      const roundedCurrentMinutes =
-        Math.ceil(currentMinutesFromMidnight / 15) * 15;
-
-      // 3. مقارنتها مع بداية الدوام الرسمي للعيادة
-      searchStartMinutes = Math.max(DAY_START_OFFICIAL, roundedCurrentMinutes);
+  useEffect(() => {
+    if (!isWizardOpen || !formData.date || !clinicId || !accessToken) {
+      setApiSlotMinutes([]);
+      return;
     }
 
-    // 3. حلقة توليد الفترات الزمنية المتاحة (Slots) بناءً على الـ Step (كل 15 دقيقة)
-    for (
-      let time = searchStartMinutes;
-      time + computedDuration <= DAY_END;
-      time += 15
-    ) {
-      const isAnyDoctorFree = doctors.some((doc) => {
-        // جلب مواعيد الطبيب الخاصة باليوم المحدد فقط
-        const appointmentsToday = (doc.appointments || []).filter(
-          (apt) =>
-            apt.date && new Date(apt.date).toDateString() === targetDateStr,
-        );
-
-        // تحويل الوقت المطلق الحالي في الحلقة إلى وقت نسبي (Grid Relative) لمقارنته بأبعاد مواعيد الجدول الملتصقة بـ START_TIME_MINUTES
-        const relativeStart = time - START_TIME_MINUTES;
-        const relativeEnd = relativeStart + computedDuration;
-
-        // فحص التداخل الدقيق: Max(Start1, Start2) < Min(End1, End2)
-        return !appointmentsToday.some(
-          (apt) =>
-            Math.max(relativeStart, apt.start) < Math.min(relativeEnd, apt.end),
-        );
-      });
-
-      if (isAnyDoctorFree) {
-        slots.push(time);
-      }
+    const doctorIds = formData.doctorId
+      ? [formData.doctorId]
+      : doctors.map((doc) => doc.id).filter(Boolean);
+    if (doctorIds.length === 0) {
+      setApiSlotMinutes([]);
+      return;
     }
 
-    return slots;
-  }, [formData.date, computedDuration, doctors]);
+    let cancelled = false;
+    void Promise.all(
+      doctorIds.map((doctorId) =>
+        listAvailableSlots(
+          {
+            clinicId,
+            doctorId,
+            date: formData.date,
+            durationMinutes: computedDuration || 30,
+          },
+          accessToken,
+        ).catch(() => ({ slots: [] as string[] })),
+      ),
+    ).then((results) => {
+      if (cancelled) return;
+      const minutes = [
+        ...new Set(
+          results.flatMap((res) =>
+            (res.slots ?? []).map((iso) => minutesFromMidnight(iso)),
+          ),
+        ),
+      ].sort((a, b) => a - b);
+      setApiSlotMinutes(minutes);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    isWizardOpen,
+    formData.date,
+    formData.doctorId,
+    computedDuration,
+    clinicId,
+    accessToken,
+    doctors,
+  ]);
 
   // 🔥 تعديل جوهري: تصفية وحذف الطبيب المتعارض فوراً، وعرض الطبيب المتاح فقط!
 

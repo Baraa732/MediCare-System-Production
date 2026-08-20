@@ -12,31 +12,50 @@ const STATUS_MAP: Record<string, string> = {
   CANCELLED: "cancelled",
 };
 
+function safeDuration(minutes: number | undefined | null): number {
+  if (!Number.isFinite(minutes) || !minutes || minutes <= 0) return 30;
+  return Math.min(240, Math.max(5, minutes));
+}
+
 function minutesFromGridStart(scheduledAt: string): number {
   const date = new Date(scheduledAt);
+  if (Number.isNaN(date.getTime())) return 0;
   const absoluteMinutes = date.getHours() * 60 + date.getMinutes();
   return Math.max(0, absoluteMinutes - START_TIME_MINUTES);
 }
 
 export function mapAppointmentToGrid(
-  appointment: ApiAppointment,
+  appointment: ApiAppointment & {
+    patientName?: string | null;
+    patientPhone?: string | null;
+  },
   patientLabel?: string,
 ): ColumnAppointmentsType {
+  const duration = safeDuration(appointment.durationMinutes);
   const start = minutesFromGridStart(appointment.scheduledAt);
-  const end = start + appointment.durationMinutes;
   const title =
     patientLabel ??
+    appointment.patientName?.trim() ??
     appointment.reason ??
     appointment.guestPatientName ??
-    (appointment.patientId ? `Patient ${appointment.patientId.slice(0, 8)}` : 'Guest patient');
+    (appointment.patientId ? `Patient ${appointment.patientId.slice(0, 8)}` : "Guest patient");
 
   return {
     id: appointment.id,
     docId: appointment.doctorId,
     title,
     start,
-    end,
+    end: start + duration,
     status: STATUS_MAP[appointment.status] ?? appointment.status.toLowerCase(),
+    date: new Date(appointment.scheduledAt),
+    duration,
+    patient: {
+      name: title,
+      age: 0,
+      phone: appointment.patientPhone ?? appointment.guestPatientPhone ?? "",
+      gender: null,
+      adddress: "",
+    },
   };
 }
 
@@ -71,11 +90,6 @@ export function dayRangeIso(date = new Date()) {
   return { from: from.toISOString(), to: to.toISOString() };
 }
 
-function absoluteMinutesFromIso(scheduledAt: string): number {
-  const date = new Date(scheduledAt);
-  return date.getHours() * 60 + date.getMinutes();
-}
-
 export function mapApiAppointmentToPendingRequest(
   appointment: ApiAppointment & {
     patientName?: string;
@@ -84,36 +98,38 @@ export function mapApiAppointmentToPendingRequest(
   },
 ): PendingRequest {
   const scheduledDate = new Date(appointment.scheduledAt);
-  const start = absoluteMinutesFromIso(appointment.scheduledAt);
-  const end = start + appointment.durationMinutes;
-  const minutesAgo = Math.max(
-    0,
-    Math.floor((Date.now() - scheduledDate.getTime()) / 60_000),
-  );
+  const duration = safeDuration(appointment.durationMinutes);
+  const start = Number.isNaN(scheduledDate.getTime())
+    ? START_TIME_MINUTES
+    : scheduledDate.getHours() * 60 + scheduledDate.getMinutes();
+  const minutesAgo = Number.isNaN(scheduledDate.getTime())
+    ? 0
+    : Math.max(0, Math.floor((Date.now() - scheduledDate.getTime()) / 60_000));
+  const patientName =
+    appointment.patientName?.trim() ||
+    appointment.guestPatientName?.trim() ||
+    appointment.reason ||
+    (appointment.patientId
+      ? `Patient ${appointment.patientId.slice(0, 8)}`
+      : "Guest patient");
 
   return {
     id: appointment.id,
     docId: appointment.doctorId,
     title: appointment.reason ?? "Patient appointment request",
     start,
-    end,
+    end: start + duration,
     status: "pending_request",
-    date: scheduledDate,
+    date: Number.isNaN(scheduledDate.getTime()) ? new Date() : scheduledDate,
     treatmentId: "patient-request",
     complexity: "standard",
-    duration: appointment.durationMinutes,
+    duration,
     price: 0,
     notes: appointment.notes,
     patient: {
-      name:
-        appointment.patientName?.trim() ||
-        appointment.reason ||
-        appointment.guestPatientName?.trim() ||
-        (appointment.patientId
-          ? `Patient ${appointment.patientId.slice(0, 8)}`
-          : "Guest patient"),
+      name: patientName,
       age: 0,
-      phone: appointment.patientPhone ?? "",
+      phone: appointment.patientPhone ?? appointment.guestPatientPhone ?? "",
       gender: null,
       adddress: "",
     },

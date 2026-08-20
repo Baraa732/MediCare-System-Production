@@ -35,11 +35,13 @@ export function AppointmentCard({
   isEditMode: boolean;
   currentMinutesSinceGridStart: number;
 }) {
-  const topOffset = (apt.start / ROW_MINUTES) * SLOT_HEIGHT;
-  const cardHeight = ((apt.end - apt.start) / ROW_MINUTES) * SLOT_HEIGHT;
+  const start = Number.isFinite(apt.start) ? apt.start : 0;
+  const end = Number.isFinite(apt.end) && apt.end > start ? apt.end : start + 30;
+  const topOffset = (start / ROW_MINUTES) * SLOT_HEIGHT;
+  const cardHeight = ((end - start) / ROW_MINUTES) * SLOT_HEIGHT;
 
   // الشرط الذكي المعتمد على إحداثيات الخط الأحمر المتزامن الخاص بك
-  const isPastAppointment = apt.start <= currentMinutesSinceGridStart;
+  const isPastAppointment = start <= currentMinutesSinceGridStart;
 
   // معالجة الأيقونات والوضعية البرمجية الدقيقة للتصميم
   const showLockIcon = isEditMode && isPastAppointment;
@@ -76,10 +78,10 @@ export function AppointmentCard({
   );
   const isConflicting = !!conflictItem;
 
-  const startH = Math.floor((START_TIME_MINUTES + apt.start) / 60) % 24;
-  const startM = (START_TIME_MINUTES + apt.start) % 60;
-  const endH = Math.floor((START_TIME_MINUTES + apt.end) / 60) % 24;
-  const endM = (START_TIME_MINUTES + apt.end) % 60;
+  const startH = Math.floor((START_TIME_MINUTES + start) / 60) % 24;
+  const startM = (START_TIME_MINUTES + start) % 60;
+  const endH = Math.floor((START_TIME_MINUTES + end) / 60) % 24;
+  const endM = (START_TIME_MINUTES + end) % 60;
 
   const formatTimeLabel = (h: number, m: number) => {
     const displayH = h === 0 || h === 12 ? 12 : h % 12;

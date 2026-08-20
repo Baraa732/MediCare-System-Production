@@ -6,4 +6,13 @@ export interface ColumnAppointmentsType {
   start: number;
   end: number;
   status: string;
+  date?: Date;
+  duration?: number;
+  patient?: {
+    name: string;
+    age: number;
+    phone: string;
+    gender: "Male" | "Female" | null;
+    adddress: string;
+  };
 }

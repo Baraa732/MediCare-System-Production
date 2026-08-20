@@ -8,12 +8,12 @@ export interface AppointmentType {
   docId: string; // معرّف الطبيب المسؤول
   status: string; // حالة الموعد (confirmed, urgent, in_progress, unavailable)
   title?: string; // عنوان أو اسم الإجراء الطبي
-date:Date;
+date?: Date;
   // 🦷 تفاصيل العلاج والزيارة الطبية (Extracted from summaryRows)
-  treatmentId: string; // معرّف العلاج المختار
-  complexity: ComplexityType; // درجة التعقيد
-  duration: number; // مدة الموعد بالدقائق الفردية
-  price: number; // السعر محسوباً بالعملة المحلية SYP
+  treatmentId?: string;
+  complexity?: ComplexityType;
+  duration?: number;
+  price?: number;
   notes?: string; // ملاحظات إضافية تم تدوينها
 
   // 👤 الملف الشخصي وبيانات المريض (Extracted from summaryRows)
@@ -25,5 +25,5 @@ date:Date;
     adddress: string;
   };
   // 🛡️ قيود استراتيجية حل النزاعات والـ Auto-Mitigation
-  refuseTransfer: boolean; // رفض أو قبول النقل التلقائي لطبيب آخر عند حدوث تعارض زمني
+  refuseTransfer?: boolean; // رفض أو قبول النقل التلقائي لطبيب آخر عند حدوث تعارض زمني
 }

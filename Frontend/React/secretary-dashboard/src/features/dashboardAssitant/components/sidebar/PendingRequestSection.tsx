@@ -157,7 +157,7 @@ export function PendingRequestSection() {
                   <div className="flex flex-col justify-between text-[11px] font-semibold text-neutral-500 mt-2">
                     <div className="flex items-center gap-1">
                       <Calendar className="w-3 h-3 text-neutral-400" />{" "}
-                      {activeItem.date.toDateString()}
+                      {formatAppointmentDay(activeItem.date)}
                     </div>
                     <div className="flex items-center gap-1 mt-0.5">
                       <Clock className="w-3 h-3 text-neutral-400" />{" "}
@@ -177,6 +177,13 @@ export function PendingRequestSection() {
 interface SortableCardProps {
   item: PendingRequest;
   isEditMode: boolean;
+}
+
+function formatAppointmentDay(value?: Date | string | null): string {
+  if (!value) return "";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toDateString();
 }
 
 function formatTimeAgo(minutesAgo: number): string {
@@ -303,7 +310,7 @@ function SortableRequestCard({ item, isEditMode }: SortableCardProps) {
         <div className="flex flex-col justify-between text-[11px] font-semibold text-neutral-500 mt-2">
           <div className="flex items-center gap-1">
             <Calendar className="w-3 h-3 text-neutral-400" />{" "}
-            {item.date.toDateString()}
+            {formatAppointmentDay(item.date)}
           </div>
           <div className="flex items-center gap-1 mt-0.5">
             <Clock className="w-3 h-3 text-neutral-400" />{" "}

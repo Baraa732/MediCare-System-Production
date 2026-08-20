@@ -158,6 +158,8 @@ export class ScheduleService {
     const timezone = await this.clinicHttp.getClinicTimezone(query.clinicId);
     const offsetMinutes = this.timezoneOffsetMinutes(timezone);
     const dayOfWeek = this.dayOfWeekFromDate(query.date, offsetMinutes);
+    const assigned = await this.clinicHttp.verifyDoctorAtClinic(query.clinicId, query.doctorId);
+    if (!assigned) return { slots: [], timezone };
     const bookedRanges = await this.appointmentHttp.getBookedRanges(
       query.clinicId,
       query.doctorId,
@@ -177,10 +179,13 @@ export class ScheduleService {
 
   async validateSlot(dto: ValidateSlotDto): Promise<{ valid: boolean; reason?: string }> {
     const scheduledAt = new Date(dto.scheduledAt);
+    if (Number.isNaN(scheduledAt.getTime())) {
+      return { valid: false, reason: 'SLOT_NOT_AVAILABLE' };
+    }
     const duration = dto.durationMinutes ?? 30;
-    const date = dto.scheduledAt.slice(0, 10);
     const timezone = await this.clinicHttp.getClinicTimezone(dto.clinicId);
     const offsetMinutes = this.timezoneOffsetMinutes(timezone);
+    const date = this.localDateKey(scheduledAt, offsetMinutes);
     const dayOfWeek = this.dayOfWeekFromDate(date, offsetMinutes);
 
     const assigned = await this.clinicHttp.verifyDoctorAtClinic(dto.clinicId, dto.doctorId);
@@ -196,8 +201,8 @@ export class ScheduleService {
       offsetMinutes,
       bookedRanges,
     );
-    const iso = scheduledAt.toISOString();
-    const match = slots.some((s) => s === iso);
+    const startMs = scheduledAt.getTime();
+    const match = slots.some((s) => Math.abs(new Date(s).getTime() - startMs) < 60_000);
     if (!match) return { valid: false, reason: 'SLOT_NOT_AVAILABLE' };
 
     return { valid: true };
@@ -218,6 +223,9 @@ export class ScheduleService {
 
     const clinicOpen = clinicDay ? this.toMinutes(clinicDay.openTime) : 9 * 60;
     const clinicClose = clinicDay ? this.toMinutes(clinicDay.closeTime) : 17 * 60;
+    if (!Number.isFinite(clinicOpen) || !Number.isFinite(clinicClose) || clinicOpen >= clinicClose) {
+      return [];
+    }
 
     const windows = await this.availabilityRepo.find({
       where: { tenantId, doctorId, dayOfWeek },
@@ -229,7 +237,20 @@ export class ScheduleService {
         where: { tenantId, doctorId, dayOfWeek },
       });
     }
-    if (dayWindows.length === 0) return [];
+    // Clinic is open this weekday and the doctor is assigned: use clinic hours
+    // even when this weekday was never saved on doctor_availability.
+    if (dayWindows.length === 0) {
+      dayWindows = [
+        this.availabilityRepo.create({
+          tenantId,
+          doctorId,
+          dayOfWeek,
+          startTime: this.fromMinutes(clinicOpen),
+          endTime: this.fromMinutes(clinicClose),
+          slotDurationMinutes: durationMinutes,
+        }),
+      ];
+    }
 
     const dayStart = new Date(`${date}T00:00:00.000Z`);
     const dayEnd = new Date(`${date}T23:59:59.999Z`);
@@ -286,19 +307,27 @@ export class ScheduleService {
     const assigned = await this.clinicHttp.verifyDoctorAtClinic(clinicId, doctorId);
     if (!assigned) return;
 
-    const existing = await this.availabilityRepo.count({ where: { tenantId, doctorId } });
-    if (existing > 0) return;
+    const existing = await this.availabilityRepo.find({ where: { tenantId, doctorId } });
+    const haveDays = new Set(existing.map((row) => row.dayOfWeek));
+    const missingDays = [0, 1, 2, 3, 4, 5, 6].filter((day) => !haveDays.has(day));
+    if (missingDays.length === 0) return;
 
-    const defaults = Array.from({ length: 7 }, (_, dayOfWeek) =>
-      this.availabilityRepo.create({
-        tenantId,
-        doctorId,
-        dayOfWeek,
-        startTime: '09:00',
-        endTime: '17:00',
-        slotDurationMinutes: 30,
-      }),
-    );
+    const hours = await this.hoursRepo.find({ where: { tenantId } });
+    const hoursByDay = new Map(hours.map((row) => [row.dayOfWeek, row]));
+    const defaults = missingDays
+      .filter((dayOfWeek) => hoursByDay.get(dayOfWeek)?.isClosed !== true)
+      .map((dayOfWeek) => {
+        const clinicDay = hoursByDay.get(dayOfWeek);
+        return this.availabilityRepo.create({
+          tenantId,
+          doctorId,
+          dayOfWeek,
+          startTime: clinicDay?.openTime ?? '09:00',
+          endTime: clinicDay?.closeTime ?? '17:00',
+          slotDurationMinutes: 30,
+        });
+      });
+    if (defaults.length === 0) return;
     await this.availabilityRepo.save(defaults);
     this.emitScheduleUpdated(clinicId, 'doctor_availability', doctorId);
   }
@@ -350,6 +379,11 @@ export class ScheduleService {
     );
   }
 
+  private localDateKey(scheduledAt: Date, offsetMinutes: number): string {
+    const local = new Date(scheduledAt.getTime() + offsetMinutes * 60_000);
+    return local.toISOString().slice(0, 10);
+  }
+
   private dayOfWeekFromDate(date: string, offsetMinutes = 0): number {
     const [y, mo, d] = date.split('-').map(Number);
     const utc = Date.UTC(y, mo - 1, d, 12, 0, 0) - offsetMinutes * 60_000;
@@ -375,5 +409,11 @@ export class ScheduleService {
   private toMinutes(hhmm: string): number {
     const [h, m] = hhmm.split(':').map(Number);
     return h * 60 + m;
+  }
+
+  private fromMinutes(total: number): string {
+    const h = Math.floor(total / 60);
+    const m = total % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
   }
 }

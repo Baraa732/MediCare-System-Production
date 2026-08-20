@@ -56,7 +56,7 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
     super.initState();
     final today = DateTime.now();
     final start = DateTime(today.year, today.month, today.day);
-    _dayOptions = List.generate(14, (i) => start.add(Duration(days: i + 1)));
+    _dayOptions = List.generate(14, (i) => start.add(Duration(days: i)));
     _selectedDate = _dayOptions.first;
     _loadDoctors();
   }

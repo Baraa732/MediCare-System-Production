@@ -70,7 +70,7 @@ export const useHandleSelection = create<HandleSelectionState>((set) => {
             (Math.abs(state.selection.endSlot - state.selection.startSlot) +
               1) *
             15;
-          const date = useHandleDatePicker((state) => state.date);
+          const date = useHandleDatePicker.getState().date;
 
           useWizardDrawer.getState().onOpenNewAppointment({
             doctorId: state.selection.docId,
