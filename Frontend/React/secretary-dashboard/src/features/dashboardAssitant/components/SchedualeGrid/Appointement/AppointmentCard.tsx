@@ -124,7 +124,7 @@ export function AppointmentCard({
     if (isWarningOpen) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setCountdown(5);
-      countdownIntervalRef.current = setInterval(() => {
+      countdownIntervalRef.current = window.setInterval(() => {
         setCountdown((prev) => {
           if (prev <= 1) {
             if (countdownIntervalRef.current)

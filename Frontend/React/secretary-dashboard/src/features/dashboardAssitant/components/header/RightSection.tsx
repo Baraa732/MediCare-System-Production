@@ -4,11 +4,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   Bell,
-  Download,
-  FileText,
   LogOut,
   Settings,
-  Table,
   User,
   Phone,
   Check,
@@ -39,14 +36,13 @@ import { useAuthStore } from "@/stores/authStore";
 import { getProfile, updateProfile } from "@/lib/api/users";
 import { normalizeCaughtError } from "@/lib/api/errors";
 import { useLogout } from "@/hooks/useLogout";
-import { useScheduleContext } from "../../context/ScheduleContext";
+import { ExportScheduleMenu } from "./ExportScheduleMenu";
 
 export function RightSection() {
   const navigate = useNavigate();
   const logout = useLogout();
   const userId = useAuthStore((s) => s.userId);
   const accessToken = useAuthStore((s) => s.accessToken);
-  const { appointments } = useScheduleContext();
 
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
@@ -170,42 +166,6 @@ export function RightSection() {
     }
   };
 
-  const handleExport = (type: "pdf" | "excel") => {
-    const rows = appointments.map((apt) => [
-      apt.id,
-      apt.doctorId,
-      apt.patientId,
-      apt.scheduledAt,
-      apt.durationMinutes,
-      apt.status,
-      apt.reason ?? "",
-    ]);
-    const header = [
-      "Appointment ID",
-      "Doctor ID",
-      "Patient ID",
-      "Scheduled At",
-      "Duration",
-      "Status",
-      "Reason",
-    ];
-    const csv = [header, ...rows]
-      .map((row) =>
-        row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","),
-      )
-      .join("\n");
-    const blob = new Blob([csv], {
-      type: type === "excel" ? "text/csv;charset=utf-8;" : "text/csv;charset=utf-8;",
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download =
-      type === "excel" ? "clinic-schedule.csv" : "clinic-schedule-export.csv";
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
   const handleCancelProfile = () => {
     reset({ fullName: profile.fullName, phone: profile.phone });
     setIsProfileOpen(false);
@@ -213,33 +173,9 @@ export function RightSection() {
 
   return (
     <div className="flex items-center gap-4">
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button className="btn-brand h-9.5 rounded-xl px-4 text-xs font-bold shadow-sm cursor-pointer">
-            <Download className="w-3.5 h-3.5" />
-            <span>Download schedule</span>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="end"
-          className="w-40 rounded-xl p-1 bg-white border border-neutral-200 shadow-lg"
-        >
-          <DropdownMenuItem
-            onClick={() => handleExport("pdf")}
-            className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-neutral-700 rounded-lg hover:bg-neutral-50 cursor-pointer"
-          >
-            <FileText className="w-3.5 h-3.5 text-red-500" />
-            <span>Export as CSV</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => handleExport("excel")}
-            className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-neutral-700 rounded-lg hover:bg-neutral-50 cursor-pointer"
-          >
-            <Table className="w-3.5 h-3.5 text-green-600" />
-            <span>Export spreadsheet</span>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <ExportScheduleMenu
+        exportedBy={profile.fullName.trim() || "Secretary"}
+      />
 
       <NotificationBell />
 
