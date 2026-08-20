@@ -17,6 +17,7 @@ import {
   gridMinutesFromSlot,
   scheduledAtFromGridMinutes,
   slotRangeDurationMinutes,
+  absoluteMinutesFromIso,
 } from "@/lib/time/gridTime";
 import { START_TIME_MINUTES } from "../data/scheduleGrid";
 import { useAuthStore } from "@/stores/authStore";
@@ -24,6 +25,7 @@ import { useAppointmentDialog } from "../hooks/useAppointmentDialog";
 import { useScheduleContext } from "../context/ScheduleContext";
 import type { PatientLookup } from "@/lib/api/users";
 import { CalendarClock, Clock3, Stethoscope } from "lucide-react";
+import { isAbsoluteSlotInPast } from "../utils/editModeDrag";
 
 export function AddAppointmentDialog() {
   const isOpen = useAppointmentDialog((s) => s.isOpen);
@@ -114,7 +116,11 @@ export function AddAppointmentDialog() {
     )
       .then((res) => {
         if (cancelled) return;
-        setSlots(res.slots ?? []);
+        setSlots(
+          (res.slots ?? []).filter(
+            (iso) => !isAbsoluteSlotInPast(absoluteMinutesFromIso(iso), selectedDate),
+          ),
+        );
       })
       .catch((err) => {
         if (cancelled) return;

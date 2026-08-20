@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { useEditeMode } from "../../hooks/useEditeMode";
-import { Edit3, Plus, LogOut } from "lucide-react";
+import { Edit3, Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useRef } from "react";
 import { useWizardDrawer } from "../../hooks/useWizardDrawer";
@@ -70,7 +70,7 @@ export function ControlButton() {
       >
         {isEditMode ? (
           <>
-            <LogOut className="mr-1 h-4 w-4 stroke-[2.5]" />
+            <X className="mr-1 h-4 w-4 stroke-[2.5]" />
             <span>Exit edit mode</span>
             {dirtyCount > 0 ? (
               <span className="ml-1 rounded bg-white/20 px-1.5 py-0.5 text-[10px]">

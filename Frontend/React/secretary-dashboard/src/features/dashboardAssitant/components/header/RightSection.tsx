@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   Bell,
@@ -52,7 +52,14 @@ export function RightSection() {
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
-  const [profile, setProfile] = useState<ProfileFormValues>({
+  const [profile, setProfile] = useState<{
+    firstName: string;
+    lastName: string;
+    fullName: string;
+    phone: string;
+  }>({
+    firstName: "",
+    lastName: "",
     fullName: "",
     phone: "",
   });
@@ -64,7 +71,7 @@ export function RightSection() {
     formState: { errors },
   } = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
-    defaultValues: profile,
+    defaultValues: { fullName: "", phone: "" },
   });
 
   useEffect(() => {
@@ -79,15 +86,25 @@ export function RightSection() {
     void getProfile(userId, accessToken)
       .then((data) => {
         if (cancelled) return;
+        const firstName = (data.firstName ?? "").trim();
+        const lastName = (data.lastName ?? "").trim();
+        const fromProfileData =
+          typeof data.profileData?.fullName === "string"
+            ? data.profileData.fullName.trim()
+            : "";
         const fullName =
-          [data.firstName, data.lastName].filter(Boolean).join(" ").trim() ||
-          (isProfileOpen ? "Secretary" : "");
+          [firstName, lastName].filter(Boolean).join(" ").trim() ||
+          fromProfileData;
         const nextProfile = {
+          firstName,
+          lastName,
           fullName,
           phone: data.phoneNumber ?? "",
         };
         setProfile(nextProfile);
-        if (isProfileOpen) reset(nextProfile);
+        if (isProfileOpen) {
+          reset({ fullName: fullName || "Secretary", phone: nextProfile.phone });
+        }
       })
       .catch((err) => {
         if (!cancelled && isProfileOpen) {
@@ -106,6 +123,11 @@ export function RightSection() {
   }, [accessToken, userId, isProfileOpen, reset]);
 
   const initials = (() => {
+    const first = profile.firstName.trim();
+    const last = profile.lastName.trim();
+    if (first && last) {
+      return `${first[0] ?? ""}${last[0] ?? ""}`.toUpperCase();
+    }
     const parts = profile.fullName.split(/\s+/).filter(Boolean);
     if (parts.length >= 2) {
       return `${parts[0][0] ?? ""}${parts[parts.length - 1][0] ?? ""}`.toUpperCase();
@@ -134,7 +156,12 @@ export function RightSection() {
         },
         accessToken,
       );
-      setProfile(data);
+      setProfile({
+        firstName,
+        lastName,
+        fullName: data.fullName.trim(),
+        phone: data.phone,
+      });
       setIsProfileOpen(false);
     } catch (err) {
       setProfileError(normalizeCaughtError(err, "Could not update profile."));
@@ -180,7 +207,7 @@ export function RightSection() {
   };
 
   const handleCancelProfile = () => {
-    reset(profile);
+    reset({ fullName: profile.fullName, phone: profile.phone });
     setIsProfileOpen(false);
   };
 
@@ -219,13 +246,6 @@ export function RightSection() {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Avatar className="w-9.5 h-9.5 rounded-xl border border-neutral-200 cursor-pointer hover:opacity-90 transition-opacity">
-            <AvatarImage
-              src={
-                initials
-                  ? `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(initials)}`
-                  : undefined
-              }
-            />
             <AvatarFallback className="rounded-xl font-bold bg-[#0066ff] text-white text-xs">
               {initials || "·"}
             </AvatarFallback>

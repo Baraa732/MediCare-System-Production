@@ -28,7 +28,7 @@ export function ConflictDrawer({ onClose }: ConflictDrawerProps) {
   };
 
   return (
-    <div className="overlay-backdrop fixed inset-0 z-50 flex justify-start">
+    <div className="overlay-backdrop fixed inset-0 z-[80] flex justify-start">
       <div className="panel-slide-left m-6 flex h-[95.5%] w-[min(28.8vw,440px)] flex-col rounded-2xl border border-slate-200/80 bg-white/95 text-slate-900 shadow-2xl backdrop-blur-md">
         <div className="flex items-center justify-between rounded-2xl border-b border-slate-200 bg-white p-5">
           <div className="flex items-center gap-3">

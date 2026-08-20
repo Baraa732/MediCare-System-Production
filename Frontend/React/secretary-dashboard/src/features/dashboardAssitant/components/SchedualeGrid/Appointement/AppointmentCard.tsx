@@ -25,8 +25,6 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogOverlay,
-  DialogPortal,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -274,12 +272,10 @@ export function AppointmentCard({
       </div>
       {/* Warning Dialog for Urgent or Conflict Critical Actions */}
       <Dialog open={isWarningOpen} onOpenChange={setIsWarningOpen}>
-        <DialogPortal>
-          <DialogOverlay className=" bg-black/60 backdrop-blur-xs" />
-          <DialogContent
-            className="max-w-md z-100 rounded-2xl p-6 bg-white"
-            onClick={(e) => e.stopPropagation()} // Stop bubbling out to scheduling canvas
-          >
+        <DialogContent
+          className="max-w-md rounded-2xl p-6 bg-white"
+          onClick={(e) => e.stopPropagation()}
+        >
             <DialogHeader className="flex flex-col items-center text-center gap-3">
               <div className="h-12 w-12 rounded-full bg-red-100 flex items-center justify-center text-red-600">
                 <ShieldAlert className="w-6 h-6 stroke-[2.5]" />
@@ -319,8 +315,7 @@ export function AppointmentCard({
                   : "Confirm & Proceed"}
               </Button>
             </DialogFooter>
-          </DialogContent>
-        </DialogPortal>
+        </DialogContent>
       </Dialog>
     </>
   );

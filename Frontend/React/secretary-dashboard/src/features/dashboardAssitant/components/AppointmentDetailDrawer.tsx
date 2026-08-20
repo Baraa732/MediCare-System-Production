@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   CalendarClock,
   CheckCircle2,
@@ -187,7 +188,7 @@ export function AppointmentDetailDrawer() {
 
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[75] flex justify-end">
       <button
         type="button"
@@ -412,7 +413,8 @@ export function AppointmentDetailDrawer() {
           ) : null}
         </div>
       </aside>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CalendarClock, Search, Stethoscope, UserRound, X } from "lucide-react";
 import { addDays, subDays } from "date-fns";
@@ -29,6 +29,19 @@ function hay(...parts: Array<string | null | undefined>) {
   return parts.filter(Boolean).join(" ").toLowerCase();
 }
 
+function measurePanel(anchor: HTMLElement | null): React.CSSProperties | null {
+  if (!anchor) return null;
+  const rect = anchor.getBoundingClientRect();
+  if (rect.width <= 0) return null;
+  return {
+    position: "fixed",
+    top: rect.bottom + 8,
+    left: Math.max(8, rect.left),
+    width: Math.min(rect.width, window.innerWidth - 16),
+    zIndex: 60,
+  };
+}
+
 export function SearchBar() {
   const inputRef = useRef<HTMLInputElement>(null);
   const anchorRef = useRef<HTMLDivElement>(null);
@@ -45,7 +58,7 @@ export function SearchBar() {
   const [open, setOpen] = useState(false);
   const [remote, setRemote] = useState<ApiAppointment[]>([]);
   const [loading, setLoading] = useState(false);
-  const [panelStyle, setPanelStyle] = useState<React.CSSProperties>({});
+  const [panelStyle, setPanelStyle] = useState<React.CSSProperties | null>(null);
 
   const q = searchQuery.trim().toLowerCase();
 
@@ -66,20 +79,14 @@ export function SearchBar() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  useEffect(() => {
-    if (!open) return;
+  useLayoutEffect(() => {
+    if (!open) {
+      setPanelStyle(null);
+      return;
+    }
 
     const updatePosition = () => {
-      const el = anchorRef.current;
-      if (!el) return;
-      const rect = el.getBoundingClientRect();
-      setPanelStyle({
-        position: "fixed",
-        top: rect.bottom + 8,
-        left: rect.left,
-        width: rect.width,
-        zIndex: 60,
-      });
+      setPanelStyle(measurePanel(anchorRef.current));
     };
 
     updatePosition();
@@ -204,31 +211,34 @@ export function SearchBar() {
 
   const applyHit = (hit: SearchHit) => {
     setOpen(false);
-    setSearchQuery("");
-    if (hit.date) changeDate(hit.date);
-    if (hit.appointmentId) openAppointment(hit.appointmentId);
-    if (hit.requestId) {
-      const request = requests.find((item) => item.id === hit.requestId);
-      if (request) openPending(request);
-    }
-    if (hit.kind === "doctor") {
-      setSearchQuery(hit.title);
-    }
+    setPanelStyle(null);
+    setSearchQuery(hit.kind === "doctor" ? hit.title : "");
+    // Defer opening drawers so search portal unmounts first (avoids stacking fight).
+    window.setTimeout(() => {
+      if (hit.date) changeDate(hit.date);
+      if (hit.appointmentId) openAppointment(hit.appointmentId);
+      if (hit.requestId) {
+        const request = requests.find((item) => item.id === hit.requestId);
+        if (request) openPending(request);
+      }
+    }, 0);
   };
 
   const portal =
-    open && typeof document !== "undefined"
+    open && panelStyle && typeof document !== "undefined"
       ? createPortal(
           <>
             <button
               type="button"
-              className="overlay-backdrop fixed inset-0 z-[55] cursor-default"
+              className="fixed inset-0 z-[55] cursor-default bg-slate-900/25 backdrop-blur-[2px]"
               onClick={() => setOpen(false)}
               aria-label="Close search"
             />
             <div
               style={panelStyle}
-              className="command-palette overflow-hidden rounded-2xl border border-neutral-100/80 bg-white/95 shadow-2xl backdrop-blur-md"
+              className="overflow-hidden rounded-2xl border border-neutral-100/80 bg-white shadow-2xl"
+              role="listbox"
+              aria-label="Search results"
             >
               <div className="border-b border-neutral-100 px-4 py-2 text-[11px] font-medium text-neutral-500">
                 Find a patient, doctor, phone number, or upcoming booking
@@ -244,7 +254,7 @@ export function SearchBar() {
                   No matches on this day or the next 3 weeks.
                 </p>
               ) : (
-                <ul className="stagger-list max-h-80 overflow-y-auto py-1">
+                <ul className="max-h-80 overflow-y-auto py-1">
                   {results.map((hit) => (
                     <li key={hit.id}>
                       <button
@@ -285,7 +295,8 @@ export function SearchBar() {
       <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
       <input
         ref={inputRef}
-        type="search"
+        type="text"
+        autoComplete="off"
         value={searchQuery}
         onFocus={() => setOpen(true)}
         onChange={(e) => {
