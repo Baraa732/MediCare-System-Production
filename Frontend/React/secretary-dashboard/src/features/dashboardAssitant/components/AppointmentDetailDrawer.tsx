@@ -347,28 +347,8 @@ export function AppointmentDetailDrawer() {
               {!isTerminal && appointment.status !== "REQUESTED" ? (
                 <section className="space-y-3 rounded-2xl border border-neutral-100 p-4">
                   <p className="text-[11px] font-bold tracking-wider text-neutral-400 uppercase">
-                    Quick actions
+                    Cancel booking
                   </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="h-9 rounded-xl text-xs font-semibold"
-                      onClick={() => void handleStatusChange("COMPLETED")}
-                      disabled={isCancelling}
-                    >
-                      Mark completed
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="h-9 rounded-xl text-xs font-semibold"
-                      onClick={() => void handleStatusChange("NO_SHOW")}
-                      disabled={isCancelling}
-                    >
-                      No-show
-                    </Button>
-                  </div>
                   <input
                     type="text"
                     value={cancelReason}
