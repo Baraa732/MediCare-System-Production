@@ -21,8 +21,6 @@ import {
   DialogContent,
   DialogTitle,
   DialogDescription,
-  DialogPortal,
-  DialogOverlay,
 } from "@/components/ui/dialog";
 interface AppointmentWizardDrawerProps {
   doctors: DoctorType[];
@@ -116,12 +114,11 @@ export function AppointmentWizardDrawer({
     <>
       {/* ⚠️ 2. بوب آب تأكيد إلغاء التغييرات لحماية البيانات */}
       <Dialog open={showExitConfirm} onOpenChange={setShowExitConfirm}>
-        <DialogPortal>
-          <DialogOverlay />
-          <DialogContent
-            showCloseButton={false}
-            className="max-w-sm rounded-2xl border border-neutral-200/80 bg-white p-0 shadow-2xl"
-          >
+        <DialogContent
+          showCloseButton={false}
+          overlayClassName="z-[100]"
+          className="z-[110] max-w-sm rounded-2xl border border-neutral-200/80 bg-white p-0 shadow-2xl"
+        >
             <div className="border-b border-neutral-100 px-5 py-4">
               <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-600">
                 <HelpCircle className="h-5 w-5" />
@@ -154,8 +151,7 @@ export function AppointmentWizardDrawer({
                 Discard
               </button>
             </div>
-          </DialogContent>
-        </DialogPortal>
+        </DialogContent>
       </Dialog>
 
       <div className="fixed inset-0 z-[70] flex justify-end">

@@ -9,6 +9,7 @@ import {
   absoluteMinutesFromGridSlot,
   slotRangeDurationMinutes,
 } from "@/lib/time/gridTime";
+import { isGridSlotInPast } from "../utils/editModeDrag";
 
 interface HandleSelectionState {
   selection: SelectionType;
@@ -65,8 +66,11 @@ export const useHandleSelection = create<HandleSelectionState>((set) => {
             state.selection.startSlot,
             state.selection.endSlot,
           );
-          const duration = slotRangeDurationMinutes(minSlot, maxSlot);
           const date = useHandleDatePicker.getState().date;
+          if (isGridSlotInPast(minSlot * ROW_MINUTES, date)) {
+            return { selection: null };
+          }
+          const duration = slotRangeDurationMinutes(minSlot, maxSlot);
           const doctor = useScheduleGridStore
             .getState()
             .doctors.find((d) => d.id === state.selection!.docId);
@@ -89,6 +93,8 @@ export const useHandleSelection = create<HandleSelectionState>((set) => {
 
     onMouseDown: (e, { idDoctor, isEditMode, slotIdx }) => {
       if (isEditMode || e.button !== 0) return;
+      const date = useHandleDatePicker.getState().date;
+      if (isGridSlotInPast(slotIdx * ROW_MINUTES, date)) return;
       set({
         isSelecting: true,
         selection: { docId: idDoctor, startSlot: slotIdx, endSlot: slotIdx },
@@ -104,8 +110,13 @@ export const useHandleSelection = create<HandleSelectionState>((set) => {
         )
           return {};
 
+        const date = useHandleDatePicker.getState().date;
+        if (isGridSlotInPast(slotIdx * ROW_MINUTES, date)) return {};
+
         const potentialMinSlot = Math.min(state.selection.startSlot, slotIdx);
         const potentialMaxSlot = Math.max(state.selection.startSlot, slotIdx);
+        if (isGridSlotInPast(potentialMinSlot * ROW_MINUTES, date)) return {};
+
         const targetStartMinutes = potentialMinSlot * ROW_MINUTES;
         const targetEndMinutes = (potentialMaxSlot + 1) * ROW_MINUTES;
 

@@ -9,6 +9,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { listAvailableSlots } from "@/lib/api/schedule";
 import { absoluteMinutesFromIso } from "@/lib/time/gridTime";
 import { useScheduleContext } from "../context/ScheduleContext";
+import { isAbsoluteSlotInPast } from "../utils/editModeDrag";
 
 export interface TreatmentOption {
   id: string;
@@ -442,13 +443,26 @@ export function useAppointmentWizard(
   }, [step2Errors]);
 
   // Include the grid-selected time even when scheduling API returns a narrower list.
+  // Never offer past times for today (or any past day).
   const availableTimeSlots = useMemo(() => {
     const merged = [...apiSlotMinutes];
     if (formData.timeSlot != null && !merged.includes(formData.timeSlot)) {
       merged.push(formData.timeSlot);
     }
-    return merged.sort((a, b) => a - b);
-  }, [apiSlotMinutes, formData.timeSlot]);
+    return merged
+      .filter((mins) => !isAbsoluteSlotInPast(mins, formData.date))
+      .sort((a, b) => a - b);
+  }, [apiSlotMinutes, formData.timeSlot, formData.date]);
+
+  // Clear a selected slot if it became past (e.g. clock crossed while wizard open).
+  useEffect(() => {
+    if (
+      formData.timeSlot != null &&
+      isAbsoluteSlotInPast(formData.timeSlot, formData.date)
+    ) {
+      setFormData((prev) => ({ ...prev, timeSlot: null }));
+    }
+  }, [formData.timeSlot, formData.date]);
 
   useEffect(() => {
     if (!isWizardOpen || !formData.date || !clinicId || !accessToken) {

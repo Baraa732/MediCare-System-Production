@@ -21,6 +21,28 @@ export function clinicNowGridMinutes(selectedDate: Date, now = new Date()): numb
   return absoluteMinutesInClinic(now) - START_TIME_MINUTES;
 }
 
+/** True when a grid slot start is strictly before clinic "now" on that day. */
+export function isGridSlotInPast(
+  slotStartMinutes: number,
+  selectedDate: Date,
+  now = new Date(),
+): boolean {
+  return slotStartMinutes < clinicNowGridMinutes(selectedDate, now);
+}
+
+/** Absolute minutes since midnight — used by the booking wizard. */
+export function isAbsoluteSlotInPast(
+  absoluteMinutes: number,
+  selectedDate: Date,
+  now = new Date(),
+): boolean {
+  return isGridSlotInPast(
+    absoluteMinutes - START_TIME_MINUTES,
+    selectedDate,
+    now,
+  );
+}
+
 const TERMINAL_STATUSES = new Set([
   "done",
   "cancelled",

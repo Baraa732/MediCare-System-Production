@@ -68,47 +68,53 @@ export function RightSection() {
   });
 
   useEffect(() => {
-    if (!isProfileOpen || !accessToken || !userId) return;
+    if (!accessToken || !userId) return;
 
     let cancelled = false;
-    setProfileLoading(true);
-    setProfileError(null);
+    if (isProfileOpen) {
+      setProfileLoading(true);
+      setProfileError(null);
+    }
 
     void getProfile(userId, accessToken)
       .then((data) => {
         if (cancelled) return;
         const fullName =
           [data.firstName, data.lastName].filter(Boolean).join(" ").trim() ||
-          "Secretary";
+          (isProfileOpen ? "Secretary" : "");
         const nextProfile = {
           fullName,
           phone: data.phoneNumber ?? "",
         };
         setProfile(nextProfile);
-        reset(nextProfile);
+        if (isProfileOpen) reset(nextProfile);
       })
       .catch((err) => {
-        if (!cancelled) {
+        if (!cancelled && isProfileOpen) {
           setProfileError(
             normalizeCaughtError(err, "Could not load your profile."),
           );
         }
       })
       .finally(() => {
-        if (!cancelled) setProfileLoading(false);
+        if (!cancelled && isProfileOpen) setProfileLoading(false);
       });
 
     return () => {
       cancelled = true;
     };
-  }, [accessToken, isProfileOpen, reset, userId]);
+  }, [accessToken, userId, isProfileOpen, reset]);
 
-  const initials = profile.fullName
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("") || "SC";
+  const initials = (() => {
+    const parts = profile.fullName.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+      return `${parts[0][0] ?? ""}${parts[parts.length - 1][0] ?? ""}`.toUpperCase();
+    }
+    if (parts.length === 1 && parts[0].length > 0) {
+      return parts[0].slice(0, 2).toUpperCase();
+    }
+    return "";
+  })();
 
   const onSaveProfile = async (data: ProfileFormValues) => {
     if (!accessToken || !userId) return;
@@ -213,9 +219,15 @@ export function RightSection() {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Avatar className="w-9.5 h-9.5 rounded-xl border border-neutral-200 cursor-pointer hover:opacity-90 transition-opacity">
-            <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(initials)}`} />
+            <AvatarImage
+              src={
+                initials
+                  ? `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(initials)}`
+                  : undefined
+              }
+            />
             <AvatarFallback className="rounded-xl font-bold bg-[#0066ff] text-white text-xs">
-              {initials}
+              {initials || "·"}
             </AvatarFallback>
           </Avatar>
         </DropdownMenuTrigger>

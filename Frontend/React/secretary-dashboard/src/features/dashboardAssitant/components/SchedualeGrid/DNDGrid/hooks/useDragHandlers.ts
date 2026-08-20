@@ -31,6 +31,7 @@ import { normalizeCaughtError } from "@/lib/api/errors";
 import { useScheduleGridStore } from "@/features/dashboardAssitant/hooks/scheduleGridStore";
 import { hasSchedulingConflict } from "../utils/conflictValidator";
 import { useWizardDrawer } from "@/features/dashboardAssitant/hooks/useWizardDrawer";
+import { isGridSlotInPast } from "@/features/dashboardAssitant/utils/editModeDrag";
 
 function patientNameFromTitle(title?: string) {
   if (!title) return "Unknown patient";
@@ -356,6 +357,26 @@ export function useDragHandlers() {
 
       const targetDoctorId = over.data.current.idDoctor as string;
       const targetSlotIdx = over.data.current.slotIdx as number;
+      const newStart = targetSlotIdx * ROW_MINUTES;
+
+      if (isGridSlotInPast(newStart, selectedDate)) {
+        setConflict({
+          attemptedAction: "move",
+          conflictingItems: [
+            {
+              appointmentId: "past-slot",
+              patientName: "Past time",
+              doctorName: "Schedule",
+              start: newStart,
+              end: newStart + ROW_MINUTES,
+              overlapMinutes: 0,
+            },
+          ],
+        });
+        setDrawerOpen(true);
+        return;
+      }
+
       const dragType = active.data.current?.type as ActiveDragType;
 
       if (dragType === "appointment") {

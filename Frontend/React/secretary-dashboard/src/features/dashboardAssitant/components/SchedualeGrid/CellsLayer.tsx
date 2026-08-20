@@ -2,13 +2,16 @@ import { TOTAL_SLOTS, ROW_MINUTES, SLOT_HEIGHT } from "../../data/scheduleGrid";
 import { useEditeMode, useHandleSelection } from "../../hooks";
 import type { AppointmentType } from "../../types";
 import { useDroppable } from "@dnd-kit/core";
+import { useScheduleContext } from "../../context/ScheduleContext";
+import { isGridSlotInPast } from "../../utils/editModeDrag";
+import { cn } from "@/lib/utils";
 
-// 1. مكوّن منفصل لكل خلية زمنية لمنع خطأ الـ Rules of Hooks
 interface GridCellProps {
   slotIdx: number;
   idDoctor: string;
   isOccupied: boolean;
   isEditMode: boolean;
+  isPast: boolean;
   onMouseDown: (
     e: React.MouseEvent<HTMLDivElement, MouseEvent>,
     data: { idDoctor: string; isEditMode: boolean; slotIdx: number },
@@ -21,15 +24,12 @@ function GridCell({
   idDoctor,
   isOccupied,
   isEditMode,
+  isPast,
   onMouseDown,
   onMouseEnter,
 }: GridCellProps) {
   const slotMinutesStart = slotIdx * ROW_MINUTES;
-
-  // جلب دالة فتح موعد جديد من الـ Zustand Store
-  // const onOpenNewAppointment = useWizardDrawer(
-  //   (state) => state.onOpenNewAppointment,
-  // );
+  const dropDisabled = !isEditMode || isPast;
 
   const { setNodeRef, isOver, active } = useDroppable({
     id: `slot-${idDoctor}-${slotIdx}`,
@@ -38,47 +38,59 @@ function GridCell({
       idDoctor,
       slotIdx,
       timeStart: slotMinutesStart,
+      isPast,
     },
-    disabled: !isEditMode,
+    disabled: dropDisabled,
   });
 
-  if (isOccupied && !isEditMode) return <div style={{ height: SLOT_HEIGHT }} />;
+  if (isOccupied && !isEditMode) {
+    return <div style={{ height: SLOT_HEIGHT }} />;
+  }
 
   const isValidIncomingType =
-    active?.data.current?.type === "appointment" ||
-    active?.data.current?.type === "pending_request";
+    !isPast &&
+    (active?.data.current?.type === "appointment" ||
+      active?.data.current?.type === "pending_request");
 
   return (
     <div
       ref={setNodeRef}
       style={{ height: SLOT_HEIGHT }}
-      onMouseDown={(e) => onMouseDown(e, { idDoctor, isEditMode, slotIdx })}
-      onMouseEnter={() => onMouseEnter({ idDoctor, slotIdx })}
-      // onClick={() =>
-      //   onOpenNewAppointment({
-      //     doctorId: idDoctor,
-      //     timeSlot: slotIdx * ROW_MINUTES,
-      //     treatmentId : "t1"
-      //   })
-      // }
-      className="w-full h-full relative group transition-colors duration-150 cursor-crosshair border-b border-transparent"
+      onMouseDown={(e) => {
+        if (isPast) return;
+        onMouseDown(e, { idDoctor, isEditMode, slotIdx });
+      }}
+      onMouseEnter={() => {
+        if (isPast) return;
+        onMouseEnter({ idDoctor, slotIdx });
+      }}
+      className={cn(
+        "relative w-full h-full border-b border-transparent transition-colors duration-150",
+        isPast
+          ? "cursor-not-allowed bg-neutral-50/70"
+          : "cursor-crosshair group",
+      )}
+      title={isPast ? "Past time — not available" : undefined}
     >
       {isOver && isEditMode && isValidIncomingType && (
-        <div className="absolute inset-x-2 inset-y-1 rounded-xl border-2 border-dashed border-orange-400 bg-orange-50/70 flex items-center justify-center animate-pulse z-30 transition-all">
-          <span className="text-[10px] font-bold text-orange-700 bg-white/90 px-2 py-0.5 rounded-md border border-orange-100 shadow-sm">
+        <div className="absolute inset-x-2 inset-y-1 z-30 flex animate-pulse items-center justify-center rounded-xl border-2 border-dashed border-orange-400 bg-orange-50/70 transition-all">
+          <span className="rounded-md border border-orange-100 bg-white/90 px-2 py-0.5 text-[10px] font-bold text-orange-700 shadow-sm">
             Drop Here
           </span>
         </div>
       )}
 
-      {!isOver && (
-        <div className="absolute inset-x-3 inset-y-1 rounded-xl border border-dashed border-[#0066ff]/30 bg-blue-50/40 hidden group-hover:flex transition-all" />
+      {!isOver && !isPast && (
+        <div className="absolute inset-x-3 inset-y-1 hidden rounded-xl border border-dashed border-[#0066ff]/30 bg-blue-50/40 transition-all group-hover:flex" />
       )}
+
+      {isPast && !isOccupied ? (
+        <div className="pointer-events-none absolute inset-x-2 inset-y-1 rounded-lg bg-neutral-100/50" />
+      ) : null}
     </div>
   );
 }
 
-// المكوّن الرئيسي الذي يستدعيه الـ Layout
 export function CellsLayer({
   columnAppointments,
   idDoctor,
@@ -86,10 +98,10 @@ export function CellsLayer({
   columnAppointments: AppointmentType[];
   idDoctor: string;
 }) {
-  // const isSelecting = useHandleSelection((state) => state.isSelecting);
   const onMouseDown = useHandleSelection((state) => state.onMouseDown);
   const onMouseEnter = useHandleSelection((state) => state.onMouseEnter);
   const isEditMode = useEditeMode((state) => state.isEditMode);
+  const selectedDate = useScheduleContext().selectedDate;
 
   return (
     <>
@@ -98,6 +110,7 @@ export function CellsLayer({
         const isOccupied = columnAppointments.some(
           (a) => slotMinutesStart >= a.start && slotMinutesStart < a.end,
         );
+        const isPast = isGridSlotInPast(slotMinutesStart, selectedDate);
 
         return (
           <GridCell
@@ -106,6 +119,7 @@ export function CellsLayer({
             idDoctor={idDoctor}
             isOccupied={isOccupied}
             isEditMode={isEditMode}
+            isPast={isPast}
             onMouseDown={onMouseDown}
             onMouseEnter={onMouseEnter}
           />
