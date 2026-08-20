@@ -172,8 +172,7 @@ export function AppointmentDetailDrawer() {
     }
   };
 
-  if (!open) return null;
-
+  // Hooks must stay above any early return (opening the drawer must not change hook order).
   const isTerminal =
     appointment?.status === "CANCELLED" || appointment?.status === "COMPLETED";
   const status = useMemo(() => {
@@ -187,6 +186,8 @@ export function AppointmentDetailDrawer() {
       scheduledDate: new Date(appointment.scheduledAt),
     });
   }, [appointment]);
+
+  if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-[75] flex justify-end">
