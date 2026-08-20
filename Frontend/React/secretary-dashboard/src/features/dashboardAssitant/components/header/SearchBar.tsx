@@ -140,46 +140,21 @@ export function SearchBar() {
   }, [accessToken, clinicId, open, q, selectedDate]);
 
   const results = useMemo<SearchHit[]>(() => {
-    if (!q && filters.statuses.length === 0 && filters.doctorIds.length === 0) {
-      return [];
-    }
+    if (!q) return [];
 
     const hits: SearchHit[] = [];
     const ctx = { nowGridMinutes: nowGrid, selectedDate };
+    const namePhone = (name?: string | null, phone?: string | null) =>
+      hay(name, phone).includes(q);
 
     for (const doc of doctors) {
-      if (
-        q &&
-        hay(doc.name, doc.specialty).includes(q) &&
-        (filters.doctorIds.length === 0 || filters.doctorIds.includes(doc.id))
-      ) {
-        hits.push({
-          id: `doc-${doc.id}`,
-          kind: "doctor",
-          title: doc.name,
-          subtitle: `${doc.specialty ?? "Doctor"} · ${doc.appointments.length} on this day`,
-        });
-      }
-
       for (const apt of doc.appointments) {
         if (!appointmentMatchesFilters(apt, doc, filters, ctx)) continue;
-        if (
-          !q ||
-          hay(
-            apt.title,
-            apt.notes,
-            apt.patient?.name,
-            apt.patient?.phone,
-            apt.status,
-          ).includes(q)
-        ) {
-          // already filtered by appointmentMatchesFilters for query; still push
-        }
         hits.push({
           id: `apt-${apt.id}`,
           kind: "appointment",
-          title: apt.patient?.name || apt.title || "Appointment",
-          subtitle: `${doc.name} · ${apt.status} · ${apt.patient?.phone || "no phone"}`,
+          title: apt.patient?.name || "Patient",
+          subtitle: `${doc.name} · ${apt.patient?.phone || "no phone"}`,
           date: selectedDate,
           appointmentId: apt.id,
         });
@@ -187,14 +162,7 @@ export function SearchBar() {
     }
 
     for (const req of requests) {
-      if (
-        !hay(req.patient?.name, req.patient?.phone, req.title, req.notes).includes(
-          q || "",
-        ) &&
-        q
-      ) {
-        continue;
-      }
+      if (!namePhone(req.patient?.name, req.patient?.phone)) continue;
       if (filters.doctorIds.length && !filters.doctorIds.includes(req.docId)) {
         continue;
       }
@@ -207,29 +175,16 @@ export function SearchBar() {
       hits.push({
         id: `req-${req.id}`,
         kind: "request",
-        title: req.patient?.name || req.title || "Pending request",
+        title: req.patient?.name || "Pending request",
         subtitle: req.patient?.phone || "Needs review",
         requestId: req.id,
       });
     }
 
     for (const apt of remote) {
-      const patient =
-        apt.guestPatientName ||
-        apt.reason ||
-        (apt.patientId ? `Patient ${apt.patientId.slice(0, 8)}` : "Guest");
-      if (
-        !hay(
-          patient,
-          apt.guestPatientPhone,
-          apt.reason,
-          apt.notes,
-          apt.status,
-          apt.patientId,
-        ).includes(q)
-      ) {
-        continue;
-      }
+      const patientName = apt.guestPatientName || "";
+      const patientPhone = apt.guestPatientPhone || "";
+      if (!namePhone(patientName, patientPhone)) continue;
       if (hits.some((hit) => hit.appointmentId === apt.id)) continue;
       if (filters.doctorIds.length && !filters.doctorIds.includes(apt.doctorId)) {
         continue;
@@ -239,8 +194,8 @@ export function SearchBar() {
       hits.push({
         id: `remote-${apt.id}`,
         kind: "appointment",
-        title: patient,
-        subtitle: `${doctorName} · ${apt.status} · ${formatClinicDateTime(apt.scheduledAt)}`,
+        title: patientName || "Patient",
+        subtitle: `${doctorName} · ${patientPhone || "no phone"} · ${formatClinicDateTime(apt.scheduledAt)}`,
         date: new Date(apt.scheduledAt),
         appointmentId: apt.id,
       });
@@ -252,9 +207,6 @@ export function SearchBar() {
   const applyHit = (hit: SearchHit) => {
     setOpen(false);
     setFilterPanelOpen(false);
-    if (hit.kind === "doctor") {
-      setSearchQuery(hit.title);
-    }
     if (hit.date) changeDate(hit.date);
     if (hit.appointmentId) openAppointment(hit.appointmentId);
     if (hit.requestId) {
@@ -281,7 +233,7 @@ export function SearchBar() {
             setFilterPanelOpen(false);
             setOpen(true);
           }}
-          placeholder="Search patients, doctors, phones, notes…"
+          placeholder="Search by patient name or phone…"
           className="relative z-10 h-9.5 w-full rounded-xl border border-neutral-200/80 bg-white pl-10 pr-16 text-xs font-medium placeholder-neutral-400 shadow-sm transition-all duration-200 focus:border-[#0066ff] focus:outline-hidden focus:shadow-md"
         />
         <kbd className="pointer-events-none absolute right-3 top-1/2 z-10 hidden -translate-y-1/2 rounded-md border border-neutral-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-neutral-400 sm:inline">
@@ -308,18 +260,18 @@ export function SearchBar() {
             aria-label="Search results"
           >
             <div className="border-b border-neutral-100 px-4 py-2 text-[11px] font-medium text-neutral-500">
-              Live dashboard filter · open Filters for status, time, doctor…
+              Search by patient name or phone only
               {loading ? " · searching clinic…" : ""}
             </div>
             {q.length < 1 ? (
               <p className="px-4 py-6 text-center text-xs text-neutral-400">
-                Type to filter the schedule, or press{" "}
+                Type a patient name or phone number. Use{" "}
                 <span className="font-semibold text-neutral-600">Filters</span>{" "}
-                for advanced rules (⇧⌘F).
+                for status, doctor, and time.
               </p>
             ) : results.length === 0 ? (
               <p className="px-4 py-6 text-center text-xs text-neutral-400">
-                No jump targets — the grid still reflects your live filter.
+                No patients match that name or phone.
               </p>
             ) : (
               <ul className="max-h-72 overflow-y-auto py-1">

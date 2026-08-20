@@ -62,6 +62,16 @@ function hay(...parts: Array<string | null | undefined>) {
   return parts.filter(Boolean).join(" ").toLowerCase();
 }
 
+/** Free-text search matches patient name + phone only. */
+function matchesNameOrPhone(
+  q: string,
+  name?: string | null,
+  phone?: string | null,
+): boolean {
+  if (!q) return true;
+  return hay(name, phone).includes(q);
+}
+
 function absoluteFromGrid(start: number) {
   return START_TIME_MINUTES + start;
 }
@@ -98,19 +108,8 @@ export function appointmentMatchesFilters(
   ctx: { nowGridMinutes: number; selectedDate: Date },
 ): boolean {
   const q = filters.query.trim().toLowerCase();
-  if (q) {
-    const blob = hay(
-      apt.title,
-      apt.notes,
-      apt.status,
-      apt.patient?.name,
-      apt.patient?.phone,
-      apt.patient?.gender ?? undefined,
-      apt.complexity,
-      doctor.name,
-      doctor.specialty,
-    );
-    if (!blob.includes(q)) return false;
+  if (q && !matchesNameOrPhone(q, apt.patient?.name, apt.patient?.phone)) {
+    return false;
   }
 
   if (filters.doctorIds.length && !filters.doctorIds.includes(doctor.id)) {
@@ -163,22 +162,7 @@ export function filterDoctorsByScheduleFilters(
     })
     .filter((doc) => {
       if (doc.appointments.length > 0) return true;
-      if (!filters.hideEmptyDoctors) {
-        // Keep column if doctor is explicitly selected or name matches query
-        if (filters.doctorIds.includes(doc.id)) return true;
-        if (q && hay(doc.name, doc.specialty).includes(q)) return true;
-        return !hasStructured && !q ? true : false;
-      }
-      // hide empty: keep doctor column only if query matches doctor itself
-      if (q && hay(doc.name, doc.specialty).includes(q) && !hasStructured) {
-        return true;
-      }
-      if (
-        q &&
-        hay(doc.name, doc.specialty).includes(q) &&
-        filters.doctorIds.length === 0 &&
-        filters.statuses.length === 0
-      ) {
+      if (!filters.hideEmptyDoctors && filters.doctorIds.includes(doc.id)) {
         return true;
       }
       return false;
@@ -201,15 +185,8 @@ export function pendingRequestMatchesFilters(
   };
 
   const q = filters.query.trim().toLowerCase();
-  if (q) {
-    const blob = hay(
-      req.title,
-      req.notes,
-      req.patient?.name,
-      req.patient?.phone,
-      doctor.name,
-    );
-    if (!blob.includes(q)) return false;
+  if (q && !matchesNameOrPhone(q, req.patient?.name, req.patient?.phone)) {
+    return false;
   }
 
   if (filters.doctorIds.length && !filters.doctorIds.includes(req.docId)) {

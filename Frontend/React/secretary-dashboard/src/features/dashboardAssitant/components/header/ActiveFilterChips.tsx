@@ -26,7 +26,7 @@ export function ActiveFilterChips() {
   if (hasQuery) {
     chips.push({
       key: "q",
-      label: `Search: “${filters.query.trim()}”`,
+      label: `Name/phone: “${filters.query.trim()}”`,
       onRemove: () => setSearchQuery(""),
     });
   }
