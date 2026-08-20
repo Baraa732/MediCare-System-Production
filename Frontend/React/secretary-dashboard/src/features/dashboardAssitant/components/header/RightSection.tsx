@@ -182,7 +182,7 @@ export function RightSection() {
     <div className="flex items-center gap-4">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button className="h-9.5 bg-[#0066ff] hover:bg-[#0052cc] text-white text-xs font-bold rounded-xl px-4 flex items-center gap-1.5 shadow-xs cursor-pointer">
+          <Button className="btn-brand h-9.5 rounded-xl px-4 text-xs font-bold shadow-sm cursor-pointer">
             <Download className="w-3.5 h-3.5" />
             <span>Download schedule</span>
           </Button>
@@ -331,7 +331,7 @@ export function RightSection() {
               <Button
                 type="submit"
                 disabled={profileSaving || profileLoading}
-                className="flex-1 h-10 bg-[#0066ff] hover:bg-[#0052cc] text-white text-xs font-bold rounded-xl gap-1 shadow-sm cursor-pointer"
+                className="btn-brand h-10 flex-1 rounded-xl border-0 text-xs font-bold shadow-sm cursor-pointer"
               >
                 <Check className="w-3.5 h-3.5" />
                 <span>{profileSaving ? "Saving..." : "Save Changes"}</span>

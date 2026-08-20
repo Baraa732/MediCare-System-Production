@@ -272,7 +272,7 @@ export function AddAppointmentDialog() {
                 setSelectedSlotIso("");
               }}
               disabled={Boolean(prefill?.doctorId)}
-              className="w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
+              className="select-modern text-sm"
             >
               {doctors.map((doc) => (
                 <option key={doc.id} value={doc.id}>
@@ -294,7 +294,7 @@ export function AddAppointmentDialog() {
                     setManualDuration(Number(e.target.value));
                     setSelectedSlotIso("");
                   }}
-                  className="w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
+                  className="select-modern text-sm"
                 >
                   {[15, 30, 45, 60, 90, 120].map((d) => (
                     <option key={d} value={d}>
@@ -320,7 +320,7 @@ export function AddAppointmentDialog() {
                   <select
                     value={selectedSlotIso}
                     onChange={(e) => setSelectedSlotIso(e.target.value)}
-                    className="w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
+                    className="select-modern text-sm"
                   >
                     <option value="">— select a slot —</option>
                     {slots.map((iso) => (
@@ -343,7 +343,7 @@ export function AddAppointmentDialog() {
               value={patientName}
               onChange={(e) => setPatientName(e.target.value)}
               placeholder="Full patient name"
-              className="w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
+              className="select-modern text-sm"
             />
           </div>
 
@@ -357,7 +357,7 @@ export function AddAppointmentDialog() {
                 value={phoneNumber}
                 onChange={(e) => setPhoneNumber(e.target.value)}
                 placeholder="+963..."
-                className="flex-1 rounded-xl border border-neutral-200 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
+                className="input-modern flex-1 text-sm"
               />
               <Button
                 type="button"
@@ -393,7 +393,7 @@ export function AddAppointmentDialog() {
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="e.g. Follow-up visit"
-              className="w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
+              className="select-modern text-sm"
             />
           </div>
 
@@ -412,7 +412,7 @@ export function AddAppointmentDialog() {
             type="button"
             onClick={() => void handleSubmit()}
             disabled={isSubmitting || (prefill?.startSlot == null && !selectedSlotIso)}
-            className="rounded-xl bg-[#0066ff] hover:bg-[#0052cc]"
+            className="btn-brand rounded-xl border-0"
           >
             {isSubmitting ? "Booking…" : "Book appointment"}
           </Button>

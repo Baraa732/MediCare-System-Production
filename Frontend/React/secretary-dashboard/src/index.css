@@ -174,6 +174,69 @@
     box-shadow: 0 0 0 4px rgb(0 102 255 / 0.12);
   }
 
+  .select-modern,
+  .textarea-modern {
+    width: 100%;
+    border-radius: 0.75rem;
+    border: 1px solid rgb(229 229 229);
+    background: white;
+    padding: 0.625rem 0.875rem;
+    font-size: 0.875rem;
+    outline: none;
+    transition:
+      border-color 180ms var(--ease-smooth),
+      box-shadow 180ms var(--ease-smooth);
+  }
+
+  .select-modern:focus,
+  .textarea-modern:focus {
+    border-color: #0066ff;
+    box-shadow: 0 0 0 4px rgb(0 102 255 / 0.12);
+  }
+
+  .textarea-modern {
+    resize: vertical;
+    min-height: 5rem;
+  }
+
+  .overlay-backdrop {
+    background: rgb(15 23 42 / 0.35);
+    backdrop-filter: blur(4px);
+    animation: fade-in 260ms var(--ease-smooth) both;
+  }
+
+  .panel-slide-right {
+    animation: panel-slide-right 360ms var(--ease-smooth) both;
+  }
+
+  .panel-slide-left {
+    animation: panel-slide-left 360ms var(--ease-smooth) both;
+  }
+
+  .command-palette {
+    animation: fade-up 280ms var(--ease-smooth) both;
+    box-shadow: 0 24px 48px rgb(15 23 42 / 0.14);
+  }
+
+  .interactive-row {
+    transition:
+      background-color 180ms var(--ease-smooth),
+      transform 180ms var(--ease-smooth);
+  }
+
+  .interactive-row:hover {
+    background: rgb(239 246 255 / 0.75);
+    transform: translateX(2px);
+  }
+
+  .floating-panel {
+    border-radius: 1rem;
+    border: 1px solid rgb(245 245 245);
+    background: rgb(255 255 255 / 0.96);
+    backdrop-filter: blur(12px);
+    box-shadow: var(--shadow-panel);
+  }
+
   .page-enter {
     animation: page-enter 420ms var(--ease-smooth) both;
   }
@@ -339,6 +402,37 @@
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes panel-slide-right {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes panel-slide-left {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }
 

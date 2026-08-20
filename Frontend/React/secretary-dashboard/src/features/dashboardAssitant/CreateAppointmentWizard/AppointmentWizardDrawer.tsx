@@ -159,11 +159,10 @@ export function AppointmentWizardDrawer({
       <div className="fixed inset-0 z-[70] flex justify-end">
         <div
           onClick={handleAttemptClose}
-          className="absolute inset-0 bg-black/40 backdrop-blur-xs transition-all"
+          className="overlay-backdrop absolute inset-0"
         />
 
-        {/* Primary Control Base Plate Container */}
-        <div className="relative w-[28.5%] h-[95.5%] bg-white border-l border-neutral-200/80 shadow-[0_0_50px_rgba(0,0,0,0.15)] flex flex-col justify-between z-10 transition-all duration-1000 ease-in-out m-[24px] rounded-2xl">
+        <div className="panel-slide-right relative z-10 m-6 flex h-[95.5%] w-[min(28.5vw,420px)] flex-col justify-between rounded-2xl border border-neutral-200/80 bg-white/95 shadow-[0_0_50px_rgba(0,0,0,0.15)] backdrop-blur-md">
           {/* Header Block Section */}
           <div className="px-5 py-4 border-b border-neutral-100 flex items-center justify-between shrink-0">
             <button
@@ -227,7 +226,7 @@ export function AppointmentWizardDrawer({
                         ? !wizard.isStep1Valid
                         : !wizard.isStep2Valid
                 }
-                className="px-5 py-2 text-xs font-bold bg-[#0066ff] hover:bg-blue-600 text-white shadow-sm disabled:opacity-40 disabled:pointer-events-none rounded-xl transition-all active:scale-[0.99] cursor-pointer"
+                className="px-5 py-2 text-xs font-bold btn-brand rounded-xl disabled:pointer-events-none disabled:opacity-40"
               >
                 Next
               </button>

@@ -41,7 +41,7 @@ export function ControlButton() {
   return (
     <div className="p-4 space-y-2.5 border-b border-neutral-100">
       <Button
-        className="w-full h-11 bg-[#0066ff] hover:bg-[#0052cc] text-white font-bold rounded-xl shadow-sm justify-center px-4 text-xs "
+        className="btn-brand h-11 w-full justify-center rounded-xl px-4 text-xs font-bold"
         onClick={() => onOpenNewAppointment()}
       >
         <Plus className="w-4 h-4 transition-transform group-hover:rotate-90 duration-200" />

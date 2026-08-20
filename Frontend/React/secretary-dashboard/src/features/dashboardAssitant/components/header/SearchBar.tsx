@@ -193,7 +193,7 @@ export function SearchBar() {
           setOpen(true);
         }}
         placeholder="Search patients, doctors, phone, bookings"
-        className="h-9.5 w-full rounded-xl border border-neutral-200 bg-neutral-50 pl-10 pr-16 text-xs font-medium placeholder-neutral-400 transition-all focus:border-[#0066ff] focus:bg-white focus:outline-hidden"
+        className="h-9.5 w-full rounded-xl border border-neutral-200/80 bg-white/70 pl-10 pr-16 text-xs font-medium placeholder-neutral-400 shadow-sm backdrop-blur-sm transition-all duration-200 focus:border-[#0066ff] focus:bg-white focus:outline-hidden focus:shadow-md"
       />
       <kbd className="absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-md border border-neutral-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-neutral-400 sm:inline">
         ⌘K
@@ -215,12 +215,12 @@ export function SearchBar() {
         <>
           <button
             type="button"
-            className="fixed inset-0 z-40 cursor-default bg-black/10"
+            className="overlay-backdrop fixed inset-0 z-40 cursor-default"
             onClick={() => setOpen(false)}
             aria-label="Close search"
           />
-          <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-50 overflow-hidden rounded-2xl border border-neutral-100 bg-white shadow-2xl">
-            <div className="border-b border-neutral-100 px-4 py-2 text-[11px] text-neutral-500">
+          <div className="command-palette absolute left-0 right-0 top-[calc(100%+8px)] z-50 overflow-hidden rounded-2xl border border-neutral-100/80 bg-white/95 backdrop-blur-md">
+            <div className="border-b border-neutral-100 px-4 py-2 text-[11px] font-medium text-neutral-500">
               Find a patient, doctor, phone number, or upcoming booking
               {loading ? " · searching clinic…" : ""}
             </div>
@@ -234,13 +234,13 @@ export function SearchBar() {
                 No matches on this day or the next 3 weeks.
               </p>
             ) : (
-              <ul className="max-h-80 overflow-y-auto py-1">
+              <ul className="stagger-list max-h-80 overflow-y-auto py-1">
                 {results.map((hit) => (
                   <li key={hit.id}>
                     <button
                       type="button"
                       onClick={() => applyHit(hit)}
-                      className="flex w-full items-start gap-3 px-4 py-2.5 text-left hover:bg-blue-50/70"
+                      className="interactive-row flex w-full items-start gap-3 px-4 py-2.5 text-left"
                     >
                       <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-xl bg-neutral-50 text-neutral-500">
                         {hit.kind === "doctor" ? (

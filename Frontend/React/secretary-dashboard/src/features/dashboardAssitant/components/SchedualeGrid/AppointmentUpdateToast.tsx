@@ -51,7 +51,7 @@ export function AppointmentUpdateToast({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed bottom-5 right-5 z-50 min-w-[360px] max-w-md bg-white border border-neutral-200/70 rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300 flex flex-col">
+    <div className="toast-enter fixed bottom-5 right-5 z-50 flex min-w-[360px] max-w-md flex-col overflow-hidden rounded-2xl border border-neutral-200/70 bg-white/95 shadow-2xl backdrop-blur-md">
       {/* Visual Progress Micro-Bar */}
       <div 
         className={`h-1 transition-all duration-75 ${isTestingMessage ? "bg-blue-500" : "bg-emerald-500"}`}

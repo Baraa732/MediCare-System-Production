@@ -10,7 +10,7 @@ export function InformationPanel() {
     <div className="absolute bottom-4 right-4 z-40 flex flex-col items-end">
       <button
         onClick={() => setShowLegend(!showLegend)}
-        className="h-9 px-4 bg-white border border-neutral-200 rounded-xl shadow-md flex items-center gap-2 text-xs font-bold text-neutral-700 hover:bg-neutral-50 transition-colors cursor-pointer"
+        className="floating-panel flex h-9 items-center gap-2 px-4 text-xs font-bold text-neutral-700 transition-all duration-200 hover:-translate-y-px cursor-pointer"
       >
         <Info className="w-4 h-4 text-neutral-400" />
         <span>Information panel</span>
@@ -23,7 +23,7 @@ export function InformationPanel() {
       </button>
 
       {showLegend && (
-        <div className="w-64 bg-white border border-neutral-200 rounded-2xl p-4 mt-2 shadow-xl space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-200">
+        <div className="floating-panel fade-up w-64 space-y-4 p-4 mt-2">
           <div>
             <h5 className="text-[10px] font-bold tracking-wider uppercase text-neutral-400 mb-2">
               Appointment status

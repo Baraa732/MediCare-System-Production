@@ -28,7 +28,7 @@ export function AccountDeactivatedDialog({
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
         /* Configured to preserve layout sizing consistency across your portal system windows */
-        className=" scale-[0.7] md:max-w-[50%] lg:max-w-[40%] p-0  bg-white rounded-[2.5rem] border-none shadow-2xl overflow-hidden gap-0 outline-none"
+        className="sm:max-w-lg rounded-2xl border border-neutral-100/80 p-0 bg-white/95 backdrop-blur-md overflow-hidden gap-0 outline-none"
       >
         <LayoutCard>
           <div className="p-7">

@@ -64,7 +64,7 @@ export function EnablePushBanner({ compact = false }: EnablePushBannerProps) {
           e.stopPropagation();
           void requestPushPermission();
         }}
-        className="mt-3 inline-flex h-9 items-center justify-center rounded-xl bg-[#0066ff] px-4 text-xs font-bold text-white shadow-sm hover:bg-[#0052cc] disabled:cursor-not-allowed disabled:opacity-50"
+        className="mt-3 inline-flex h-9 items-center justify-center rounded-xl btn-brand px-4 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-50"
       >
         {isEnabling ? (
           <>

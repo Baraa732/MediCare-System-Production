@@ -30,7 +30,7 @@ export function NoClinicAccessDialog({
       }}
     >
       <DialogContent
-        className="sm:max-w-[33.125%] scale-[0.8] p-0  bg-white rounded-[2.5rem] border-none shadow-2xl overflow-hidden gap-0 outline-none"
+        className="sm:max-w-lg rounded-2xl border border-neutral-100/80 p-0 overflow-hidden bg-white/95 backdrop-blur-md"
        >
         <LayoutCard>
           {/* Central Graphic Presentation Context */}

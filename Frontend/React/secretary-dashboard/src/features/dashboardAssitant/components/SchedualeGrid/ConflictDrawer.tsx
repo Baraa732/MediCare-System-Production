@@ -55,9 +55,8 @@ export function ConflictDrawer({ onConfirm, onCancel, doctors, setDoctors }: Con
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-start bg-slate-900/40 backdrop-blur-xs transition-opacity duration-300">
-      {/* Backdrop overlay matches the dashboard application modality */}
-      <div className="w-[28.8%] h-[95.5%] m-[24px] rounded-2xl  bg-slate-50 text-slate-900 flex flex-col shadow-2xl transition-all duration-300 ease-in-out border-l border-slate-200">
+    <div className="overlay-backdrop fixed inset-0 z-50 flex justify-start">
+      <div className="panel-slide-left m-6 flex h-[95.5%] w-[min(28.8vw,440px)] flex-col rounded-2xl border border-slate-200/80 bg-white/95 text-slate-900 shadow-2xl backdrop-blur-md">
         {/* Header Layout - Matched with Dashboard Navbar Styling */}
         <div className="p-5 bg-white rounded-2xl border-b border-slate-200 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -103,8 +102,7 @@ export function ConflictDrawer({ onConfirm, onCancel, doctors, setDoctors }: Con
           <Sparkles className="w-4 h-4 text-blue-200" />
           <span>⚡ Run Auto-Mitigation Engine</span>
         </button>
-        {/* List of Affected Appointments */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        <div className="stagger-list flex-1 space-y-4 overflow-y-auto p-5">
           {conflictPayload.conflictingItems.map((item) => {
             const isCritical = item.severity === "critical";
             const isWithinOneHour = item.start <= 60;
@@ -112,7 +110,7 @@ export function ConflictDrawer({ onConfirm, onCancel, doctors, setDoctors }: Con
             return (
               <div
                 key={item.appointmentId}
-                className="border border-slate-200 rounded-xl bg-white shadow-xs overflow-hidden transition-all hover:shadow-md"
+                className="surface-card surface-card-hover overflow-hidden"
               >
                 {/* Top Badge Matrix - Reflecting Calendar Cell Top States */}
                 <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">

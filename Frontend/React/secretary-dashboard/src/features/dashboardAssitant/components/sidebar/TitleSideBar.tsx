@@ -10,7 +10,7 @@ export function TitleSideBar() {
   return (
     <div className="h-16 px-5 border-b border-neutral-100 flex items-center justify-between gap-3">
       <div className="flex items-center gap-2.5 min-w-0">
-        <div className="w-7 h-7 rounded-lg bg-[#0066ff] text-white flex items-center justify-center font-black text-base shrink-0">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-blue-500 text-sm font-black text-white shadow-sm">
           M
         </div>
         <div className="flex flex-col min-w-0">

@@ -195,7 +195,7 @@ export function AppointmentDetailDrawer() {
                     <select
                       value={doctorId}
                       onChange={(e) => setDoctorId(e.target.value)}
-                      className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-blue-500"
+                      className="input-modern text-sm"
                     >
                       {doctors.map((doc) => (
                         <option key={doc.id} value={doc.id}>
@@ -211,7 +211,7 @@ export function AppointmentDetailDrawer() {
                       type="text"
                       value={reason}
                       onChange={(e) => setReason(e.target.value)}
-                      className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-blue-500"
+                      className="input-modern text-sm"
                     />
                   </div>
 
@@ -221,7 +221,7 @@ export function AppointmentDetailDrawer() {
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
                       rows={3}
-                      className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-blue-500 resize-none"
+                      className="textarea-modern text-sm resize-none"
                     />
                   </div>
                 </>
@@ -231,7 +231,7 @@ export function AppointmentDetailDrawer() {
                 <div className="flex gap-2">
                   <Button
                     type="button"
-                    className="flex-1 bg-[#0066ff] hover:bg-[#0052cc]"
+                    className="flex-1 btn-brand rounded-xl border-0"
                     onClick={() => void handleStatusChange("CONFIRMED")}
                     disabled={isCancelling}
                   >
@@ -277,7 +277,7 @@ export function AppointmentDetailDrawer() {
                     value={cancelReason}
                     onChange={(e) => setCancelReason(e.target.value)}
                     placeholder="Cancellation reason (optional)"
-                    className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-blue-500"
+                    className="input-modern text-sm"
                   />
                   <Button
                     type="button"
@@ -300,7 +300,7 @@ export function AppointmentDetailDrawer() {
               type="button"
               onClick={() => void handleSave()}
               disabled={isSaving}
-              className="bg-[#0066ff] hover:bg-[#0052cc]"
+              className="btn-brand rounded-xl border-0"
             >
               {isSaving ? "Saving…" : "Save changes"}
             </Button>

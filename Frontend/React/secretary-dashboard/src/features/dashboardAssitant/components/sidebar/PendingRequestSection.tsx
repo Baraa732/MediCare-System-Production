@@ -271,10 +271,10 @@ function SortableRequestCard({ item, isEditMode }: SortableCardProps) {
     <div
       ref={setNodeRef}
       style={style}
-      className={`bg-white border text-right transition-all duration-350 ease-in-out flex relative overflow-hidden min-h-[110px] ${
+      className={`surface-card surface-card-hover text-right transition-all duration-300 ease-out flex relative overflow-hidden min-h-[110px] ${
         isEditMode
-          ? "border-neutral-300 rounded-xl shadow-xs"
-          : "border-neutral-200 rounded-xl shadow-2xs hover:border-neutral-300"
+          ? "border-neutral-300"
+          : "border-neutral-200 hover:border-blue-200/80"
       }`}
     >
       <div
