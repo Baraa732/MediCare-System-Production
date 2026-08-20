@@ -1,11 +1,14 @@
-import { LeftSection, RightSection, SearchBar } from ".";
+import { LeftSection, RightSection, SearchBar, ActiveFilterChips } from ".";
 
 export function Header() {
   return (
-    <header className="glass-header relative z-30 flex h-16 w-full shrink-0 items-center justify-between gap-3 px-4 sm:px-6">
-      <LeftSection />
-      <SearchBar />
-      <RightSection />
-    </header>
+    <div className="relative z-30 shrink-0">
+      <header className="glass-header flex h-16 w-full items-center justify-between gap-3 px-4 sm:px-6">
+        <LeftSection />
+        <SearchBar />
+        <RightSection />
+      </header>
+      <ActiveFilterChips />
+    </div>
   );
 }

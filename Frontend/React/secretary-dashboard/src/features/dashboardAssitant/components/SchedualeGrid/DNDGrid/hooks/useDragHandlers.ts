@@ -54,38 +54,22 @@ function buildConflictItems(
   }));
 }
 
+import { filterDoctorsByScheduleFilters } from "@/features/dashboardAssitant/utils/scheduleFilters";
+import { clinicNowGridMinutes } from "@/features/dashboardAssitant/utils/editModeDrag";
+
 function cloneDoctors(source: DoctorType[]): DoctorType[] {
   return JSON.parse(JSON.stringify(source)) as DoctorType[];
 }
 
-function filterDoctors(source: DoctorType[], searchQuery: string): DoctorType[] {
-  const q = searchQuery.trim().toLowerCase();
-  if (!q) return source;
-  return source
-    .map((doc) => ({
-      ...doc,
-      appointments: doc.appointments.filter((a) =>
-        [
-          a.title,
-          a.notes,
-          a.status,
-          a.patient?.name,
-          a.patient?.phone,
-          doc.name,
-          doc.specialty,
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase()
-          .includes(q),
-      ),
-    }))
-    .filter(
-      (doc) =>
-        doc.name.toLowerCase().includes(q) ||
-        (doc.specialty ?? "").toLowerCase().includes(q) ||
-        doc.appointments.length > 0,
-    );
+function applyVisibleFilters(
+  source: DoctorType[],
+  filters: Parameters<typeof filterDoctorsByScheduleFilters>[1],
+  selectedDate: Date,
+): DoctorType[] {
+  return filterDoctorsByScheduleFilters(source, filters, {
+    nowGridMinutes: clinicNowGridMinutes(selectedDate),
+    selectedDate,
+  });
 }
 
 function findAppointment(
@@ -140,7 +124,7 @@ export function useDragHandlers() {
   const openWithPendingRequestAtSlot = useWizardDrawer(
     (s) => s.openWithPendingRequestAtSlot,
   );
-  const searchQuery = useScheduleGridStore((s) => s.searchQuery);
+  const filters = useScheduleGridStore((s) => s.filters);
   const isEditMode = useEditeMode((state) => state.isEditMode);
   const onToggleEdit = useEditeMode((state) => state.onToggleEdit);
 
@@ -184,7 +168,7 @@ export function useDragHandlers() {
       setBaselineDoctors(null);
       setDirtyCount(0);
       setSaveError(null);
-      setDoctors(filterDoctors(workingDoctorsRef.current, searchQuery));
+      setDoctors(applyVisibleFilters(workingDoctorsRef.current, filters, selectedDate));
       return;
     }
 
@@ -193,12 +177,12 @@ export function useDragHandlers() {
       workingDoctorsRef.current = snap;
       setBaselineDoctors(snap);
       setDirtyCount(0);
-      setDoctors(filterDoctors(snap, searchQuery));
+      setDoctors(applyVisibleFilters(snap, filters, selectedDate));
       return;
     }
 
-    setDoctors(filterDoctors(workingDoctorsRef.current, searchQuery));
-  }, [isEditMode, scheduleDoctors, searchQuery, baselineDoctors]);
+    setDoctors(applyVisibleFilters(workingDoctorsRef.current, filters, selectedDate));
+  }, [isEditMode, scheduleDoctors, filters, baselineDoctors, selectedDate]);
 
   const stageLocalMove = useCallback(
     (updatedApt: AppointmentType) => {
@@ -207,7 +191,7 @@ export function useDragHandlers() {
 
       const next = applyAppointmentToDoctors(workingDoctorsRef.current, updatedApt);
       workingDoctorsRef.current = next;
-      setDoctors(filterDoctors(next, searchQuery));
+      setDoctors(applyVisibleFilters(next, filters, selectedDate));
       refreshDirtyCount(next, baselineDoctors);
 
       const titleString = updatedApt.title || "Appointment";
@@ -221,7 +205,7 @@ export function useDragHandlers() {
       setIsToastOpen(true);
       setSaveError(null);
     },
-    [baselineDoctors, refreshDirtyCount, searchQuery],
+    [baselineDoctors, refreshDirtyCount, filters, selectedDate],
   );
 
   const updateAppointment = useCallback(
@@ -496,11 +480,11 @@ export function useDragHandlers() {
   const handleUndoAction = useCallback(() => {
     if (!undoSnapshot) return;
     workingDoctorsRef.current = undoSnapshot;
-    setDoctors(filterDoctors(undoSnapshot, searchQuery));
+    setDoctors(applyVisibleFilters(undoSnapshot, filters, selectedDate));
     refreshDirtyCount(undoSnapshot, baselineDoctors);
     setUndoSnapshot(null);
     setIsToastOpen(false);
-  }, [undoSnapshot, searchQuery, baselineDoctors, refreshDirtyCount]);
+  }, [undoSnapshot, filters, baselineDoctors, refreshDirtyCount]);
 
   const cancelConflict = useCallback(() => {
     setConflict(null);
@@ -509,14 +493,14 @@ export function useDragHandlers() {
   const discardEditChanges = useCallback(() => {
     if (baselineDoctors) {
       workingDoctorsRef.current = cloneDoctors(baselineDoctors);
-      setDoctors(filterDoctors(workingDoctorsRef.current, searchQuery));
+      setDoctors(applyVisibleFilters(workingDoctorsRef.current, filters, selectedDate));
     }
     setDirtyCount(0);
     setUndoSnapshot(null);
     setSaveError(null);
     setIsToastOpen(false);
     setConflict(null);
-  }, [baselineDoctors, searchQuery, setConflict]);
+  }, [baselineDoctors, filters, setConflict]);
 
   const saveEditChanges = useCallback(async () => {
     if (!baselineDoctors || dirtyCount === 0) {

@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Calendar, Clock, GripVertical } from "lucide-react";
 import { useDraggable } from "@dnd-kit/core";
 import { useEditeMode } from "../../hooks/useEditeMode";
-import type { PendingRequest } from "../../types";
+import type { DoctorType, PendingRequest } from "../../types";
 import { useWizardDrawer } from "../../hooks/useWizardDrawer";
 import { usePendingRequest } from "../../hooks/usePendingRequest";
 import { useScheduleGridStore } from "../../hooks/scheduleGridStore";
@@ -16,29 +16,17 @@ import {
 } from "@/lib/api/appointments";
 import { isApiAppointmentId } from "../../hooks/useAppointmentActions";
 import { normalizeCaughtError } from "@/lib/api/errors";
+import { pendingRequestMatchesFilters } from "../../utils/scheduleFilters";
 
 export function PendingRequestSection() {
   const isEditMode = useEditeMode((state) => state.isEditMode);
   const requests = usePendingRequest((state) => state.requests);
-  const searchQuery = useScheduleGridStore((s) => s.searchQuery);
+  const filters = useScheduleGridStore((s) => s.filters);
   const { doctors } = useScheduleContext();
 
-  const q = searchQuery.trim().toLowerCase();
-  const visibleRequests = q
-    ? requests.filter((item) => {
-        const hay = [
-          item.patient?.name,
-          item.patient?.phone,
-          item.title,
-          item.notes,
-          doctors.find((doc) => doc.id == item.docId)?.name,
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
-        return hay.includes(q);
-      })
-    : requests;
+  const visibleRequests = requests.filter((item) =>
+    pendingRequestMatchesFilters(item, doctors as DoctorType[], filters),
+  );
 
   if (requests.length == 0) return null;
 
@@ -49,8 +37,11 @@ export function PendingRequestSection() {
           <h4 className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">
             Pending requests
           </h4>
-          <span className="flex h-4 w-4 items-center justify-center rounded-full border border-red-100 bg-red-50 text-[10px] font-extrabold text-red-500">
-            {requests.length}
+          <span className="flex h-4 min-w-4 items-center justify-center rounded-full border border-red-100 bg-red-50 px-1 text-[10px] font-extrabold text-red-500">
+            {visibleRequests.length}
+            {visibleRequests.length !== requests.length
+              ? `/${requests.length}`
+              : ""}
           </span>
         </div>
         {isEditMode ? (
