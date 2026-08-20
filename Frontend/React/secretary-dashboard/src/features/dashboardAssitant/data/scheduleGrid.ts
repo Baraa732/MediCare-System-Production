@@ -506,7 +506,7 @@ export const informationPanelData = [
 ];
 
 export const ROW_MINUTES = 15;
-export const START_TIME_MINUTES = 8 * 60; // 9:00 AM
+export const START_TIME_MINUTES = 8 * 60; // 8:00 AM grid start
 export const TOTAL_HOURS = 24;
 export const TOTAL_SLOTS = (TOTAL_HOURS * 60) / ROW_MINUTES;
 export const SLOT_HEIGHT = 44;

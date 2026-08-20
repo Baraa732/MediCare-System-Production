@@ -2,7 +2,13 @@ import type { ApiAppointment, ClinicDoctor } from "./types";
 import type { ColumnAppointmentsType } from "@/features/dashboardAssitant/types";
 import type { DoctorType } from "@/features/dashboardAssitant/types";
 import type { PendingRequest } from "@/features/dashboardAssitant/types/PendingRequest";
-import { START_TIME_MINUTES } from "@/features/dashboardAssitant/data/scheduleGrid";
+import {
+  gridMinutesFromIso,
+  scheduledAtFromAbsoluteMinutes,
+  scheduledAtFromGridMinutes,
+} from "@/lib/time/gridTime";
+
+export { scheduledAtFromAbsoluteMinutes, scheduledAtFromGridMinutes };
 
 const STATUS_MAP: Record<string, string> = {
   CONFIRMED: "confirmed",
@@ -18,10 +24,7 @@ function safeDuration(minutes: number | undefined | null): number {
 }
 
 function minutesFromGridStart(scheduledAt: string): number {
-  const date = new Date(scheduledAt);
-  if (Number.isNaN(date.getTime())) return 0;
-  const absoluteMinutes = date.getHours() * 60 + date.getMinutes();
-  return Math.max(0, absoluteMinutes - START_TIME_MINUTES);
+  return gridMinutesFromIso(scheduledAt);
 }
 
 export function mapAppointmentToGrid(
@@ -72,33 +75,6 @@ export function mapDoctorToGrid(
   };
 }
 
-export function scheduledAtFromAbsoluteMinutes(
-  absoluteMinutes: number,
-  referenceDate = new Date(),
-): string {
-  const date = new Date(
-    referenceDate.getFullYear(),
-    referenceDate.getMonth(),
-    referenceDate.getDate(),
-    0,
-    0,
-    0,
-    0,
-  );
-  date.setHours(Math.floor(absoluteMinutes / 60), absoluteMinutes % 60, 0, 0);
-  return date.toISOString();
-}
-
-export function scheduledAtFromGridMinutes(
-  minutesSinceStart: number,
-  referenceDate = new Date(),
-): string {
-  return scheduledAtFromAbsoluteMinutes(
-    START_TIME_MINUTES + minutesSinceStart,
-    referenceDate,
-  );
-}
-
 export function dayRangeIso(date = new Date()) {
   const from = new Date(date);
   from.setHours(0, 0, 0, 0);
@@ -117,8 +93,8 @@ export function mapApiAppointmentToPendingRequest(
   const scheduledDate = new Date(appointment.scheduledAt);
   const duration = safeDuration(appointment.durationMinutes);
   const start = Number.isNaN(scheduledDate.getTime())
-    ? START_TIME_MINUTES
-    : scheduledDate.getHours() * 60 + scheduledDate.getMinutes();
+    ? 0
+    : gridMinutesFromIso(appointment.scheduledAt);
   const minutesAgo = Number.isNaN(scheduledDate.getTime())
     ? 0
     : Math.max(0, Math.floor((Date.now() - scheduledDate.getTime()) / 60_000));

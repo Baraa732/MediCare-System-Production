@@ -120,19 +120,18 @@ export function AppointmentWizardDrawer({
         <DialogPortal>
           <DialogOverlay className=" bg-black/60 backdrop-blur-xs" />
           <DialogContent
-            className="fixed z-100 max-w-sm w-full rounded-2xl p-5 text-right border border-neutral-100 shadow-2xl bg-white"
-            dir="rtl"
+            className="fixed z-100 max-w-sm w-full rounded-2xl p-5 border border-neutral-100 shadow-2xl bg-white"
           >
             <DialogHeader className="space-y-3">
               <div className="w-12 h-12 rounded-full bg-amber-50 flex items-center justify-center text-amber-500">
                 <HelpCircle className="w-6 h-6" />
               </div>
               <DialogTitle className="text-sm font-black text-neutral-900">
-                تأكيد إلغاء التغييرات؟
+                Discard unsaved changes?
               </DialogTitle>
               <DialogDescription className="text-xs text-neutral-500 leading-relaxed">
-                لقد أجريت تعديلات على بيانات هذا الموعد. عند الخروج الآن ستفقد
-                كافة التغييرات غير المحفوظة. هل أنت متأكد؟
+                You have unsaved appointment details. Closing now will lose your
+                changes.
               </DialogDescription>
             </DialogHeader>
 
@@ -144,13 +143,13 @@ export function AppointmentWizardDrawer({
                 }}
                 className="flex-1 h-10 text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-xl transition-all cursor-pointer"
               >
-                تأكيد الخروج
+                Discard
               </button>
               <button
                 onClick={() => setShowExitConfirm(false)}
                 className="flex-1 h-10 text-xs font-bold bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-xl transition-all cursor-pointer"
               >
-                متابعة التعديل
+                Keep editing
               </button>
             </div>
           </DialogContent>

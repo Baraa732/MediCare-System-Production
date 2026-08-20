@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { Search, ChevronDown } from "lucide-react";
+import { Search, ChevronDown, Lock } from "lucide-react";
 import {
   TREATMENT_OPTIONS,
-  // useAppointmentWizard,
   type ComplexityType,
   type WizardFormData,
 } from "./useAppointmentWizard";
@@ -10,6 +9,8 @@ import { formatMinutesToAMPM } from "../components/SchedualeGrid/DNDGrid/utils/t
 import type { AppointmentType, DoctorType } from "../types";
 import { Calendar } from "@/components/ui/calendar";
 import { useWizardDrawer } from "../hooks/useWizardDrawer";
+import { GridSelectionSummary } from "./GridSelectionSummary";
+import { formatAbsoluteRangeLabel } from "@/lib/time/gridTime";
 
 export interface availableDoctorsFilteredType {
   appointmentsTodayCount: number;
@@ -34,6 +35,7 @@ interface Step1TreatmentInfoType {
     field: K,
     value: WizardFormData[K],
   ) => void;
+  handleDurationChange: (duration: number) => void;
   viewOnlyMode?: boolean;
 }
 
@@ -45,22 +47,23 @@ export function Step1TreatmentInfo({
   searchTreatment,
   setSearchTreatment,
   handleFieldChange,
+  handleDurationChange,
   viewOnlyMode = false,
 }: Step1TreatmentInfoType) {
   const editingAppointment = useWizardDrawer(
     (state) => state.editingAppointment,
   );
-  // eslint-disable-next-line react-hooks/purity
-  const now: number = useMemo(() => Date.now(), []);
+  const initialData = useWizardDrawer((state) => state.initialData);
 
   const [showTreatDropdown, setShowTreatDropdown] = useState(false);
   const [showDocDropdown, setShowDocDropdown] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
 
-  // const handleDateSelect = (day: number) => {
-  //   const date = new Date(day);
-  //   handleFieldChange("date", date);
-  // };
+  const isGridLocked = formData.fromGridSelection && !viewOnlyMode;
+  const selectedDoctorName =
+    doctors.find((d) => d.id === formData.doctorId)?.name ??
+    initialData?.doctorName ??
+    "Selected doctor";
 
   const filteredTreatments = useMemo(() => {
     return TREATMENT_OPTIONS.filter((t) =>
@@ -69,7 +72,7 @@ export function Step1TreatmentInfo({
   }, [searchTreatment]);
 
   useEffect(() => {
-    if (!formData.date || formData.timeSlot == null) return;
+    if (isGridLocked || !formData.date || formData.timeSlot == null) return;
     const now = new Date();
     const selected = new Date(formData.date);
     const isToday = selected.toDateString() === now.toDateString();
@@ -79,18 +82,27 @@ export function Step1TreatmentInfo({
     ) {
       handleFieldChange("timeSlot", null);
     }
-  }, [formData.date, formData.timeSlot]);
+  }, [formData.date, formData.timeSlot, handleFieldChange, isGridLocked]);
+
   const selectedTreatment = useMemo(
-    () =>
-      TREATMENT_OPTIONS.find((t) => {
-        // console.log(formData.treatmentId);
-        return t.id === formData.treatmentId;
-      }),
+    () => TREATMENT_OPTIONS.find((t) => t.id === formData.treatmentId),
     [formData.treatmentId],
   );
+
   return (
-    <div className="space-y-5  select-none animate-in fade-in duration-200">
-      {/* 1. Treatment Dropdown Slot */}
+    <div className="space-y-5 select-none animate-in fade-in duration-200">
+      {isGridLocked &&
+      formData.timeSlot != null &&
+      formData.date &&
+      formData.doctorId ? (
+        <GridSelectionSummary
+          doctorName={selectedDoctorName}
+          timeSlot={formData.timeSlot}
+          duration={formData.duration}
+          date={new Date(formData.date)}
+        />
+      ) : null}
+
       <div className="relative">
         <label className="block text-xs font-bold text-neutral-500 mb-1.5 uppercase tracking-wide">
           Select Treatment *
@@ -98,19 +110,16 @@ export function Step1TreatmentInfo({
         <button
           type="button"
           disabled={viewOnlyMode}
-          onClick={() => {
-            console.log(selectedTreatment?.name);
-            return (
-              !viewOnlyMode &&
-              setShowTreatDropdown((prev) => {
-                if (!prev) {
-                  setShowCalendar(false);
-                  setShowDocDropdown(false);
-                }
-                return !prev;
-              })
-            );
-          }}
+          onClick={() =>
+            !viewOnlyMode &&
+            setShowTreatDropdown((prev) => {
+              if (!prev) {
+                setShowCalendar(false);
+                setShowDocDropdown(false);
+              }
+              return !prev;
+            })
+          }
           className="w-full bg-white border border-neutral-200 rounded-xl px-3.5 py-2.5 text-xs font-medium text-neutral-800 flex items-center justify-between shadow-xs hover:border-neutral-300 transition-colors"
         >
           {!viewOnlyMode && (
@@ -118,7 +127,7 @@ export function Step1TreatmentInfo({
           )}
           <span>
             {selectedTreatment
-              ? selectedTreatment?.name
+              ? selectedTreatment.name
               : "Choose treatment option..."}
           </span>
         </button>
@@ -142,7 +151,6 @@ export function Step1TreatmentInfo({
                   type="button"
                   onClick={() => {
                     handleFieldChange("treatmentId", t.id);
-                    // handleDurationChange(t.baseDuration);
                     setShowTreatDropdown(false);
                   }}
                   className="w-full text-right px-3 py-2 text-xs font-medium rounded-lg text-neutral-700 hover:bg-neutral-50 flex items-center justify-between"
@@ -157,7 +165,7 @@ export function Step1TreatmentInfo({
           </div>
         )}
       </div>
-      {/* 2. Complexity Radio Choice Rows */}
+
       <div>
         <label className="block text-xs font-bold text-neutral-500 mb-1.5 uppercase tracking-wide">
           Complexity Class *
@@ -188,56 +196,71 @@ export function Step1TreatmentInfo({
           ))}
         </div>
       </div>
-      {/* 3. High Precision Day-Count Validated Calendar Grid */}
+
       <div className="relative">
         <label className="block text-xs font-bold text-neutral-500 uppercase tracking-wide mb-1.5">
           Appointment Date
         </label>
-        <button
-          disabled={viewOnlyMode}
-          onClick={() => !viewOnlyMode && setShowCalendar((prev) => {
-                if (!prev) {
-                  setShowTreatDropdown(false);
-                  setShowDocDropdown(false);
-                }
-                return !prev;
-              })}
-          className="w-full h-11 bg-white border border-neutral-200 rounded-xl px-4 flex items-center justify-between text-xs font-semibold text-neutral-700 disabled:bg-neutral-50 disabled:text-neutral-400 cursor-pointer"
-        >
-          {!viewOnlyMode && (
-            <ChevronDown className="w-4 h-4 text-neutral-400" />
-          )}
-          <span>
-            {formData.date ? formData.date.toDateString() : "Select date..."}
-          </span>
-        </button>
-
-        {showCalendar && (
-          <div className="absolute top-[102%] right-0 left-0 z-[100] bg-white border border-neutral-100 rounded-2xl shadow-xl p-3 flex justify-center">
-            <Calendar
-              mode="single"
-              disabled={{ before: new Date() }}
-              selected={formData.date}
-              onSelect={(day) => {
-                if (day) {
-                  handleFieldChange("date", day);
-                  setShowCalendar(false);
-                }
-              }}
-              defaultMonth={new Date(formData.date ?? now)}
-              captionLayout="label"
-              className="border-none shadow-none w-full"
-            />
+        {isGridLocked ? (
+          <div className="w-full h-11 bg-blue-50/40 border border-blue-100 rounded-xl px-4 flex items-center justify-between text-xs font-semibold text-neutral-700">
+            <Lock className="w-3.5 h-3.5 text-blue-500" />
+            <span>{formData.date?.toDateString()}</span>
           </div>
+        ) : (
+          <>
+            <button
+              disabled={viewOnlyMode}
+              onClick={() =>
+                !viewOnlyMode &&
+                setShowCalendar((prev) => {
+                  if (!prev) {
+                    setShowTreatDropdown(false);
+                    setShowDocDropdown(false);
+                  }
+                  return !prev;
+                })
+              }
+              className="w-full h-11 bg-white border border-neutral-200 rounded-xl px-4 flex items-center justify-between text-xs font-semibold text-neutral-700 disabled:bg-neutral-50 disabled:text-neutral-400 cursor-pointer"
+            >
+              {!viewOnlyMode && (
+                <ChevronDown className="w-4 h-4 text-neutral-400" />
+              )}
+              <span>
+                {formData.date ? formData.date.toDateString() : "Select date..."}
+              </span>
+            </button>
+
+            {showCalendar && (
+              <div className="absolute top-[102%] right-0 left-0 z-[100] bg-white border border-neutral-100 rounded-2xl shadow-xl p-3 flex justify-center">
+                <Calendar
+                  mode="single"
+                  disabled={{ before: new Date() }}
+                  selected={formData.date}
+                  onSelect={(day) => {
+                    if (day) {
+                      handleFieldChange("date", day);
+                      setShowCalendar(false);
+                    }
+                  }}
+                  defaultMonth={new Date(formData.date ?? Date.now())}
+                  captionLayout="label"
+                  className="border-none shadow-none w-full"
+                />
+              </div>
+            )}
+          </>
         )}
       </div>
-      {/* 4. Filtered Time Selector Node */}
+
       <div>
         <label className="block text-xs font-bold text-neutral-500 mb-1.5 uppercase tracking-wide">
-          Available Start Time *
-          <p className="text-blue-500 animate-pulse">Start Time : {formatMinutesToAMPM(formData.timeSlot!)}</p>
+          Start Time *
         </label>
-        {availableTimeSlots.length === 0 ? (
+        {isGridLocked && formData.timeSlot != null ? (
+          <div className="rounded-xl border border-blue-100 bg-blue-50/40 px-4 py-3 text-sm font-bold text-blue-700">
+            {formatAbsoluteRangeLabel(formData.timeSlot, formData.duration)}
+          </div>
+        ) : availableTimeSlots.length === 0 ? (
           <div className="bg-amber-50/60 border border-amber-100 rounded-xl p-3 text-center">
             <p className="text-xs font-semibold text-amber-800">
               No available time slots.
@@ -267,133 +290,130 @@ export function Step1TreatmentInfo({
                 );
               })
             ) : (
-              <label
-                key={formData.timeSlot}
-                className={`py-1.5 rounded-lg border text-xs font-bold transition-all "border-blue-500 bg-blue-50/50 text-blue-600"`}
-              >
+              <span className="py-1.5 rounded-lg border border-blue-500 bg-blue-50/50 text-blue-600 text-xs font-bold">
                 {formatMinutesToAMPM(formData.timeSlot!)}
-              </label>
+              </span>
             )}
           </div>
         )}
       </div>
-      {/* // داخل مكون Step1TreatmentInfo */}
+
       <div>
         <label className="block text-xs font-bold text-neutral-500 uppercase tracking-wide mb-2">
-          Appointment Duration (Minutes)
+          Appointment Duration
         </label>
-        <div className="flex items-center gap-2">
-          {!viewOnlyMode && (
-            <button
-              onClick={() =>
-                handleFieldChange(
-                  "duration",
-                  Math.max(15, formData.duration - 15),
-                )
-              }
-              className="px-3 py-1 bg-neutral-100 rounded-lg"
-            >
-              -
-            </button>
-          )}
-          <span className="font-mono text-sm font-bold">
+        {isGridLocked ? (
+          <div className="inline-flex items-center gap-2 rounded-xl border border-blue-100 bg-blue-50/40 px-4 py-2 text-sm font-bold text-blue-700">
+            <Lock className="h-3.5 w-3.5" />
             {formData.duration} min
-          </span>
-          {!viewOnlyMode && (
-            <button
-              onClick={() =>
-                handleFieldChange("duration", formData.duration + 15)
-              }
-              className="px-3 py-1 bg-neutral-100 rounded-lg"
-            >
-              +
-            </button>
-          )}
-        </div>
-      </div>
-      {/* 5. Deduplicated Doctor Selection */}
-      <div className="relative">
-        <label className="block text-xs font-bold text-neutral-500 mb-1.5 uppercase tracking-wide">
-          Assign Available Doctor *
-        </label>
-        <button
-          type="button"
-          disabled={formData.timeSlot === null}
-          onClick={() => !viewOnlyMode && setShowDocDropdown((prev) => {
-                if (!prev) {
-                  setShowCalendar(false);
-                  setShowTreatDropdown(false);
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            {!viewOnlyMode && (
+              <button
+                type="button"
+                onClick={() =>
+                  handleDurationChange(Math.max(15, formData.duration - 15))
                 }
-                return !prev;
-              })}
-          className="w-full bg-white border border-neutral-200 disabled:bg-neutral-50/70 disabled:opacity-60 rounded-xl px-3.5 py-2.5 text-xs font-medium text-neutral-800 flex items-center justify-between shadow-xs"
-        >
-          <span>
-            {viewOnlyMode || editingAppointment
-              ? doctors.find((d) => d.id === formData.doctorId)?.name
-              : formData.doctorId
-                ? availableDoctorsFiltered.find(
-                    (d) => d.id === formData.doctorId,
-                  )?.name
-                : "Choose dynamic provider..."}
-          </span>
-          {!viewOnlyMode && (
-            <ChevronDown className="w-4 h-4 text-neutral-400 shrink-0" />
-          )}
-        </button>
-
-        {showDocDropdown && (
-          <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-neutral-200 shadow-xl rounded-xl p-1.5 z-50 animate-in slide-in-from-top-1 duration-100">
-            {availableDoctorsFiltered.length === 0 ? (
-              <p className="text-xs font-medium text-neutral-400 text-center py-3">
-                No available doctors for the selected time.
-              </p>
-            ) : (
-              <div className="max-h-36 overflow-y-auto scrollbar-thin space-y-0.5">
-                {availableDoctorsFiltered.map((doc) => (
-                  <button
-                    key={doc.id}
-                    type="button"
-                    onClick={() => {
-                      handleFieldChange("doctorId", doc.id);
-                      setShowDocDropdown(false);
-                    }}
-                    className="w-full text-right px-3 py-2 text-xs font-medium rounded-lg text-neutral-700 hover:bg-neutral-50 flex items-center justify-between"
-                  >
-                    <div className="w-7 h-7 rounded-full bg-neutral-100 overflow-hidden shrink-0">
-                      {doc.avatar ? (
-                        <img
-                          src={doc.avatar}
-                          alt={doc.name}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full bg-neutral-200" />
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold">{doc.name}</span>
-                      <div className="w-5 h-5 rounded-full bg-neutral-100 border border-neutral-200 flex items-center justify-center text-[10px] text-neutral-500 font-bold">
-                        {doc.name.charAt(0)}
-                      </div>
-                    </div>
-                    <span className="text-[10px] text-emerald-600 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded-md font-bold">
-                      {doc.appointmentsTodayCount} appointments today
-                    </span>
-                  </button>
-                ))}
-              </div>
+                className="px-3 py-1 bg-neutral-100 rounded-lg"
+              >
+                -
+              </button>
+            )}
+            <span className="font-mono text-sm font-bold">
+              {formData.duration} min
+            </span>
+            {!viewOnlyMode && (
+              <button
+                type="button"
+                onClick={() => handleDurationChange(formData.duration + 15)}
+                className="px-3 py-1 bg-neutral-100 rounded-lg"
+              >
+                +
+              </button>
             )}
           </div>
         )}
       </div>
-      {/* 6. Restrict Checkbox Widget */}
+
+      <div className="relative">
+        <label className="block text-xs font-bold text-neutral-500 mb-1.5 uppercase tracking-wide">
+          Assign Doctor *
+        </label>
+        {isGridLocked ? (
+          <div className="w-full bg-blue-50/40 border border-blue-100 rounded-xl px-3.5 py-2.5 text-xs font-bold text-neutral-800 flex items-center justify-between">
+            <Lock className="w-3.5 h-3.5 text-blue-500" />
+            <span>{selectedDoctorName}</span>
+          </div>
+        ) : (
+          <>
+            <button
+              type="button"
+              disabled={formData.timeSlot === null}
+              onClick={() =>
+                !viewOnlyMode &&
+                setShowDocDropdown((prev) => {
+                  if (!prev) {
+                    setShowCalendar(false);
+                    setShowTreatDropdown(false);
+                  }
+                  return !prev;
+                })
+              }
+              className="w-full bg-white border border-neutral-200 disabled:bg-neutral-50/70 disabled:opacity-60 rounded-xl px-3.5 py-2.5 text-xs font-medium text-neutral-800 flex items-center justify-between shadow-xs"
+            >
+              <span>
+                {viewOnlyMode || editingAppointment
+                  ? doctors.find((d) => d.id === formData.doctorId)?.name
+                  : formData.doctorId
+                    ? availableDoctorsFiltered.find(
+                        (d) => d.id === formData.doctorId,
+                      )?.name
+                    : "Choose available doctor..."}
+              </span>
+              {!viewOnlyMode && (
+                <ChevronDown className="w-4 h-4 text-neutral-400 shrink-0" />
+              )}
+            </button>
+
+            {showDocDropdown && (
+              <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-neutral-200 shadow-xl rounded-xl p-1.5 z-50 animate-in slide-in-from-top-1 duration-100">
+                {availableDoctorsFiltered.length === 0 ? (
+                  <p className="text-xs font-medium text-neutral-400 text-center py-3">
+                    No available doctors for the selected time.
+                  </p>
+                ) : (
+                  <div className="max-h-36 overflow-y-auto scrollbar-thin space-y-0.5">
+                    {availableDoctorsFiltered.map((doc) => (
+                      <button
+                        key={doc.id}
+                        type="button"
+                        onClick={() => {
+                          handleFieldChange("doctorId", doc.id);
+                          setShowDocDropdown(false);
+                        }}
+                        className="w-full text-right px-3 py-2 text-xs font-medium rounded-lg text-neutral-700 hover:bg-neutral-50 flex items-center justify-between"
+                      >
+                        <span className="font-semibold">{doc.name}</span>
+                        <span className="text-[10px] text-emerald-600 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded-md font-bold">
+                          {doc.appointmentsTodayCount} today
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
       <label className="flex items-center justify-end gap-2 cursor-pointer select-none py-1">
         <span className="text-xs font-semibold text-neutral-600">
           Restrict to this doctor only
         </span>
         <input
-          disabled={viewOnlyMode}
+          disabled={viewOnlyMode || isGridLocked}
           type="checkbox"
           checked={formData.isLockedToDoctor}
           onChange={(e) =>
@@ -402,7 +422,7 @@ export function Step1TreatmentInfo({
           className="w-3.5 h-3.5 text-blue-600 border-neutral-300 rounded focus:ring-blue-500"
         />
       </label>
-      {/* 7. Notes Textarea Frame with Active Live Character Counter */}
+
       <div>
         <div className="flex items-center justify-between mb-1.5">
           <label className="block text-xs font-bold text-neutral-500 uppercase tracking-wide">
@@ -418,7 +438,7 @@ export function Step1TreatmentInfo({
           value={formData.notes}
           onChange={(e) => handleFieldChange("notes", e.target.value)}
           placeholder="Enter internal diagnostic flags or special requests..."
-          className="w-full min-h-[64px] max-h-[64px] bg-white border border-neutral-200 rounded-xl px-3 py-2 text-xs font-medium outline-none  focus:border-neutral-300 transition-colors resize-none placeholder:text-neutral-300"
+          className="w-full min-h-[64px] max-h-[64px] bg-white border border-neutral-200 rounded-xl px-3 py-2 text-xs font-medium outline-none focus:border-neutral-300 transition-colors resize-none placeholder:text-neutral-300"
         />
       </div>
     </div>

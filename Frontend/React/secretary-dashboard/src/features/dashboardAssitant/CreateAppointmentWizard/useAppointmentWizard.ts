@@ -2,10 +2,12 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import type { DoctorType } from "@/features/dashboardAssitant/types";
 import { useWizardDrawer } from "../hooks/useWizardDrawer";
 import { START_TIME_MINUTES } from "../data/scheduleGrid";
+import { absoluteMinutesFromGridMinutes } from "@/lib/time/gridTime";
 import { formatMinutesToAMPM } from "../components/SchedualeGrid/DNDGrid/utils/timeFormatters";
 import { lookupPatientByPhone } from "@/lib/api/users";
 import { useAuthStore } from "@/stores/authStore";
-import { listAvailableSlots, minutesFromMidnight } from "@/lib/api/schedule";
+import { listAvailableSlots } from "@/lib/api/schedule";
+import { absoluteMinutesFromIso } from "@/lib/time/gridTime";
 import { useScheduleContext } from "../context/ScheduleContext";
 
 export interface TreatmentOption {
@@ -41,8 +43,9 @@ export interface WizardFormData {
   patientAge: string;
   patientGender: "Male" | "Female" | null;
   patientAddress: string;
-  isExistingPatient: boolean; // Tracks if profile was linked from DB
-  duration: number; // حقل جديد للمدة
+  isExistingPatient: boolean;
+  duration: number;
+  fromGridSelection?: boolean;
 }
 
 const INITIAL_FORM_DATA: WizardFormData = {
@@ -59,7 +62,8 @@ const INITIAL_FORM_DATA: WizardFormData = {
   patientGender: null,
   patientAddress: "",
   isExistingPatient: false,
-  duration: 15,
+  duration: 30,
+  fromGridSelection: false,
 };
 
 export const TREATMENT_OPTIONS: TreatmentOption[] = [
@@ -104,7 +108,8 @@ export function useAppointmentWizard(
   const prevIsWizardOpen = useRef(false);
 
   useEffect(() => {
-if (isWizardOpen && !prevIsWizardOpen.current) {      if (editingAppointment) {
+    if (isWizardOpen && !prevIsWizardOpen.current) {
+      if (editingAppointment) {
         const treatmentDuration =
           editingAppointment.end - editingAppointment.start;
         const formattedData: WizardFormData = {
@@ -114,7 +119,7 @@ if (isWizardOpen && !prevIsWizardOpen.current) {      if (editingAppointment) {
           date: editingAppointment.date
             ? new Date(editingAppointment.date)
             : new Date(),
-          timeSlot: editingAppointment.start + START_TIME_MINUTES,
+          timeSlot: absoluteMinutesFromGridMinutes(editingAppointment.start),
           doctorId: editingAppointment.docId,
           isLockedToDoctor: editingAppointment.refuseTransfer || false,
           notes: editingAppointment.notes || "",
@@ -126,44 +131,35 @@ if (isWizardOpen && !prevIsWizardOpen.current) {      if (editingAppointment) {
           patientAddress: editingAppointment.patient?.adddress || "",
           isExistingPatient: true,
           duration: treatmentDuration,
+          fromGridSelection: false,
         };
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setFormData(formattedData);
         originalDataRef.current = JSON.stringify(formattedData);
       } else if (initialData) {
-        console.log(
-          `new Date(initialData.date).toDateString():${new Date(initialData.date).toDateString()}`,
-        );
-        // 🟢 التعبئة التلقائية الفورية وحل مشكلة عدم تحديد الطبيب والوقت
-        setFormData((prev) => ({
-          ...prev,
-          treatmentId: "t1", // علاج افتراضي أولي لتجنب الفراغ
+        const formattedData: WizardFormData = {
+          ...INITIAL_FORM_DATA,
+          treatmentId: "t1",
           complexity: "standard",
-          date: initialData.date,
-          timeSlot: initialData.timeSlot, // تعيين وقت البداية الحقيقي المحسوب بدقة
-          duration: initialData.duration, // تعيين المدة الإجمالية من طول السحب
-          doctorId: initialData.doctorId, // تثبيت معرّف الطبيب الصحيح للعمود
+          date: new Date(initialData.date),
+          timeSlot: initialData.timeSlot,
+          duration: Math.max(15, initialData.duration),
+          doctorId: initialData.doctorId,
           isLockedToDoctor: true,
-          patientName: "",
-          patientPhone: "",
-          patientAge: "",
-          patientGender: null,
-          patientAddress: "",
-          isExistingPatient: false,
-          notes: "",
-        }));
+          fromGridSelection: initialData.fromGridSelection ?? true,
+        };
+        setFormData(formattedData);
+        originalDataRef.current = JSON.stringify(formattedData);
       } else if (pendingRequestData) {
-        // 🔵 الحالة الخاصة بـ Pending Request الإضافية
         const matchedDoctor = doctors.find(
           (doc) => doc.id === pendingRequestData.docId,
         );
 
-        setFormData((prev) => ({
-          ...prev,
-          doctorId: matchedDoctor ? matchedDoctor.id : "",
+        const formattedData: WizardFormData = {
+          ...INITIAL_FORM_DATA,
+          doctorId: matchedDoctor ? matchedDoctor.id : pendingRequestData.docId,
           date: pendingRequestData.date ?? new Date(),
           treatmentId: pendingRequestData.treatmentId || "t1",
-          timeSlot: pendingRequestData.start,
+          timeSlot: absoluteMinutesFromGridMinutes(pendingRequestData.start),
           duration: pendingRequestData.duration || 30,
           complexity: pendingRequestData.complexity || "standard",
           isLockedToDoctor: pendingRequestData.refuseTransfer ?? false,
@@ -173,10 +169,23 @@ if (isWizardOpen && !prevIsWizardOpen.current) {      if (editingAppointment) {
           patientGender: pendingRequestData.patient?.gender ?? null,
           patientAddress: pendingRequestData.patient?.adddress ?? "",
           isExistingPatient: false,
-          notes: `Created via Pending Request assigned on ${pendingRequestData.date} ${formatMinutesToAMPM(pendingRequestData.start)}`,
-        }));
+          notes: `Created via Pending Request assigned on ${pendingRequestData.date} ${formatMinutesToAMPM(absoluteMinutesFromGridMinutes(pendingRequestData.start))}`,
+        };
+        setFormData(formattedData);
+        originalDataRef.current = JSON.stringify(formattedData);
+      } else {
+        const formattedData = { ...INITIAL_FORM_DATA, date: new Date() };
+        setFormData(formattedData);
+        originalDataRef.current = JSON.stringify(formattedData);
       }
       setCurrentStep(1);
+    } else if (!isWizardOpen && prevIsWizardOpen.current) {
+      setFormData(INITIAL_FORM_DATA);
+      setCurrentStep(1);
+      setSearchTreatment("");
+      setSearchDoctor("");
+      setSearchQuery("");
+      originalDataRef.current = JSON.stringify(INITIAL_FORM_DATA);
     }
     prevIsWizardOpen.current = isWizardOpen;
   }, [
@@ -268,16 +277,16 @@ if (isWizardOpen && !prevIsWizardOpen.current) {      if (editingAppointment) {
     if (viewOnlyMode) return;
     setFormData((prev) => {
       const next = { ...prev, [field]: value };
+      const locked = prev.isLockedToDoctor || prev.fromGridSelection;
 
       if (
-        field === "treatmentId" ||
-        field === "complexity" ||
-        field === "date"
+        !locked &&
+        (field === "treatmentId" || field === "complexity" || field === "date")
       ) {
         next.timeSlot = null;
         next.doctorId = "";
       }
-      if (field === "timeSlot") {
+      if (!locked && field === "timeSlot") {
         next.doctorId = "";
       }
 
@@ -312,55 +321,66 @@ if (isWizardOpen && !prevIsWizardOpen.current) {      if (editingAppointment) {
       ? new Date(formData.date).toDateString()
       : "";
 
-    return (
-      doctors
-        .map((doc) => {
-          // 1. استخراج مواعيد الطبيب الخاصة باليوم المختار فقط
-          const appointmentsToday = (doc.appointments || []).filter((apt) => {
-            if (!targetDateStr) return true;
-            if (!apt.date) return true;
-            return new Date(apt.date).toDateString() === targetDateStr;
-          });
+    return doctors
+      .map((doc) => {
+        const appointmentsToday = (doc.appointments || []).filter((apt) => {
+          if (!targetDateStr || !apt.date) return false;
+          return new Date(apt.date).toDateString() === targetDateStr;
+        });
 
-          const dailyCount = appointmentsToday.length;
-          let isAvailableAtSlot = true;
+        const dailyCount = appointmentsToday.length;
+        let isAvailableAtSlot = true;
 
-          // 2. إذا حدد المستخدم تاريخ ووقت، نقوم بفحص التضارب لليوم والوقت والمدة بدقة
-          if (formData.date && formData.timeSlot !== null) {
-            const relativeStartTime = formData.timeSlot - START_TIME_MINUTES;
-            const relativeEndTime = relativeStartTime + computedDuration;
+        if (formData.date && formData.timeSlot !== null) {
+          const relativeStartTime = formData.timeSlot - START_TIME_MINUTES;
+          const relativeEndTime = relativeStartTime + computedDuration;
 
-            const hasConflict = appointmentsToday.some((apt) => {
-              // 🔥 CRITICAL FIX: Ignore the appointment currently being updated to prevent self-validation conflict.
-              if (editingAppointment && apt.id === editingAppointment.id)
-                return false;
-              if (formData.timeSlot === null) return false;
-              return relativeStartTime < apt.end && relativeEndTime > apt.start;
-            });
-            isAvailableAtSlot = !hasConflict;
-          }
-
-          return {
-            ...doc,
-            specialty: doc.specialty || "General Dentist",
-            appointmentsTodayCount: dailyCount,
-            isAvailableAtSlot: isAvailableAtSlot,
-            isAvailable: true, // محاذاة الحالة لضمان التوافق البصري
-            appointments: appointmentsToday,
-          };
-        })
-        // 🔥 الفلترة الحقيقية: إذا تم اختيار وقت، لا تعرض إلا الطبيب المتاح فقط (تخفي أي طبيب غير متاح)
-        .filter((doc) => {
-          if (formData.timeSlot !== null) {
+          const hasConflict = appointmentsToday.some((apt) => {
+            if (editingAppointment && apt.id === editingAppointment.id) {
+              return false;
+            }
             return (
-              doc.isAvailableAtSlot &&
-              doc.name.toLowerCase().includes(searchDoctor.toLowerCase())
+              relativeStartTime < apt.end && relativeEndTime > apt.start
             );
-          }
+          });
+          isAvailableAtSlot = !hasConflict;
+        }
+
+        return {
+          ...doc,
+          specialty: doc.specialty || "General Dentist",
+          appointmentsTodayCount: dailyCount,
+          isAvailableAtSlot,
+          isAvailable: true,
+          appointments: appointmentsToday,
+        };
+      })
+      .filter((doc) => {
+        if (
+          formData.isLockedToDoctor &&
+          formData.doctorId &&
+          doc.id === formData.doctorId
+        ) {
           return doc.name.toLowerCase().includes(searchDoctor.toLowerCase());
-        })
-    );
-  }, [formData.date, formData.timeSlot, doctors, computedDuration, editingAppointment, searchDoctor]);
+        }
+        if (formData.timeSlot !== null) {
+          return (
+            doc.isAvailableAtSlot &&
+            doc.name.toLowerCase().includes(searchDoctor.toLowerCase())
+          );
+        }
+        return doc.name.toLowerCase().includes(searchDoctor.toLowerCase());
+      });
+  }, [
+    formData.date,
+    formData.timeSlot,
+    formData.doctorId,
+    formData.isLockedToDoctor,
+    doctors,
+    computedDuration,
+    editingAppointment,
+    searchDoctor,
+  ]);
   // فحص حارس الخطوة الأولى: نتحقق من أن الطبيب متاح وصالح لتفعيل زر الـ Next
   const isStep1Valid = useMemo(() => {
     if (
@@ -371,6 +391,9 @@ if (isWizardOpen && !prevIsWizardOpen.current) {      if (editingAppointment) {
       !formData.doctorId
     ) {
       return false;
+    }
+    if (formData.fromGridSelection || formData.isLockedToDoctor) {
+      return true;
     }
     const chosenDoc = availableDoctorsFiltered.find(
       (d) => d.id === formData.doctorId,
@@ -392,8 +415,14 @@ if (isWizardOpen && !prevIsWizardOpen.current) {      if (editingAppointment) {
     return !Object.values(step2Errors).some(Boolean);
   }, [step2Errors]);
 
-  // حساب أوقات المواعيد المتاحة للعيادة من scheduling-service
-  const availableTimeSlots = apiSlotMinutes;
+  // Include the grid-selected time even when scheduling API returns a narrower list.
+  const availableTimeSlots = useMemo(() => {
+    const merged = [...apiSlotMinutes];
+    if (formData.timeSlot != null && !merged.includes(formData.timeSlot)) {
+      merged.push(formData.timeSlot);
+    }
+    return merged.sort((a, b) => a - b);
+  }, [apiSlotMinutes, formData.timeSlot]);
 
   useEffect(() => {
     if (!isWizardOpen || !formData.date || !clinicId || !accessToken) {
@@ -427,7 +456,7 @@ if (isWizardOpen && !prevIsWizardOpen.current) {      if (editingAppointment) {
       const minutes = [
         ...new Set(
           results.flatMap((res) =>
-            (res.slots ?? []).map((iso) => minutesFromMidnight(iso)),
+            (res.slots ?? []).map((iso) => absoluteMinutesFromIso(iso)),
           ),
         ),
       ].sort((a, b) => a - b);
@@ -481,7 +510,7 @@ if (isWizardOpen && !prevIsWizardOpen.current) {      if (editingAppointment) {
   };
 
   const handleDurationChange = (newDuration: number) => {
-    if (viewOnlyMode) return;
+    if (viewOnlyMode || formData.fromGridSelection) return;
     setFormData((prev) => ({ ...prev, duration: Math.max(15, newDuration) }));
   };
 

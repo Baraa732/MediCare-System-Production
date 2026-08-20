@@ -6,17 +6,25 @@ interface Type {
   onClose: () => void;
   onOpenNewAppointment: (initData?: {
     doctorId: string;
+    doctorName?: string;
     timeSlot: number;
     duration: number;
     date: Date;
+    startSlot?: number;
+    endSlot?: number;
+    fromGridSelection?: boolean;
   }) => void;
   pendingRequestData: PendingRequest | null;
   openWithPendingRequest: (request: PendingRequest) => void;
   initialData: {
     doctorId: string;
+    doctorName?: string;
     timeSlot: number;
     duration: number;
     date: Date;
+    startSlot?: number;
+    endSlot?: number;
+    fromGridSelection?: boolean;
   } | null;
   
   // دمج أوضاع التعديل والقراءة فقط

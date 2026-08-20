@@ -11,26 +11,19 @@ import { Button } from "@/components/ui/button";
 import { createAppointment } from "@/lib/api/appointments";
 import { lookupPatientByPhone } from "@/lib/api/users";
 import { normalizeCaughtError } from "@/lib/api/errors";
-import { scheduledAtFromGridMinutes } from "@/lib/api/mappers";
 import { formatSlotLabel, listAvailableSlots } from "@/lib/api/schedule";
-import { ROW_MINUTES } from "../data/scheduleGrid";
+import {
+  formatAbsoluteRangeLabel,
+  gridMinutesFromSlot,
+  scheduledAtFromGridMinutes,
+  slotRangeDurationMinutes,
+} from "@/lib/time/gridTime";
+import { START_TIME_MINUTES } from "../data/scheduleGrid";
 import { useAuthStore } from "@/stores/authStore";
 import { useAppointmentDialog } from "../hooks/useAppointmentDialog";
 import { useScheduleContext } from "../context/ScheduleContext";
 import type { PatientLookup } from "@/lib/api/users";
-
-function formatSlotRange(startSlot: number, endSlot: number) {
-  const startMins = startSlot * ROW_MINUTES;
-  const endMins = (endSlot + 1) * ROW_MINUTES;
-  const fmt = (mins: number) => {
-    const h = Math.floor(mins / 60);
-    const m = mins % 60;
-    const displayH = h % 12 || 12;
-    const ampm = h >= 12 ? "PM" : "AM";
-    return `${displayH}:${m.toString().padStart(2, "0")} ${ampm}`;
-  };
-  return `${fmt(startMins)} – ${fmt(endMins)}`;
-}
+import { CalendarClock, Clock3, Stethoscope } from "lucide-react";
 
 export function AddAppointmentDialog() {
   const isOpen = useAppointmentDialog((s) => s.isOpen);
@@ -68,14 +61,34 @@ export function AddAppointmentDialog() {
     setDoctorId(prefill?.doctorId ?? doctors[0]?.id ?? "");
   }, [isOpen, prefill, doctors]);
 
+  const selectedDoctorName = useMemo(
+    () =>
+      prefill?.doctorName ??
+      doctors.find((doc) => doc.id === doctorId)?.name ??
+      "Doctor",
+    [prefill?.doctorName, doctors, doctorId],
+  );
+
   const timeLabel = useMemo(() => {
     if (prefill?.startSlot == null || prefill?.endSlot == null) return null;
-    return formatSlotRange(prefill.startSlot, prefill.endSlot);
+    const startGrid = gridMinutesFromSlot(
+      Math.min(prefill.startSlot, prefill.endSlot),
+    );
+    const duration = slotRangeDurationMinutes(
+      prefill.startSlot,
+      prefill.endSlot,
+    );
+    return formatAbsoluteRangeLabel(
+      START_TIME_MINUTES + startGrid,
+      duration,
+    );
   }, [prefill]);
 
   const durationMinutes = useMemo(() => {
-    if (prefill?.startSlot == null || prefill?.endSlot == null) return manualDuration;
-    return (prefill.endSlot - prefill.startSlot + 1) * ROW_MINUTES;
+    if (prefill?.startSlot == null || prefill?.endSlot == null) {
+      return manualDuration;
+    }
+    return slotRangeDurationMinutes(prefill.startSlot, prefill.endSlot);
   }, [prefill, manualDuration]);
 
   useEffect(() => {
@@ -176,7 +189,9 @@ export function AddAppointmentDialog() {
     let scheduledAt = selectedSlotIso;
     if (prefill?.startSlot != null) {
       scheduledAt = scheduledAtFromGridMinutes(
-        prefill.startSlot * ROW_MINUTES,
+        gridMinutesFromSlot(
+          Math.min(prefill.startSlot, prefill.endSlot ?? prefill.startSlot),
+        ),
         selectedDate,
       );
     }
@@ -216,17 +231,36 @@ export function AddAppointmentDialog() {
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && closeDialog()}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>New appointment</DialogTitle>
-          <DialogDescription>
+      <DialogContent className="sm:max-w-lg rounded-2xl border border-neutral-100 p-0 overflow-hidden">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b border-neutral-100 bg-gradient-to-br from-blue-50/70 to-white">
+          <DialogTitle className="text-lg font-bold text-neutral-900">
+            New appointment
+          </DialogTitle>
+          <DialogDescription className="text-sm text-neutral-500">
             {prefill?.doctorName && timeLabel
-              ? `Book with ${prefill.doctorName} at ${timeLabel}`
+              ? "Review the selected slot, then add patient details."
               : "Fill in patient details and pick an available slot."}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-1">
+        <div className="space-y-4 px-6 py-5">
+          {prefill?.startSlot != null && timeLabel ? (
+            <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4 grid gap-3">
+              <div className="flex items-center gap-2 text-sm font-semibold text-neutral-800">
+                <Stethoscope className="h-4 w-4 text-blue-600" />
+                {selectedDoctorName}
+              </div>
+              <div className="flex items-center gap-2 text-sm font-semibold text-neutral-800">
+                <Clock3 className="h-4 w-4 text-blue-600" />
+                {timeLabel}
+              </div>
+              <div className="flex items-center gap-2 text-sm font-semibold text-neutral-800">
+                <CalendarClock className="h-4 w-4 text-blue-600" />
+                {selectedDate.toDateString()} · {durationMinutes} min
+              </div>
+            </div>
+          ) : null}
+
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-neutral-600">
               Doctor
@@ -238,7 +272,7 @@ export function AddAppointmentDialog() {
                 setSelectedSlotIso("");
               }}
               disabled={Boolean(prefill?.doctorId)}
-              className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-blue-500"
+              className="w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
             >
               {doctors.map((doc) => (
                 <option key={doc.id} value={doc.id}>
@@ -260,7 +294,7 @@ export function AddAppointmentDialog() {
                     setManualDuration(Number(e.target.value));
                     setSelectedSlotIso("");
                   }}
-                  className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-blue-500"
+                  className="w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
                 >
                   {[15, 30, 45, 60, 90, 120].map((d) => (
                     <option key={d} value={d}>
@@ -279,14 +313,14 @@ export function AddAppointmentDialog() {
                 ) : slotsError ? (
                   <p className="text-xs text-red-600">{slotsError}</p>
                 ) : slots.length === 0 ? (
-                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
                     No open times for this doctor on the selected day.
                   </p>
                 ) : (
                   <select
                     value={selectedSlotIso}
                     onChange={(e) => setSelectedSlotIso(e.target.value)}
-                    className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-blue-500"
+                    className="w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
                   >
                     <option value="">— select a slot —</option>
                     {slots.map((iso) => (
@@ -309,7 +343,7 @@ export function AddAppointmentDialog() {
               value={patientName}
               onChange={(e) => setPatientName(e.target.value)}
               placeholder="Full patient name"
-              className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-blue-500"
+              className="w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
             />
           </div>
 
@@ -323,11 +357,12 @@ export function AddAppointmentDialog() {
                 value={phoneNumber}
                 onChange={(e) => setPhoneNumber(e.target.value)}
                 placeholder="+963..."
-                className="flex-1 rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-blue-500"
+                className="flex-1 rounded-xl border border-neutral-200 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
               />
               <Button
                 type="button"
                 variant="outline"
+                className="rounded-xl"
                 onClick={handleLookup}
                 disabled={isLookingUp}
               >
@@ -338,12 +373,12 @@ export function AddAppointmentDialog() {
               <p className="text-xs text-red-600">{lookupError}</p>
             )}
             {patient && (
-              <p className="text-xs text-green-700 bg-green-50 border border-green-100 rounded-lg px-3 py-2">
+              <p className="text-xs text-green-700 bg-green-50 border border-green-100 rounded-xl px-3 py-2">
                 Patient: {patient.fullName || `${patient.firstName} ${patient.lastName}`}
               </p>
             )}
             {!patient && phoneNumber.trim() && lookupError && (
-              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
                 Booking will be saved as a manual guest appointment.
               </p>
             )}
@@ -358,26 +393,26 @@ export function AddAppointmentDialog() {
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="e.g. Follow-up visit"
-              className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-blue-500"
+              className="w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
             />
           </div>
 
           {submitError && (
-            <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+            <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
               {submitError}
             </p>
           )}
         </div>
 
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={closeDialog}>
+        <DialogFooter className="px-6 py-4 border-t border-neutral-100 bg-neutral-50/60">
+          <Button type="button" variant="outline" className="rounded-xl" onClick={closeDialog}>
             Cancel
           </Button>
           <Button
             type="button"
             onClick={() => void handleSubmit()}
             disabled={isSubmitting || (prefill?.startSlot == null && !selectedSlotIso)}
-            className="bg-[#0066ff] hover:bg-[#0052cc]"
+            className="rounded-xl bg-[#0066ff] hover:bg-[#0052cc]"
           >
             {isSubmitting ? "Booking…" : "Book appointment"}
           </Button>

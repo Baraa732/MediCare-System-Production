@@ -5,7 +5,7 @@ import {
   updateAppointmentStatus,
 } from "@/lib/api/appointments";
 import { lookupPatientByPhone } from "@/lib/api/users";
-import { scheduledAtFromAbsoluteMinutes, scheduledAtFromGridMinutes } from "@/lib/api/mappers";
+import { scheduledAtFromAbsoluteMinutes, scheduledAtFromGridMinutes } from "@/lib/time/gridTime";
 import { useAuthStore } from "@/stores/authStore";
 import { useScheduleContext } from "../context/ScheduleContext";
 import type { AppointmentType } from "../types";

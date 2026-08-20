@@ -1,7 +1,12 @@
 import { Plus } from "lucide-react";
 import { useWizardDrawer } from "../../hooks/useWizardDrawer";
-import { SLOT_HEIGHT, START_TIME_MINUTES } from "../../data/scheduleGrid";
+import { SLOT_HEIGHT } from "../../data/scheduleGrid";
 import { useHandleDatePicker } from "../../hooks";
+import { useScheduleGridStore } from "../../hooks/scheduleGridStore";
+import {
+  absoluteMinutesFromGridSlot,
+  slotRangeDurationMinutes,
+} from "@/lib/time/gridTime";
 
 interface PersistentSelectionAreaProps {
   hasSelectionInColumn: boolean;
@@ -20,20 +25,22 @@ export function PersistentSelectionArea({
   const onOpenNewAppointment = useWizardDrawer((state) => state.onOpenNewAppointment);
 
   const handleTriggerWizardWithSelection = () => {
-    // const SLOT_HEIGHT = 40; // الارتفاع الرسومي للسلوت الواحد في مشروعك
-    
-    // حساب الدقائق النسبية بناءً على موضع السحب العلوي
-    const relativeStartMinutes = Math.round(selectionTop / SLOT_HEIGHT) * 15;
-    const durationMinutes = Math.round(selectionHeight / SLOT_HEIGHT) * 15;
-    
-    // تحويلها إلى وقت مطلق من منتصف الليل متوافق تماماً مع محرك الفلترة والـ Form
-    const absoluteStartTime = START_TIME_MINUTES + relativeStartMinutes;
+    const startSlot = Math.round(selectionTop / SLOT_HEIGHT);
+    const slotCount = Math.max(1, Math.round(selectionHeight / SLOT_HEIGHT));
+    const endSlot = startSlot + slotCount - 1;
+    const doctor = useScheduleGridStore
+      .getState()
+      .doctors.find((d) => d.id === doctorId);
 
     onOpenNewAppointment({
-      doctorId: doctorId,
-      timeSlot: absoluteStartTime,
-      duration: Math.max(15, durationMinutes),
-      date:  selectedDate,
+      doctorId,
+      doctorName: doctor?.name,
+      timeSlot: absoluteMinutesFromGridSlot(startSlot),
+      duration: slotRangeDurationMinutes(startSlot, endSlot),
+      date: selectedDate,
+      startSlot,
+      endSlot,
+      fromGridSelection: true,
     });
   };
 

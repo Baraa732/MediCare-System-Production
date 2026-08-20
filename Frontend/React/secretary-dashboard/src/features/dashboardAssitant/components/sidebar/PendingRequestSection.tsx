@@ -31,6 +31,7 @@ import { usePendingRequest } from "../../hooks/usePendingRequest";
 import { useScheduleGridStore } from "../../hooks/scheduleGridStore";
 import { useScheduleContext } from "../../context/ScheduleContext";
 import { formatMinutesToAMPM } from "../SchedualeGrid/DNDGrid/utils/timeFormatters";
+import { absoluteMinutesFromGridMinutes } from "@/lib/time/gridTime";
 import { useAuthStore } from "@/stores/authStore";
 import {
   cancelAppointment,
@@ -161,7 +162,7 @@ export function PendingRequestSection() {
                     </div>
                     <div className="flex items-center gap-1 mt-0.5">
                       <Clock className="w-3 h-3 text-neutral-400" />{" "}
-                      {formatMinutesToAMPM(activeItem.start)}
+                      {formatMinutesToAMPM(absoluteMinutesFromGridMinutes(activeItem.start))}
                     </div>
                   </div>
                 </div>
@@ -314,7 +315,7 @@ function SortableRequestCard({ item, isEditMode }: SortableCardProps) {
           </div>
           <div className="flex items-center gap-1 mt-0.5">
             <Clock className="w-3 h-3 text-neutral-400" />{" "}
-            {formatMinutesToAMPM(item.start)}
+            {formatMinutesToAMPM(absoluteMinutesFromGridMinutes(item.start))}
           </div>
         </div>
 

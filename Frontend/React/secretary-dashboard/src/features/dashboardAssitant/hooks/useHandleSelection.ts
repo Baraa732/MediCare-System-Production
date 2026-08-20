@@ -1,11 +1,14 @@
 // useHandleSelection.ts
 import { create } from "zustand";
 import type { SelectionType } from "../types";
-import { ROW_MINUTES, START_TIME_MINUTES } from "../data/scheduleGrid";
+import { ROW_MINUTES } from "../data/scheduleGrid";
 import { useScheduleGridStore } from "./scheduleGridStore";
-// 1️⃣ استيراد هوك الـ Wizard لفتحه عند الحاجة
 import { useWizardDrawer } from "./useWizardDrawer";
 import { useHandleDatePicker } from "./useHandleDatePicker";
+import {
+  absoluteMinutesFromGridSlot,
+  slotRangeDurationMinutes,
+} from "@/lib/time/gridTime";
 
 interface HandleSelectionState {
   selection: SelectionType;
@@ -58,28 +61,26 @@ export const useHandleSelection = create<HandleSelectionState>((set) => {
             state.selection.startSlot,
             state.selection.endSlot,
           );
-          // const maxSlot = Math.max(
-          //   state.selection.startSlot,
-          //   state.selection.endSlot,
-          // );
-
-          // // حساب المدة بناءً على عدد الخلايا المحددة (كل خلية = 15 دقيقة)
-          // const duration = (maxSlot - minSlot + 1) * 15;
-          // منطق مقترح داخل handleCreateAppointment
-          const duration =
-            (Math.abs(state.selection.endSlot - state.selection.startSlot) +
-              1) *
-            15;
+          const maxSlot = Math.max(
+            state.selection.startSlot,
+            state.selection.endSlot,
+          );
+          const duration = slotRangeDurationMinutes(minSlot, maxSlot);
           const date = useHandleDatePicker.getState().date;
+          const doctor = useScheduleGridStore
+            .getState()
+            .doctors.find((d) => d.id === state.selection!.docId);
 
           useWizardDrawer.getState().onOpenNewAppointment({
             doctorId: state.selection.docId,
-            // wizard expects absolute minutes since midnight (used later as timeSlot - START_TIME_MINUTES)
-            timeSlot: START_TIME_MINUTES + minSlot * ROW_MINUTES,
-            duration: duration, // إرسال المدة المحسوبة
-            date: date,
+            doctorName: doctor?.name,
+            timeSlot: absoluteMinutesFromGridSlot(minSlot),
+            duration,
+            date,
+            startSlot: minSlot,
+            endSlot: maxSlot,
+            fromGridSelection: true,
           });
-          // تحديث قيمة duration في الـ Wizard لاحقاً عبر initialData
           return { selection: null };
         }
         return {};
