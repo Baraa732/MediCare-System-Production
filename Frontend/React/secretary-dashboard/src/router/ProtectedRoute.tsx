@@ -2,6 +2,7 @@ import { Navigate, useLocation } from "react-router";
 import type { ReactNode } from "react";
 import { useAuthHydration } from "@/hooks/useAuthHydration";
 import { useAuthStore } from "@/stores/authStore";
+import { RouteFallback } from "@/components/RouteFallback";
 import { NotificationProvider } from "@/features/notifications/NotificationProvider";
 import { LivePushToast } from "@/features/notifications/LivePushToast";
 
