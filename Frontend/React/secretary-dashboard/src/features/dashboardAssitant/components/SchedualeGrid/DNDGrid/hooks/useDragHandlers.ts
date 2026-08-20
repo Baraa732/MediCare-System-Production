@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import {
   type DragEndEvent,
   type DragStartEvent,
@@ -53,44 +53,96 @@ function buildConflictItems(
   }));
 }
 
+function cloneDoctors(source: DoctorType[]): DoctorType[] {
+  return JSON.parse(JSON.stringify(source)) as DoctorType[];
+}
+
+function filterDoctors(source: DoctorType[], searchQuery: string): DoctorType[] {
+  const q = searchQuery.trim().toLowerCase();
+  if (!q) return source;
+  return source
+    .map((doc) => ({
+      ...doc,
+      appointments: doc.appointments.filter(
+        (a) =>
+          (a.title ?? "").toLowerCase().includes(q) ||
+          (a.patient?.name ?? "").toLowerCase().includes(q) ||
+          (a.patient?.phone ?? "").toLowerCase().includes(q),
+      ),
+    }))
+    .filter(
+      (doc) =>
+        doc.name.toLowerCase().includes(q) ||
+        (doc.specialty ?? "").toLowerCase().includes(q) ||
+        doc.appointments.length > 0,
+    );
+}
+
+function findAppointment(
+  doctors: DoctorType[],
+  id: string,
+): AppointmentType | undefined {
+  for (const doc of doctors) {
+    const apt = doc.appointments.find((a) => a.id === id);
+    if (apt) return apt;
+  }
+  return undefined;
+}
+
+function applyAppointmentToDoctors(
+  doctors: DoctorType[],
+  updatedApt: AppointmentType,
+): DoctorType[] {
+  return doctors.map((doc) => {
+    const filtered = doc.appointments.filter((a) => a && a.id !== updatedApt.id);
+    if (doc.id === updatedApt.docId) {
+      filtered.push(updatedApt);
+    }
+    return { ...doc, appointments: filtered };
+  });
+}
+
+function collectDirtyAppointments(
+  working: DoctorType[],
+  baseline: DoctorType[],
+): AppointmentType[] {
+  const dirty: AppointmentType[] = [];
+  for (const doc of working) {
+    for (const apt of doc.appointments) {
+      if (!isApiAppointmentId(apt.id)) continue;
+      const original = findAppointment(baseline, apt.id);
+      if (
+        !original ||
+        original.docId !== apt.docId ||
+        original.start !== apt.start ||
+        original.end !== apt.end
+      ) {
+        dirty.push(apt);
+      }
+    }
+  }
+  return dirty;
+}
+
 export function useDragHandlers() {
   const { doctors: scheduleDoctors, selectedDate } = useScheduleContext();
-  const { persistGridUpdate } = useAppointmentActions();
+  const { persistGridUpdates } = useAppointmentActions();
   const openWithPendingRequestAtSlot = useWizardDrawer(
     (s) => s.openWithPendingRequestAtSlot,
   );
   const searchQuery = useScheduleGridStore((s) => s.searchQuery);
-
-  const [doctors, setDoctors] = useState<DoctorType[]>([]);
-
-  useEffect(() => {
-    const q = searchQuery.trim().toLowerCase();
-    const source = scheduleDoctors as DoctorType[];
-    if (!q) {
-      setDoctors(source);
-      return;
-    }
-    setDoctors(
-      source
-        .map((doc) => ({
-          ...doc,
-          appointments: doc.appointments.filter(
-            (a) =>
-              (a.title ?? "").toLowerCase().includes(q) ||
-              (a.patient?.name ?? "").toLowerCase().includes(q) ||
-              (a.patient?.phone ?? "").toLowerCase().includes(q),
-          ),
-        }))
-        .filter(
-          (doc) =>
-            doc.name.toLowerCase().includes(q) ||
-            (doc.specialty ?? "").toLowerCase().includes(q) ||
-            doc.appointments.length > 0,
-        ),
-    );
-  }, [scheduleDoctors, searchQuery]);
-
   const isEditMode = useEditeMode((state) => state.isEditMode);
+  const onToggleEdit = useEditeMode((state) => state.onToggleEdit);
+
+  const workingDoctorsRef = useRef<DoctorType[]>([]);
+  const [doctors, setDoctors] = useState<DoctorType[]>([]);
+  const [baselineDoctors, setBaselineDoctors] = useState<DoctorType[] | null>(
+    null,
+  );
+  const [dirtyCount, setDirtyCount] = useState(0);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
   const setConflict = useGlobalConflictStore((state) => state.setConflict);
   const setDrawerOpen = useGlobalConflictStore((state) => state.setDrawerOpen);
 
@@ -98,9 +150,7 @@ export function useDragHandlers() {
   const [activeType, setActiveType] = useState<ActiveDragType>(null);
   const [activeData, setActiveData] = useState<DragDataPayload | null>(null);
   const [overSlotInfo, setOverSlotInfo] = useState<OverSlotInfo | null>(null);
-  const [snapshotDoctors, setSnapshotDoctors] = useState<DoctorType[] | null>(
-    null,
-  );
+  const [undoSnapshot, setUndoSnapshot] = useState<DoctorType[] | null>(null);
 
   const [isToastOpen, setIsToastOpen] = useState(false);
   const [toastInfo, setToastInfo] = useState<ToastInfo>({
@@ -108,65 +158,67 @@ export function useDragHandlers() {
     newTimeLabel: "",
   });
 
-  const applyLocalUpdate = useCallback((updatedApt: AppointmentType) => {
-    setDoctors((prev) =>
-      prev.map((doc) => {
-        const filteredApts = doc.appointments.filter(
-          (a) => a && a.id !== updatedApt.id,
-        );
-        if (doc.id === updatedApt.docId) {
-          filteredApts.push(updatedApt);
-        }
-        return { ...doc, appointments: filteredApts };
-      }),
-    );
-
-    const titleString = updatedApt.title || "Appointment";
-    setToastInfo({
-      patientName: titleString.split(" - ")[0],
-      newTimeLabel: formatMinutesToTime(
-        updatedApt.start,
-        updatedApt.end - updatedApt.start,
-      ),
-    });
-    setIsToastOpen(true);
+  const refreshDirtyCount = useCallback((working: DoctorType[], baseline: DoctorType[] | null) => {
+    if (!baseline) {
+      setDirtyCount(0);
+      return;
+    }
+    setDirtyCount(collectDirtyAppointments(working, baseline).length);
   }, []);
 
-  const updateAppointment = useCallback(
-    async (updatedApt: AppointmentType) => {
-      setSnapshotDoctors(JSON.parse(JSON.stringify(doctors)));
-      setIsToastOpen(false);
+  // View mode: follow live schedule. Edit mode: freeze a baseline and edit locally.
+  useEffect(() => {
+    const source = scheduleDoctors as DoctorType[];
+    if (!isEditMode) {
+      workingDoctorsRef.current = cloneDoctors(source);
+      setBaselineDoctors(null);
+      setDirtyCount(0);
+      setSaveError(null);
+      setDoctors(filterDoctors(workingDoctorsRef.current, searchQuery));
+      return;
+    }
 
-      if (isApiAppointmentId(updatedApt.id)) {
-        try {
-          await persistGridUpdate(updatedApt);
-          const titleString = updatedApt.title || "Appointment";
-          setToastInfo({
-            patientName: titleString.split(" - ")[0],
-            newTimeLabel: formatMinutesToTime(
-              updatedApt.start,
-              updatedApt.end - updatedApt.start,
-            ),
-          });
-          setIsToastOpen(true);
-          return;
-        } catch (err) {
-          alert(
-            normalizeCaughtError(
-              err,
-              "Could not save appointment changes. Please try again.",
-            ),
-          );
-          if (snapshotDoctors) {
-            setDoctors(snapshotDoctors);
-          }
-          return;
-        }
-      }
+    if (!baselineDoctors) {
+      const snap = cloneDoctors(source);
+      workingDoctorsRef.current = snap;
+      setBaselineDoctors(snap);
+      setDirtyCount(0);
+      setDoctors(filterDoctors(snap, searchQuery));
+      return;
+    }
 
-      applyLocalUpdate(updatedApt);
+    setDoctors(filterDoctors(workingDoctorsRef.current, searchQuery));
+  }, [isEditMode, scheduleDoctors, searchQuery, baselineDoctors]);
+
+  const stageLocalMove = useCallback(
+    (updatedApt: AppointmentType) => {
+      const before = cloneDoctors(workingDoctorsRef.current);
+      setUndoSnapshot(before);
+
+      const next = applyAppointmentToDoctors(workingDoctorsRef.current, updatedApt);
+      workingDoctorsRef.current = next;
+      setDoctors(filterDoctors(next, searchQuery));
+      refreshDirtyCount(next, baselineDoctors);
+
+      const titleString = updatedApt.title || "Appointment";
+      setToastInfo({
+        patientName: titleString.split(" - ")[0],
+        newTimeLabel: formatMinutesToTime(
+          updatedApt.start,
+          updatedApt.end - updatedApt.start,
+        ),
+      });
+      setIsToastOpen(true);
+      setSaveError(null);
     },
-    [applyLocalUpdate, doctors, persistGridUpdate, snapshotDoctors],
+    [baselineDoctors, refreshDirtyCount, searchQuery],
+  );
+
+  const updateAppointment = useCallback(
+    (updatedApt: AppointmentType) => {
+      stageLocalMove(updatedApt);
+    },
+    [stageLocalMove],
   );
 
   const getDragDuration = useCallback(
@@ -193,11 +245,10 @@ export function useDragHandlers() {
       setActiveId(active.id as string);
       setActiveType(currentData.type);
       setActiveData(currentData);
-      setSnapshotDoctors(JSON.parse(JSON.stringify(doctors)));
       setIsToastOpen(false);
       setConflict(null);
     },
-    [isEditMode, doctors, setConflict],
+    [isEditMode, setConflict],
   );
 
   const handleDragOver = useCallback(
@@ -267,46 +318,30 @@ export function useDragHandlers() {
   );
 
   const executeMove = useCallback(
-    async (
+    (
       payloadData: AppointmentType,
       targetDoctorId: string,
       newStart: number,
       newEnd: number,
     ) => {
-      const moved: AppointmentType = {
+      if (
+        payloadData.docId === targetDoctorId &&
+        payloadData.start === newStart &&
+        payloadData.end === newEnd
+      ) {
+        setConflict(null);
+        return;
+      }
+
+      stageLocalMove({
         ...payloadData,
         start: newStart,
         end: newEnd,
         docId: targetDoctorId,
-      };
-
-      if (isApiAppointmentId(moved.id)) {
-        try {
-          await persistGridUpdate(moved);
-          const titleString = moved.title || "Appointment";
-          setToastInfo({
-            patientName: titleString.split(" - ")[0],
-            newTimeLabel: formatMinutesToTime(newStart, newEnd - newStart),
-          });
-          setIsToastOpen(true);
-        } catch (err) {
-          alert(
-            normalizeCaughtError(
-              err,
-              "Could not move this appointment. Please try again.",
-            ),
-          );
-          if (snapshotDoctors) {
-            setDoctors(snapshotDoctors);
-          }
-        }
-      } else {
-        applyLocalUpdate(moved);
-      }
-
+      });
       setConflict(null);
     },
-    [applyLocalUpdate, persistGridUpdate, snapshotDoctors, setConflict],
+    [stageLocalMove, setConflict],
   );
 
   const handleDragEnd = useCallback(
@@ -328,7 +363,12 @@ export function useDragHandlers() {
           ?.appointmentData as AppointmentType | undefined;
         if (!payloadData) return;
 
-        const duration = payloadData.end - payloadData.start;
+        // Always use latest working copy position (accurate after prior local moves).
+        const live =
+          findAppointment(workingDoctorsRef.current, payloadData.id) ??
+          payloadData;
+
+        const duration = live.end - live.start;
         const newStart = targetSlotIdx * ROW_MINUTES;
         const newEnd = newStart + duration;
 
@@ -338,13 +378,13 @@ export function useDragHandlers() {
             newEnd,
             targetDoctorId,
             doctors,
-            payloadData.id,
+            live.id,
           )
         ) {
           const targetDoc = doctors.find((d) => d.id === targetDoctorId);
           const collisions = (targetDoc?.appointments || []).filter(
             (apt) =>
-              apt.id !== payloadData.id &&
+              apt.id !== live.id &&
               Math.max(newStart, apt.start) < Math.min(newEnd, apt.end),
           );
           setConflict({
@@ -360,7 +400,7 @@ export function useDragHandlers() {
           return;
         }
 
-        void executeMove(payloadData, targetDoctorId, newStart, newEnd);
+        executeMove(live, targetDoctorId, newStart, newEnd);
         return;
       }
 
@@ -373,9 +413,7 @@ export function useDragHandlers() {
         const newStart = targetSlotIdx * ROW_MINUTES;
         const newEnd = newStart + duration;
 
-        if (
-          hasSchedulingConflict(newStart, newEnd, targetDoctorId, doctors)
-        ) {
+        if (hasSchedulingConflict(newStart, newEnd, targetDoctorId, doctors)) {
           const targetDoc = doctors.find((d) => d.id === targetDoctorId);
           const collisions = (targetDoc?.appointments || []).filter(
             (apt) =>
@@ -426,20 +464,71 @@ export function useDragHandlers() {
   }, [activeData, activeType, getDragDuration]);
 
   const handleUndoAction = useCallback(() => {
-    if (snapshotDoctors) {
-      setDoctors(snapshotDoctors);
-      setSnapshotDoctors(null);
-    }
+    if (!undoSnapshot) return;
+    workingDoctorsRef.current = undoSnapshot;
+    setDoctors(filterDoctors(undoSnapshot, searchQuery));
+    refreshDirtyCount(undoSnapshot, baselineDoctors);
+    setUndoSnapshot(null);
     setIsToastOpen(false);
-  }, [snapshotDoctors]);
+  }, [undoSnapshot, searchQuery, baselineDoctors, refreshDirtyCount]);
 
   const cancelConflict = useCallback(() => {
     setConflict(null);
-    if (snapshotDoctors) {
-      setDoctors(snapshotDoctors);
-      setSnapshotDoctors(null);
+  }, [setConflict]);
+
+  const discardEditChanges = useCallback(() => {
+    if (baselineDoctors) {
+      workingDoctorsRef.current = cloneDoctors(baselineDoctors);
+      setDoctors(filterDoctors(workingDoctorsRef.current, searchQuery));
     }
-  }, [setConflict, snapshotDoctors]);
+    setDirtyCount(0);
+    setUndoSnapshot(null);
+    setSaveError(null);
+    setIsToastOpen(false);
+    setConflict(null);
+  }, [baselineDoctors, searchQuery, setConflict]);
+
+  const saveEditChanges = useCallback(async () => {
+    if (!baselineDoctors || dirtyCount === 0) {
+      onToggleEdit();
+      return;
+    }
+
+    const dirty = collectDirtyAppointments(
+      workingDoctorsRef.current,
+      baselineDoctors,
+    );
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      await persistGridUpdates(dirty);
+      setBaselineDoctors(null);
+      setDirtyCount(0);
+      setUndoSnapshot(null);
+      setIsToastOpen(false);
+      onToggleEdit();
+    } catch (err) {
+      setSaveError(
+        normalizeCaughtError(
+          err,
+          "Could not save schedule changes. Please try again.",
+        ),
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  }, [baselineDoctors, dirtyCount, onToggleEdit, persistGridUpdates]);
+
+  const requestExitEditMode = useCallback(() => {
+    if (dirtyCount > 0) {
+      const leave = window.confirm(
+        `You have ${dirtyCount} unsaved change${dirtyCount > 1 ? "s" : ""}. Discard them and exit Edit Mode?`,
+      );
+      if (!leave) return;
+      discardEditChanges();
+    }
+    if (isEditMode) onToggleEdit();
+  }, [dirtyCount, discardEditChanges, isEditMode, onToggleEdit]);
 
   return {
     doctors,
@@ -458,5 +547,11 @@ export function useDragHandlers() {
     closeToast: () => setIsToastOpen(false),
     updateAppointment,
     cancelConflict,
+    dirtyCount,
+    isSaving,
+    saveError,
+    saveEditChanges,
+    discardEditChanges,
+    requestExitEditMode,
   };
 }

@@ -80,15 +80,16 @@ export function AppointmentUpdateToast({
             </div>
             <div className="min-w-0 flex flex-col gap-0.5">
               <p className="text-[13px] font-bold text-neutral-900 truncate leading-tight">
-                Action completed
+                Change staged
               </p>
               {patientName && (
                 <p className="text-[11px] font-semibold text-neutral-700 truncate">
-                  Target: {patientName} ({newTimeLabel})
+                  {patientName} → {newTimeLabel}
                 </p>
               )}
               <p className="text-[11px] text-neutral-400 font-medium mt-1">
-                Closing in: <span className="font-bold text-neutral-800 text-xs">{timeLeft}</span>
+                Not saved yet — click <span className="font-bold text-neutral-800">Save changes</span>
+                {timeLeft > 0 ? ` · toast closes in ${timeLeft}s` : ""}.
               </p>
             </div>
           </div>

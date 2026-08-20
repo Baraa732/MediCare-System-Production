@@ -206,6 +206,7 @@ export class ScheduleService {
       dto.clinicId,
       dto.doctorId,
       date,
+      dto.excludeAppointmentId,
     );
 
     if (dto.strictHours) {

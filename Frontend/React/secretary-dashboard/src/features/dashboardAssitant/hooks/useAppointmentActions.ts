@@ -5,7 +5,10 @@ import {
   updateAppointmentStatus,
 } from "@/lib/api/appointments";
 import { lookupPatientByPhone } from "@/lib/api/users";
-import { scheduledAtFromAbsoluteMinutes, scheduledAtFromGridMinutes } from "@/lib/time/gridTime";
+import {
+  scheduledAtFromAbsoluteMinutes,
+  scheduledAtFromGridMinutes,
+} from "@/lib/time/gridTime";
 import { useAuthStore } from "@/stores/authStore";
 import { useScheduleContext } from "../context/ScheduleContext";
 import type { AppointmentType } from "../types";
@@ -27,7 +30,7 @@ export function useAppointmentActions() {
   const accessToken = useAuthStore((s) => s.accessToken);
 
   const persistGridUpdate = useCallback(
-    async (updatedApt: AppointmentType) => {
+    async (updatedApt: AppointmentType, options?: { skipRefetch?: boolean }) => {
       if (!accessToken || !isApiAppointmentId(updatedApt.id)) {
         return;
       }
@@ -46,6 +49,34 @@ export function useAppointmentActions() {
         },
         accessToken,
       );
+      if (!options?.skipRefetch) {
+        refetch();
+      }
+    },
+    [accessToken, refetch, selectedDate],
+  );
+
+  /** Persist many edit-mode moves, then refetch once. Each update emits APPOINTMENT_UPDATED notifications. */
+  const persistGridUpdates = useCallback(
+    async (updatedApts: AppointmentType[]) => {
+      if (!accessToken) {
+        throw new Error("Your session has expired. Please sign in again.");
+      }
+
+      for (const apt of updatedApts) {
+        if (!isApiAppointmentId(apt.id)) continue;
+        await updateAppointment(
+          apt.id,
+          {
+            doctorId: apt.docId,
+            scheduledAt: scheduledAtFromGridMinutes(apt.start, selectedDate),
+            durationMinutes: apt.end - apt.start,
+            reason: apt.title,
+            notes: apt.notes,
+          },
+          accessToken,
+        );
+      }
       refetch();
     },
     [accessToken, refetch, selectedDate],
@@ -135,5 +166,10 @@ export function useAppointmentActions() {
     [accessToken, clinicId, refetch, selectedDate],
   );
 
-  return { persistGridUpdate, saveWizardAppointment, refetch };
+  return {
+    persistGridUpdate,
+    persistGridUpdates,
+    saveWizardAppointment,
+    refetch,
+  };
 }

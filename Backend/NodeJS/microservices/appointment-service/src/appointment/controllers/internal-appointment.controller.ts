@@ -41,6 +41,10 @@ class BookedRangesDto {
 
   @IsDateString()
   date: string;
+
+  @IsOptional()
+  @IsUUID()
+  excludeAppointmentId?: string;
 }
 
 class VerifyAppointmentEventDto {
@@ -98,6 +102,7 @@ export class InternalAppointmentController {
       dto.clinicId,
       dto.doctorId,
       dto.date,
+      dto.excludeAppointmentId,
     );
     return { success: true, ranges };
   }

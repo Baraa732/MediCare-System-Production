@@ -2,7 +2,11 @@ import {
   ROW_MINUTES,
   START_TIME_MINUTES,
 } from "@/features/dashboardAssitant/data/scheduleGrid";
-import { absoluteMinutesInClinic } from "./clinicTime";
+import {
+  absoluteMinutesInClinic,
+  clinicDateParts,
+  clinicWallTimeToUtcIso,
+} from "./clinicTime";
 
 /** Minutes since local midnight (e.g. 8:00 AM => 480). */
 export function absoluteMinutesFromDate(date: Date): number {
@@ -33,26 +37,18 @@ export function slotRangeDurationMinutes(
   return (Math.abs(endSlot - startSlot) + 1) * ROW_MINUTES;
 }
 
+/**
+ * Build a UTC ISO timestamp for a clinic wall-clock time on the selected day.
+ * Always uses Asia/Damascus (or clinic TZ), never the browser's local zone.
+ */
 export function scheduledAtFromAbsoluteMinutes(
   absoluteMinutes: number,
   referenceDate = new Date(),
 ): string {
-  const date = new Date(
-    referenceDate.getFullYear(),
-    referenceDate.getMonth(),
-    referenceDate.getDate(),
-    0,
-    0,
-    0,
-    0,
-  );
-  date.setHours(
-    Math.floor(absoluteMinutes / 60),
-    absoluteMinutes % 60,
-    0,
-    0,
-  );
-  return date.toISOString();
+  const { year, month, day } = clinicDateParts(referenceDate);
+  const hour = Math.floor(absoluteMinutes / 60) % 24;
+  const minute = ((absoluteMinutes % 60) + 60) % 60;
+  return clinicWallTimeToUtcIso(year, month, day, hour, minute);
 }
 
 export function scheduledAtFromGridMinutes(

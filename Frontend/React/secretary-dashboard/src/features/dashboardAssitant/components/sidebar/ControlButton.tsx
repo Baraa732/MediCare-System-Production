@@ -4,79 +4,90 @@ import { Edit3, Plus, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useRef } from "react";
 import { useWizardDrawer } from "../../hooks/useWizardDrawer";
+import { useScheduleDnd } from "../../context/ScheduleDndContext";
 
 export function ControlButton() {
   const isEditMode = useEditeMode((state) => state.isEditMode);
   const onToggleEdit = useEditeMode((state) => state.onToggleEdit);
+  const { requestExitEditMode, dirtyCount } = useScheduleDnd();
 
   const lastActionTime = useRef<number>(0);
-  const COOLDOWN_MS = 2000; // 2 seconds
+  const COOLDOWN_MS = 2000;
 
   const onOpenNewAppointment = useWizardDrawer(
     (state) => state.onOpenNewAppointment,
   );
 
   useEffect(() => {
-  const handler = (e: KeyboardEvent) => {
-    const now = Date.now();
-    if (now - lastActionTime.current < COOLDOWN_MS) return;
+    const handler = (e: KeyboardEvent) => {
+      const now = Date.now();
+      if (now - lastActionTime.current < COOLDOWN_MS) return;
 
-    const key = e.key.toLowerCase();
-    if (e.ctrlKey && e.shiftKey) {
-      if (['E','e'].includes(key)) {
-        e.preventDefault();
-        lastActionTime.current = now;
-        onToggleEdit();
-      } else if (['U','u'].includes(key)) {
-        e.preventDefault();
-        lastActionTime.current = now;
-        onOpenNewAppointment();
+      const key = e.key.toLowerCase();
+      if (e.ctrlKey && e.shiftKey) {
+        if (key === "e") {
+          e.preventDefault();
+          lastActionTime.current = now;
+          if (isEditMode) requestExitEditMode();
+          else onToggleEdit();
+        } else if (key === "u") {
+          e.preventDefault();
+          lastActionTime.current = now;
+          onOpenNewAppointment();
+        }
       }
-    }
-  };
+    };
 
-  window.addEventListener('keydown', handler);
-  return () => window.removeEventListener('keydown', handler);
-}, [onToggleEdit, onOpenNewAppointment]);
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [isEditMode, onToggleEdit, onOpenNewAppointment, requestExitEditMode]);
+
   return (
-    <div className="p-4 space-y-2.5 border-b border-neutral-100">
+    <div className="space-y-2.5 border-b border-neutral-100 p-4">
       <Button
         className="btn-brand h-11 w-full justify-center rounded-xl px-4 text-xs font-bold"
         onClick={() => onOpenNewAppointment()}
       >
-        <Plus className="w-4 h-4 transition-transform group-hover:rotate-90 duration-200" />
+        <Plus className="h-4 w-4 transition-transform duration-200 group-hover:rotate-90" />
         <span>New appointment</span>
-        <kbd className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded text-white/90 font-mono">
+        <kbd className="rounded bg-white/20 px-1.5 py-0.5 font-mono text-[10px] text-white/90">
           Ctrl + Shift + U
         </kbd>
       </Button>
 
-      {/* تحديث نمط ونصوص الزر وفقاً للمواصفات الجديدة */}
       <Button
         variant={isEditMode ? "default" : "outline"}
-        onClick={onToggleEdit}
+        onClick={() => {
+          if (isEditMode) requestExitEditMode();
+          else onToggleEdit();
+        }}
         className={cn(
-          "w-full h-11 font-bold rounded-xl justify-center px-4 text-xs border transition-all duration-200 cursor-pointer",
+          "h-11 w-full cursor-pointer justify-center rounded-xl border px-4 text-xs font-bold transition-all duration-200",
           isEditMode
-            ? "bg-red-500 border-red-600 text-white hover:bg-red-600 hover:border-red-700 shadow-md shadow-red-100"
-            : "bg-[#0B74FA1A] border-neutral-200 text-neutral-700 hover:bg-neutral-50",
+            ? "border-red-600 bg-red-500 text-white shadow-md shadow-red-100 hover:border-red-700 hover:bg-red-600"
+            : "border-neutral-200 bg-[#0B74FA1A] text-neutral-700 hover:bg-neutral-50",
         )}
       >
         {isEditMode ? (
           <>
-            <LogOut className="w-4 h-4 mr-1 stroke-[2.5]" />
+            <LogOut className="mr-1 h-4 w-4 stroke-[2.5]" />
             <span>Exit edit mode</span>
+            {dirtyCount > 0 ? (
+              <span className="ml-1 rounded bg-white/20 px-1.5 py-0.5 text-[10px]">
+                {dirtyCount}
+              </span>
+            ) : null}
           </>
         ) : (
           <>
-            <Edit3 className="w-4 h-4 mr-1" />
+            <Edit3 className="mr-1 h-4 w-4" />
             <span>Edit Mode</span>
           </>
         )}
         <kbd
           className={cn(
-            "text-[10px] bg-white/20 px-1.5 py-0.5 rounded  font-mono",
-            isEditMode ? "text-white" : "text-[#0B74FAB2]",
+            "rounded px-1.5 py-0.5 font-mono text-[10px]",
+            isEditMode ? "bg-white/20 text-white" : "bg-white/20 text-[#0B74FAB2]",
           )}
         >
           Ctrl + Shift + E

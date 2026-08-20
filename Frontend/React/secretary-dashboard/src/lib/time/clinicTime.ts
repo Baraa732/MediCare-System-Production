@@ -31,7 +31,7 @@ function clinicTimeParts(
     year: read("year"),
     month: read("month"),
     day: read("day"),
-    hour: read("hour"),
+    hour: read("hour") % 24,
     minute: read("minute"),
   };
 }
@@ -84,6 +84,40 @@ export function clinicDateKey(
 ): string {
   const { year, month, day } = clinicTimeParts(value, timezone);
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+export function clinicWallTimeToUtcIso(
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  minute: number,
+  timezone = DEFAULT_CLINIC_TIMEZONE,
+): string {
+  const tz = resolveClinicTimezone(timezone);
+  let utcMs = Date.UTC(year, month - 1, day, hour, minute, 0, 0);
+
+  for (let i = 0; i < 4; i += 1) {
+    const parts = clinicTimeParts(new Date(utcMs), tz);
+    const desiredDayMs = Date.UTC(year, month - 1, day);
+    const actualDayMs = Date.UTC(parts.year, parts.month - 1, parts.day);
+    const minuteDiff =
+      year === parts.year && month === parts.month && day === parts.day
+        ? hour * 60 + minute - (parts.hour * 60 + parts.minute)
+        : (desiredDayMs - actualDayMs) / 60_000 +
+          (hour * 60 + minute - (parts.hour * 60 + parts.minute));
+    if (minuteDiff === 0) break;
+    utcMs += minuteDiff * 60_000;
+  }
+
+  return new Date(utcMs).toISOString();
+}
+
+export function clinicDateParts(
+  value: string | Date,
+  timezone = DEFAULT_CLINIC_TIMEZONE,
+) {
+  return clinicTimeParts(value, timezone);
 }
 
 export function formatClinicDate(

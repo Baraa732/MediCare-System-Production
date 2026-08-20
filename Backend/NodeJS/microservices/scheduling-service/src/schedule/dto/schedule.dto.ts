@@ -115,4 +115,9 @@ export class ValidateSlotDto {
   @IsOptional()
   @IsBoolean()
   strictHours?: boolean;
+
+  /** When validating a reschedule, ignore this appointment's current booking. */
+  @IsOptional()
+  @IsUUID()
+  excludeAppointmentId?: string;
 }

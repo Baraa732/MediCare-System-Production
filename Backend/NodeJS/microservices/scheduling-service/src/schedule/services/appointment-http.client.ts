@@ -24,10 +24,11 @@ export class AppointmentHttpClient {
     clinicId: string,
     doctorId: string,
     date: string,
+    excludeAppointmentId?: string,
   ): Promise<BookedRange[]> {
     try {
       const path = '/v1/appointments/internal/booked-ranges';
-      const body = { clinicId, doctorId, date };
+      const body = { clinicId, doctorId, date, excludeAppointmentId };
       const res = await axios.post(`${this.baseUrl}${path}`, body, {
         timeout: 5000,
         headers: createInternalAuthHeadersForUrl(

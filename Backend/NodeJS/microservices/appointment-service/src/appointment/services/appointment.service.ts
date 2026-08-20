@@ -397,7 +397,10 @@ export class AppointmentService {
 
     const needsConflictCheck = !!(dto.scheduledAt || dto.durationMinutes !== undefined || dto.doctorId);
     if (needsConflictCheck) {
-      if (scheduledAt <= new Date()) {
+      const unchangedTime =
+        Math.abs(scheduledAt.getTime() - appointment.scheduledAt.getTime()) < 60_000;
+      // Allow tiny clock skew; skip "future" check when time is unchanged (revert / no-op).
+      if (!unchangedTime && scheduledAt.getTime() <= Date.now() - 60_000) {
         throw new BadRequestException('Appointment must be scheduled in the future');
       }
       await this.schedulingHttpClient.validateSlot(
@@ -406,6 +409,7 @@ export class AppointmentService {
         scheduledAt.toISOString(),
         duration,
         actor.role === 'PATIENT',
+        appointment.id,
       );
       if (dto.scheduledAt) {
         appointment.scheduledAt = scheduledAt;
@@ -585,7 +589,12 @@ export class AppointmentService {
     });
   }
 
-  async getBookedRangesForDay(clinicId: string, doctorId: string, date: string) {
+  async getBookedRangesForDay(
+    clinicId: string,
+    doctorId: string,
+    date: string,
+    excludeAppointmentId?: string,
+  ) {
     const tenantId = clinicId;
     const dayStart = new Date(`${date}T00:00:00.000Z`);
     const dayEnd = new Date(`${date}T23:59:59.999Z`);
@@ -599,10 +608,12 @@ export class AppointmentService {
       },
     });
 
-    return appointments.map((a) => ({
-      start: a.scheduledAt.toISOString(),
-      end: new Date(a.scheduledAt.getTime() + a.durationMinutes * 60_000).toISOString(),
-    }));
+    return appointments
+      .filter((a) => !excludeAppointmentId || a.id !== excludeAppointmentId)
+      .map((a) => ({
+        start: a.scheduledAt.toISOString(),
+        end: new Date(a.scheduledAt.getTime() + a.durationMinutes * 60_000).toISOString(),
+      }));
   }
 
   async getPatientUpcomingSummary(patientId: string, limit = 3) {
