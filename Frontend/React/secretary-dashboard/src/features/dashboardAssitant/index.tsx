@@ -1,4 +1,5 @@
 import { DashboardErrorBoundary } from "@/components/DashboardErrorBoundary";
+import { PageTransition } from "@/components/motion/PageTransition";
 import { ScheduleProvider } from "./context/ScheduleContext";
 import { Sidebar } from "./components/sidebar/main";
 import { Header } from "./components/header/main";
@@ -10,19 +11,21 @@ export default function DashboardPage() {
   return (
     <DashboardErrorBoundary>
       <ScheduleProvider>
-        <div className="flex h-screen w-screen bg-neutral-50 overflow-hidden select-none font-sans text-neutral-900 antialiased">
+        <PageTransition className="flex h-screen w-screen overflow-hidden bg-[linear-gradient(180deg,#f4f7fb_0%,#eef3fa_100%)] font-sans text-neutral-900 antialiased select-none">
           <Sidebar />
 
-          <div className="flex-1 flex flex-col min-w-0 h-full relative">
+          <div className="relative flex h-full min-w-0 flex-1 flex-col">
             <Header />
-            <main className="flex-1 min-h-0 w-full bg-white relative ">
-              <ScheduleGrid />
+            <main className="relative min-h-0 w-full flex-1 p-2 sm:p-3">
+              <div className="surface-card gpu-layer h-full overflow-hidden contain-layout">
+                <ScheduleGrid />
+              </div>
             </main>
           </div>
 
           <AddAppointmentDialog />
           <AppointmentDetailDrawer />
-        </div>
+        </PageTransition>
       </ScheduleProvider>
     </DashboardErrorBoundary>
   );

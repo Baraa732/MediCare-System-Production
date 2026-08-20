@@ -47,15 +47,15 @@ export function QuickStateSection() {
   ];
 
   return (
-    <div className="p-5 border-b border-[#DBDBDC]">
-      <h4 className="text-[11px] font-bold uppercase tracking-wider text-neutral-400 mb-3.5">
-        Quick Stats:
+    <div className="border-b border-neutral-200/80 p-5">
+      <h4 className="mb-3.5 text-[11px] font-bold uppercase tracking-wider text-neutral-400">
+        Quick stats
       </h4>
-      <div className="space-y-3">
+      <div className="space-y-2.5">
         {quickState.map((stat) => (
           <div
             key={stat.label}
-            className="flex items-center justify-between text-xs font-semibold"
+            className="surface-card-hover flex items-center justify-between rounded-xl border border-neutral-100 bg-neutral-50/60 px-3 py-2 text-xs font-semibold transition-all duration-200"
           >
             <div className="flex items-center gap-2 text-neutral-500">
               <div

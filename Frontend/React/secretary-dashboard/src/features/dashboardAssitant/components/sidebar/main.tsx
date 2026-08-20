@@ -7,26 +7,29 @@ import {
   TitleSideBar,
 } from ".";
 
+const SIDEBAR_WIDTH = "min(19.2vw, 320px)";
+
 export function Sidebar() {
   const isOpen = useToggleSideBar((state) => state.isSidebarOpen);
+
   return (
     <aside
+      style={{ width: isOpen ? SIDEBAR_WIDTH : "0px" }}
       className={cn(
-        "h-full border-r border-neutral-200 bg-white flex flex-col shrink-0 z-20 relative ",
-        "transition-all duration-300 ease-in-out project-drawer-transition ",
-        isOpen
-          ? "w-[19.2%] opacity-100 overflow-hidden"
-          : "w-0 opacity-0 pointer-events-none border-r-0 overflow-hidden",
+        "gpu-layer relative z-20 h-full shrink-0 overflow-hidden border-r border-neutral-200/80 bg-white/95 backdrop-blur-md transition-[width,opacity] duration-300 ease-out",
+        isOpen ? "opacity-100" : "pointer-events-none border-r-0 opacity-0",
       )}
+      aria-hidden={!isOpen}
     >
-      {/* Platform Identity Section */}
-      <TitleSideBar />
-      {/* Action Controller Tray */}
-      <ControlButton />
-      {/* Quick Stats Metric Cluster */}
-      <QuickStateSection />
-      {/* Scrollable Pending Notifications Node */}
-      <PendingRequestSection />
+      <div
+        style={{ width: SIDEBAR_WIDTH }}
+        className="flex h-full flex-col overflow-hidden"
+      >
+        <TitleSideBar />
+        <ControlButton />
+        <QuickStateSection />
+        <PendingRequestSection />
+      </div>
     </aside>
   );
 }

@@ -59,7 +59,7 @@ export function NotificationBell() {
         <button
           type="button"
           title="Notifications"
-          className="w-9.5 h-9.5 rounded-xl border border-neutral-200 flex items-center justify-center relative hover:bg-neutral-50 text-neutral-600 transition-colors cursor-pointer"
+          className="w-9.5 h-9.5 rounded-xl border border-neutral-200/80 bg-white/80 flex items-center justify-center relative hover:bg-neutral-50 text-neutral-600 transition-all duration-200 hover:-translate-y-px cursor-pointer backdrop-blur-sm"
         >
           <Bell className="w-4 h-4" />
           {unreadCount > 0 ? (
@@ -72,7 +72,7 @@ export function NotificationBell() {
 
       <PopoverContent
         align="end"
-        className="w-[28rem] p-0 overflow-hidden rounded-2xl"
+        className="w-[28rem] p-0 overflow-hidden rounded-2xl border-neutral-200/80 bg-white/95 shadow-xl backdrop-blur-md"
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
         <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">

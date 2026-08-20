@@ -32,16 +32,16 @@ export function NotificationsPage() {
           : "Enable browser push to receive alerts when this tab is hidden"
       }
     >
-      <div className="mx-auto w-full max-w-3xl space-y-5 p-6">
-        <div className="rounded-2xl border border-neutral-100 bg-white p-5 shadow-xs">
+      <div className="mx-auto w-full max-w-3xl space-y-5 p-4 sm:p-6">
+        <div className="surface-card surface-card-hover fade-up p-5">
           <div className="mb-4 flex items-start gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-[#0066ff]">
+            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-50 to-blue-100 text-[#0066ff]">
               <BellRing className="h-5 w-5" />
             </span>
             <div>
-              <h2 className="text-sm font-bold">Browser push</h2>
+              <h2 className="text-sm font-bold tracking-tight">Browser push</h2>
               <p className="mt-1 text-xs leading-relaxed text-neutral-500">
-                Inbox rows are saved on the server. Phone/desktop alerts only appear
+                Inbox rows are saved on the server. Phone and desktop alerts appear
                 after this browser is registered with FCM.
               </p>
             </div>
@@ -49,10 +49,10 @@ export function NotificationsPage() {
           <EnablePushBanner />
         </div>
 
-        <section className="overflow-hidden rounded-2xl border border-neutral-100 bg-white shadow-xs">
+        <section className="surface-card fade-up-delay-1 overflow-hidden">
           <div className="flex items-center justify-between border-b border-neutral-100 px-5 py-4">
             <div>
-              <h2 className="text-sm font-bold">Inbox</h2>
+              <h2 className="text-sm font-bold tracking-tight">Inbox</h2>
               <p className="text-[11px] text-neutral-500">
                 {unreadCount} unread · {items.length} loaded
               </p>
@@ -71,7 +71,7 @@ export function NotificationsPage() {
                 <Button
                   type="button"
                   size="sm"
-                  className="rounded-xl bg-[#0066ff] hover:bg-[#0052cc]"
+                  className="btn-brand rounded-xl border-0 px-3"
                   onClick={() => void markAllRead()}
                 >
                   <CheckCheck className="mr-1 h-3.5 w-3.5" />
@@ -91,7 +91,7 @@ export function NotificationsPage() {
               No notifications yet. New patient bookings will appear here.
             </p>
           ) : (
-            <ul className="divide-y divide-neutral-100">
+            <ul className="stagger-list divide-y divide-neutral-100">
               {items.map((item) => {
                 const unread = !item.readAt;
                 return (
@@ -99,8 +99,8 @@ export function NotificationsPage() {
                     <button
                       type="button"
                       className={cn(
-                        "w-full px-5 py-4 text-left transition-colors hover:bg-neutral-50",
-                        unread && "bg-blue-50/40",
+                        "w-full px-5 py-4 text-left transition-colors duration-200 hover:bg-neutral-50/80",
+                        unread && "bg-blue-50/50",
                       )}
                       onClick={() => {
                         if (unread) void markRead(item.id);
@@ -119,7 +119,7 @@ export function NotificationsPage() {
                           {item.title}
                         </p>
                         {unread ? (
-                          <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[#0066ff]" />
+                          <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[#0066ff] pulse-soft" />
                         ) : null}
                       </div>
                       <p className="mt-1 text-xs text-neutral-600">{item.body}</p>

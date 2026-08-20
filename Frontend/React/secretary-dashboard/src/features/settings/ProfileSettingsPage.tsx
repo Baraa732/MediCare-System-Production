@@ -112,8 +112,8 @@ export function ProfileSettingsPage() {
 
   return (
     <StaffShell title="Settings" subtitle="Profile, security, and browser alerts">
-      <div className="mx-auto w-full max-w-4xl p-6">
-        <div className="mb-5 flex flex-wrap gap-2">
+      <div className="mx-auto w-full max-w-4xl p-4 sm:p-6">
+        <div className="fade-up mb-5 flex flex-wrap gap-2">
           {tabs.map((item) => {
             const Icon = item.icon;
             return (
@@ -122,10 +122,10 @@ export function ProfileSettingsPage() {
                 type="button"
                 onClick={() => setTab(item.id)}
                 className={cn(
-                  "inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-bold transition-colors",
+                  "inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-bold transition-all duration-200",
                   tab === item.id
-                    ? "border-blue-200 bg-blue-50 text-[#0066ff]"
-                    : "border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50",
+                    ? "border-blue-200 bg-blue-50 text-[#0066ff] shadow-sm"
+                    : "border-neutral-200 bg-white text-neutral-600 hover:-translate-y-px hover:bg-neutral-50",
                 )}
               >
                 <Icon className="h-3.5 w-3.5" />
@@ -136,7 +136,7 @@ export function ProfileSettingsPage() {
         </div>
 
         {tab === "profile" ? (
-          <section className="rounded-2xl border border-neutral-100 bg-white p-6 shadow-xs">
+          <section className="surface-card fade-up-delay-1 p-6">
             <h2 className="text-base font-bold">Your profile</h2>
             <p className="mb-5 mt-1 text-sm text-neutral-500">
               This name is used on the schedule and exported reports.
@@ -158,7 +158,7 @@ export function ProfileSettingsPage() {
                     <input
                       value={firstName}
                       onChange={(e) => setFirstName(e.target.value)}
-                      className="w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
+                      className="input-modern text-sm"
                       required
                     />
                   </div>
@@ -167,7 +167,7 @@ export function ProfileSettingsPage() {
                     <input
                       value={lastName}
                       onChange={(e) => setLastName(e.target.value)}
-                      className="w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
+                      className="input-modern text-sm"
                       required
                     />
                   </div>
@@ -178,12 +178,12 @@ export function ProfileSettingsPage() {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
+                    className="input-modern text-sm"
                   />
                 </div>
                 {profileError && <p className="text-sm text-red-600">{profileError}</p>}
                 {profileSuccess && <p className="text-sm text-green-700">{profileSuccess}</p>}
-                <Button type="submit" disabled={savingProfile} className="rounded-xl bg-[#0066ff] hover:bg-[#0052cc]">
+                <Button type="submit" disabled={savingProfile} className="btn-brand rounded-xl border-0">
                   {savingProfile ? "Saving…" : "Save profile"}
                 </Button>
               </form>
@@ -192,7 +192,7 @@ export function ProfileSettingsPage() {
         ) : null}
 
         {tab === "security" ? (
-          <section className="rounded-2xl border border-neutral-100 bg-white p-6 shadow-xs">
+          <section className="surface-card fade-up-delay-1 p-6">
             <div className="mb-5 flex items-start gap-3">
               <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-neutral-50 text-neutral-700">
                 <Shield className="h-5 w-5" />
@@ -211,7 +211,7 @@ export function ProfileSettingsPage() {
                   type="password"
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
-                  className="w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
+                  className="input-modern text-sm"
                   required
                 />
               </div>
@@ -221,7 +221,7 @@ export function ProfileSettingsPage() {
                   type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
+                  className="input-modern text-sm"
                   required
                   minLength={8}
                 />
@@ -232,7 +232,7 @@ export function ProfileSettingsPage() {
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
+                  className="input-modern text-sm"
                   required
                   minLength={8}
                 />

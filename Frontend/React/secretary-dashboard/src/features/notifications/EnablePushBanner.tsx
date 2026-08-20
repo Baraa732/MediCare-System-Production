@@ -16,7 +16,7 @@ export function EnablePushBanner({ compact = false }: EnablePushBannerProps) {
 
   if (pushEnabled) {
     return (
-      <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3">
+      <div className="rounded-xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50 to-white px-4 py-3 fade-up">
         <p className="text-xs font-semibold text-emerald-800">
           Browser push is on
         </p>
@@ -37,7 +37,7 @@ export function EnablePushBanner({ compact = false }: EnablePushBannerProps) {
   }
 
   return (
-    <div className="rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white px-4 py-3">
+    <div className="rounded-2xl border border-blue-100/80 bg-gradient-to-br from-blue-50 via-white to-white px-4 py-3 shadow-sm">
       <p className="text-xs font-semibold text-blue-950">
         Enable real browser notifications
       </p>

@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { PlusIcon } from "lucide-react";
+import { Stethoscope } from "lucide-react";
 
 export default function LayoutCard({
   children,
@@ -11,22 +11,27 @@ export default function LayoutCard({
   return (
     <div
       className={cn(
-        "flex flex-col justify-between w-full h-full p-6 bg-white rounded-4xl z-10 transition-all duration-300",
+        "z-10 flex h-full w-full flex-col justify-between rounded-4xl bg-white p-6 sm:p-8",
         className,
       )}
     >
-      <div className="flex items-center gap-3 mb-6 lg:mb-0 select-none">
-        <div className="flex items-center justify-center w-6.25 h-6.25 rounded-lg text-[#0B74FA]">
-          <PlusIcon className="w-6.25 h-6.25 stroke-[7px]" />
+      <div className="mb-6 flex select-none items-center gap-3 lg:mb-0">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-blue-500 text-white shadow-sm">
+          <Stethoscope className="h-4.5 w-4.5" />
         </div>
-        <span className="font-inter font-semibold tracking-[2%] text-lg  leading-[1.2] text-[#1A1B1E]">
-          Project name
-        </span>
+        <div>
+          <span className="block text-lg font-bold leading-tight tracking-tight text-neutral-900">
+            MediCare
+          </span>
+          <span className="text-[11px] font-medium uppercase tracking-wider text-neutral-400">
+            Secretary portal
+          </span>
+        </div>
       </div>
 
       {children}
 
-      <div className="hidden lg:block h-2" />
+      <div className="hidden h-2 lg:block" />
     </div>
   );
 }

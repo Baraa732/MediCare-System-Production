@@ -5,6 +5,7 @@ import { NotificationBell } from "@/features/notifications/NotificationBell";
 import { useLogout } from "@/hooks/useLogout";
 import { ScheduleProvider } from "@/features/dashboardAssitant/context/ScheduleContext";
 import { AppointmentDetailDrawer } from "@/features/dashboardAssitant/components/AppointmentDetailDrawer";
+import { PageTransition } from "@/components/motion/PageTransition";
 import type { ReactNode } from "react";
 
 export function StaffShell({
@@ -21,23 +22,23 @@ export function StaffShell({
 
   return (
     <ScheduleProvider>
-      <div className="flex h-screen w-screen bg-neutral-50 overflow-hidden font-sans text-neutral-900">
-        <div className="flex-1 flex flex-col min-w-0">
-          <header className="h-16 border-b border-neutral-200 bg-white px-6 flex items-center gap-4 shrink-0">
+      <div className="flex h-screen w-screen overflow-hidden bg-[linear-gradient(180deg,#f4f7fb_0%,#eef3fa_100%)] font-sans text-neutral-900">
+        <div className="flex min-w-0 flex-1 flex-col">
+          <header className="glass-header gpu-layer flex h-16 shrink-0 items-center gap-4 px-5 sm:px-6">
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={() => navigate("/dashboard")}
-              className="gap-1.5 rounded-xl"
+              className="gap-1.5 rounded-xl border-neutral-200/80 bg-white/70 backdrop-blur-sm transition-transform duration-200 hover:-translate-y-px"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeft className="h-4 w-4" />
               Schedule
             </Button>
-            <div className="flex-1 min-w-0">
-              <h1 className="text-base font-bold truncate">{title}</h1>
+            <div className="min-w-0 flex-1">
+              <h1 className="truncate text-base font-bold tracking-tight">{title}</h1>
               {subtitle ? (
-                <p className="text-[11px] text-neutral-500 truncate">{subtitle}</p>
+                <p className="truncate text-[11px] text-neutral-500">{subtitle}</p>
               ) : null}
             </div>
             <NotificationBell />
@@ -45,13 +46,15 @@ export function StaffShell({
               type="button"
               variant="outline"
               size="sm"
-              className="rounded-xl"
+              className="rounded-xl border-neutral-200/80 bg-white/70 backdrop-blur-sm transition-transform duration-200 hover:-translate-y-px"
               onClick={() => void logout()}
             >
               Log out
             </Button>
           </header>
-          <main className="flex-1 overflow-y-auto">{children}</main>
+          <main className="flex-1 overflow-y-auto scrollbar-thin">
+            <PageTransition className="h-full">{children}</PageTransition>
+          </main>
         </div>
         <AppointmentDetailDrawer />
       </div>

@@ -22,11 +22,7 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
   const location = useLocation();
 
   if (!hydrated) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center text-sm text-neutral-500">
-        Loading session...
-      </div>
-    );
+    return <RouteFallback label="Loading session…" />;
   }
 
   if (!accessToken) {
@@ -47,11 +43,7 @@ export function GuestRoute({ children }: { children: ReactNode }) {
   const location = useLocation();
 
   if (!hydrated) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center text-sm text-neutral-500">
-        Loading session...
-      </div>
-    );
+    return <RouteFallback label="Loading session…" />;
   }
 
   // Allow forgot-password even when a stale JWT is still in session storage.

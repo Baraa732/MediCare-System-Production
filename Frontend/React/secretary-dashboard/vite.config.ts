@@ -3,11 +3,24 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 
-// https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   build: {
-    chunkSizeWarningLimit: 800, // Increase this to 800kB or higher
+    chunkSizeWarningLimit: 600,
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            { name: "vendor-react", test: /node_modules\/(react|react-dom|react-router)/ },
+            { name: "vendor-firebase", test: /node_modules\/firebase/ },
+            { name: "vendor-dnd", test: /node_modules\/@dnd-kit/ },
+            { name: "vendor-ui", test: /node_modules\/(radix-ui|vaul|@radix-ui)/ },
+            { name: "vendor-dates", test: /node_modules\/date-fns/ },
+            { name: "vendor-forms", test: /node_modules\/(react-hook-form|@hookform|zod)/ },
+          ],
+        },
+      },
+    },
   },
   base: "/",
   resolve: {

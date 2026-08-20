@@ -1,16 +1,24 @@
 import { LayoutCard } from ".";
 import { Outlet } from "react-router";
 import { CardWithoutBackground } from "./CardWithoutBackground";
+import { PageTransition } from "@/components/motion/PageTransition";
 
-export default function WithCarouselCard() {
+export default function WithoutCarouselCard() {
   return (
-    // <main className=" w-full h-screen bg-[#ecf3ff] flex items-center justify-center  antialiased selection:bg-blue-100 selection:text-[rgb(11_116_250/0.1)] p-0 m-0">
-    <main className=" w-full h-screen bg-[#ecf3ff] flex items-center justify-center  antialiased selection:bg-blue-100 selection:text-[rgb(11_116_250/0.1)] p-0 m-0"> 
-      <CardWithoutBackground className="scale-[0.75] ">
-        <LayoutCard>
-          <Outlet />
-        </LayoutCard>
-      </CardWithoutBackground>
+    <main className="auth-canvas relative flex min-h-screen w-full items-center justify-center overflow-hidden p-4 sm:p-6">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgb(0_102_255/0.08),transparent_55%)]"
+      />
+      <PageTransition className="relative z-10 w-full max-w-lg">
+        <CardWithoutBackground className="mx-auto w-full">
+          <LayoutCard>
+            <div className="auth-form-shell">
+              <Outlet />
+            </div>
+          </LayoutCard>
+        </CardWithoutBackground>
+      </PageTransition>
     </main>
   );
 }

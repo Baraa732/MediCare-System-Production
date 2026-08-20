@@ -1,26 +1,72 @@
-import React from "react";
-import {
-  WithCarouselCard,
-  WithoutCarouselCard,
-} from "@/features/auth/components";
-import {
-  SignInForm,
-  ConfirmEmailForm,
-  LinkExpiredForm,
-  ResetPasswordForm,
-  ResetSuccessForm,
-  ForgotPasswordForm,
-  ForgotPasswordCheckPhoneForm,
-  ForgotPasswordVerifyForm,
-} from "@/features/auth/components/Forms";
-import DashboardPage from "@/features/dashboardAssitant";
-import { ProfileSettingsPage } from "@/features/settings/ProfileSettingsPage";
-import { NotificationsPage } from "@/features/notifications/NotificationsPage";
+import React, { Suspense, lazy } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
 import { GuestRoute, ProtectedRoute } from "./ProtectedRoute";
+import { RouteFallback } from "@/components/RouteFallback";
 import { sendPasswordResetOtp } from "@/lib/api/auth";
 import { normalizeCaughtError } from "@/lib/api/errors";
 import { useAuthStore } from "@/stores/authStore";
+
+const WithCarouselCard = lazy(() =>
+  import("@/features/auth/components/WithCarouselCard"),
+);
+const WithoutCarouselCard = lazy(() =>
+  import("@/features/auth/components/WithoutCarouselCard"),
+);
+const SignInForm = lazy(() =>
+  import("@/features/auth/components/Forms/SignInForm").then((m) => ({
+    default: m.SignInForm,
+  })),
+);
+const ConfirmEmailForm = lazy(() =>
+  import("@/features/auth/components/Forms/ConfirmEmailForm").then((m) => ({
+    default: m.ConfirmEmailForm,
+  })),
+);
+const LinkExpiredForm = lazy(() =>
+  import("@/features/auth/components/Forms/LinkExpiredForm").then((m) => ({
+    default: m.LinkExpiredForm,
+  })),
+);
+const ResetPasswordForm = lazy(() =>
+  import("@/features/auth/components/Forms/ResetPasswordForm").then((m) => ({
+    default: m.ResetPasswordForm,
+  })),
+);
+const ResetSuccessForm = lazy(() =>
+  import("@/features/auth/components/Forms/ResetSuccessForm").then((m) => ({
+    default: m.ResetSuccessForm,
+  })),
+);
+const ForgotPasswordForm = lazy(() =>
+  import("@/features/auth/components/Forms/ForgetPasswordForm").then((m) => ({
+    default: m.ForgotPasswordForm,
+  })),
+);
+const ForgotPasswordCheckPhoneForm = lazy(() =>
+  import("@/features/auth/components/Forms/ForgotPasswordCheckPhoneForm").then(
+    (m) => ({ default: m.ForgotPasswordCheckPhoneForm }),
+  ),
+);
+const ForgotPasswordVerifyForm = lazy(() =>
+  import("@/features/auth/components/Forms/ForgotPasswordVerifyForm").then(
+    (m) => ({ default: m.ForgotPasswordVerifyForm }),
+  ),
+);
+const DashboardPage = lazy(() => import("@/features/dashboardAssitant"));
+const NotificationsPage = lazy(() =>
+  import("@/features/notifications/NotificationsPage").then((m) => ({
+    default: m.NotificationsPage,
+  })),
+);
+const ProfileSettingsPage = lazy(() =>
+  import("@/features/settings/ProfileSettingsPage").then((m) => ({
+    default: m.ProfileSettingsPage,
+  })),
+);
+
+function LazyPage({ children }: { children: React.ReactNode }) {
+  return <Suspense fallback={<RouteFallback />}>{children}</Suspense>;
+}
 
 export default function AppRouter() {
   return (
@@ -32,35 +78,97 @@ export default function AppRouter() {
       <Route
         element={
           <GuestRoute>
-            <WithCarouselCard />
+            <LazyPage>
+              <WithCarouselCard />
+            </LazyPage>
           </GuestRoute>
         }
       >
         <Route path="auth" element={<Navigate to="/auth/login" replace />} />
-        <Route path="auth/login" element={<SignInForm />} />
-        <Route path="auth/otp" element={<ConfirmEmailForm />} />
-        <Route path="auth/forget_password" element={<ForgotPasswordView />} />
-        <Route path="auth/forget_password/check_phone" element={<ForgotPasswordCheckPhoneForm />} />
-        <Route path="auth/forget_password/verify" element={<ForgotPasswordVerifyForm />} />
+        <Route
+          path="auth/login"
+          element={
+            <LazyPage>
+              <SignInForm />
+            </LazyPage>
+          }
+        />
+        <Route
+          path="auth/otp"
+          element={
+            <LazyPage>
+              <ConfirmEmailForm />
+            </LazyPage>
+          }
+        />
+        <Route
+          path="auth/forget_password"
+          element={
+            <LazyPage>
+              <ForgotPasswordView />
+            </LazyPage>
+          }
+        />
+        <Route
+          path="auth/forget_password/check_phone"
+          element={
+            <LazyPage>
+              <ForgotPasswordCheckPhoneForm />
+            </LazyPage>
+          }
+        />
+        <Route
+          path="auth/forget_password/verify"
+          element={
+            <LazyPage>
+              <ForgotPasswordVerifyForm />
+            </LazyPage>
+          }
+        />
       </Route>
 
       <Route
         element={
           <GuestRoute>
-            <WithoutCarouselCard />
+            <LazyPage>
+              <WithoutCarouselCard />
+            </LazyPage>
           </GuestRoute>
         }
       >
-        <Route path="auth/link_expired" element={<LinkExpiredForm />} />
-        <Route path="auth/reset_password" element={<ResetPasswordForm />} />
-        <Route path="auth/reset_success" element={<ResetSuccessForm />} />
+        <Route
+          path="auth/link_expired"
+          element={
+            <LazyPage>
+              <LinkExpiredForm />
+            </LazyPage>
+          }
+        />
+        <Route
+          path="auth/reset_password"
+          element={
+            <LazyPage>
+              <ResetPasswordForm />
+            </LazyPage>
+          }
+        />
+        <Route
+          path="auth/reset_success"
+          element={
+            <LazyPage>
+              <ResetSuccessForm />
+            </LazyPage>
+          }
+        />
       </Route>
 
       <Route
         path="dashboard"
         element={
           <ProtectedRoute>
-            <DashboardPage />
+            <LazyPage>
+              <DashboardPage />
+            </LazyPage>
           </ProtectedRoute>
         }
       />
@@ -69,7 +177,9 @@ export default function AppRouter() {
         path="dashboard/notifications"
         element={
           <ProtectedRoute>
-            <NotificationsPage />
+            <LazyPage>
+              <NotificationsPage />
+            </LazyPage>
           </ProtectedRoute>
         }
       />
@@ -78,7 +188,9 @@ export default function AppRouter() {
         path="dashboard/settings"
         element={
           <ProtectedRoute>
-            <ProfileSettingsPage />
+            <LazyPage>
+              <ProfileSettingsPage />
+            </LazyPage>
           </ProtectedRoute>
         }
       />
@@ -110,7 +222,6 @@ function ForgotPasswordView() {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   React.useEffect(() => {
-    // Clear any stale JWT so guest password-reset calls are not treated as authenticated.
     logout();
   }, [logout]);
 
