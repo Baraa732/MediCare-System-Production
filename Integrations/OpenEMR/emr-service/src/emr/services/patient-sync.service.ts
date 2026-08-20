@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { EmrSyncStatus, PatientEmrLink } from '../entities/patient-emr-link.entity';
 import { OpenEmrClient } from './openemr.client';
+import { OpenEmrDbReader } from './openemr-db.reader';
 import { TenantContextService } from '../../tenant-shared/tenant-context.service';
 import { createTenantLogger } from '../../tenant-shared/tenant-logger';
 import { EmrSyncConcurrencyService } from './emr-sync-concurrency.service';
@@ -30,6 +31,7 @@ export class PatientSyncService {
     @InjectRepository(PatientEmrLink)
     private linkRepository: Repository<PatientEmrLink>,
     private openEmrClient: OpenEmrClient,
+    private openEmrDbReader: OpenEmrDbReader,
     tenantContext: TenantContextService,
     private readonly syncConcurrency: EmrSyncConcurrencyService,
     private readonly observability: EmrObservabilityService,
@@ -64,16 +66,32 @@ export class PatientSyncService {
     this.observability.recordSyncAttempt(tenantId);
     const release = await this.syncConcurrency.acquire(tenantId);
     try {
-      const openemrPatientId = await this.openEmrClient.createPatient({
-        userId: event.userId,
-        phoneNumber: event.phoneNumber,
-        firstName: event.firstName,
-        lastName: event.lastName,
-        email: event.email,
-        gender: event.gender,
-        birthDate: event.birthDate,
-        tenantId,
-      });
+      let openemrPatientId: string;
+      try {
+        openemrPatientId = await this.openEmrClient.createPatient({
+          userId: event.userId,
+          phoneNumber: event.phoneNumber,
+          firstName: event.firstName,
+          lastName: event.lastName,
+          email: event.email,
+          gender: event.gender,
+          birthDate: event.birthDate,
+          tenantId,
+        });
+      } catch (apiError: any) {
+        this.logger.warn(
+          `OpenEMR FHIR patient create failed (${apiError?.message}); falling back to MySQL`,
+        );
+        openemrPatientId = await this.openEmrDbReader.createOrFindPatient({
+          userId: event.userId,
+          phoneNumber: event.phoneNumber,
+          firstName: event.firstName,
+          lastName: event.lastName,
+          email: event.email,
+          gender: event.gender,
+          birthDate: event.birthDate,
+        });
+      }
 
       link.openemrPatientId = openemrPatientId;
       link.syncStatus = EmrSyncStatus.SYNCED;

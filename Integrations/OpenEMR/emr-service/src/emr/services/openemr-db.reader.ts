@@ -171,6 +171,86 @@ export class OpenEmrDbReader {
   }
 
   /**
+   * Finds an existing OpenEMR patient by phone, or inserts into patient_data.
+   * Used when FHIR/standard API auth is unavailable (common 401 on Railway).
+   */
+  async createOrFindPatient(input: {
+    userId: string;
+    phoneNumber: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    gender?: string;
+    birthDate?: string;
+  }): Promise<string> {
+    return this.withConnection(async (connection) => {
+      const phone = (input.phoneNumber || '').trim();
+      if (phone) {
+        const [existing] = await connection.execute(
+          `SELECT pid FROM patient_data
+           WHERE phone_cell = ? OR phone_home = ? OR phone_contact = ?
+           ORDER BY pid DESC LIMIT 1`,
+          [phone, phone, phone],
+        );
+        const found = (existing as any[])[0]?.pid;
+        if (found != null) {
+          this.logger.log(`Reusing OpenEMR patient pid=${found} for phone ${phone}`);
+          return String(found);
+        }
+      }
+
+      const sex =
+        !input.gender
+          ? 'Unknown'
+          : /^(m|male)$/i.test(input.gender)
+            ? 'Male'
+            : /^(f|female)$/i.test(input.gender)
+              ? 'Female'
+              : 'Unknown';
+      const dob = input.birthDate?.slice(0, 10) || '1990-01-01';
+      const fname = (input.firstName || 'MediCare').slice(0, 255);
+      const lname = (input.lastName || 'Patient').slice(0, 255);
+      const email = (input.email || '').slice(0, 255);
+      const pubpid = `MC-${input.userId.replace(/-/g, '').slice(0, 12)}`;
+
+      let insertId: number;
+      try {
+        const [result] = await connection.execute(
+          `INSERT INTO patient_data
+            (date, fname, lname, DOB, sex, phone_cell, email, pubpid, pid, regdate)
+           VALUES (NOW(), ?, ?, ?, ?, ?, ?, ?, 0, NOW())`,
+          [fname, lname, dob, sex, phone, email, pubpid],
+        );
+        insertId = Number((result as any)?.insertId);
+      } catch (primaryError: any) {
+        this.logger.warn(
+          `Minimal patient_data insert failed, retrying bare columns: ${primaryError?.message}`,
+        );
+        const [result] = await connection.execute(
+          `INSERT INTO patient_data (fname, lname, DOB, sex, phone_cell, pid)
+           VALUES (?, ?, ?, ?, ?, 0)`,
+          [fname, lname, dob, sex, phone],
+        );
+        insertId = Number((result as any)?.insertId);
+      }
+
+      if (!Number.isFinite(insertId) || insertId <= 0) {
+        throw new Error('Could not create OpenEMR patient_data row');
+      }
+
+      // OpenEMR convention: pid mirrors the auto-increment id.
+      await connection
+        .execute(`UPDATE patient_data SET pid = ? WHERE id = ?`, [insertId, insertId])
+        .catch(() => undefined);
+
+      this.logger.log(
+        `Created OpenEMR patient pid=${insertId} via MySQL for MediCare user ${input.userId}`,
+      );
+      return String(insertId);
+    });
+  }
+
+  /**
    * Writes the OpenEMR Standard API patient columns (`patient_data`).
    * Used when FHIR/standard HTTP update is unavailable.
    */
