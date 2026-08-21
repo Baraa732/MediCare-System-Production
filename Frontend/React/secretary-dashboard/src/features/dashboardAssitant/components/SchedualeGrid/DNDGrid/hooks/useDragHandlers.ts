@@ -49,11 +49,14 @@ function buildConflictItems(
 ) {
   return collisions.map((c) => ({
     appointmentId: c.id,
-    patientName: patientNameFromTitle(c.title),
+    patientName: c.patient?.name || patientNameFromTitle(c.title),
     doctorName,
     start: c.start,
     end: c.end,
-    overlapMinutes: Math.min(targetEnd, c.end) - Math.max(targetStart, c.start),
+    overlapMinutes: Math.max(
+      0,
+      Math.min(targetEnd, c.end) - Math.max(targetStart, c.start),
+    ),
   }));
 }
 
@@ -187,19 +190,24 @@ export function useDragHandlers() {
     newTimeLabel: "",
   });
 
-  const refreshDirtyCount = useCallback((working: DoctorType[], baseline: DoctorType[] | null) => {
-    if (!baseline) {
-      setDirtyCount(0);
-      return;
-    }
-    setDirtyCount(collectDirtyAppointments(working, baseline).length);
-  }, []);
+  const refreshDirtyCount = useCallback(
+    (working: DoctorType[], baseline: DoctorType[] | null) => {
+      if (!baseline) {
+        setDirtyCount(0);
+        return;
+      }
+      const moved = collectDirtyAppointments(working, baseline).length;
+      setDirtyCount(moved + cancelledIdsRef.current.length);
+    },
+    [],
+  );
 
   // View mode: follow live schedule. Edit mode: freeze a baseline and edit locally.
   useEffect(() => {
     const source = scheduleDoctors as DoctorType[];
     if (!isEditMode) {
       workingDoctorsRef.current = cloneDoctors(source);
+      cancelledIdsRef.current = [];
       setBaselineDoctors(null);
       setDirtyCount(0);
       setSaveError(null);
@@ -207,7 +215,7 @@ export function useDragHandlers() {
       return;
     }
 
-      if (!baselineDoctors) {
+    if (!baselineDoctors) {
       const snap = cloneDoctors(source);
       workingDoctorsRef.current = snap;
       cancelledIdsRef.current = [];
@@ -515,10 +523,19 @@ export function useDragHandlers() {
               apt.id !== live.id &&
               Math.max(newStart, apt.start) < Math.min(newEnd, apt.end),
           );
+          // Prefer expanded chain for richer drawer context when available.
+          const chainIds = new Set(
+            (resolution.steps ?? []).map((s) => s.appointmentId),
+          );
+          const drawerItems =
+            chainIds.size > 0
+              ? (targetDoc?.appointments || []).filter((a) => chainIds.has(a.id))
+              : collisions;
+
           setConflict({
             attemptedAction: "move",
             conflictingItems: buildConflictItems(
-              collisions,
+              drawerItems.length > 0 ? drawerItems : collisions,
               newStart,
               newEnd,
               targetDoc?.name ?? "Doctor",
@@ -616,23 +633,30 @@ export function useDragHandlers() {
       if (!payload?.pendingDrag || !payload.resolution) return;
 
       const resolution = payload.resolution;
-      const cancelledIds = withCancellations
-        ? resolution.proposedCancelIds ?? []
-        : [];
 
+      if (withCancellations) {
+        const cancelledIds = resolution.proposedCancelIds ?? [];
+        if (cancelledIds.length === 0) return;
+        applyConflictResolution(payload.pendingDrag, {
+          updatedExistingAppointments: [],
+          cancelledIds,
+          message: resolution.message,
+        });
+        return;
+      }
+
+      // Only apply non-cancel plans that fully resolve.
       if (
-        resolution.updatedExistingAppointments.length === 0 &&
-        cancelledIds.length === 0
+        resolution.status !== "Resolved" ||
+        resolution.updatedExistingAppointments.length === 0
       ) {
         return;
       }
 
       applyConflictResolution(payload.pendingDrag, {
         updatedExistingAppointments: resolution.updatedExistingAppointments,
-        cancelledIds,
-        message: withCancellations
-          ? `${resolution.message} (cancellations confirmed)`
-          : resolution.message,
+        cancelledIds: [],
+        message: resolution.message,
       });
     },
     [applyConflictResolution],

@@ -31,7 +31,12 @@ interface GlobalConflictStore {
 export const useGlobalConflictStore = create<GlobalConflictStore>((set) => ({
   conflictPayload: null,
   isDrawerOpen: false,
-  setConflict: (payload) => set({ conflictPayload: payload }),
+  setConflict: (payload) =>
+    set(
+      payload
+        ? { conflictPayload: payload }
+        : { conflictPayload: null, isDrawerOpen: false },
+    ),
   setDrawerOpen: (isOpen) => set({ isDrawerOpen: isOpen }),
   clearConflict: () => set({ conflictPayload: null, isDrawerOpen: false }),
 }));

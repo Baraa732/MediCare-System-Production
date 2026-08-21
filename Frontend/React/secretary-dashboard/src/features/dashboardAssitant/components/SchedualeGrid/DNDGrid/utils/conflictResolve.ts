@@ -1,6 +1,7 @@
 import { TOTAL_SLOTS, ROW_MINUTES } from "@/features/dashboardAssitant/data/scheduleGrid";
 import type { DoctorType, AppointmentType } from "@/features/dashboardAssitant/types";
 import { clinicNowGridMinutes } from "@/features/dashboardAssitant/utils/editModeDrag";
+import { normalizeAppointmentStatus } from "@/features/dashboardAssitant/utils/appointmentStatusStyles";
 import { hasSchedulingConflict } from "./conflictValidator";
 
 const MAX_GRID_MINUTES = TOTAL_SLOTS * ROW_MINUTES;
@@ -13,76 +14,88 @@ export type ConflictResolutionAction =
   | "Transferred Doctor"
   | "Prompt User Selection";
 
+export type ResolutionStepKind = "shift" | "transfer" | "cancel";
+
+export interface ResolutionStep {
+  kind: ResolutionStepKind;
+  appointmentId: string;
+  patientName: string;
+  detail: string;
+}
+
 export interface MultiResolutionResult {
   status: "Resolved" | "Requires Manual Action";
   action: ConflictResolutionAction;
   message: string;
-  /** Existing appointments that should be rewritten (shifted / transferred). */
   updatedExistingAppointments: AppointmentType[];
-  /** Existing appointments that can only be cleared with explicit secretary confirmation. */
   proposedCancelIds?: string[];
+  steps?: ResolutionStep[];
 }
 
 export interface ResolveConflictOptions {
-  /** Clinic schedule day — used for the 15-minute safety buffer. */
   selectedDate?: Date;
-  /** Prefer doctors with the same specialty when transferring. */
   preferSameSpecialty?: boolean;
 }
 
 function patientLabel(apt: AppointmentType): string {
-  return apt.patient?.name || apt.title?.split(" - ")[0] || "Patient";
-}
-
-/**
- * Safety gate: never auto-move an existing appointment that is urgent
- * or starts within the next 15 minutes on the selected clinic day.
- */
-function isExistAptRestrictedFromMoving(
-  existApt: AppointmentType,
-  selectedDate?: Date,
-): { isManual: boolean; reason: string } {
-  const isCriticalCase =
-    existApt.status === "urgent" ||
-    existApt.status === "URGENT" ||
-    existApt.complexity === "urgent";
-
-  if (isCriticalCase) {
-    return {
-      isManual: true,
-      reason: `Existing appointment (${patientLabel(existApt)}) is marked urgent`,
-    };
-  }
-
-  if (selectedDate) {
-    const nowGrid = clinicNowGridMinutes(selectedDate);
-    const isWithinBuffer =
-      existApt.start >= nowGrid &&
-      existApt.start - nowGrid <= SAFETY_BUFFER_MINUTES;
-    if (isWithinBuffer) {
-      return {
-        isManual: true,
-        reason: `Existing appointment (${patientLabel(existApt)}) starts within ${SAFETY_BUFFER_MINUTES} minutes`,
-      };
-    }
-  }
-
-  return { isManual: false, reason: "" };
+  return apt.patient?.name || apt.title?.split(" - ")[0]?.trim() || "Patient";
 }
 
 function rangesOverlap(aStart: number, aEnd: number, bStart: number, bEnd: number) {
   return Math.max(aStart, bStart) < Math.min(aEnd, bEnd);
 }
 
-/**
- * Expand direct overlaps into a contiguous congestion chain so cascading
- * shift-downs account for appointments packed tightly after the drop.
- */
+function isUrgentAppointment(apt: AppointmentType): boolean {
+  if (apt.complexity === "urgent") return true;
+  const raw = (apt.status || "").toLowerCase();
+  return raw === "urgent" || raw === "critical";
+}
+
+function isTerminalAppointment(apt: AppointmentType): boolean {
+  const display = normalizeAppointmentStatus(apt.status);
+  return (
+    display === "cancelled" ||
+    display === "done" ||
+    display === "no-show" ||
+    display === "unavailable"
+  );
+}
+
+function isExistAptRestrictedFromMoving(
+  existApt: AppointmentType,
+  selectedDate?: Date,
+): { isManual: boolean; reason: string } {
+  if (isUrgentAppointment(existApt)) {
+    return {
+      isManual: true,
+      reason: `${patientLabel(existApt)} is marked urgent`,
+    };
+  }
+
+  if (selectedDate) {
+    const nowGrid = clinicNowGridMinutes(selectedDate);
+    if (Number.isFinite(nowGrid)) {
+      const isWithinBuffer =
+        existApt.start >= nowGrid &&
+        existApt.start - nowGrid <= SAFETY_BUFFER_MINUTES;
+      if (isWithinBuffer) {
+        return {
+          isManual: true,
+          reason: `${patientLabel(existApt)} starts within ${SAFETY_BUFFER_MINUTES} minutes`,
+        };
+      }
+    }
+  }
+
+  return { isManual: false, reason: "" };
+}
+
 export function expandConflictChain(
   draggedApt: AppointmentType,
   doctorAppointments: AppointmentType[],
 ): AppointmentType[] {
-  const direct = doctorAppointments.filter((apt) =>
+  const active = doctorAppointments.filter((a) => !isTerminalAppointment(a));
+  const direct = active.filter((apt) =>
     rangesOverlap(draggedApt.start, draggedApt.end, apt.start, apt.end),
   );
   if (direct.length === 0) return [];
@@ -93,7 +106,7 @@ export function expandConflictChain(
 
   while (changed) {
     changed = false;
-    for (const apt of doctorAppointments) {
+    for (const apt of active) {
       if (chainIds.has(apt.id)) continue;
       if (rangesOverlap(draggedApt.start, windowEnd, apt.start, apt.end)) {
         chainIds.add(apt.id);
@@ -103,20 +116,44 @@ export function expandConflictChain(
     }
   }
 
-  return doctorAppointments
+  return active
     .filter((a) => chainIds.has(a.id))
-    .sort((a, b) => a.start - b.start);
+    .sort((a, b) => a.start - b.start || a.end - b.end);
+}
+
+function boardWithoutIds(
+  allDoctors: DoctorType[],
+  removeIds: Set<string>,
+): DoctorType[] {
+  return allDoctors.map((doc) => ({
+    ...doc,
+    appointments: (doc.appointments || []).filter((a) => !removeIds.has(a.id)),
+  }));
+}
+
+function applyTransfersToBoard(
+  allDoctors: DoctorType[],
+  transfers: AppointmentType[],
+): DoctorType[] {
+  if (transfers.length === 0) return allDoctors;
+  const byId = new Map(transfers.map((t) => [t.id, t]));
+  return allDoctors.map((doc) => {
+    const without = (doc.appointments || []).filter((a) => !byId.has(a.id));
+    const incoming = transfers.filter((t) => t.docId === doc.id);
+    return { ...doc, appointments: [...without, ...incoming] };
+  });
 }
 
 function findTransferDoctor(
   apt: AppointmentType,
   allDoctors: DoctorType[],
-  excludeDoctorId: string,
+  excludeDoctorIds: string[],
   preferSameSpecialty: boolean,
 ): DoctorType | undefined {
+  const banned = new Set(excludeDoctorIds);
   const candidates = allDoctors.filter(
     (doc) =>
-      doc.id !== excludeDoctorId &&
+      !banned.has(doc.id) &&
       !hasSchedulingConflict(apt.start, apt.end, doc.id, allDoctors, apt.id),
   );
   if (candidates.length === 0) return undefined;
@@ -131,29 +168,110 @@ function findTransferDoctor(
   return candidates[0];
 }
 
+function canShiftAppointment(
+  apt: AppointmentType,
+  shiftedStart: number,
+  shiftedEnd: number,
+  targetDoctorId: string,
+  allDoctors: DoctorType[],
+  ignoreIds: Set<string>,
+  selectedDate?: Date,
+): boolean {
+  if (shiftedEnd > MAX_GRID_MINUTES || shiftedStart < 0) return false;
+  if (selectedDate) {
+    const nowGrid = clinicNowGridMinutes(selectedDate);
+    if (Number.isFinite(nowGrid) && shiftedStart < nowGrid) return false;
+  }
+  const simulated = boardWithoutIds(allDoctors, ignoreIds);
+  return !hasSchedulingConflict(
+    shiftedStart,
+    shiftedEnd,
+    targetDoctorId,
+    simulated,
+    apt.id,
+  );
+}
+
+function tryShiftChain(
+  draggedApt: AppointmentType,
+  chain: AppointmentType[],
+  allDoctors: DoctorType[],
+  selectedDate?: Date,
+): AppointmentType[] | null {
+  const sorted = [...chain].sort((a, b) => a.start - b.start);
+  let cursor = draggedApt.end;
+  const shifted: AppointmentType[] = [];
+  const ignore = new Set<string>([draggedApt.id, ...sorted.map((a) => a.id)]);
+
+  for (const apt of sorted) {
+    const duration = Math.max(apt.end - apt.start, ROW_MINUTES);
+    const shiftedStart = cursor;
+    const shiftedEnd = shiftedStart + duration;
+    if (
+      !canShiftAppointment(
+        apt,
+        shiftedStart,
+        shiftedEnd,
+        draggedApt.docId,
+        allDoctors,
+        ignore,
+        selectedDate,
+      )
+    ) {
+      return null;
+    }
+    shifted.push({
+      ...apt,
+      start: shiftedStart,
+      end: shiftedEnd,
+      docId: draggedApt.docId,
+    });
+    cursor = shiftedEnd;
+  }
+  return shifted;
+}
+
 function handleSingleConflict(
   draggedApt: AppointmentType,
   aptA: AppointmentType,
-  doctorAppointments: AppointmentType[],
   allDoctors: DoctorType[],
   preferSameSpecialty: boolean,
-): MultiResolutionResult | null {
+  selectedDate?: Date,
+): MultiResolutionResult {
+  const durationA = Math.max(aptA.end - aptA.start, ROW_MINUTES);
   const shiftedStart = draggedApt.end;
-  const durationA = aptA.end - aptA.start;
   const shiftedEnd = shiftedStart + durationA;
+  const ignore = new Set<string>([draggedApt.id, aptA.id]);
 
-  const nextApt = doctorAppointments.find(
-    (a) => a.start >= aptA.end && a.id !== aptA.id,
-  );
-  const hasOverlapWithNext = nextApt ? shiftedEnd > nextApt.start : false;
-
-  if (!hasOverlapWithNext && shiftedEnd <= MAX_GRID_MINUTES) {
+  if (
+    canShiftAppointment(
+      aptA,
+      shiftedStart,
+      shiftedEnd,
+      draggedApt.docId,
+      allDoctors,
+      ignore,
+      selectedDate,
+    )
+  ) {
+    const updated = {
+      ...aptA,
+      start: shiftedStart,
+      end: shiftedEnd,
+      docId: draggedApt.docId,
+    };
     return {
       status: "Resolved",
       action: "Shifted Down",
-      message: `Moved ${patientLabel(aptA)} down to free the slot.`,
-      updatedExistingAppointments: [
-        { ...aptA, start: shiftedStart, end: shiftedEnd },
+      message: `Moved ${patientLabel(aptA)} later to free the slot.`,
+      updatedExistingAppointments: [updated],
+      steps: [
+        {
+          kind: "shift",
+          appointmentId: aptA.id,
+          patientName: patientLabel(aptA),
+          detail: "Shift later to free the dropped time",
+        },
       ],
     };
   }
@@ -162,7 +280,7 @@ function handleSingleConflict(
     const alternativeDoctor = findTransferDoctor(
       aptA,
       allDoctors,
-      aptA.docId,
+      [draggedApt.docId, aptA.docId],
       preferSameSpecialty,
     );
     if (alternativeDoctor) {
@@ -171,6 +289,14 @@ function handleSingleConflict(
         action: "Transferred Doctor",
         message: `Moved ${patientLabel(aptA)} to ${alternativeDoctor.name}.`,
         updatedExistingAppointments: [{ ...aptA, docId: alternativeDoctor.id }],
+        steps: [
+          {
+            kind: "transfer",
+            appointmentId: aptA.id,
+            patientName: patientLabel(aptA),
+            detail: `Transfer to ${alternativeDoctor.name}`,
+          },
+        ],
       };
     }
   }
@@ -179,132 +305,159 @@ function handleSingleConflict(
     return {
       status: "Requires Manual Action",
       action: "Prompt User Selection",
-      message: `${patientLabel(aptA)} cannot be transferred automatically. Confirm cancel or pick another slot.`,
+      message: `${patientLabel(aptA)} is locked to this doctor. Confirm cancel to place yours, or pick another slot.`,
       updatedExistingAppointments: [],
       proposedCancelIds: [aptA.id],
+      steps: [
+        {
+          kind: "cancel",
+          appointmentId: aptA.id,
+          patientName: patientLabel(aptA),
+          detail: "Requires confirmed cancellation",
+        },
+      ],
     };
   }
 
-  return null;
+  return {
+    status: "Requires Manual Action",
+    action: "Prompt User Selection",
+    message:
+      "No safe shift or transfer is available. Pick another slot or resolve manually.",
+    updatedExistingAppointments: [],
+  };
 }
 
 function handleMultiConflict(
   draggedApt: AppointmentType,
   affectedChain: AppointmentType[],
-  doctorAppointments: AppointmentType[],
   allDoctors: DoctorType[],
-  targetDoctorId: string,
   preferSameSpecialty: boolean,
+  selectedDate?: Date,
 ): MultiResolutionResult {
-  const updatedExistingAppointments: AppointmentType[] = [];
-  const remainingUnresolvedApts: AppointmentType[] = [];
+  const fullShift = tryShiftChain(
+    draggedApt,
+    affectedChain,
+    allDoctors,
+    selectedDate,
+  );
+  if (fullShift) {
+    return {
+      status: "Resolved",
+      action: "Shifted Down Chain",
+      message: `Shifted ${fullShift.length} overlapping visit${fullShift.length === 1 ? "" : "s"} later.`,
+      updatedExistingAppointments: fullShift,
+      steps: fullShift.map((apt) => ({
+        kind: "shift" as const,
+        appointmentId: apt.id,
+        patientName: patientLabel(apt),
+        detail: "Shift later in cascade",
+      })),
+    };
+  }
+
+  const transfers: AppointmentType[] = [];
+  const transferSteps: ResolutionStep[] = [];
+  const remaining: AppointmentType[] = [];
 
   for (const apt of affectedChain) {
-    if (apt.refuseTransfer !== true) {
-      const alternativeDoctor = findTransferDoctor(
-        apt,
-        allDoctors,
-        targetDoctorId,
-        preferSameSpecialty,
-      );
-      if (alternativeDoctor) {
-        updatedExistingAppointments.push({
-          ...apt,
-          docId: alternativeDoctor.id,
-        });
-        continue;
-      }
-    }
-    remainingUnresolvedApts.push(apt);
-  }
-
-  if (remainingUnresolvedApts.length > 0) {
-    let nextAvailableStart = draggedApt.end;
-    const shiftedSubChain: AppointmentType[] = [];
-    let canShiftAllRemaining = true;
-
-    for (const apt of remainingUnresolvedApts) {
-      const duration = apt.end - apt.start;
-      const shiftedEnd = nextAvailableStart + duration;
-
-      if (shiftedEnd > MAX_GRID_MINUTES) {
-        canShiftAllRemaining = false;
-        break;
-      }
-
-      const hasExternalConflict = doctorAppointments.some((otherApt) => {
-        if (affectedChain.some((a) => a.id === otherApt.id)) return false;
-        if (updatedExistingAppointments.some((a) => a.id === otherApt.id)) {
-          return false;
-        }
-        return rangesOverlap(
-          nextAvailableStart,
-          shiftedEnd,
-          otherApt.start,
-          otherApt.end,
-        );
-      });
-
-      if (hasExternalConflict) {
-        canShiftAllRemaining = false;
-        break;
-      }
-
-      shiftedSubChain.push({
-        ...apt,
-        start: nextAvailableStart,
-        end: shiftedEnd,
-      });
-      nextAvailableStart = shiftedEnd;
+    if (apt.refuseTransfer === true) {
+      remaining.push(apt);
+      continue;
     }
 
-    if (canShiftAllRemaining) {
-      updatedExistingAppointments.push(...shiftedSubChain);
-      remainingUnresolvedApts.length = 0;
-    }
-  }
-
-  if (remainingUnresolvedApts.length > 0) {
-    const proposedCancelIds = remainingUnresolvedApts
-      .filter((apt) => apt.refuseTransfer === true)
-      .map((apt) => apt.id);
-    const stillBlocked = remainingUnresolvedApts.filter(
-      (apt) => apt.refuseTransfer !== true,
+    const alt = findTransferDoctor(
+      apt,
+      applyTransfersToBoard(allDoctors, transfers),
+      [draggedApt.docId],
+      preferSameSpecialty,
     );
 
-    if (stillBlocked.length > 0) {
-      return {
-        status: "Requires Manual Action",
-        action: "Prompt User Selection",
-        message:
-          "Multiple overlapping visits cannot be auto-resolved. Choose another slot or resolve manually.",
-        updatedExistingAppointments: [],
-        proposedCancelIds:
-          proposedCancelIds.length > 0 ? proposedCancelIds : undefined,
-      };
+    if (alt) {
+      transfers.push({ ...apt, docId: alt.id });
+      transferSteps.push({
+        kind: "transfer",
+        appointmentId: apt.id,
+        patientName: patientLabel(apt),
+        detail: `Transfer to ${alt.name}`,
+      });
+    } else {
+      remaining.push(apt);
     }
+  }
 
+  if (remaining.length === 0) {
+    return {
+      status: "Resolved",
+      action: "Transferred Doctor",
+      message: `Transferred ${transfers.length} overlapping visit${transfers.length === 1 ? "" : "s"}.`,
+      updatedExistingAppointments: transfers,
+      steps: transferSteps,
+    };
+  }
+
+  const boardAfterTransfers = applyTransfersToBoard(allDoctors, transfers);
+  const shiftedRemaining = tryShiftChain(
+    draggedApt,
+    remaining,
+    boardAfterTransfers,
+    selectedDate,
+  );
+
+  if (shiftedRemaining) {
+    return {
+      status: "Resolved",
+      action: "Shifted Down Chain",
+      message: `Transferred ${transfers.length} and shifted ${shiftedRemaining.length} visit${shiftedRemaining.length === 1 ? "" : "s"}.`,
+      updatedExistingAppointments: [...transfers, ...shiftedRemaining],
+      steps: [
+        ...transferSteps,
+        ...shiftedRemaining.map((apt) => ({
+          kind: "shift" as const,
+          appointmentId: apt.id,
+          patientName: patientLabel(apt),
+          detail: "Shift later after transfers",
+        })),
+      ],
+    };
+  }
+
+  const allRefuse = remaining.every((a) => a.refuseTransfer === true);
+  if (allRefuse && remaining.length === affectedChain.length) {
     return {
       status: "Requires Manual Action",
       action: "Prompt User Selection",
       message:
-        "Conflicting visits refuse transfer. Confirm cancellation to free the slot, or pick another time.",
-      updatedExistingAppointments,
-      proposedCancelIds,
+        "Overlapping visits are locked to this doctor. Confirm cancel to place yours, or pick another slot.",
+      updatedExistingAppointments: [],
+      proposedCancelIds: remaining.map((a) => a.id),
+      steps: remaining.map((apt) => ({
+        kind: "cancel" as const,
+        appointmentId: apt.id,
+        patientName: patientLabel(apt),
+        detail: "Locked — cancellation confirmation required",
+      })),
     };
   }
 
   return {
-    status: "Resolved",
-    action: "Shifted Down Chain",
-    message: `Resolved cascade: updated ${updatedExistingAppointments.length} existing appointment${updatedExistingAppointments.length === 1 ? "" : "s"}.`,
-    updatedExistingAppointments,
+    status: "Requires Manual Action",
+    action: "Prompt User Selection",
+    message:
+      "No fully safe auto-fix. Pick another slot, or move conflicting visits manually.",
+    updatedExistingAppointments: [],
+    steps: affectedChain.map((apt) => ({
+      kind: "cancel" as const,
+      appointmentId: apt.id,
+      patientName: patientLabel(apt),
+      detail: "Needs manual routing",
+    })),
   };
 }
 
 /**
- * Main entry: resolve DnD drop conflicts against existing appointments.
- * Never silently deletes — cancellations are proposed for secretary confirmation.
+ * Resolve DnD drop conflicts. Plans are atomic: fully resolve, or require manual action.
+ * Never silently deletes — cancellations need secretary confirmation.
  */
 export function resolveAppointmentConflict(
   draggedApt: AppointmentType,
@@ -323,8 +476,17 @@ export function resolveAppointmentConflict(
     };
   }
 
+  if (draggedApt.end <= draggedApt.start) {
+    return {
+      status: "Requires Manual Action",
+      action: "Prompt User Selection",
+      message: "Invalid appointment duration for this drop.",
+      updatedExistingAppointments: [],
+    };
+  }
+
   const doctorAppointments = [...(targetDoctor.appointments || [])]
-    .filter((a) => a.id !== draggedApt.id)
+    .filter((a) => a.id !== draggedApt.id && !isTerminalAppointment(a))
     .sort((a, b) => a.start - b.start);
 
   const affectedChain = expandConflictChain(draggedApt, doctorAppointments);
@@ -349,27 +511,33 @@ export function resolveAppointmentConflict(
         action: "Prompt User Selection",
         message: `Safety lock: ${manualCheck.reason}. Manual routing required.`,
         updatedExistingAppointments: [],
+        steps: [
+          {
+            kind: "cancel",
+            appointmentId: existApt.id,
+            patientName: patientLabel(existApt),
+            detail: manualCheck.reason,
+          },
+        ],
       };
     }
   }
 
   if (affectedChain.length === 1) {
-    const singleResult = handleSingleConflict(
+    return handleSingleConflict(
       draggedApt,
       affectedChain[0],
-      doctorAppointments,
       allDoctors,
       preferSameSpecialty,
+      options.selectedDate,
     );
-    if (singleResult) return singleResult;
   }
 
   return handleMultiConflict(
     draggedApt,
     affectedChain,
-    doctorAppointments,
     allDoctors,
-    targetDoctor.id,
     preferSameSpecialty,
+    options.selectedDate,
   );
 }
