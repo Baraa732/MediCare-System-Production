@@ -285,11 +285,17 @@ export class ScheduleService {
     });
     if (clinicDay?.isClosed) return { valid: false, reason: 'SLOT_NOT_AVAILABLE' };
 
+    const excludeIds = [
+      ...(dto.excludeAppointmentIds ?? []),
+      ...(dto.excludeAppointmentId ? [dto.excludeAppointmentId] : []),
+    ];
+
     const bookedRanges = await this.appointmentHttp.getBookedRanges(
       dto.clinicId,
       dto.doctorId,
       date,
-      dto.excludeAppointmentId,
+      excludeIds[0],
+      excludeIds,
     );
 
     if (dto.strictHours) {

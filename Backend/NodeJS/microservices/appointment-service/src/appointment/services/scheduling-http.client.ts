@@ -22,6 +22,7 @@ export class SchedulingHttpClient {
     durationMinutes: number,
     strictHours = false,
     excludeAppointmentId?: string,
+    excludeAppointmentIds?: string[],
   ): Promise<void> {
     try {
       const path = '/v1/schedule/internal/validate-slot';
@@ -32,6 +33,7 @@ export class SchedulingHttpClient {
         durationMinutes,
         strictHours,
         excludeAppointmentId,
+        excludeAppointmentIds,
       };
       const res = await axios.post(`${this.baseUrl}${path}`, body, {
         timeout: 5000,

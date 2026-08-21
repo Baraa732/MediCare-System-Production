@@ -396,6 +396,10 @@ export class AppointmentService {
     const duration = dto.durationMinutes ?? appointment.durationMinutes;
 
     const needsConflictCheck = !!(dto.scheduledAt || dto.durationMinutes !== undefined || dto.doctorId);
+    const batchExcludeIds = [
+      ...(dto.excludeAppointmentIds ?? []),
+      appointment.id,
+    ];
     if (needsConflictCheck) {
       const unchangedTime =
         Math.abs(scheduledAt.getTime() - appointment.scheduledAt.getTime()) < 60_000;
@@ -410,6 +414,7 @@ export class AppointmentService {
         duration,
         actor.role === 'PATIENT',
         appointment.id,
+        batchExcludeIds,
       );
       if (dto.scheduledAt) {
         appointment.scheduledAt = scheduledAt;
@@ -427,7 +432,7 @@ export class AppointmentService {
           targetDoctorId,
           scheduledAt,
           duration,
-          appointment.id,
+          batchExcludeIds,
         )
       : await this.appointmentRepo.save(appointment);
     if (doctorReassigned) {
@@ -594,6 +599,7 @@ export class AppointmentService {
     doctorId: string,
     date: string,
     excludeAppointmentId?: string,
+    excludeAppointmentIds?: string[],
   ) {
     const tenantId = clinicId;
     const dayStart = new Date(`${date}T00:00:00.000Z`);
@@ -608,8 +614,13 @@ export class AppointmentService {
       },
     });
 
+    const exclude = new Set<string>([
+      ...(excludeAppointmentIds ?? []),
+      ...(excludeAppointmentId ? [excludeAppointmentId] : []),
+    ]);
+
     return appointments
-      .filter((a) => !excludeAppointmentId || a.id !== excludeAppointmentId)
+      .filter((a) => !exclude.has(a.id))
       .map((a) => ({
         start: a.scheduledAt.toISOString(),
         end: new Date(a.scheduledAt.getTime() + a.durationMinutes * 60_000).toISOString(),
@@ -908,10 +919,17 @@ export class AppointmentService {
     doctorId: string,
     scheduledAt: Date,
     durationMinutes: number,
-    excludeId?: string,
+    excludeIds?: string | string[],
   ): Promise<void> {
     const start = scheduledAt.getTime();
     const end = start + durationMinutes * 60_000;
+    const exclude = new Set(
+      Array.isArray(excludeIds)
+        ? excludeIds.filter(Boolean)
+        : excludeIds
+          ? [excludeIds]
+          : [],
+    );
 
     const qb = manager
       .getRepository(Appointment)
@@ -920,7 +938,11 @@ export class AppointmentService {
       .andWhere('a.doctorId = :doctorId', { doctorId })
       .andWhere('a.status IN (:...statuses)', { statuses: ACTIVE_STATUSES });
 
-    if (excludeId) qb.andWhere('a.id != :excludeId', { excludeId });
+    if (exclude.size > 0) {
+      qb.andWhere('a.id NOT IN (:...excludeIds)', {
+        excludeIds: [...exclude],
+      });
+    }
 
     const existing = await qb.getMany();
 
@@ -939,7 +961,7 @@ export class AppointmentService {
     doctorId: string,
     scheduledAt: Date,
     durationMinutes: number,
-    excludeId?: string,
+    excludeIds?: string | string[],
   ): Promise<Appointment> {
     return this.dataSource.transaction(async (manager) => {
       await this.acquireDoctorSlotLock(manager, clinicId, doctorId);
@@ -949,7 +971,7 @@ export class AppointmentService {
         doctorId,
         scheduledAt,
         durationMinutes,
-        excludeId,
+        excludeIds,
       );
       try {
         return await manager.save(Appointment, appointment);

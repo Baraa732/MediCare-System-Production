@@ -15,6 +15,8 @@ export interface UpdateAppointmentBody {
   durationMinutes?: number;
   reason?: string;
   notes?: string;
+  /** Other appointments being moved in the same edit-mode save batch. */
+  excludeAppointmentIds?: string[];
 }
 
 export interface CreateAppointmentBody {

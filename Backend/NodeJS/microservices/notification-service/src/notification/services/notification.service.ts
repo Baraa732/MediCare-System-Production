@@ -85,6 +85,7 @@ export class NotificationService {
       payload,
       StaffNotificationCategory.APPOINTMENT_CANCELLED,
     );
+    await this.staffPushService.notifyGuestCallIfNeeded(payload, 'cancelled');
   }
 
   async handleAppointmentUpdated(payload: AppointmentEventPayload): Promise<void> {
@@ -103,6 +104,7 @@ export class NotificationService {
       payload,
       StaffNotificationCategory.APPOINTMENT_UPDATED,
     );
+    await this.staffPushService.notifyGuestCallIfNeeded(payload, 'rescheduled');
   }
 
   async sendAppointmentReminder(dto: AppointmentReminderDto): Promise<{ success: boolean }> {

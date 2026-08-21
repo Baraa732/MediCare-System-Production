@@ -8,7 +8,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { IsDateString, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsDateString, IsOptional, IsString, IsUUID, IsArray } from 'class-validator';
 import { AppointmentService } from '../services/appointment.service';
 import { InternalServiceGuard } from '../guards/internal-service.guard';
 import { VerifyOwnershipDto } from '../dto/internal.dto';
@@ -45,6 +45,11 @@ class BookedRangesDto {
   @IsOptional()
   @IsUUID()
   excludeAppointmentId?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  excludeAppointmentIds?: string[];
 }
 
 class CancelInRangeDto {
@@ -124,6 +129,7 @@ export class InternalAppointmentController {
       dto.doctorId,
       dto.date,
       dto.excludeAppointmentId,
+      dto.excludeAppointmentIds,
     );
     return { success: true, ranges };
   }

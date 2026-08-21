@@ -7,6 +7,7 @@ import {
   IsOptional,
   IsBoolean,
   IsDateString,
+  IsArray,
   Matches,
   MaxLength,
 } from 'class-validator';
@@ -131,4 +132,10 @@ export class ValidateSlotDto {
   @IsOptional()
   @IsUUID()
   excludeAppointmentId?: string;
+
+  /** Batch edit-mode: ignore all appointments in the same save batch. */
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  excludeAppointmentIds?: string[];
 }

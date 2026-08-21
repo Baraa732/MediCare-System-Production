@@ -68,8 +68,14 @@ export function useAppointmentActions() {
         throw new Error("Your session has expired. Please sign in again.");
       }
 
-      for (const apt of updatedApts) {
-        if (!isApiAppointmentId(apt.id)) continue;
+      const apiApts = updatedApts.filter((a) => isApiAppointmentId(a.id));
+      // Vacate earlier / lower starts first so chain shifts don't fight each other.
+      const ordered = [...apiApts].sort(
+        (a, b) => a.docId.localeCompare(b.docId) || a.start - b.start,
+      );
+      const batchExcludeIds = ordered.map((a) => a.id);
+
+      for (const apt of ordered) {
         await updateAppointment(
           apt.id,
           {
@@ -81,6 +87,7 @@ export function useAppointmentActions() {
               complexity: apt.complexity,
               refuseTransfer: apt.refuseTransfer,
             }),
+            excludeAppointmentIds: batchExcludeIds,
           },
           accessToken,
         );

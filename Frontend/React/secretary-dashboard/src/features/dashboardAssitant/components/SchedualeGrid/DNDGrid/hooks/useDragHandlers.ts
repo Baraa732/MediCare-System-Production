@@ -172,7 +172,11 @@ function collectDirtyAppointments(
 }
 
 export function useDragHandlers() {
-  const { doctors: scheduleDoctors, selectedDate } = useScheduleContext();
+  const {
+    doctors: scheduleDoctors,
+    selectedDate,
+    refetch: refetchSchedule,
+  } = useScheduleContext();
   const { persistGridUpdates } = useAppointmentActions();
   const accessToken = useAuthStore((s) => s.accessToken);
   const filters = useScheduleGridStore((s) => s.filters);
@@ -708,9 +712,7 @@ export function useDragHandlers() {
     setIsSaving(true);
     setSaveError(null);
     try {
-      if (dirty.length > 0) {
-        await persistGridUpdates(dirty);
-      }
+      // Cancels MUST run before moves — otherwise target slots still look occupied.
       if (accessToken) {
         for (const id of toCancel) {
           await updateAppointmentStatus(
@@ -723,7 +725,9 @@ export function useDragHandlers() {
           );
         }
       }
-      if (toCancel.length > 0 && dirty.length === 0) {
+      if (dirty.length > 0) {
+        await persistGridUpdates(dirty);
+      } else if (toCancel.length > 0) {
         await persistGridUpdates([]);
       }
       cancelledIdsRef.current = [];
@@ -739,10 +743,22 @@ export function useDragHandlers() {
           "Could not save schedule changes. Please try again.",
         ),
       );
+      // Resync from server after partial failure so slots match reality.
+      try {
+        await refetchSchedule();
+      } catch {
+        /* ignore refetch errors */
+      }
     } finally {
       setIsSaving(false);
     }
-  }, [baselineDoctors, onToggleEdit, persistGridUpdates, accessToken]);
+  }, [
+    baselineDoctors,
+    onToggleEdit,
+    persistGridUpdates,
+    accessToken,
+    refetchSchedule,
+  ]);
 
   const requestExitEditMode = useCallback(() => {
     if (dirtyCount > 0 || cancelledIdsRef.current.length > 0) {

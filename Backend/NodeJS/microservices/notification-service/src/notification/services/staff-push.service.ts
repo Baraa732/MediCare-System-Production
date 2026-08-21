@@ -193,6 +193,68 @@ export class StaffPushService {
     }
   }
 
+  /**
+   * Manual / guest patients have no app push. Alert secretaries to call them
+   * when their appointment is rescheduled or cancelled.
+   */
+  async notifyGuestCallIfNeeded(
+    payload: AppointmentEventPayload,
+    action: 'rescheduled' | 'cancelled',
+  ): Promise<void> {
+    const patientId = typeof payload.patientId === 'string' ? payload.patientId.trim() : '';
+    if (patientId) return;
+
+    const phone =
+      (typeof payload.guestPatientPhone === 'string' && payload.guestPatientPhone.trim()) ||
+      '';
+    const name =
+      (typeof payload.guestPatientName === 'string' && payload.guestPatientName.trim()) ||
+      'Guest patient';
+    if (!phone) {
+      this.logger.debug(
+        `Guest appointment ${payload.appointmentId} has no phone — skip call alert`,
+      );
+      return;
+    }
+
+    const tenantId = payload.tenantId ?? payload.clinicId;
+    const secretaries = await this.clinicHttpClient.listSecretaries(tenantId);
+    if (!secretaries.length) return;
+
+    const clinic = await this.clinicHttpClient.getClinicById(tenantId);
+    const when = formatClinicDateTime(payload.scheduledAt, clinic?.timezone);
+    const title = 'Call guest patient';
+    const body =
+      action === 'cancelled'
+        ? `Please call ${name} at ${phone} — their visit on ${when} was cancelled.`
+        : `Please call ${name} at ${phone} — their visit was moved to ${when}.`;
+
+    for (const secretary of secretaries) {
+      await this.deliverToUser(secretary.userId, {
+        category: StaffNotificationCategory.SYSTEM,
+        title,
+        body,
+        appointmentId: payload.appointmentId,
+        clinicId: tenantId,
+        data: {
+          appointmentId: payload.appointmentId,
+          clinicId: tenantId,
+          tenantId,
+          doctorId: payload.doctorId,
+          scheduledAt: payload.scheduledAt,
+          status: payload.status,
+          category: StaffNotificationCategory.SYSTEM,
+          guestCallRequired: true,
+          guestPatientName: name,
+          guestPatientPhone: phone,
+          action,
+          deepLink: '/dashboard',
+          telLink: `tel:${phone.replace(/[^\d+]/g, '')}`,
+        },
+      });
+    }
+  }
+
   async notifyDoctorAppointment(
     payload: AppointmentEventPayload,
     category: StaffNotificationCategory,

@@ -8,6 +8,7 @@ import {
   Max,
   MaxLength,
   IsDateString,
+  IsArray,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { AppointmentStatus } from '../entities/appointment.entity';
@@ -75,6 +76,15 @@ export class UpdateAppointmentDto {
   @IsString()
   @MaxLength(5000)
   notes?: string;
+
+  /**
+   * Edit-mode batch save: other appointment ids being moved in the same batch.
+   * Slot validation ignores these so chain shifts don't fail against stale DB positions.
+   */
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  excludeAppointmentIds?: string[];
 }
 
 export class UpdateAppointmentStatusDto {

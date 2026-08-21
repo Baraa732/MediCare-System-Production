@@ -94,42 +94,63 @@ export function NotificationsPage() {
             <ul className="stagger-list divide-y divide-neutral-100">
               {items.map((item) => {
                 const unread = !item.readAt;
+                const guestCall =
+                  item.data?.guestCallRequired === true ||
+                  item.data?.guestCallRequired === "true" ||
+                  (item.title || "").toLowerCase().includes("call guest");
+                const phone =
+                  typeof item.data?.guestPatientPhone === "string"
+                    ? item.data.guestPatientPhone
+                    : null;
                 return (
                   <li key={item.id}>
-                    <button
-                      type="button"
+                    <div
                       className={cn(
-                        "w-full px-5 py-4 text-left transition-colors duration-200 hover:bg-neutral-50/80",
+                        "flex items-start gap-3 px-5 py-4 transition-colors duration-200 hover:bg-neutral-50/80",
                         unread && "bg-blue-50/50",
+                        guestCall && "bg-amber-50/40",
                       )}
-                      onClick={() => {
-                        if (unread) void markRead(item.id);
-                        const scheduled = item.data?.scheduledAt;
-                        if (typeof scheduled === "string") {
-                          changeDate(new Date(scheduled));
-                        }
-                        if (item.appointmentId) {
-                          openAppointment(item.appointmentId);
-                        }
-                        navigate("/dashboard");
-                      }}
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <p className="text-sm font-semibold text-neutral-900">
-                          {item.title}
+                      <button
+                        type="button"
+                        className="min-w-0 flex-1 text-left"
+                        onClick={() => {
+                          if (unread) void markRead(item.id);
+                          const scheduled = item.data?.scheduledAt;
+                          if (typeof scheduled === "string") {
+                            changeDate(new Date(scheduled));
+                          }
+                          if (item.appointmentId) {
+                            openAppointment(item.appointmentId);
+                          }
+                          navigate("/dashboard");
+                        }}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="text-sm font-semibold text-neutral-900">
+                            {item.title}
+                          </p>
+                          {unread ? (
+                            <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[#0066ff] pulse-soft" />
+                          ) : null}
+                        </div>
+                        <p className="mt-1 text-xs text-neutral-600">{item.body}</p>
+                        <p className="mt-2 text-[11px] text-neutral-400">
+                          {item.category.replace(/_/g, " ").toLowerCase()} ·{" "}
+                          {formatDistanceToNow(new Date(item.createdAt), {
+                            addSuffix: true,
+                          })}
                         </p>
-                        {unread ? (
-                          <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[#0066ff] pulse-soft" />
-                        ) : null}
-                      </div>
-                      <p className="mt-1 text-xs text-neutral-600">{item.body}</p>
-                      <p className="mt-2 text-[11px] text-neutral-400">
-                        {item.category.replace(/_/g, " ").toLowerCase()} ·{" "}
-                        {formatDistanceToNow(new Date(item.createdAt), {
-                          addSuffix: true,
-                        })}
-                      </p>
-                    </button>
+                      </button>
+                      {guestCall && phone ? (
+                        <a
+                          href={`tel:${phone.replace(/[^\d+]/g, "")}`}
+                          className="btn-brand mt-0.5 flex h-9 shrink-0 items-center rounded-xl px-3 text-xs font-bold text-white"
+                        >
+                          Call
+                        </a>
+                      ) : null}
+                    </div>
                   </li>
                 );
               })}

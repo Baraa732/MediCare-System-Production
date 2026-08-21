@@ -6,6 +6,7 @@ import {
   CalendarClock,
   CheckCheck,
   Loader2,
+  Phone,
   Settings2,
   Sparkles,
 } from "lucide-react";
@@ -28,16 +29,27 @@ const FILTERS = [
   { id: "APPOINTMENT_CREATED", label: "Booked" },
   { id: "APPOINTMENT_UPDATED", label: "Updated" },
   { id: "APPOINTMENT_CANCELLED", label: "Cancelled" },
+  { id: "guest_call", label: "Call guest" },
 ] as const;
 
-function categoryIcon(category: string) {
+function isGuestCall(item: { title?: string; data?: Record<string, unknown> | null }) {
+  return (
+    item.data?.guestCallRequired === true ||
+    item.data?.guestCallRequired === "true" ||
+    (item.title || "").toLowerCase().includes("call guest")
+  );
+}
+
+function categoryIcon(category: string, guestCall?: boolean) {
+  if (guestCall) return Phone;
   if (category.includes("CANCEL")) return CalendarClock;
   if (category.includes("REQUEST")) return Sparkles;
   if (category.includes("CREATE")) return BellRing;
   return Bell;
 }
 
-function categoryAccent(category: string) {
+function categoryAccent(category: string, guestCall?: boolean) {
+  if (guestCall) return "text-amber-700 bg-amber-50";
   if (category.includes("CANCEL")) return "text-red-600 bg-red-50";
   if (category.includes("REQUEST")) return "text-violet-600 bg-violet-50";
   if (category.includes("CREATE")) return "text-emerald-600 bg-emerald-50";
@@ -65,6 +77,7 @@ export function NotificationBell() {
   const filtered = useMemo(() => {
     if (filter === "all") return items;
     if (filter === "unread") return items.filter((i) => !i.readAt);
+    if (filter === "guest_call") return items.filter((i) => isGuestCall(i));
     return items.filter((i) => i.category === filter);
   }, [filter, items]);
 
@@ -185,54 +198,76 @@ export function NotificationBell() {
             <ul className="divide-y divide-neutral-100 p-2">
               {filtered.map((item) => {
                 const unread = !item.readAt;
-                const Icon = categoryIcon(item.category);
-                const accent = categoryAccent(item.category);
+                const guestCall = isGuestCall(item);
+                const Icon = categoryIcon(item.category, guestCall);
+                const accent = categoryAccent(item.category, guestCall);
+                const phone =
+                  typeof item.data?.guestPatientPhone === "string"
+                    ? item.data.guestPatientPhone
+                    : typeof item.data?.telLink === "string"
+                      ? item.data.telLink.replace(/^tel:/, "")
+                      : null;
                 return (
                   <li key={item.id}>
-                    <button
-                      type="button"
+                    <div
                       className={cn(
                         "flex w-full gap-3 rounded-xl px-2 py-2.5 text-left transition-colors hover:bg-neutral-50",
                         unread && "bg-blue-50/30",
+                        guestCall && "bg-amber-50/40",
                       )}
-                      onClick={() => {
-                        if (unread) void markRead(item.id);
-                        const scheduled = item.data?.scheduledAt;
-                        if (typeof scheduled === "string") {
-                          changeDate(new Date(scheduled));
-                        }
-                        if (item.appointmentId) {
-                          openAppointment(item.appointmentId);
-                        }
-                      }}
                     >
-                      <span
-                        className={cn(
-                          "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
-                          accent,
-                        )}
+                      <button
+                        type="button"
+                        className="flex min-w-0 flex-1 gap-3 text-left"
+                        onClick={() => {
+                          if (unread) void markRead(item.id);
+                          const scheduled = item.data?.scheduledAt;
+                          if (typeof scheduled === "string") {
+                            changeDate(new Date(scheduled));
+                          }
+                          if (item.appointmentId) {
+                            openAppointment(item.appointmentId);
+                          }
+                        }}
                       >
-                        <Icon className="h-4 w-4" />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="flex items-start justify-between gap-2">
-                          <span className="text-xs font-bold text-neutral-900">
-                            {item.title}
+                        <span
+                          className={cn(
+                            "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
+                            accent,
+                          )}
+                        >
+                          <Icon className="h-4 w-4" />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-start justify-between gap-2">
+                            <span className="text-xs font-bold text-neutral-900">
+                              {item.title}
+                            </span>
+                            {unread ? (
+                              <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-blue-600" />
+                            ) : null}
                           </span>
-                          {unread ? (
-                            <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-blue-600" />
-                          ) : null}
+                          <span className="mt-0.5 block line-clamp-2 text-[11px] leading-relaxed text-neutral-600">
+                            {item.body}
+                          </span>
+                          <span className="mt-1 block text-[10px] text-neutral-400">
+                            {formatDistanceToNow(new Date(item.createdAt), {
+                              addSuffix: true,
+                            })}
+                          </span>
                         </span>
-                        <span className="mt-0.5 block line-clamp-2 text-[11px] leading-relaxed text-neutral-600">
-                          {item.body}
-                        </span>
-                        <span className="mt-1 block text-[10px] text-neutral-400">
-                          {formatDistanceToNow(new Date(item.createdAt), {
-                            addSuffix: true,
-                          })}
-                        </span>
-                      </span>
-                    </button>
+                      </button>
+                      {guestCall && phone ? (
+                        <a
+                          href={`tel:${phone.replace(/[^\d+]/g, "")}`}
+                          className="btn-brand mt-0.5 flex h-9 shrink-0 items-center gap-1 rounded-xl px-2.5 text-[10px] font-bold text-white"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Phone className="h-3 w-3" />
+                          Call
+                        </a>
+                      ) : null}
+                    </div>
                   </li>
                 );
               })}
