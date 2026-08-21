@@ -490,10 +490,14 @@ export function useAppointmentWizard(
             durationMinutes: computedDuration || 30,
           },
           accessToken,
-        ).catch(() => ({ slots: [] as string[] })),
+        ).catch(() => ({ slots: [] as string[], closed: false })),
       ),
     ).then((results) => {
       if (cancelled) return;
+      if (results.some((res) => res.closed)) {
+        setApiSlotMinutes([]);
+        return;
+      }
       const minutes = [
         ...new Set(
           results.flatMap((res) =>

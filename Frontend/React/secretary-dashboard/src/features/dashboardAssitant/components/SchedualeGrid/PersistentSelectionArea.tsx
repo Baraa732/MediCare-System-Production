@@ -8,6 +8,7 @@ import {
   slotRangeDurationMinutes,
 } from "@/lib/time/gridTime";
 import { isClinicDateBeforeToday } from "../../utils/editModeDrag";
+import { isClinicDateClosed } from "../../utils/clinicDayStatus";
 
 interface PersistentSelectionAreaProps {
   hasSelectionInColumn: boolean;
@@ -27,7 +28,13 @@ export function PersistentSelectionArea({
     (state) => state.onOpenNewAppointment,
   );
 
-  if (isClinicDateBeforeToday(selectedDate)) return null;
+  const store = useScheduleGridStore.getState();
+  if (
+    isClinicDateBeforeToday(selectedDate) ||
+    isClinicDateClosed(selectedDate, store.clinicHours, store.scheduleBlocks)
+  ) {
+    return null;
+  }
 
   const handleTriggerWizardWithSelection = () => {
     const startSlot = Math.round(selectionTop / SLOT_HEIGHT);

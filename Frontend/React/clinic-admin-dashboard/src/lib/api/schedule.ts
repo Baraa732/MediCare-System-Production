@@ -138,6 +138,21 @@ export function closeClinicDay(
   });
 }
 
+export function openClinicDay(
+  clinicId: string,
+  body: { date: string },
+  token: string,
+) {
+  return apiRequest<{
+    success: boolean;
+    removed: number;
+  }>(`/schedule/clinics/${clinicId}/open-day`, {
+    method: "POST",
+    body,
+    token,
+  });
+}
+
 export function getAvailableSlots(
   query: {
     clinicId: string;

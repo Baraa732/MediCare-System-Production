@@ -32,6 +32,7 @@ import { hasSchedulingConflict } from "../utils/conflictValidator";
 import { resolveAppointmentConflict } from "../utils/conflictResolve";
 import { isGridSlotInPast } from "@/features/dashboardAssitant/utils/editModeDrag";
 import { isGridRangeOutsideClinicHours } from "@/features/dashboardAssitant/utils/clinicHours";
+import { isClinicDateClosed } from "@/features/dashboardAssitant/utils/clinicDayStatus";
 import { updateAppointmentStatus } from "@/lib/api/appointments";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -155,6 +156,7 @@ export function useDragHandlers() {
   const accessToken = useAuthStore((s) => s.accessToken);
   const filters = useScheduleGridStore((s) => s.filters);
   const clinicHours = useScheduleGridStore((s) => s.clinicHours);
+  const scheduleBlocks = useScheduleGridStore((s) => s.scheduleBlocks);
   const isEditMode = useEditeMode((state) => state.isEditMode);
   const onToggleEdit = useEditeMode((state) => state.onToggleEdit);
 
@@ -454,6 +456,10 @@ export function useDragHandlers() {
       // Drop outside the grid (or onto a non-slot) → cancel; appointment stays put.
       if (!over || !isEditMode || over.data.current?.type !== "slot") return;
 
+      if (isClinicDateClosed(selectedDate, clinicHours, scheduleBlocks)) {
+        return;
+      }
+
       const dragType = active.data.current?.type as ActiveDragType;
       // Only grid appointments can be dropped onto slots.
       if (dragType !== "appointment") return;
@@ -575,6 +581,7 @@ export function useDragHandlers() {
       executeMove,
       selectedDate,
       clinicHours,
+      scheduleBlocks,
       setConflict,
       setDrawerOpen,
       applyConflictResolution,

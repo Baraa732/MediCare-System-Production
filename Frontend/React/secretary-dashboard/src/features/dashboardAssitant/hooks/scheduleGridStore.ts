@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { DoctorWithAppointments } from "./useScheduleData";
-import type { ClinicHoursDay } from "@/lib/api/schedule";
+import type { ClinicHoursDay, ScheduleBlock } from "@/lib/api/schedule";
 import {
   DEFAULT_SCHEDULE_FILTERS,
   type ScheduleFilters,
@@ -13,12 +13,14 @@ import type { ComplexityType } from "../CreateAppointmentWizard/useAppointmentWi
 interface ScheduleGridStore {
   doctors: DoctorWithAppointments[];
   clinicHours: ClinicHoursDay[];
+  scheduleBlocks: ScheduleBlock[];
   filters: ScheduleFilters;
   filterPanelOpen: boolean;
   /** @deprecated use filters.query — kept for gradual callers */
   searchQuery: string;
   setDoctors: (doctors: DoctorWithAppointments[]) => void;
   setClinicHours: (hours: ClinicHoursDay[]) => void;
+  setScheduleBlocks: (blocks: ScheduleBlock[]) => void;
   setSearchQuery: (query: string) => void;
   setFilters: (patch: Partial<ScheduleFilters>) => void;
   toggleStatus: (status: AppointmentDisplayStatus) => void;
@@ -32,11 +34,13 @@ interface ScheduleGridStore {
 export const useScheduleGridStore = create<ScheduleGridStore>((set, get) => ({
   doctors: [],
   clinicHours: [],
+  scheduleBlocks: [],
   filters: { ...DEFAULT_SCHEDULE_FILTERS },
   filterPanelOpen: false,
   searchQuery: "",
   setDoctors: (doctors) => set({ doctors }),
   setClinicHours: (clinicHours) => set({ clinicHours }),
+  setScheduleBlocks: (scheduleBlocks) => set({ scheduleBlocks }),
   setSearchQuery: (query) =>
     set((state) => ({
       searchQuery: query,

@@ -2,18 +2,24 @@ import { Button } from "@/components/ui/button";
 import { useEditeMode } from "../../hooks/useEditeMode";
 import { Edit3, Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useWizardDrawer } from "../../hooks/useWizardDrawer";
 import { useScheduleDnd } from "../../context/ScheduleDndContext";
 import { useScheduleContext } from "../../context/ScheduleContext";
 import { isClinicDateBeforeToday } from "../../utils/editModeDrag";
+import { isClinicDateClosed } from "../../utils/clinicDayStatus";
 
 export function ControlButton() {
   const isEditMode = useEditeMode((state) => state.isEditMode);
   const onToggleEdit = useEditeMode((state) => state.onToggleEdit);
   const { requestExitEditMode, dirtyCount } = useScheduleDnd();
-  const { selectedDate } = useScheduleContext();
+  const { selectedDate, clinicHours, scheduleBlocks } = useScheduleContext();
   const isPastDay = isClinicDateBeforeToday(selectedDate);
+  const isClosedDay = useMemo(
+    () => isClinicDateClosed(selectedDate, clinicHours, scheduleBlocks),
+    [selectedDate, clinicHours, scheduleBlocks],
+  );
+  const bookingLocked = isPastDay || isClosedDay;
 
   const lastActionTime = useRef<number>(0);
   const COOLDOWN_MS = 2000;
@@ -22,12 +28,12 @@ export function ControlButton() {
     (state) => state.onOpenNewAppointment,
   );
 
-  // Past days are show-only — force exit edit mode.
+  // Past / closed days are show-only — force exit edit mode.
   useEffect(() => {
-    if (isPastDay && isEditMode) {
+    if (bookingLocked && isEditMode) {
       requestExitEditMode();
     }
-  }, [isPastDay, isEditMode, requestExitEditMode]);
+  }, [bookingLocked, isEditMode, requestExitEditMode]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -38,13 +44,13 @@ export function ControlButton() {
       if (e.ctrlKey && e.shiftKey) {
         if (key === "e") {
           e.preventDefault();
-          if (isPastDay) return;
+          if (bookingLocked) return;
           lastActionTime.current = now;
           if (isEditMode) requestExitEditMode();
           else onToggleEdit();
         } else if (key === "u") {
           e.preventDefault();
-          if (isPastDay) return;
+          if (bookingLocked) return;
           lastActionTime.current = now;
           onOpenNewAppointment();
         }
@@ -55,7 +61,7 @@ export function ControlButton() {
     return () => window.removeEventListener("keydown", handler);
   }, [
     isEditMode,
-    isPastDay,
+    bookingLocked,
     onToggleEdit,
     onOpenNewAppointment,
     requestExitEditMode,
@@ -68,12 +74,24 @@ export function ControlButton() {
           Show-only day — past dates cannot be edited or booked.
         </div>
       ) : null}
+      {!isPastDay && isClosedDay ? (
+        <div className="rounded-xl border border-red-100 bg-red-50/80 px-3 py-2 text-[11px] font-semibold text-red-700">
+          Clinic closed this day — booking and edit mode are disabled until the
+          clinic is re-opened.
+        </div>
+      ) : null}
 
       <Button
-        disabled={isPastDay}
+        disabled={bookingLocked}
         className="btn-brand h-11 w-full justify-center rounded-xl px-4 text-xs font-bold disabled:pointer-events-none disabled:opacity-40"
         onClick={() => onOpenNewAppointment()}
-        title={isPastDay ? "Cannot book on a past day" : undefined}
+        title={
+          isPastDay
+            ? "Cannot book on a past day"
+            : isClosedDay
+              ? "Cannot book on a closed day"
+              : undefined
+        }
       >
         <Plus className="h-4 w-4 transition-transform duration-200 group-hover:rotate-90" />
         <span>New appointment</span>
@@ -83,10 +101,10 @@ export function ControlButton() {
       </Button>
 
       <Button
-        disabled={isPastDay && !isEditMode}
+        disabled={bookingLocked && !isEditMode}
         variant={isEditMode ? "default" : "outline"}
         onClick={() => {
-          if (isPastDay && !isEditMode) return;
+          if (bookingLocked && !isEditMode) return;
           if (isEditMode) requestExitEditMode();
           else onToggleEdit();
         }}
@@ -95,9 +113,15 @@ export function ControlButton() {
           isEditMode
             ? "border-red-600 bg-red-500 text-white shadow-md shadow-red-100 hover:border-red-700 hover:bg-red-600"
             : "border-neutral-200 bg-[#0B74FA1A] text-neutral-700 hover:bg-neutral-50",
-          isPastDay && !isEditMode && "pointer-events-none opacity-40",
+          bookingLocked && !isEditMode && "pointer-events-none opacity-40",
         )}
-        title={isPastDay ? "Edit mode unavailable on past days" : undefined}
+        title={
+          isPastDay
+            ? "Edit mode unavailable on past days"
+            : isClosedDay
+              ? "Edit mode unavailable on closed days"
+              : undefined
+        }
       >
         {isEditMode ? (
           <>

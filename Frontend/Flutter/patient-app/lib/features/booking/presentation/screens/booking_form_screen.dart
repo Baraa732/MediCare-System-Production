@@ -44,12 +44,19 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
   List<DateTime> _slots = [];
   bool _loadingSlots = false;
   String? _slotsError;
+  bool _selectedDayClosed = false;
   DateTime? _selectedSlot;
+  final Map<String, bool> _closedByDateKey = {};
 
   String _visitType = 'New visit';
   final _visitTypes = const ['New visit', 'Follow-up', 'Consultation'];
 
   bool _submitting = false;
+
+  String _dateKey(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  bool _isDayClosed(DateTime day) => _closedByDateKey[_dateKey(day)] == true;
 
   @override
   void initState() {
@@ -94,7 +101,10 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
           _selectedDoctor = doctors.first;
         }
       });
-      if (_selectedDoctor != null) await _loadSlots();
+      if (_selectedDoctor != null) {
+        await _loadClinicHours();
+        await _loadSlots();
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -103,6 +113,32 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
             ? e.message
             : 'Could not load doctors. Check your connection and try again.';
       });
+    }
+  }
+
+  Future<void> _loadClinicHours() async {
+    final clinicId = widget.clinic?.id;
+    if (clinicId == null || clinicId.isEmpty) return;
+    try {
+      final hours = await getIt<ScheduleApiService>().getClinicHours(clinicId);
+      final closedDow = <int>{};
+      for (final h in hours) {
+        final dow = h['dayOfWeek'];
+        if (dow is int && h['isClosed'] == true) {
+          closedDow.add(dow);
+        }
+      }
+      if (!mounted) return;
+      setState(() {
+        for (final day in _dayOptions) {
+          // Dart weekday: Mon=1 … Sun=7. Backend: Sun=0 … Sat=6.
+          final backendDow = day.weekday % 7;
+          _closedByDateKey[_dateKey(day)] = closedDow.contains(backendDow);
+        }
+        _selectedDayClosed = _isDayClosed(_selectedDate);
+      });
+    } catch (_) {
+      // Slots endpoint still enforces closed days.
     }
   }
 
@@ -116,21 +152,27 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
       _slotsError = null;
       _slots = [];
       _selectedSlot = null;
+      _selectedDayClosed = _isDayClosed(_selectedDate);
     });
 
     try {
-      final slots = await getIt<ScheduleApiService>().getAvailableSlots(
+      final result = await getIt<ScheduleApiService>().getAvailableSlots(
         clinicId: clinicId,
         doctorId: doctor.id,
         date: _selectedDate,
       );
       if (!mounted) return;
+      final closed = result.closed || _isDayClosed(_selectedDate);
       setState(() {
-        _slots = slots;
+        _closedByDateKey[_dateKey(_selectedDate)] = closed;
+        _selectedDayClosed = closed;
+        _slots = closed ? <DateTime>[] : result.slots;
         _loadingSlots = false;
-        _slotsError = slots.isEmpty
-            ? 'No open times on this day. Pick another date.'
-            : null;
+        _slotsError = closed
+            ? 'Clinic is closed on this day. Pick another date.'
+            : result.slots.isEmpty
+                ? 'No open times on this day. Pick another date.'
+                : null;
       });
     } catch (e) {
       if (!mounted) return;
@@ -154,6 +196,10 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
     }
     if (doctor == null) {
       _snack('Select a doctor.');
+      return;
+    }
+    if (_selectedDayClosed || _isDayClosed(_selectedDate)) {
+      _snack('Clinic is closed on this day. Pick another date.');
       return;
     }
     if (slot == null) {
@@ -509,6 +555,7 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
           final selected = day.year == _selectedDate.year &&
               day.month == _selectedDate.month &&
               day.day == _selectedDate.day;
+          final closed = _isDayClosed(day);
           return Opacity(
             opacity: enabled ? 1 : 0.45,
             child: Material(
@@ -525,10 +572,16 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
                   duration: const Duration(milliseconds: 150),
                   width: 68,
                   decoration: BoxDecoration(
-                    color: selected ? _careBlue : Colors.white,
+                    color: selected
+                        ? (closed ? const Color(0xFFB91C1C) : _careBlue)
+                        : Colors.white,
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
-                      color: selected ? _careBlue : const Color(0xFFE2EAF2),
+                      color: selected
+                          ? (closed ? const Color(0xFFB91C1C) : _careBlue)
+                          : closed
+                              ? const Color(0xFFFECACA)
+                              : const Color(0xFFE2EAF2),
                     ),
                   ),
                   child: Column(
@@ -539,7 +592,9 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: selected ? Colors.white70 : AppColors.CustomgrayDark,
+                          color: selected
+                              ? Colors.white70
+                              : AppColors.CustomgrayDark,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -552,10 +607,15 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
                         ),
                       ),
                       Text(
-                        DateFormat('MMM').format(day),
+                        closed ? 'Closed' : DateFormat('MMM').format(day),
                         style: TextStyle(
                           fontSize: 11,
-                          color: selected ? Colors.white70 : AppColors.CustomgrayDark,
+                          fontWeight: closed ? FontWeight.w700 : FontWeight.w400,
+                          color: selected
+                              ? Colors.white70
+                              : closed
+                                  ? const Color(0xFFB91C1C)
+                                  : AppColors.CustomgrayDark,
                         ),
                       ),
                     ],

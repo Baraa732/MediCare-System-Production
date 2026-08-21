@@ -65,6 +65,9 @@ export class ScheduleService {
         actor.userId,
         `Clinic closed on ${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][saved.dayOfWeek]}s`,
       );
+    } else if (!saved.isClosed && wasClosed) {
+      // Re-open weekday: remove auto full-day blocks so bookings work again.
+      await this.removeUpcomingWeekdayClosures(clinicId, saved.dayOfWeek);
     }
 
     return { hours: saved, cancelledCount };
@@ -181,6 +184,29 @@ export class ScheduleService {
     );
   }
 
+  /** Remove full-day clinic-wide block(s) for a local calendar date so bookings reopen. */
+  async openClinicDay(clinicId: string, dto: CloseClinicDayDto, actor: AuthUser) {
+    await this.assertCanManageClinic(clinicId, actor);
+    const timezone = await this.clinicHttp.getClinicTimezone(clinicId);
+    const offsetMinutes = this.timezoneOffsetMinutes(timezone);
+    const startsAt = new Date(this.localMinutesToIso(dto.date, 0, offsetMinutes));
+    const endsAt = new Date(this.localMinutesToIso(dto.date, 24 * 60, offsetMinutes));
+
+    const blocks = await this.blockRepo
+      .createQueryBuilder('b')
+      .where('b.tenantId = :tenantId', { tenantId: clinicId })
+      .andWhere('b.doctorId IS NULL')
+      .andWhere('b.startsAt = :startsAt', { startsAt })
+      .andWhere('b.endsAt = :endsAt', { endsAt })
+      .getMany();
+
+    if (blocks.length > 0) {
+      await this.blockRepo.remove(blocks);
+      this.emitScheduleUpdated(clinicId, 'block');
+    }
+    return { removed: blocks.length };
+  }
+
   async listBlocks(clinicId: string | undefined, doctorId: string | undefined, actor: AuthUser) {
     const tenantId = this.resolveStaffClinic(clinicId, actor);
     await this.assertCanViewClinicSchedule(tenantId, actor);
@@ -205,7 +231,18 @@ export class ScheduleService {
     const offsetMinutes = this.timezoneOffsetMinutes(timezone);
     const dayOfWeek = this.dayOfWeekFromDate(query.date, offsetMinutes);
     const assigned = await this.clinicHttp.verifyDoctorAtClinic(query.clinicId, query.doctorId);
-    if (!assigned) return { slots: [], timezone };
+    if (!assigned) return { slots: [], timezone, closed: false };
+
+    const tenantId = query.clinicId;
+    const clinicDay = await this.hoursRepo.findOne({ where: { tenantId, dayOfWeek } });
+    if (clinicDay?.isClosed) {
+      return { slots: [], timezone, closed: true };
+    }
+
+    if (await this.hasFullDayClinicBlock(query.clinicId, query.date, offsetMinutes)) {
+      return { slots: [], timezone, closed: true };
+    }
+
     const bookedRanges = await this.appointmentHttp.getBookedRanges(
       query.clinicId,
       query.doctorId,
@@ -220,7 +257,7 @@ export class ScheduleService {
       offsetMinutes,
       bookedRanges,
     );
-    return { slots, timezone };
+    return { slots, timezone, closed: false };
   }
 
   async validateSlot(dto: ValidateSlotDto): Promise<{ valid: boolean; reason?: string }> {
@@ -520,6 +557,61 @@ export class ScheduleService {
 
     this.emitScheduleUpdated(clinicId, 'block');
     return total;
+  }
+
+  /** Undo weekday closures created by cancelUpcomingWeekdayClosures. */
+  private async removeUpcomingWeekdayClosures(
+    clinicId: string,
+    dayOfWeek: number,
+  ): Promise<number> {
+    const timezone = await this.clinicHttp.getClinicTimezone(clinicId);
+    const offsetMinutes = this.timezoneOffsetMinutes(timezone);
+    const todayKey = this.localDateKey(new Date(), offsetMinutes);
+    let removed = 0;
+
+    for (let i = 0; i < 90; i++) {
+      const [y, mo, d] = todayKey.split('-').map(Number);
+      const probeUtc = Date.UTC(y, mo - 1, d + i, 12, 0, 0) - offsetMinutes * 60_000;
+      const dateKey = this.localDateKey(new Date(probeUtc), offsetMinutes);
+      if (this.dayOfWeekFromDate(dateKey, offsetMinutes) !== dayOfWeek) continue;
+
+      const startsAt = new Date(this.localMinutesToIso(dateKey, 0, offsetMinutes));
+      const endsAt = new Date(this.localMinutesToIso(dateKey, 24 * 60, offsetMinutes));
+
+      const blocks = await this.blockRepo
+        .createQueryBuilder('b')
+        .where('b.tenantId = :tenantId', { tenantId: clinicId })
+        .andWhere('b.doctorId IS NULL')
+        .andWhere('b.startsAt = :startsAt', { startsAt })
+        .andWhere('b.endsAt = :endsAt', { endsAt })
+        .getMany();
+      if (blocks.length > 0) {
+        await this.blockRepo.remove(blocks);
+        removed += blocks.length;
+      }
+    }
+
+    if (removed > 0) {
+      this.emitScheduleUpdated(clinicId, 'block');
+    }
+    return removed;
+  }
+
+  private async hasFullDayClinicBlock(
+    clinicId: string,
+    dateKey: string,
+    offsetMinutes: number,
+  ): Promise<boolean> {
+    const dayStart = new Date(this.localMinutesToIso(dateKey, 0, offsetMinutes));
+    const dayEnd = new Date(this.localMinutesToIso(dateKey, 24 * 60, offsetMinutes));
+    const block = await this.blockRepo
+      .createQueryBuilder('b')
+      .where('b.tenantId = :tenantId', { tenantId: clinicId })
+      .andWhere('b.doctorId IS NULL')
+      .andWhere('b.startsAt <= :dayStart', { dayStart })
+      .andWhere('b.endsAt >= :dayEnd', { dayEnd })
+      .getOne();
+    return Boolean(block);
   }
 
   private localDateKey(scheduledAt: Date, offsetMinutes: number): string {

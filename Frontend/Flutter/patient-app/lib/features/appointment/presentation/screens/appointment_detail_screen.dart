@@ -1062,16 +1062,18 @@ class _RescheduleSheetState extends State<_RescheduleSheet> {
       _slots = [];
     });
     try {
-      final slots = await getIt<ScheduleApiService>().getAvailableSlots(
+      final result = await getIt<ScheduleApiService>().getAvailableSlots(
         clinicId: widget.clinicId,
         doctorId: widget.doctorId,
         date: _date,
       );
       if (!mounted) return;
       setState(() {
-        _slots = slots;
+        _slots = result.slots;
         _loading = false;
-        if (slots.isEmpty) {
+        if (result.closed) {
+          _error = 'Clinic is closed on this day.';
+        } else if (result.slots.isEmpty) {
           _error = 'No open times on this day.';
         }
       });

@@ -11,6 +11,7 @@ import {
 } from "@/lib/time/gridTime";
 import { isGridSlotInPast, isClinicDateBeforeToday } from "../utils/editModeDrag";
 import { isGridRangeOutsideClinicHours } from "../utils/clinicHours";
+import { isClinicDateClosed } from "../utils/clinicDayStatus";
 
 interface HandleSelectionState {
   selection: SelectionType;
@@ -68,14 +69,22 @@ export const useHandleSelection = create<HandleSelectionState>((set) => {
             state.selection.endSlot,
           );
           const date = useHandleDatePicker.getState().date;
+          const store = useScheduleGridStore.getState();
+          if (isClinicDateClosed(date, store.clinicHours, store.scheduleBlocks)) {
+            return { selection: null };
+          }
           if (isGridSlotInPast(minSlot * ROW_MINUTES, date)) {
             return { selection: null };
           }
           const startMinutes = minSlot * ROW_MINUTES;
           const endMinutes = (maxSlot + 1) * ROW_MINUTES;
-          const hours = useScheduleGridStore.getState().clinicHours;
           if (
-            isGridRangeOutsideClinicHours(startMinutes, endMinutes, date, hours)
+            isGridRangeOutsideClinicHours(
+              startMinutes,
+              endMinutes,
+              date,
+              store.clinicHours,
+            )
           ) {
             return { selection: null };
           }
@@ -104,14 +113,17 @@ export const useHandleSelection = create<HandleSelectionState>((set) => {
       if (isEditMode || e.button !== 0) return;
       const date = useHandleDatePicker.getState().date;
       if (isClinicDateBeforeToday(date)) return;
+      const store = useScheduleGridStore.getState();
+      if (isClinicDateClosed(date, store.clinicHours, store.scheduleBlocks)) {
+        return;
+      }
       if (isGridSlotInPast(slotIdx * ROW_MINUTES, date)) return;
-      const hours = useScheduleGridStore.getState().clinicHours;
       if (
         isGridRangeOutsideClinicHours(
           slotIdx * ROW_MINUTES,
           (slotIdx + 1) * ROW_MINUTES,
           date,
-          hours,
+          store.clinicHours,
         )
       ) {
         return;
@@ -132,6 +144,10 @@ export const useHandleSelection = create<HandleSelectionState>((set) => {
           return {};
 
         const date = useHandleDatePicker.getState().date;
+        const store = useScheduleGridStore.getState();
+        if (isClinicDateClosed(date, store.clinicHours, store.scheduleBlocks)) {
+          return {};
+        }
         if (isGridSlotInPast(slotIdx * ROW_MINUTES, date)) return {};
 
         const potentialMinSlot = Math.min(state.selection.startSlot, slotIdx);
@@ -140,13 +156,12 @@ export const useHandleSelection = create<HandleSelectionState>((set) => {
 
         const targetStartMinutes = potentialMinSlot * ROW_MINUTES;
         const targetEndMinutes = (potentialMaxSlot + 1) * ROW_MINUTES;
-        const hours = useScheduleGridStore.getState().clinicHours;
         if (
           isGridRangeOutsideClinicHours(
             targetStartMinutes,
             targetEndMinutes,
             date,
-            hours,
+            store.clinicHours,
           )
         ) {
           return {};

@@ -21,6 +21,23 @@ export function getClinicHours(clinicId: string, token: string) {
   );
 }
 
+export interface ScheduleBlock {
+  id: string;
+  clinicId?: string;
+  doctorId?: string | null;
+  startsAt: string;
+  endsAt: string;
+  reason?: string;
+}
+
+export function listScheduleBlocks(clinicId: string, token: string) {
+  const params = new URLSearchParams({ clinicId });
+  return apiRequest<{ success: boolean; blocks: ScheduleBlock[] }>(
+    `/schedule/blocked?${params.toString()}`,
+    { token },
+  );
+}
+
 export function listAvailableSlots(
   query: {
     clinicId: string;
@@ -39,10 +56,12 @@ export function listAvailableSlots(
     params.set("durationMinutes", String(query.durationMinutes));
   }
 
-  return apiRequest<{ success: boolean; slots: string[]; timezone?: string }>(
-    `/schedule/slots?${params.toString()}`,
-    { token },
-  );
+  return apiRequest<{
+    success: boolean;
+    slots: string[];
+    timezone?: string;
+    closed?: boolean;
+  }>(`/schedule/slots?${params.toString()}`, { token });
 }
 
 export function minutesFromMidnight(iso: string): number {

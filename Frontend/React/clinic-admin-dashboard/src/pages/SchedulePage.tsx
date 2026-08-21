@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { addDays, format, startOfToday } from "date-fns";
-import { Ban, CalendarOff, Plus } from "lucide-react";
+import { Ban, CalendarCheck, CalendarOff, Plus } from "lucide-react";
 import { toast, Toaster } from "sonner";
 import { useAuthStore } from "@/stores/authStore";
 import * as scheduleApi from "@/lib/api/schedule";
@@ -42,12 +42,28 @@ export function SchedulePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [closingDay, setClosingDay] = useState(false);
+  const [openingDay, setOpeningDay] = useState(false);
   const [coverageOpen, setCoverageOpen] = useState(false);
   const [blockOpen, setBlockOpen] = useState(false);
 
   const dirty = !hoursEqual(hours, savedHours);
   const selectedDayOfWeek = selectedDate.getDay();
   const dayHours = hours.find((h) => h.dayOfWeek === selectedDayOfWeek);
+
+  const selectedDateKey = format(selectedDate, "yyyy-MM-dd");
+  const selectedDayFullyBlocked = useMemo(() => {
+    const dayStart = new Date(`${selectedDateKey}T00:00:00`);
+    const dayEnd = new Date(`${selectedDateKey}T23:59:59.999`);
+    return blocks.some((b) => {
+      if (b.doctorId) return false;
+      const start = new Date(b.startsAt).getTime();
+      const end = new Date(b.endsAt).getTime();
+      return start <= dayStart.getTime() + 60_000 && end >= dayEnd.getTime() - 60_000;
+    });
+  }, [blocks, selectedDateKey]);
+
+  const selectedDayClosed =
+    Boolean(dayHours?.isClosed) || selectedDayFullyBlocked;
 
   const doctorOptions = useMemo(
     () =>
@@ -197,6 +213,39 @@ export function SchedulePage() {
     }
   };
 
+  const openDay = async () => {
+    const label = format(selectedDate, "EEEE, MMM d yyyy");
+    const confirmed = window.confirm(
+      `Re-open the clinic for ${label}?\n\n` +
+        `• Removes the full-day closure block\n` +
+        `• Secretaries and patients can book again (if the weekday is open in weekly hours)\n\n` +
+        `Continue?`,
+    );
+    if (!confirmed) return;
+
+    setOpeningDay(true);
+    try {
+      const res = await scheduleApi.openClinicDay(
+        clinicId,
+        { date: format(selectedDate, "yyyy-MM-dd") },
+        token,
+      );
+      if (res.removed > 0) {
+        toast.success(`Clinic re-opened on ${format(selectedDate, "MMM d")}`);
+      } else {
+        toast.message(
+          "No full-day closure found. If this weekday is closed, toggle it open in weekly hours and Save.",
+        );
+      }
+      await load();
+      void reloadClinic();
+    } catch (err) {
+      toast.error(normalizeCaughtError(err, "Could not open clinic day"));
+    } finally {
+      setOpeningDay(false);
+    }
+  };
+
   return (
     <div className="pbi-canvas space-y-4 pb-8">
       <Toaster position="top-right" richColors closeButton />
@@ -205,16 +254,34 @@ export function SchedulePage() {
         subtitle="Clinic hours and doctor coverage — calendar-first operations"
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              className="h-8 rounded-sm text-xs"
-              disabled={closingDay}
-              onClick={() => void closeDay()}
-            >
-              <CalendarOff className="w-3.5 h-3.5 mr-1.5" />
-              {closingDay ? "Closing…" : "Close day"}
-            </Button>
+            {selectedDayFullyBlocked ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="h-8 rounded-sm text-xs"
+                disabled={openingDay}
+                onClick={() => void openDay()}
+              >
+                <CalendarCheck className="w-3.5 h-3.5 mr-1.5" />
+                {openingDay ? "Opening…" : "Open day"}
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                className="h-8 rounded-sm text-xs"
+                disabled={closingDay || selectedDayClosed}
+                onClick={() => void closeDay()}
+                title={
+                  dayHours?.isClosed
+                    ? "This weekday is closed in weekly hours — toggle it open there"
+                    : undefined
+                }
+              >
+                <CalendarOff className="w-3.5 h-3.5 mr-1.5" />
+                {closingDay ? "Closing…" : "Close day"}
+              </Button>
+            )}
             <Button
               type="button"
               variant="outline"

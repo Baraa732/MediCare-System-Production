@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { listAppointments } from "@/lib/api/appointments";
 import { listDoctors, listMyClinics } from "@/lib/api/clinics";
-import { getClinicHours, type ClinicHoursDay } from "@/lib/api/schedule";
+import { getClinicHours, listScheduleBlocks, type ClinicHoursDay, type ScheduleBlock } from "@/lib/api/schedule";
 import { normalizeCaughtError } from "@/lib/api/errors";
 import {
   dayRangeIso,
@@ -35,6 +35,7 @@ export function useScheduleData(selectedDate = new Date()) {
   const [error, setError] = useState<string | null>(null);
   const [clinicName, setClinicName] = useState<string | undefined>();
   const [clinicHours, setClinicHours] = useState<ClinicHoursDay[]>([]);
+  const [scheduleBlocks, setScheduleBlocks] = useState<ScheduleBlock[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
 
   const refetch = useCallback(() => setRefreshKey((k) => k + 1), []);
@@ -110,14 +111,19 @@ export function useScheduleData(selectedDate = new Date()) {
 
       try {
         const { from, to } = dayRangeIso(selectedDate);
-        const [doctorRes, appointmentRes, hoursRes] = await Promise.all([
-          listDoctors(clinicId!, accessToken!),
-          listAppointments({ clinicId: clinicId!, from, to }, accessToken!),
-          getClinicHours(clinicId!, accessToken!).catch(() => ({
-            success: false as const,
-            hours: [] as ClinicHoursDay[],
-          })),
-        ]);
+        const [doctorRes, appointmentRes, hoursRes, blocksRes] =
+          await Promise.all([
+            listDoctors(clinicId!, accessToken!),
+            listAppointments({ clinicId: clinicId!, from, to }, accessToken!),
+            getClinicHours(clinicId!, accessToken!).catch(() => ({
+              success: false as const,
+              hours: [] as ClinicHoursDay[],
+            })),
+            listScheduleBlocks(clinicId!, accessToken!).catch(() => ({
+              success: false as const,
+              blocks: [] as ScheduleBlock[],
+            })),
+          ]);
 
         if (cancelled) return;
 
@@ -139,6 +145,7 @@ export function useScheduleData(selectedDate = new Date()) {
         setDoctors(mappedDoctors);
         setAppointments(activeAppointments);
         setClinicHours(hoursRes.hours ?? []);
+        setScheduleBlocks(blocksRes.blocks ?? []);
       } catch (err) {
         if (!cancelled) {
           setError(
@@ -188,6 +195,7 @@ export function useScheduleData(selectedDate = new Date()) {
     clinicId,
     clinicName,
     clinicHours,
+    scheduleBlocks,
     refetch,
   };
 }

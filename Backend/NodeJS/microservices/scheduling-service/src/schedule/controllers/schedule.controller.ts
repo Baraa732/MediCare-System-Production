@@ -77,6 +77,18 @@ export class ScheduleController {
     return { success: true, ...result };
   }
 
+  @Post('clinics/:clinicId/open-day')
+  @UseGuards(RolesGuard)
+  @Roles('CLINIC_ADMIN', 'SECRETARY', 'SYSTEM_MANAGER')
+  async openClinicDay(
+    @Param('clinicId', ParseUUIDPipe) clinicId: string,
+    @Body() dto: CloseClinicDayDto,
+    @Request() req,
+  ) {
+    const result = await this.scheduleService.openClinicDay(clinicId, dto, this.actor(req));
+    return { success: true, ...result };
+  }
+
   /** Tenant-scoped leave list: clinic comes from the doctor's JWT membership. */
   @Get('me/blocked')
   @UseGuards(RolesGuard)

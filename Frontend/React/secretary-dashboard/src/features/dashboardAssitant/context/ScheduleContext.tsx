@@ -18,6 +18,7 @@ interface ScheduleContextValue {
   clinicId?: string;
   clinicName?: string;
   clinicHours: ClinicHoursDay[];
+  scheduleBlocks: import("@/lib/api/schedule").ScheduleBlock[];
   selectedDate: Date;
   refetch: () => void;
 }
@@ -36,6 +37,10 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     useScheduleGridStore.getState().setClinicHours(schedule.clinicHours);
   }, [schedule.clinicHours]);
+
+  useEffect(() => {
+    useScheduleGridStore.getState().setScheduleBlocks(schedule.scheduleBlocks);
+  }, [schedule.scheduleBlocks]);
 
   // Clear drag-selection when navigating between days/pages.
   useEffect(() => {

@@ -116,6 +116,11 @@ export function AddAppointmentDialog() {
     )
       .then((res) => {
         if (cancelled) return;
+        if (res.closed) {
+          setSlots([]);
+          setSlotsError("Clinic is closed on this day — bookings are disabled.");
+          return;
+        }
         setSlots(
           (res.slots ?? []).filter(
             (iso) => !isAbsoluteSlotInPast(absoluteMinutesFromIso(iso), selectedDate),

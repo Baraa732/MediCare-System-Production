@@ -5,6 +5,7 @@ import { useDroppable } from "@dnd-kit/core";
 import { useScheduleContext } from "../../context/ScheduleContext";
 import { isGridSlotInPast } from "../../utils/editModeDrag";
 import { isGridSlotOutsideClinicHours } from "../../utils/clinicHours";
+import { isClinicDateClosed } from "../../utils/clinicDayStatus";
 import { cn } from "@/lib/utils";
 
 interface GridCellProps {
@@ -102,7 +103,12 @@ export function CellsLayer({
   const onMouseDown = useHandleSelection((state) => state.onMouseDown);
   const onMouseEnter = useHandleSelection((state) => state.onMouseEnter);
   const isEditMode = useEditeMode((state) => state.isEditMode);
-  const { selectedDate, clinicHours } = useScheduleContext();
+  const { selectedDate, clinicHours, scheduleBlocks } = useScheduleContext();
+  const dayClosed = isClinicDateClosed(
+    selectedDate,
+    clinicHours,
+    scheduleBlocks,
+  );
 
   return (
     <>
@@ -112,18 +118,22 @@ export function CellsLayer({
           (a) => slotMinutesStart >= a.start && slotMinutesStart < a.end,
         );
         const isPast = isGridSlotInPast(slotMinutesStart, selectedDate);
-        const isOutsideHours = isGridSlotOutsideClinicHours(
-          slotMinutesStart,
-          selectedDate,
-          clinicHours,
-          ROW_MINUTES,
-        );
+        const isOutsideHours =
+          dayClosed ||
+          isGridSlotOutsideClinicHours(
+            slotMinutesStart,
+            selectedDate,
+            clinicHours,
+            ROW_MINUTES,
+          );
         const isUnavailable = isPast || isOutsideHours;
-        const unavailableReason = isPast
-          ? "Past time — not available"
-          : isOutsideHours
-            ? "Outside clinic open hours"
-            : undefined;
+        const unavailableReason = dayClosed
+          ? "Clinic closed this day"
+          : isPast
+            ? "Past time — not available"
+            : isOutsideHours
+              ? "Outside clinic open hours"
+              : undefined;
 
         return (
           <GridCell
