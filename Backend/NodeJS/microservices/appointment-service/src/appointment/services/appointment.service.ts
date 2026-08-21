@@ -616,6 +616,65 @@ export class AppointmentService {
       }));
   }
 
+  /**
+   * Internal: cancel active appointments overlapping [from, to) for a clinic
+   * (optionally scoped to one doctor). Emits appointment.cancelled for each.
+   */
+  async cancelInRange(params: {
+    clinicId: string;
+    fromIso: string;
+    toIso: string;
+    doctorId?: string | null;
+    reason: string;
+    actorUserId: string;
+  }): Promise<{ cancelledCount: number; appointmentIds: string[] }> {
+    const from = new Date(params.fromIso);
+    const to = new Date(params.toIso);
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || to <= from) {
+      throw new BadRequestException('Invalid cancel range');
+    }
+
+    const qb = this.appointmentRepo
+      .createQueryBuilder('a')
+      .where('a.tenantId = :tenantId', { tenantId: params.clinicId })
+      .andWhere('a.clinicId = :clinicId', { clinicId: params.clinicId })
+      .andWhere('a.status IN (:...statuses)', { statuses: ACTIVE_STATUSES })
+      .andWhere('a.scheduledAt >= :from', { from })
+      .andWhere('a.scheduledAt < :to', { to });
+
+    if (params.doctorId) {
+      qb.andWhere('a.doctorId = :doctorId', { doctorId: params.doctorId });
+    }
+
+    const appointments = await qb.getMany();
+    if (appointments.length === 0) {
+      return { cancelledCount: 0, appointmentIds: [] };
+    }
+
+    const now = new Date();
+    const reason = params.reason?.trim() || 'Clinic closed';
+    const ids: string[] = [];
+
+    for (const appointment of appointments) {
+      appointment.status = AppointmentStatus.CANCELLED;
+      appointment.cancelledBy = params.actorUserId;
+      appointment.cancelledAt = now;
+      appointment.cancellationReason = reason;
+      const saved = await this.appointmentRepo.save(appointment);
+      ids.push(saved.id);
+      this.signedKafka.emit(KafkaTopics.APPOINTMENT_CANCELLED, this.toEventPayload(saved));
+      this.auditAppointment(
+        PhiAuditAction.APPOINTMENT_DELETE,
+        { userId: params.actorUserId, role: 'SYSTEM', tenantId: params.clinicId },
+        saved.id,
+        saved.tenantId,
+        true,
+      );
+    }
+
+    return { cancelledCount: ids.length, appointmentIds: ids };
+  }
+
   async getPatientUpcomingSummary(patientId: string, limit = 3) {
     const now = new Date();
     const appointments = await this.appointmentRepo.find({

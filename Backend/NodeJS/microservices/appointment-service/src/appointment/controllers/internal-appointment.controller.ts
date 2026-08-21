@@ -47,6 +47,27 @@ class BookedRangesDto {
   excludeAppointmentId?: string;
 }
 
+class CancelInRangeDto {
+  @IsUUID()
+  clinicId: string;
+
+  @IsDateString()
+  fromIso: string;
+
+  @IsDateString()
+  toIso: string;
+
+  @IsOptional()
+  @IsUUID()
+  doctorId?: string;
+
+  @IsString()
+  reason: string;
+
+  @IsUUID()
+  actorUserId: string;
+}
+
 class VerifyAppointmentEventDto {
   @IsUUID()
   appointmentId: string;
@@ -105,6 +126,21 @@ export class InternalAppointmentController {
       dto.excludeAppointmentId,
     );
     return { success: true, ranges };
+  }
+
+  @Post('cancel-in-range')
+  @UseGuards(InternalServiceGuard)
+  @HttpCode(HttpStatus.OK)
+  async cancelInRange(@Body() dto: CancelInRangeDto) {
+    const result = await this.appointmentService.cancelInRange({
+      clinicId: dto.clinicId,
+      fromIso: dto.fromIso,
+      toIso: dto.toIso,
+      doctorId: dto.doctorId,
+      reason: dto.reason,
+      actorUserId: dto.actorUserId,
+    });
+    return { success: true, ...result };
   }
 
   @Post('patient-upcoming-summary')

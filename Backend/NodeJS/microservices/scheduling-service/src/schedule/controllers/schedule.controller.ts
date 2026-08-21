@@ -4,6 +4,7 @@ import {
   SetClinicHoursDto,
   CreateAvailabilityDto,
   CreateBlockDto,
+  CloseClinicDayDto,
   SlotsQueryDto,
 } from '../dto/schedule.dto';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
@@ -60,8 +61,20 @@ export class ScheduleController {
   @UseGuards(RolesGuard)
   @Roles('CLINIC_ADMIN', 'SECRETARY', 'DOCTOR', 'SYSTEM_MANAGER')
   async createBlock(@Body() dto: CreateBlockDto, @Request() req) {
-    const block = await this.scheduleService.createBlock(dto, this.actor(req));
-    return { success: true, block };
+    const result = await this.scheduleService.createBlock(dto, this.actor(req));
+    return { success: true, ...result };
+  }
+
+  @Post('clinics/:clinicId/close-day')
+  @UseGuards(RolesGuard)
+  @Roles('CLINIC_ADMIN', 'SECRETARY', 'SYSTEM_MANAGER')
+  async closeClinicDay(
+    @Param('clinicId', ParseUUIDPipe) clinicId: string,
+    @Body() dto: CloseClinicDayDto,
+    @Request() req,
+  ) {
+    const result = await this.scheduleService.closeClinicDay(clinicId, dto, this.actor(req));
+    return { success: true, ...result };
   }
 
   /** Tenant-scoped leave list: clinic comes from the doctor's JWT membership. */
@@ -100,7 +113,7 @@ export class ScheduleController {
     @Body() dto: SetClinicHoursDto,
     @Request() req,
   ) {
-    const hours = await this.scheduleService.setClinicHours(clinicId, dto, this.actor(req));
-    return { success: true, hours };
+    const result = await this.scheduleService.setClinicHours(clinicId, dto, this.actor(req));
+    return { success: true, hours: result.hours, cancelledCount: result.cancelledCount };
   }
 }

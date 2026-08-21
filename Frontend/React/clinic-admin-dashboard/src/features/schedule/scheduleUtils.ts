@@ -1,4 +1,8 @@
-import type { AvailabilitySlot, ClinicHoursDay } from "@/lib/api/schedule";
+import type {
+  AvailabilitySlot,
+  ClinicHoursDay,
+  ScheduleBlock,
+} from "@/lib/api/schedule";
 import {
   addDays,
   eachDayOfInterval,
@@ -81,16 +85,25 @@ export type CalendarEventInput = {
   extendedProps?: Record<string, unknown>;
 };
 
-/** Map clinic hours + availability into FullCalendar events for a visible range. */
+/** Map clinic hours + availability + blocks into FullCalendar events for a visible range. */
 export function buildCalendarEvents(args: {
   rangeStart: Date;
   rangeEnd: Date;
   hours: ClinicHoursDay[];
   availability: AvailabilitySlot[];
+  blocks?: ScheduleBlock[];
   doctorName: (id: string) => string;
   doctorColorIndex: Map<string, number>;
 }): CalendarEventInput[] {
-  const { rangeStart, rangeEnd, hours, availability, doctorName, doctorColorIndex } = args;
+  const {
+    rangeStart,
+    rangeEnd,
+    hours,
+    availability,
+    blocks = [],
+    doctorName,
+    doctorColorIndex,
+  } = args;
   const days = eachDayOfInterval({ start: rangeStart, end: addDays(rangeEnd, -1) });
   const events: CalendarEventInput[] = [];
 
@@ -133,6 +146,33 @@ export function buildCalendarEvents(args: {
         },
       });
     }
+  }
+
+  for (const block of blocks) {
+    const start = new Date(block.startsAt);
+    const end = new Date(block.endsAt);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) continue;
+    if (end < rangeStart || start > rangeEnd) continue;
+    const scope = block.doctorId ? doctorName(block.doctorId) : "Whole clinic";
+    events.push({
+      id: `block-${block.id}`,
+      title: block.reason?.trim()
+        ? `Closed · ${block.reason.trim()}`
+        : `Closed · ${scope}`,
+      start: block.startsAt,
+      end: block.endsAt,
+      backgroundColor: "#9ca3af",
+      borderColor: "#6b7280",
+      textColor: "#ffffff",
+      editable: false,
+      extendedProps: {
+        kind: "block",
+        doctorId: block.doctorId,
+        reason: block.reason,
+        startTime: format(start, "HH:mm"),
+        endTime: format(end, "HH:mm"),
+      },
+    });
   }
 
   return events;

@@ -45,4 +45,39 @@ export class AppointmentHttpClient {
       return [];
     }
   }
+
+  async cancelInRange(params: {
+    clinicId: string;
+    fromIso: string;
+    toIso: string;
+    doctorId?: string | null;
+    reason: string;
+    actorUserId: string;
+  }): Promise<number> {
+    try {
+      const path = '/v1/appointments/internal/cancel-in-range';
+      const body = {
+        clinicId: params.clinicId,
+        fromIso: params.fromIso,
+        toIso: params.toIso,
+        reason: params.reason,
+        actorUserId: params.actorUserId,
+        ...(params.doctorId ? { doctorId: params.doctorId } : {}),
+      };
+      const res = await axios.post(`${this.baseUrl}${path}`, body, {
+        timeout: 30_000,
+        headers: createInternalAuthHeadersForUrl(
+          this.serviceName,
+          this.signingSecret,
+          'POST',
+          path,
+          body,
+        ),
+      });
+      return Number(res.data?.cancelledCount ?? 0);
+    } catch (error) {
+      this.logger.error(`cancelInRange failed: ${error}`);
+      return 0;
+    }
+  }
 }

@@ -76,6 +76,17 @@ export class CreateBlockDto {
   reason?: string;
 }
 
+export class CloseClinicDayDto {
+  /** Local calendar date YYYY-MM-DD in the clinic timezone. */
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  date: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  reason?: string;
+}
+
 export class SlotsQueryDto {
   @IsUUID()
   clinicId: string;

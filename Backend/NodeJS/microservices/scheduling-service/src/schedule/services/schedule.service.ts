@@ -14,6 +14,7 @@ import {
   SetClinicHoursDto,
   CreateAvailabilityDto,
   CreateBlockDto,
+  CloseClinicDayDto,
   SlotsQueryDto,
   ValidateSlotDto,
 } from '../dto/schedule.dto';
@@ -46,6 +47,7 @@ export class ScheduleService {
     const tenantId = clinicId;
     await this.assertCanManageClinic(clinicId, actor);
     let row = await this.hoursRepo.findOne({ where: { tenantId, dayOfWeek: dto.dayOfWeek } });
+    const wasClosed = row?.isClosed === true;
     if (!row) {
       row = this.hoursRepo.create({ tenantId, dayOfWeek: dto.dayOfWeek });
     }
@@ -54,7 +56,18 @@ export class ScheduleService {
     if (dto.isClosed !== undefined) row.isClosed = dto.isClosed;
     const saved = await this.hoursRepo.save(row);
     this.emitScheduleUpdated(clinicId, 'clinic_hours');
-    return saved;
+
+    let cancelledCount = 0;
+    if (saved.isClosed && !wasClosed) {
+      cancelledCount = await this.cancelUpcomingWeekdayClosures(
+        clinicId,
+        saved.dayOfWeek,
+        actor.userId,
+        `Clinic closed on ${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][saved.dayOfWeek]}s`,
+      );
+    }
+
+    return { hours: saved, cancelledCount };
   }
 
   async getClinicHours(clinicId: string, actor: AuthUser) {
@@ -132,7 +145,40 @@ export class ScheduleService {
       }),
     );
     this.emitScheduleUpdated(dto.clinicId, 'block', dto.doctorId);
-    return saved;
+
+    const reason = dto.reason?.trim()
+      ? `Clinic closed: ${dto.reason.trim()}`
+      : 'Clinic closed / time blocked';
+    const cancelledCount = await this.appointmentHttp.cancelInRange({
+      clinicId: dto.clinicId,
+      fromIso: startsAt.toISOString(),
+      toIso: endsAt.toISOString(),
+      doctorId: dto.doctorId ?? null,
+      reason,
+      actorUserId: actor.userId,
+    });
+
+    return { block: saved, cancelledCount };
+  }
+
+  /** Full-day clinic-wide closure for a local calendar date (YYYY-MM-DD). */
+  async closeClinicDay(clinicId: string, dto: CloseClinicDayDto, actor: AuthUser) {
+    await this.assertCanManageClinic(clinicId, actor);
+    const timezone = await this.clinicHttp.getClinicTimezone(clinicId);
+    const offsetMinutes = this.timezoneOffsetMinutes(timezone);
+    const startsAt = new Date(this.localMinutesToIso(dto.date, 0, offsetMinutes));
+    const endsAt = new Date(this.localMinutesToIso(dto.date, 24 * 60, offsetMinutes));
+    const reason = dto.reason?.trim() || 'Clinic closed for the day';
+
+    return this.createBlock(
+      {
+        clinicId,
+        startsAt: startsAt.toISOString(),
+        endsAt: endsAt.toISOString(),
+        reason,
+      },
+      actor,
+    );
   }
 
   async listBlocks(clinicId: string | undefined, doctorId: string | undefined, actor: AuthUser) {
@@ -416,6 +462,64 @@ export class ScheduleService {
         kind,
       }),
     );
+  }
+
+  /** Cancel upcoming appointments on matching weekdays for the next 90 days. */
+  private async cancelUpcomingWeekdayClosures(
+    clinicId: string,
+    dayOfWeek: number,
+    actorUserId: string,
+    reason: string,
+  ): Promise<number> {
+    const timezone = await this.clinicHttp.getClinicTimezone(clinicId);
+    const offsetMinutes = this.timezoneOffsetMinutes(timezone);
+    const todayKey = this.localDateKey(new Date(), offsetMinutes);
+    let total = 0;
+
+    for (let i = 0; i < 90; i++) {
+      const [y, mo, d] = todayKey.split('-').map(Number);
+      const probeUtc = Date.UTC(y, mo - 1, d + i, 12, 0, 0) - offsetMinutes * 60_000;
+      const dateKey = this.localDateKey(new Date(probeUtc), offsetMinutes);
+      if (this.dayOfWeekFromDate(dateKey, offsetMinutes) !== dayOfWeek) continue;
+
+      const fromIso = this.localMinutesToIso(dateKey, 0, offsetMinutes);
+      const toIso = this.localMinutesToIso(dateKey, 24 * 60, offsetMinutes);
+
+      // Persist a visible full-day clinic-wide block for each upcoming closed weekday.
+      const startsAt = new Date(fromIso);
+      const endsAt = new Date(toIso);
+      const existing = await this.blockRepo
+        .createQueryBuilder('b')
+        .where('b.tenantId = :tenantId', { tenantId: clinicId })
+        .andWhere('b.doctorId IS NULL')
+        .andWhere('b.startsAt = :startsAt', { startsAt })
+        .andWhere('b.endsAt = :endsAt', { endsAt })
+        .getOne();
+      if (!existing) {
+        await this.blockRepo.save(
+          this.blockRepo.create({
+            tenantId: clinicId,
+            doctorId: null,
+            startsAt,
+            endsAt,
+            reason,
+            createdBy: actorUserId,
+          }),
+        );
+      }
+
+      total += await this.appointmentHttp.cancelInRange({
+        clinicId,
+        fromIso,
+        toIso,
+        doctorId: null,
+        reason,
+        actorUserId,
+      });
+    }
+
+    this.emitScheduleUpdated(clinicId, 'block');
+    return total;
   }
 
   private localDateKey(scheduledAt: Date, offsetMinutes: number): string {

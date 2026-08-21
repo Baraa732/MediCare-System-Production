@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { addDays, format, startOfToday } from "date-fns";
-import { Ban, Plus } from "lucide-react";
+import { Ban, CalendarOff, Plus } from "lucide-react";
 import { toast, Toaster } from "sonner";
 import { useAuthStore } from "@/stores/authStore";
 import * as scheduleApi from "@/lib/api/schedule";
@@ -21,17 +21,27 @@ import {
 
 const DEFAULT_HOURS = ensureWeekHours([]);
 
+function toastCancelled(count: number | undefined) {
+  if (count && count > 0) {
+    toast.message(
+      `${count} appointment${count === 1 ? "" : "s"} cancelled — patients notified`,
+    );
+  }
+}
+
 export function SchedulePage() {
   const token = useAuthStore((s) => s.accessToken)!;
   const clinicId = useAuthStore((s) => s.clinicId ?? s.tenantId)!;
-  const { doctors } = useClinicAdmin();
+  const { doctors, reload: reloadClinic } = useClinicAdmin();
 
   const [selectedDate, setSelectedDate] = useState(() => startOfToday());
   const [hours, setHours] = useState<scheduleApi.ClinicHoursDay[]>(DEFAULT_HOURS);
   const [savedHours, setSavedHours] = useState<scheduleApi.ClinicHoursDay[]>(DEFAULT_HOURS);
   const [availability, setAvailability] = useState<scheduleApi.AvailabilitySlot[]>([]);
+  const [blocks, setBlocks] = useState<scheduleApi.ScheduleBlock[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [closingDay, setClosingDay] = useState(false);
   const [coverageOpen, setCoverageOpen] = useState(false);
   const [blockOpen, setBlockOpen] = useState(false);
 
@@ -43,27 +53,34 @@ export function SchedulePage() {
     () =>
       doctors.map((d) => ({
         userId: d.userId,
-        label: d.fullName ?? d.firstName ?? d.userId.slice(0, 8),
+        label:
+          d.fullName ??
+          d.firstName ??
+          (d.userId?.trim() ? d.userId.slice(0, 8) : "Doctor"),
       })),
     [doctors],
   );
 
   const doctorName = useCallback(
-    (id: string) => doctorOptions.find((d) => d.userId === id)?.label ?? id.slice(0, 8),
+    (id: string) =>
+      doctorOptions.find((d) => d.userId === id)?.label ??
+      (id?.trim() ? id.slice(0, 8) : "Doctor"),
     [doctorOptions],
   );
 
   const load = async () => {
     setLoading(true);
     try {
-      const [hoursRes, availRes] = await Promise.all([
+      const [hoursRes, availRes, blocksRes] = await Promise.all([
         scheduleApi.getClinicHours(clinicId, token),
         scheduleApi.listAvailability(clinicId, token),
+        scheduleApi.listScheduleBlocks(clinicId, token),
       ]);
       const loaded = ensureWeekHours(hoursRes.hours?.length ? hoursRes.hours : DEFAULT_HOURS);
       setHours(loaded);
       setSavedHours(loaded);
       setAvailability(availRes.availability ?? []);
+      setBlocks(blocksRes.blocks ?? []);
     } catch (err) {
       toast.error(normalizeCaughtError(err, "Failed to load schedule"));
     } finally {
@@ -95,6 +112,9 @@ export function SchedulePage() {
       setHours(next);
       setSavedHours(next);
       toast.success("Clinic hours saved");
+      toastCancelled(res.cancelledCount);
+      await load();
+      void reloadClinic();
     } catch (err) {
       toast.error(normalizeCaughtError(err, "Could not save clinic hours"));
     } finally {
@@ -125,7 +145,7 @@ export function SchedulePage() {
     reason: string;
   }) => {
     try {
-      await scheduleApi.createScheduleBlock(
+      const res = await scheduleApi.createScheduleBlock(
         {
           clinicId,
           doctorId: values.doctorId || undefined,
@@ -136,9 +156,44 @@ export function SchedulePage() {
         token,
       );
       toast.success(`Block created for ${format(selectedDate, "MMM d")}`);
+      toastCancelled(res.cancelledCount);
+      await load();
+      void reloadClinic();
     } catch (err) {
       toast.error(normalizeCaughtError(err, "Could not create block"));
       throw err;
+    }
+  };
+
+  const closeDay = async () => {
+    const label = format(selectedDate, "EEEE, MMM d yyyy");
+    const confirmed = window.confirm(
+      `Close the clinic for ${label}?\n\n` +
+        `• No new appointments can be booked that day\n` +
+        `• Existing REQUESTED/CONFIRMED appointments that day will be cancelled\n` +
+        `• Patients will be notified\n\n` +
+        `Continue?`,
+    );
+    if (!confirmed) return;
+
+    setClosingDay(true);
+    try {
+      const res = await scheduleApi.closeClinicDay(
+        clinicId,
+        {
+          date: format(selectedDate, "yyyy-MM-dd"),
+          reason: "Clinic closed for the day",
+        },
+        token,
+      );
+      toast.success(`Clinic closed on ${format(selectedDate, "MMM d")}`);
+      toastCancelled(res.cancelledCount);
+      await load();
+      void reloadClinic();
+    } catch (err) {
+      toast.error(normalizeCaughtError(err, "Could not close clinic day"));
+    } finally {
+      setClosingDay(false);
     }
   };
 
@@ -150,6 +205,16 @@ export function SchedulePage() {
         subtitle="Clinic hours and doctor coverage — calendar-first operations"
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-8 rounded-sm text-xs"
+              disabled={closingDay}
+              onClick={() => void closeDay()}
+            >
+              <CalendarOff className="w-3.5 h-3.5 mr-1.5" />
+              {closingDay ? "Closing…" : "Close day"}
+            </Button>
             <Button
               type="button"
               variant="outline"
@@ -199,6 +264,7 @@ export function SchedulePage() {
           <ScheduleCalendar
             hours={hours}
             availability={availability}
+            blocks={blocks}
             doctorName={doctorName}
             selectedDate={selectedDate}
             onDateChange={setSelectedDate}

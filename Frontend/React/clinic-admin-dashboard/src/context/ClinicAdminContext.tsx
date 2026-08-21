@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { subDays, startOfDay, endOfDay } from "date-fns";
+import { addDays, subDays, startOfDay, endOfDay } from "date-fns";
 import { useAuthStore } from "@/stores/authStore";
 import * as clinicApi from "@/lib/api/clinics";
 import * as appointmentApi from "@/lib/api/appointments";
@@ -77,7 +77,7 @@ export function ClinicAdminProvider({ children }: { children: ReactNode }) {
       setActiveClinicId(resolvedClinicId);
 
       const from = startOfDay(subDays(new Date(), 30)).toISOString();
-      const to = endOfDay(new Date()).toISOString();
+      const to = endOfDay(addDays(new Date(), 90)).toISOString();
 
       const [profileRes, staffRes, doctorsRes, apptRes] = await Promise.all([
         clinicApi.getClinicProfile(resolvedClinicId, token),

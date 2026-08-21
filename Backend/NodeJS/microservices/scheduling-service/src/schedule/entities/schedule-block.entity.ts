@@ -10,7 +10,7 @@ export class ScheduleBlock {
   tenantId: string;
 
   @Column('uuid', { nullable: true })
-  doctorId: string;
+  doctorId: string | null;
 
   @Column({ type: 'timestamptz' })
   startsAt: Date;

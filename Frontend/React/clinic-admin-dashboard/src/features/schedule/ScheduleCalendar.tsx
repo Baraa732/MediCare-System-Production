@@ -8,12 +8,17 @@ import type {
   EventClickArg,
   EventContentArg,
 } from "@fullcalendar/core";
-import type { AvailabilitySlot, ClinicHoursDay } from "@/lib/api/schedule";
+import type {
+  AvailabilitySlot,
+  ClinicHoursDay,
+  ScheduleBlock,
+} from "@/lib/api/schedule";
 import { buildCalendarEvents, DOCTOR_COLORS } from "./scheduleUtils";
 
 type ScheduleCalendarProps = {
   hours: ClinicHoursDay[];
   availability: AvailabilitySlot[];
+  blocks: ScheduleBlock[];
   doctorName: (id: string) => string;
   selectedDate: Date;
   onDateChange: (date: Date) => void;
@@ -40,6 +45,7 @@ function EventContent(arg: EventContentArg) {
 export function ScheduleCalendar({
   hours,
   availability,
+  blocks,
   doctorName,
   selectedDate,
   onDateChange,
@@ -67,10 +73,11 @@ export function ScheduleCalendar({
       rangeEnd: padEnd,
       hours,
       availability,
+      blocks,
       doctorName,
       doctorColorIndex,
     });
-  }, [selectedDate, hours, availability, doctorName, doctorColorIndex]);
+  }, [selectedDate, hours, availability, blocks, doctorName, doctorColorIndex]);
 
   const legend = useMemo(() => {
     const ids = [...doctorColorIndex.entries()].sort((a, b) => a[1] - b[1]);
@@ -100,7 +107,7 @@ export function ScheduleCalendar({
         <div className="min-w-0">
           <h2 className="pbi-panel-title">Coverage calendar</h2>
           <p className="pbi-panel-subtitle">
-            Blue wash = clinic open · colored blocks = doctor coverage
+            Blue wash = clinic open · colored = coverage · gray = closed / blocked
           </p>
         </div>
         {legend.length > 0 && (

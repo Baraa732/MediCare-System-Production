@@ -38,10 +38,15 @@ export function setClinicHoursDay(
   body: ClinicHoursDay,
   token: string,
 ) {
-  return apiRequest<{ success: boolean; hours: ClinicHoursDay }>(
-    `/schedule/clinics/${clinicId}/hours`,
-    { method: "PUT", body, token },
-  );
+  return apiRequest<{
+    success: boolean;
+    hours: ClinicHoursDay;
+    cancelledCount?: number;
+  }>(`/schedule/clinics/${clinicId}/hours`, {
+    method: "PUT",
+    body,
+    token,
+  });
 }
 
 export async function setClinicHoursBatch(
@@ -49,10 +54,13 @@ export async function setClinicHoursBatch(
   hours: ClinicHoursDay[],
   token: string,
 ) {
+  let cancelledCount = 0;
   for (const day of hours) {
-    await setClinicHoursDay(clinicId, day, token);
+    const res = await setClinicHoursDay(clinicId, day, token);
+    cancelledCount += res.cancelledCount ?? 0;
   }
-  return getClinicHours(clinicId, token);
+  const loaded = await getClinicHours(clinicId, token);
+  return { ...loaded, cancelledCount };
 }
 
 export function listAvailability(
@@ -94,10 +102,40 @@ export function createScheduleBlock(
   },
   token: string,
 ) {
-  return apiRequest<{ success: boolean; block: ScheduleBlock }>(
-    "/schedule/blocked",
-    { method: "POST", body, token },
+  return apiRequest<{
+    success: boolean;
+    block: ScheduleBlock;
+    cancelledCount?: number;
+  }>("/schedule/blocked", { method: "POST", body, token });
+}
+
+export function listScheduleBlocks(
+  clinicId: string,
+  token: string,
+  doctorId?: string,
+) {
+  const params = new URLSearchParams({ clinicId });
+  if (doctorId) params.set("doctorId", doctorId);
+  return apiRequest<{ success: boolean; blocks: ScheduleBlock[] }>(
+    `/schedule/blocked?${params.toString()}`,
+    { token },
   );
+}
+
+export function closeClinicDay(
+  clinicId: string,
+  body: { date: string; reason?: string },
+  token: string,
+) {
+  return apiRequest<{
+    success: boolean;
+    block: ScheduleBlock;
+    cancelledCount: number;
+  }>(`/schedule/clinics/${clinicId}/close-day`, {
+    method: "POST",
+    body,
+    token,
+  });
 }
 
 export function getAvailableSlots(

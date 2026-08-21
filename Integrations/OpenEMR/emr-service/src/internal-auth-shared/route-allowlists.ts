@@ -76,6 +76,7 @@ export const INTERNAL_ROUTE_ALLOWLISTS: Record<InternalServiceName, RouteAllowli
       'clinic-service',
     ],
     'POST /v1/appointments/internal/booked-ranges': ['scheduling-service'],
+    'POST /v1/appointments/internal/cancel-in-range': ['scheduling-service'],
     'POST /v1/appointments/internal/patient-upcoming-summary': [],
     'POST /v1/appointments/internal/verify-ownership': [],
   },
