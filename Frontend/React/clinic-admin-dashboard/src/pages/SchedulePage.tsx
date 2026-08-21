@@ -1,46 +1,25 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { addDays, format, startOfToday } from "date-fns";
-import { CalendarDays, DoorClosed, Stethoscope, Timer } from "lucide-react";
+import { Ban, Plus } from "lucide-react";
+import { toast, Toaster } from "sonner";
 import { useAuthStore } from "@/stores/authStore";
 import * as scheduleApi from "@/lib/api/schedule";
 import { useClinicAdmin } from "@/context/ClinicAdminContext";
 import { normalizeCaughtError } from "@/lib/api/errors";
-import { AlertBanner } from "@/components/layout/PageState";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { ClinicHoursBoard } from "@/features/schedule/ClinicHoursBoard";
-import { DayCoverageTimeline } from "@/features/schedule/DayCoverageTimeline";
-import { ScheduleDatePicker } from "@/features/schedule/ScheduleDatePicker";
-import { ScheduleOpsForms } from "@/features/schedule/ScheduleOpsForms";
+import { Button } from "@/components/ui/button";
+import { AddCoverageDialog } from "@/features/schedule/AddCoverageDialog";
+import { BlockTimeDialog } from "@/features/schedule/BlockTimeDialog";
+import { ScheduleCalendar } from "@/features/schedule/ScheduleCalendar";
+import { WeeklyHoursStrip } from "@/features/schedule/WeeklyHoursStrip";
 import {
   DAY_NAMES,
   combineDateAndTime,
-  coverageMinutesForDay,
+  ensureWeekHours,
   hoursEqual,
-  openDaysCount,
-  uniqueDoctorsCovered,
 } from "@/features/schedule/scheduleUtils";
-import { cn } from "@/lib/utils";
 
-const DEFAULT_HOURS: scheduleApi.ClinicHoursDay[] = Array.from({ length: 7 }, (_, dayOfWeek) => ({
-  dayOfWeek,
-  openTime: "09:00",
-  closeTime: "17:00",
-  isClosed: dayOfWeek === 5 || dayOfWeek === 6,
-}));
-
-function ensureWeek(hours: scheduleApi.ClinicHoursDay[]): scheduleApi.ClinicHoursDay[] {
-  return Array.from({ length: 7 }, (_, dayOfWeek) => {
-    const found = hours.find((h) => h.dayOfWeek === dayOfWeek);
-    return (
-      found ?? {
-        dayOfWeek,
-        openTime: "09:00",
-        closeTime: "17:00",
-        isClosed: dayOfWeek === 5 || dayOfWeek === 6,
-      }
-    );
-  });
-}
+const DEFAULT_HOURS = ensureWeekHours([]);
 
 export function SchedulePage() {
   const token = useAuthStore((s) => s.accessToken)!;
@@ -53,47 +32,12 @@ export function SchedulePage() {
   const [availability, setAvailability] = useState<scheduleApi.AvailabilitySlot[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [messageTone, setMessageTone] = useState<"info" | "error">("info");
+  const [coverageOpen, setCoverageOpen] = useState(false);
+  const [blockOpen, setBlockOpen] = useState(false);
 
-  const [availForm, setAvailForm] = useState({
-    doctorId: "",
-    startTime: "09:00",
-    endTime: "12:00",
-  });
-
-  const [blockForm, setBlockForm] = useState({
-    doctorId: "",
-    startTime: "09:00",
-    endTime: "17:00",
-    reason: "",
-  });
-
-  const selectedDayOfWeek = selectedDate.getDay();
   const dirty = !hoursEqual(hours, savedHours);
-
-  const activeWeekdays = useMemo(
-    () => new Set(availability.map((s) => s.dayOfWeek)),
-    [availability],
-  );
-
-  const closedWeekdays = useMemo(
-    () => new Set(hours.filter((h) => h.isClosed).map((h) => h.dayOfWeek)),
-    [hours],
-  );
-
-  const dayHours = useMemo(
-    () => hours.find((h) => h.dayOfWeek === selectedDayOfWeek),
-    [hours, selectedDayOfWeek],
-  );
-
-  const dayAvailability = useMemo(
-    () =>
-      availability
-        .filter((s) => s.dayOfWeek === selectedDayOfWeek)
-        .sort((a, b) => a.startTime.localeCompare(b.startTime)),
-    [availability, selectedDayOfWeek],
-  );
+  const selectedDayOfWeek = selectedDate.getDay();
+  const dayHours = hours.find((h) => h.dayOfWeek === selectedDayOfWeek);
 
   const doctorOptions = useMemo(
     () =>
@@ -104,52 +48,10 @@ export function SchedulePage() {
     [doctors],
   );
 
-  const doctorName = (id: string) =>
-    doctorOptions.find((d) => d.userId === id)?.label ?? id.slice(0, 8);
-
-  const kpis = useMemo(() => {
-    const open = openDaysCount(hours);
-    const covered = uniqueDoctorsCovered(availability);
-    const dayMins = coverageMinutesForDay(availability, selectedDayOfWeek);
-    const closed = hours.filter((h) => h.isClosed).length;
-    return [
-      {
-        label: "Open days / week",
-        value: String(open),
-        hint: `${closed} closed`,
-        icon: CalendarDays,
-        accent: "bg-[#0066ff]",
-      },
-      {
-        label: "Doctors covered",
-        value: String(covered),
-        hint: `${doctors.length} on staff`,
-        icon: Stethoscope,
-        accent: "bg-[#0f766e]",
-      },
-      {
-        label: "Coverage today",
-        value: dayHours?.isClosed ? "—" : `${Math.round(dayMins / 60)}h`,
-        hint: DAY_NAMES[selectedDayOfWeek],
-        icon: Timer,
-        accent: "bg-[#b45309]",
-      },
-      {
-        label: "Selected day",
-        value: dayHours?.isClosed ? "Closed" : "Open",
-        hint: dayHours?.isClosed
-          ? "No booking"
-          : `${dayHours?.openTime ?? "—"}–${dayHours?.closeTime ?? "—"}`,
-        icon: DoorClosed,
-        accent: dayHours?.isClosed ? "bg-[#929296]" : "bg-[#0066ff]",
-      },
-    ];
-  }, [hours, availability, selectedDayOfWeek, dayHours, doctors.length]);
-
-  const flash = (text: string, tone: "info" | "error" = "info") => {
-    setMessage(text);
-    setMessageTone(tone);
-  };
+  const doctorName = useCallback(
+    (id: string) => doctorOptions.find((d) => d.userId === id)?.label ?? id.slice(0, 8),
+    [doctorOptions],
+  );
 
   const load = async () => {
     setLoading(true);
@@ -158,15 +60,12 @@ export function SchedulePage() {
         scheduleApi.getClinicHours(clinicId, token),
         scheduleApi.listAvailability(clinicId, token),
       ]);
-      const loaded = ensureWeek(hoursRes.hours?.length ? hoursRes.hours : DEFAULT_HOURS);
+      const loaded = ensureWeekHours(hoursRes.hours?.length ? hoursRes.hours : DEFAULT_HOURS);
       setHours(loaded);
       setSavedHours(loaded);
       setAvailability(availRes.availability ?? []);
-      if (doctors[0]) {
-        setAvailForm((f) => ({ ...f, doctorId: f.doctorId || doctors[0].userId }));
-      }
     } catch (err) {
-      flash(normalizeCaughtError(err, "Failed to load schedule"), "error");
+      toast.error(normalizeCaughtError(err, "Failed to load schedule"));
     } finally {
       setLoading(false);
     }
@@ -177,15 +76,6 @@ export function SchedulePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clinicId, token, doctors.length]);
 
-  useEffect(() => {
-    if (dayHours?.isClosed) return;
-    setBlockForm((f) => ({
-      ...f,
-      startTime: dayHours?.openTime ?? f.startTime,
-      endTime: dayHours?.closeTime ?? f.endTime,
-    }));
-  }, [dayHours?.openTime, dayHours?.closeTime, dayHours?.isClosed, selectedDayOfWeek]);
-
   const selectDayOfWeek = (dayOfWeek: number) => {
     const diff = dayOfWeek - selectedDate.getDay();
     setSelectedDate(addDays(selectedDate, diff));
@@ -193,9 +83,7 @@ export function SchedulePage() {
 
   const updateHour = (dayOfWeek: number, patch: Partial<scheduleApi.ClinicHoursDay>) => {
     setHours((prev) =>
-      ensureWeek(
-        prev.map((h) => (h.dayOfWeek === dayOfWeek ? { ...h, ...patch } : h)),
-      ),
+      ensureWeekHours(prev.map((h) => (h.dayOfWeek === dayOfWeek ? { ...h, ...patch } : h))),
     );
   };
 
@@ -203,186 +91,126 @@ export function SchedulePage() {
     setSaving(true);
     try {
       const res = await scheduleApi.setClinicHoursBatch(clinicId, hours, token);
-      const next = ensureWeek(res.hours?.length ? res.hours : hours);
+      const next = ensureWeekHours(res.hours?.length ? res.hours : hours);
       setHours(next);
       setSavedHours(next);
-      flash("Clinic operating hours saved.");
+      toast.success("Clinic hours saved");
     } catch (err) {
-      flash(normalizeCaughtError(err, "Could not save clinic hours"), "error");
+      toast.error(normalizeCaughtError(err, "Could not save clinic hours"));
     } finally {
       setSaving(false);
     }
   };
 
-  const addAvailability = async () => {
-    if (!availForm.doctorId) {
-      flash("Select a doctor for the coverage slot.", "error");
-      return;
-    }
+  const addCoverage = async (values: {
+    doctorId: string;
+    dayOfWeek: number;
+    startTime: string;
+    endTime: string;
+  }) => {
     try {
-      await scheduleApi.createAvailability(
-        {
-          clinicId,
-          doctorId: availForm.doctorId,
-          dayOfWeek: selectedDayOfWeek,
-          startTime: availForm.startTime,
-          endTime: availForm.endTime,
-        },
-        token,
-      );
+      await scheduleApi.createAvailability({ clinicId, ...values }, token);
       await load();
-      flash(`Coverage added for ${DAY_NAMES[selectedDayOfWeek]}s.`);
+      toast.success(`Coverage added for ${DAY_NAMES[values.dayOfWeek]}s`);
     } catch (err) {
-      flash(normalizeCaughtError(err, "Could not add availability"), "error");
+      toast.error(normalizeCaughtError(err, "Could not add coverage"));
+      throw err;
     }
   };
 
-  const addBlock = async () => {
-    if (!blockForm.startTime || !blockForm.endTime) {
-      flash("Block start and end times are required.", "error");
-      return;
-    }
+  const addBlock = async (values: {
+    doctorId: string;
+    startTime: string;
+    endTime: string;
+    reason: string;
+  }) => {
     try {
       await scheduleApi.createScheduleBlock(
         {
           clinicId,
-          doctorId: blockForm.doctorId || undefined,
-          startsAt: combineDateAndTime(selectedDate, blockForm.startTime),
-          endsAt: combineDateAndTime(selectedDate, blockForm.endTime),
-          reason: blockForm.reason || undefined,
+          doctorId: values.doctorId || undefined,
+          startsAt: combineDateAndTime(selectedDate, values.startTime),
+          endsAt: combineDateAndTime(selectedDate, values.endTime),
+          reason: values.reason || undefined,
         },
         token,
       );
-      setBlockForm({ doctorId: "", startTime: "09:00", endTime: "17:00", reason: "" });
-      flash(`Time block created for ${format(selectedDate, "MMM d, yyyy")}.`);
+      toast.success(`Block created for ${format(selectedDate, "MMM d")}`);
     } catch (err) {
-      flash(normalizeCaughtError(err, "Could not create block"), "error");
+      toast.error(normalizeCaughtError(err, "Could not create block"));
+      throw err;
     }
   };
 
   return (
     <div className="pbi-canvas space-y-4 pb-8">
+      <Toaster position="top-right" richColors closeButton />
       <PageHeader
         title="Schedule"
-        subtitle="Set clinic hours, doctor coverage, and time blocks — your clinic’s operating blueprint"
+        subtitle="Clinic hours and doctor coverage — calendar-first operations"
         actions={
-          dirty ? (
-            <button
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
               type="button"
-              onClick={() => void saveHours()}
-              disabled={saving}
-              className="h-8 px-3 rounded-sm text-xs font-semibold bg-[#0066ff] text-white hover:bg-[#0052cc]"
+              variant="outline"
+              className="h-8 rounded-sm text-xs"
+              onClick={() => setBlockOpen(true)}
             >
-              {saving ? "Saving…" : "Save hours"}
-            </button>
-          ) : null
+              <Ban className="w-3.5 h-3.5 mr-1.5" />
+              Block time
+            </Button>
+            <Button
+              type="button"
+              className="h-8 rounded-sm text-xs bg-[#0066ff] hover:bg-[#0052cc]"
+              onClick={() => setCoverageOpen(true)}
+            >
+              <Plus className="w-3.5 h-3.5 mr-1.5" />
+              Add coverage
+            </Button>
+            {dirty && (
+              <Button
+                type="button"
+                disabled={saving}
+                onClick={() => void saveHours()}
+                className="h-8 rounded-sm text-xs bg-[#0066ff] hover:bg-[#0052cc]"
+              >
+                {saving ? "Saving…" : "Save hours"}
+              </Button>
+            )}
+          </div>
         }
       />
 
-      {message && <AlertBanner message={message} tone={messageTone} />}
-
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
-        {kpis.map((kpi) => {
-          const Icon = kpi.icon;
-          return (
-            <div key={kpi.label} className="pbi-kpi-tile">
-              <div className={cn("pbi-kpi-accent", kpi.accent)} />
-              <div className="pbi-kpi-body flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="pbi-kpi-label">{kpi.label}</p>
-                  <p className="pbi-kpi-value text-[24px]">{kpi.value}</p>
-                  <p className="pbi-kpi-hint truncate">{kpi.hint}</p>
-                </div>
-                <div className="pbi-kpi-icon-wrap">
-                  <Icon className="w-4 h-4 text-[#0066ff]" />
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <ClinicHoursBoard
-        hours={hours}
-        selectedDayOfWeek={selectedDayOfWeek}
-        dirty={dirty}
-        saving={saving}
-        onSelectDay={selectDayOfWeek}
-        onChange={updateHour}
-        onSave={() => void saveHours()}
-        onReset={() => setHours(savedHours)}
-      />
-
-      <div className="grid grid-cols-1 xl:grid-cols-[300px_minmax(0,1fr)] gap-4 items-start">
-        <div className="xl:sticky xl:top-4 space-y-3">
-          <ScheduleDatePicker
-            selected={selectedDate}
-            onSelect={setSelectedDate}
-            activeWeekdays={activeWeekdays}
-            closedWeekdays={closedWeekdays}
-          />
-
-          <div className="pbi-panel p-4 space-y-3">
-            <p className="text-[11px] font-bold uppercase tracking-wide text-[#929296]">
-              Day snapshot
-            </p>
-            <div className="space-y-2.5">
-              <div className="flex items-center justify-between gap-2 text-sm">
-                <span className="text-[#929296]">Clinic</span>
-                <span
-                  className={cn(
-                    "font-semibold tabular-nums",
-                    dayHours?.isClosed ? "text-red-600" : "text-[#1a1b1e]",
-                  )}
-                >
-                  {dayHours?.isClosed
-                    ? "Closed"
-                    : `${dayHours?.openTime ?? "—"} – ${dayHours?.closeTime ?? "—"}`}
-                </span>
-              </div>
-              <div className="flex items-center justify-between gap-2 text-sm">
-                <span className="text-[#929296]">Doctor slots</span>
-                <span className="font-semibold tabular-nums">{dayAvailability.length}</span>
-              </div>
-              <div className="flex items-center justify-between gap-2 text-sm">
-                <span className="text-[#929296]">Providers</span>
-                <span className="font-semibold tabular-nums">
-                  {new Set(dayAvailability.map((s) => s.doctorId)).size}
-                </span>
-              </div>
-            </div>
-            <p className="text-[10px] text-[#929296] leading-relaxed border-t border-[#f3f2f1] pt-3">
-              Tip: set hours first, then add doctor coverage for each open weekday.
-            </p>
-          </div>
+      {loading ? (
+        <div className="pbi-panel p-10 flex items-center justify-center gap-3 text-sm text-[#929296]">
+          <div className="pbi-spinner" />
+          Loading schedule…
         </div>
-
-        <div className="space-y-4 min-w-0">
-          <DayCoverageTimeline
-            dayLabel={format(selectedDate, "EEEE, MMMM d")}
-            dayHours={dayHours}
-            slots={dayAvailability}
-            doctorName={doctorName}
-            loading={loading}
+      ) : (
+        <>
+          <WeeklyHoursStrip
+            hours={hours}
+            selectedDayOfWeek={selectedDayOfWeek}
+            dirty={dirty}
+            onSelectDay={selectDayOfWeek}
+            onChange={updateHour}
           />
 
-          <ScheduleOpsForms
-            selectedDayOfWeek={selectedDayOfWeek}
-            selectedDateLabel={format(selectedDate, "MMM d, yyyy")}
-            doctors={doctorOptions}
-            availForm={availForm}
-            blockForm={blockForm}
-            onAvailChange={(patch) => setAvailForm((f) => ({ ...f, ...patch }))}
-            onBlockChange={(patch) => setBlockForm((f) => ({ ...f, ...patch }))}
-            onAddAvailability={() => void addAvailability()}
-            onAddBlock={() => void addBlock()}
+          <ScheduleCalendar
+            hours={hours}
+            availability={availability}
+            doctorName={doctorName}
+            selectedDate={selectedDate}
+            onDateChange={setSelectedDate}
+            onDatesSet={() => undefined}
+            onSelectSlotDay={setSelectedDate}
           />
 
           <section className="pbi-panel">
             <header className="pbi-panel-header">
               <div className="min-w-0">
                 <h2 className="pbi-panel-title">All recurring coverage</h2>
-                <p className="pbi-panel-subtitle">Every doctor slot across the week</p>
+                <p className="pbi-panel-subtitle">Click a weekday to focus the calendar</p>
               </div>
             </header>
             <div className="overflow-x-auto">
@@ -398,7 +226,7 @@ export function SchedulePage() {
                   {availability.length === 0 ? (
                     <tr>
                       <td colSpan={3} className="text-center text-[#929296] py-10">
-                        No recurring coverage yet — add slots above.
+                        No coverage yet — use Add coverage.
                       </td>
                     </tr>
                   ) : (
@@ -429,8 +257,28 @@ export function SchedulePage() {
               </table>
             </div>
           </section>
-        </div>
-      </div>
+        </>
+      )}
+
+      <AddCoverageDialog
+        open={coverageOpen}
+        onOpenChange={setCoverageOpen}
+        doctors={doctorOptions}
+        defaultDayOfWeek={selectedDayOfWeek}
+        defaultStart={dayHours?.isClosed ? "09:00" : (dayHours?.openTime ?? "09:00")}
+        defaultEnd={dayHours?.isClosed ? "12:00" : (dayHours?.closeTime ?? "12:00")}
+        onSubmit={addCoverage}
+      />
+
+      <BlockTimeDialog
+        open={blockOpen}
+        onOpenChange={setBlockOpen}
+        doctors={doctorOptions}
+        date={selectedDate}
+        defaultStart={dayHours?.isClosed ? "09:00" : (dayHours?.openTime ?? "09:00")}
+        defaultEnd={dayHours?.isClosed ? "17:00" : (dayHours?.closeTime ?? "17:00")}
+        onSubmit={addBlock}
+      />
     </div>
   );
 }

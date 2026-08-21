@@ -387,4 +387,56 @@
   .glass {
     @apply bg-white/80 backdrop-blur-lg border border-white/20;
   }
+
+  /* FullCalendar — MediCare schedule theme */
+  .fc-medicare .fc {
+    --fc-border-color: #edebe9;
+    --fc-button-bg-color: #0066ff;
+    --fc-button-border-color: #0066ff;
+    --fc-button-hover-bg-color: #0052cc;
+    --fc-button-hover-border-color: #0052cc;
+    --fc-button-active-bg-color: #0047b3;
+    --fc-button-active-border-color: #0047b3;
+    --fc-today-bg-color: #ecf3ff66;
+    --fc-now-indicator-color: #e11d48;
+    --fc-page-bg-color: #ffffff;
+    --fc-neutral-bg-color: #faf9f8;
+    font-family: var(--font-inter);
+  }
+
+  .fc-medicare .fc .fc-toolbar-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1a1b1e;
+  }
+
+  .fc-medicare .fc .fc-button {
+    border-radius: 2px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: none;
+    padding: 0.35rem 0.65rem;
+  }
+
+  .fc-medicare .fc .fc-button-primary:not(:disabled).fc-button-active,
+  .fc-medicare .fc .fc-button-primary:not(:disabled):active {
+    background: #0047b3;
+    border-color: #0047b3;
+  }
+
+  .fc-medicare .fc .fc-col-header-cell-cushion,
+  .fc-medicare .fc .fc-timegrid-slot-label-cushion {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #929296;
+  }
+
+  .fc-medicare .fc .fc-timegrid-event {
+    border-radius: 2px;
+    box-shadow: none;
+  }
+
+  .fc-medicare .fc .fc-bg-event {
+    opacity: 1;
+  }
 }

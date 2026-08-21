@@ -1,4 +1,11 @@
 import type { AvailabilitySlot, ClinicHoursDay } from "@/lib/api/schedule";
+import {
+  addDays,
+  eachDayOfInterval,
+  endOfWeek,
+  format,
+  startOfWeek,
+} from "date-fns";
 
 export const DAY_NAMES = [
   "Sunday",
@@ -16,19 +23,6 @@ export function timeToMinutes(time: string): number {
   const [h, m] = time.split(":").map(Number);
   if (!Number.isFinite(h) || !Number.isFinite(m)) return 0;
   return h * 60 + m;
-}
-
-export function minutesToLabel(total: number): string {
-  const h = Math.floor(total / 60);
-  const m = total % 60;
-  const suffix = h >= 12 ? "PM" : "AM";
-  const hour12 = h % 12 === 0 ? 12 : h % 12;
-  return m === 0 ? `${hour12} ${suffix}` : `${hour12}:${String(m).padStart(2, "0")} ${suffix}`;
-}
-
-export function durationHours(start: string, end: string): number {
-  const mins = Math.max(0, timeToMinutes(end) - timeToMinutes(start));
-  return Math.round((mins / 60) * 10) / 10;
 }
 
 export function combineDateAndTime(date: Date, time: string): string {
@@ -55,38 +49,98 @@ export function hoursEqual(a: ClinicHoursDay[], b: ClinicHoursDay[]): boolean {
   });
 }
 
-export function openDaysCount(hours: ClinicHoursDay[]): number {
-  return hours.filter((h) => !h.isClosed).length;
+export function ensureWeekHours(hours: ClinicHoursDay[]): ClinicHoursDay[] {
+  return Array.from({ length: 7 }, (_, dayOfWeek) => {
+    const found = hours.find((h) => h.dayOfWeek === dayOfWeek);
+    return (
+      found ?? {
+        dayOfWeek,
+        openTime: "09:00",
+        closeTime: "17:00",
+        isClosed: dayOfWeek === 5 || dayOfWeek === 6,
+      }
+    );
+  });
 }
 
-export function uniqueDoctorsCovered(availability: AvailabilitySlot[]): number {
-  return new Set(availability.map((s) => s.doctorId)).size;
-}
-
-export function coverageMinutesForDay(
-  availability: AvailabilitySlot[],
-  dayOfWeek: number,
-): number {
-  return availability
-    .filter((s) => s.dayOfWeek === dayOfWeek)
-    .reduce((sum, s) => sum + Math.max(0, timeToMinutes(s.endTime) - timeToMinutes(s.startTime)), 0);
-}
-
-/** Build hour ticks clipped to clinic open window (or full day if closed/missing). */
-export function buildHourTicks(openTime?: string, closeTime?: string, isClosed?: boolean): number[] {
-  if (isClosed || !openTime || !closeTime) {
-    return [9, 10, 11, 12, 13, 14, 15, 16, 17].map((h) => h * 60);
-  }
-  const start = timeToMinutes(openTime);
-  const end = timeToMinutes(closeTime);
-  const first = Math.floor(start / 60) * 60;
-  const ticks: number[] = [];
-  for (let t = first; t <= end; t += 60) ticks.push(t);
-  if (ticks.length === 0) ticks.push(start);
-  return ticks;
-}
-
-export function DOCTOR_LANE_COLORS(index: number): string {
-  const palette = ["#0066ff", "#0f766e", "#b45309", "#7c3aed", "#be123c", "#0369a1"];
+export function DOCTOR_COLORS(index: number): string {
+  const palette = ["#0066ff", "#0f766e", "#b45309", "#0369a1", "#be123c", "#4338ca"];
   return palette[index % palette.length];
+}
+
+export type CalendarEventInput = {
+  id: string;
+  title: string;
+  start: string;
+  end: string;
+  backgroundColor?: string;
+  borderColor?: string;
+  textColor?: string;
+  display?: "background" | "auto";
+  editable?: boolean;
+  extendedProps?: Record<string, unknown>;
+};
+
+/** Map clinic hours + availability into FullCalendar events for a visible range. */
+export function buildCalendarEvents(args: {
+  rangeStart: Date;
+  rangeEnd: Date;
+  hours: ClinicHoursDay[];
+  availability: AvailabilitySlot[];
+  doctorName: (id: string) => string;
+  doctorColorIndex: Map<string, number>;
+}): CalendarEventInput[] {
+  const { rangeStart, rangeEnd, hours, availability, doctorName, doctorColorIndex } = args;
+  const days = eachDayOfInterval({ start: rangeStart, end: addDays(rangeEnd, -1) });
+  const events: CalendarEventInput[] = [];
+
+  for (const day of days) {
+    const dow = day.getDay();
+    const dayHours = hours.find((h) => h.dayOfWeek === dow);
+    const dateKey = format(day, "yyyy-MM-dd");
+
+    if (dayHours && !dayHours.isClosed) {
+      events.push({
+        id: `hours-${dateKey}`,
+        title: "Clinic open",
+        start: `${dateKey}T${dayHours.openTime}:00`,
+        end: `${dateKey}T${dayHours.closeTime}:00`,
+        display: "background",
+        backgroundColor: "#ecf3ff",
+        editable: false,
+        extendedProps: { kind: "hours" },
+      });
+    }
+
+    for (const slot of availability.filter((s) => s.dayOfWeek === dow)) {
+      const colorIdx = doctorColorIndex.get(slot.doctorId) ?? 0;
+      const color = DOCTOR_COLORS(colorIdx);
+      events.push({
+        id: `avail-${slot.id}-${dateKey}`,
+        title: doctorName(slot.doctorId),
+        start: `${dateKey}T${slot.startTime}:00`,
+        end: `${dateKey}T${slot.endTime}:00`,
+        backgroundColor: color,
+        borderColor: color,
+        textColor: "#ffffff",
+        editable: false,
+        extendedProps: {
+          kind: "coverage",
+          doctorId: slot.doctorId,
+          slotId: slot.id,
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+        },
+      });
+    }
+  }
+
+  return events;
+}
+
+export function weekContaining(date: Date): { start: Date; end: Date } {
+  return {
+    start: startOfWeek(date, { weekStartsOn: 0 }),
+    end: endOfWeek(date, { weekStartsOn: 0 }),
+  };
 }
