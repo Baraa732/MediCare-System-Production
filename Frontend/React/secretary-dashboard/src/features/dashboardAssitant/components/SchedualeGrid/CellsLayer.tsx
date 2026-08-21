@@ -47,10 +47,9 @@ function GridCell({
     return <div style={{ height: SLOT_HEIGHT }} />;
   }
 
+  // Only grid appointments may be dropped onto slots (not sidebar pending requests).
   const isValidIncomingType =
-    !isPast &&
-    (active?.data.current?.type === "appointment" ||
-      active?.data.current?.type === "pending_request");
+    !isPast && active?.data.current?.type === "appointment";
 
   return (
     <div

@@ -14,7 +14,6 @@ import { AppointmentUpdateToast } from "../components/SchedualeGrid/AppointmentU
 import { AppointmentContextMenu } from "../components/SchedualeGrid/DNDGrid/AppointmentContextMenu";
 import { AppointmentWizardDrawer } from "../CreateAppointmentWizard/AppointmentWizardDrawer";
 import { ConflictDrawer } from "../components/SchedualeGrid/ConflictDrawer";
-import type { PendingRequest } from "../types";
 
 type ScheduleDndContextValue = ReturnType<typeof useDragHandlers>;
 
@@ -26,21 +25,6 @@ export function useScheduleDnd() {
     throw new Error("useScheduleDnd must be used within ScheduleDndProvider");
   }
   return ctx;
-}
-
-function PendingDragOverlay({ request }: { request: PendingRequest }) {
-  return (
-    <div className="flex min-h-[80px] w-[220px] overflow-hidden rounded-xl border border-blue-200 bg-white shadow-xl opacity-95">
-      <div className="flex flex-1 flex-col justify-center p-3">
-        <p className="truncate text-xs font-bold text-neutral-900">
-          {request.patient?.name ?? request.title ?? "Pending request"}
-        </p>
-        <p className="mt-1 text-[10px] font-semibold text-blue-600">
-          Drop on an empty slot
-        </p>
-      </div>
-    </div>
-  );
 }
 
 export function ScheduleDndProvider({ children }: { children: ReactNode }) {
@@ -70,11 +54,6 @@ export function ScheduleDndProvider({ children }: { children: ReactNode }) {
               data={dnd.activeData}
               height={dnd.overlayMeta.cardHeight}
             />
-          ) : null}
-          {dnd.activeId &&
-          dnd.activeType === "pending_request" &&
-          dnd.activeData?.pendingRequestData ? (
-            <PendingDragOverlay request={dnd.activeData.pendingRequestData} />
           ) : null}
         </DragOverlay>
 

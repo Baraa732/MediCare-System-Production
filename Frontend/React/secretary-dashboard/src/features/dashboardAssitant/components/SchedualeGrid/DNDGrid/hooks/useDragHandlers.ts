@@ -14,7 +14,6 @@ import type {
   DoctorType,
   DragDataPayload,
   AppointmentType,
-  PendingRequest,
 } from "@/features/dashboardAssitant/types";
 import type {
   OverSlotInfo,
@@ -31,7 +30,6 @@ import { normalizeCaughtError } from "@/lib/api/errors";
 import { useScheduleGridStore } from "@/features/dashboardAssitant/hooks/scheduleGridStore";
 import { hasSchedulingConflict } from "../utils/conflictValidator";
 import { resolveAppointmentConflict } from "../utils/conflictResolve";
-import { useWizardDrawer } from "@/features/dashboardAssitant/hooks/useWizardDrawer";
 import { isGridSlotInPast } from "@/features/dashboardAssitant/utils/editModeDrag";
 import { updateAppointmentStatus } from "@/lib/api/appointments";
 import { useAuthStore } from "@/stores/authStore";
@@ -154,9 +152,6 @@ export function useDragHandlers() {
   const { doctors: scheduleDoctors, selectedDate } = useScheduleContext();
   const { persistGridUpdates } = useAppointmentActions();
   const accessToken = useAuthStore((s) => s.accessToken);
-  const openWithPendingRequestAtSlot = useWizardDrawer(
-    (s) => s.openWithPendingRequestAtSlot,
-  );
   const filters = useScheduleGridStore((s) => s.filters);
   const isEditMode = useEditeMode((state) => state.isEditMode);
   const onToggleEdit = useEditeMode((state) => state.onToggleEdit);
@@ -316,10 +311,6 @@ export function useDragHandlers() {
       if (type === "appointment" && data?.appointmentData) {
         return data.appointmentData.end - data.appointmentData.start;
       }
-      if (type === "pending_request" && data?.pendingRequestData) {
-        const req = data.pendingRequestData;
-        return req.end - req.start || req.duration || 30;
-      }
       return 0;
     },
     [],
@@ -330,7 +321,8 @@ export function useDragHandlers() {
       if (!isEditMode) return;
       const { active } = event;
       const currentData = active.data.current as DragDataPayload | undefined;
-      if (!currentData?.type) return;
+      // Sidebar pending requests are not draggable onto the grid.
+      if (!currentData?.type || currentData.type === "pending_request") return;
 
       setActiveId(active.id as string);
       setActiveType(currentData.type);
@@ -344,15 +336,16 @@ export function useDragHandlers() {
   const handleDragOver = useCallback(
     (event: DragOverEvent) => {
       const { over } = event;
-      if (
-        !over ||
-        !isEditMode ||
-        (activeType !== "appointment" && activeType !== "pending_request")
-      ) {
+      // No slot under pointer → clear preview (drop outside grid is a no-op).
+      if (!over || over.data.current?.type !== "slot") {
+        setOverSlotInfo(null);
+        setConflict(null);
         return;
       }
 
-      if (over.data.current?.type !== "slot") return;
+      if (!isEditMode || activeType !== "appointment") {
+        return;
+      }
 
       const targetDoctorId = over.data.current.idDoctor as string;
       const targetSlotIdx = over.data.current.slotIdx as number;
@@ -374,10 +367,7 @@ export function useDragHandlers() {
         doctors.find((d) => d.id === targetDoctorId);
       if (!targetDocObj) return;
 
-      const excludeId =
-        activeType === "appointment"
-          ? activeData?.appointmentData?.id
-          : undefined;
+      const excludeId = activeData?.appointmentData?.id;
 
       const collisions = (targetDocObj.appointments || []).filter(
         (apt) =>
@@ -387,7 +377,7 @@ export function useDragHandlers() {
 
       if (collisions.length > 0) {
         setConflict({
-          attemptedAction: activeType === "pending_request" ? "assign" : "move",
+          attemptedAction: "move",
           conflictingItems: buildConflictItems(
             collisions,
             targetStart,
@@ -444,7 +434,12 @@ export function useDragHandlers() {
       setActiveData(null);
       setOverSlotInfo(null);
 
+      // Drop outside the grid (or onto a non-slot) → cancel; appointment stays put.
       if (!over || !isEditMode || over.data.current?.type !== "slot") return;
+
+      const dragType = active.data.current?.type as ActiveDragType;
+      // Only grid appointments can be dropped onto slots.
+      if (dragType !== "appointment") return;
 
       const targetDoctorId = over.data.current.idDoctor as string;
       const targetSlotIdx = over.data.current.slotIdx as number;
@@ -468,134 +463,86 @@ export function useDragHandlers() {
         return;
       }
 
-      const dragType = active.data.current?.type as ActiveDragType;
+      const payloadData = active.data.current
+        ?.appointmentData as AppointmentType | undefined;
+      if (!payloadData) return;
 
-      if (dragType === "appointment") {
-        const payloadData = active.data.current
-          ?.appointmentData as AppointmentType | undefined;
-        if (!payloadData) return;
+      // Always use latest working copy position (accurate after prior local moves).
+      const live =
+        findAppointment(workingDoctorsRef.current, payloadData.id) ??
+        payloadData;
 
-        // Always use latest working copy position (accurate after prior local moves).
-        const live =
-          findAppointment(workingDoctorsRef.current, payloadData.id) ??
-          payloadData;
+      const duration = live.end - live.start;
+      const newEnd = newStart + duration;
+      const board = workingDoctorsRef.current;
 
-        const duration = live.end - live.start;
-        const newStart = targetSlotIdx * ROW_MINUTES;
-        const newEnd = newStart + duration;
-        const board = workingDoctorsRef.current;
+      if (
+        hasSchedulingConflict(
+          newStart,
+          newEnd,
+          targetDoctorId,
+          board,
+          live.id,
+        )
+      ) {
+        const pendingDrag: AppointmentType = {
+          ...live,
+          start: newStart,
+          end: newEnd,
+          docId: targetDoctorId,
+        };
+        const resolution = resolveAppointmentConflict(pendingDrag, board, {
+          selectedDate,
+          preferSameSpecialty: true,
+        });
 
         if (
-          hasSchedulingConflict(
-            newStart,
-            newEnd,
-            targetDoctorId,
-            board,
-            live.id,
-          )
+          resolution.status === "Resolved" &&
+          resolution.action !== "None"
         ) {
-          const pendingDrag: AppointmentType = {
-            ...live,
-            start: newStart,
-            end: newEnd,
-            docId: targetDoctorId,
-          };
-          const resolution = resolveAppointmentConflict(pendingDrag, board, {
-            selectedDate,
-            preferSameSpecialty: true,
+          applyConflictResolution(pendingDrag, {
+            updatedExistingAppointments:
+              resolution.updatedExistingAppointments,
+            message: resolution.message,
           });
-
-          if (
-            resolution.status === "Resolved" &&
-            resolution.action !== "None"
-          ) {
-            applyConflictResolution(pendingDrag, {
-              updatedExistingAppointments:
-                resolution.updatedExistingAppointments,
-              message: resolution.message,
-            });
-            return;
-          }
-
-          const targetDoc = board.find((d) => d.id === targetDoctorId);
-          const collisions = (targetDoc?.appointments || []).filter(
-            (apt) =>
-              apt.id !== live.id &&
-              Math.max(newStart, apt.start) < Math.min(newEnd, apt.end),
-          );
-          // Prefer expanded chain for richer drawer context when available.
-          const chainIds = new Set(
-            (resolution.steps ?? []).map((s) => s.appointmentId),
-          );
-          const drawerItems =
-            chainIds.size > 0
-              ? (targetDoc?.appointments || []).filter((a) => chainIds.has(a.id))
-              : collisions;
-
-          setConflict({
-            attemptedAction: "move",
-            conflictingItems: buildConflictItems(
-              drawerItems.length > 0 ? drawerItems : collisions,
-              newStart,
-              newEnd,
-              targetDoc?.name ?? "Doctor",
-            ),
-            pendingDrag,
-            resolution,
-          });
-          setDrawerOpen(true);
           return;
         }
 
-        executeMove(live, targetDoctorId, newStart, newEnd);
+        const targetDoc = board.find((d) => d.id === targetDoctorId);
+        const collisions = (targetDoc?.appointments || []).filter(
+          (apt) =>
+            apt.id !== live.id &&
+            Math.max(newStart, apt.start) < Math.min(newEnd, apt.end),
+        );
+        // Prefer expanded chain for richer drawer context when available.
+        const chainIds = new Set(
+          (resolution.steps ?? []).map((s) => s.appointmentId),
+        );
+        const drawerItems =
+          chainIds.size > 0
+            ? (targetDoc?.appointments || []).filter((a) => chainIds.has(a.id))
+            : collisions;
+
+        setConflict({
+          attemptedAction: "move",
+          conflictingItems: buildConflictItems(
+            drawerItems.length > 0 ? drawerItems : collisions,
+            newStart,
+            newEnd,
+            targetDoc?.name ?? "Doctor",
+          ),
+          pendingDrag,
+          resolution,
+        });
+        setDrawerOpen(true);
         return;
       }
 
-      if (dragType === "pending_request") {
-        const request = active.data.current
-          ?.pendingRequestData as PendingRequest | undefined;
-        if (!request) return;
-
-        const duration = request.end - request.start || request.duration || 30;
-        const newStart = targetSlotIdx * ROW_MINUTES;
-        const newEnd = newStart + duration;
-        const board = workingDoctorsRef.current;
-
-        if (hasSchedulingConflict(newStart, newEnd, targetDoctorId, board)) {
-          const targetDoc = board.find((d) => d.id === targetDoctorId);
-          const collisions = (targetDoc?.appointments || []).filter(
-            (apt) =>
-              Math.max(newStart, apt.start) < Math.min(newEnd, apt.end),
-          );
-          setConflict({
-            attemptedAction: "assign",
-            conflictingItems: buildConflictItems(
-              collisions,
-              newStart,
-              newEnd,
-              targetDoc?.name ?? "Doctor",
-            ),
-          });
-          setDrawerOpen(true);
-          return;
-        }
-
-        openWithPendingRequestAtSlot(
-          {
-            ...request,
-            docId: targetDoctorId,
-            start: newStart,
-            end: newEnd,
-          },
-          selectedDate,
-        );
-        setConflict(null);
-      }
+      executeMove(live, targetDoctorId, newStart, newEnd);
     },
     [
       isEditMode,
       executeMove,
-      openWithPendingRequestAtSlot,
       selectedDate,
       setConflict,
       setDrawerOpen,
