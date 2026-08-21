@@ -3,24 +3,28 @@ export interface ApiErrorBody {
   statusCode?: number;
   code?: string;
   suggestion?: string;
+  details?: string[] | string | Record<string, unknown>;
 }
 
 export class ApiError extends Error {
   status: number;
   code?: string;
   suggestion?: string;
+  details?: string[] | string | Record<string, unknown>;
 
   constructor(
     status: number,
     message: string,
     code?: string,
     suggestion?: string,
+    details?: string[] | string | Record<string, unknown>,
   ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.code = code;
     this.suggestion = suggestion;
+    this.details = details;
   }
 }
 

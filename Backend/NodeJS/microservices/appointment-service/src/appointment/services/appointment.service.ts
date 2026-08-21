@@ -129,6 +129,7 @@ export class AppointmentService {
       scheduledAt,
       durationMinutes,
       reason: dto.reason,
+      notes: dto.notes?.trim() || null,
       status: initialStatus,
       createdBy: actor.userId,
     });

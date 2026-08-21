@@ -49,6 +49,11 @@ export class CreateAppointmentDto {
   @IsString()
   @MaxLength(1000)
   reason?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(5000)
+  notes?: string;
 }
 
 export class UpdateAppointmentDto {

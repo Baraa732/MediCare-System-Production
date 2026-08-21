@@ -4,6 +4,20 @@ interface ParsedApiError {
   message: string;
   code?: string;
   suggestion?: string;
+  details?: string[] | string | Record<string, unknown>;
+}
+
+function extractDetails(
+  value: unknown,
+): string[] | string | Record<string, unknown> | undefined {
+  if (Array.isArray(value) && value.every((v) => typeof v === "string")) {
+    return value as string[];
+  }
+  if (typeof value === "string") return value;
+  if (value && typeof value === "object") {
+    return value as Record<string, unknown>;
+  }
+  return undefined;
 }
 
 export function parseApiErrorPayload(data: unknown): ParsedApiError | null {
@@ -18,12 +32,16 @@ export function parseApiErrorPayload(data: unknown): ParsedApiError | null {
         message: nested.message,
         code: nested.code,
         suggestion: nested.suggestion,
+        details: extractDetails(nested.details),
       };
     }
   }
 
   if (typeof record.message === "string") {
-    return { message: record.message };
+    return {
+      message: record.message,
+      details: extractDetails(record.details),
+    };
   }
 
   if (typeof record.message === "object" && record.message !== null) {
@@ -33,6 +51,7 @@ export function parseApiErrorPayload(data: unknown): ParsedApiError | null {
         message: nested.message,
         code: nested.code,
         suggestion: nested.suggestion,
+        details: extractDetails(nested.details),
       };
     }
   }
@@ -95,7 +114,32 @@ const MESSAGE_MAP: Record<string, string> = {
     "The server blocked this request before sign-in. If you were resetting your password, restart the API gateway and try again.",
 };
 
-function mapByCode(code: string | undefined, message: string): string | null {
+function formatValidationDetails(
+  details?: string[] | string | Record<string, unknown>,
+): string | null {
+  if (!details) return null;
+  if (typeof details === "string" && details.trim()) return details.trim();
+  if (Array.isArray(details)) {
+    const lines = details.map((d) => d.trim()).filter(Boolean);
+    if (lines.length === 0) return null;
+    // Nest often returns: "property notes should not exist"
+    const readable = lines.map((line) => {
+      const unknownProp = line.match(/^property (\w+) should not exist$/i);
+      if (unknownProp) {
+        return `Unsupported field "${unknownProp[1]}" was sent. Please refresh and try again.`;
+      }
+      return line;
+    });
+    return readable.join(" ");
+  }
+  return null;
+}
+
+function mapByCode(
+  code: string | undefined,
+  message: string,
+  details?: string[] | string | Record<string, unknown>,
+): string | null {
   switch (code) {
     case "UNAUTHORIZED":
       if (message.toLowerCase().includes("credential")) {
@@ -108,11 +152,14 @@ function mapByCode(code: string | undefined, message: string): string | null {
         );
       }
       return MESSAGE_MAP[message] ?? null;
-    case "VALIDATION_ERROR":
+    case "VALIDATION_ERROR": {
+      const detailText = formatValidationDetails(details);
+      if (detailText) return detailText;
       if (message.toLowerCase().includes("uuid")) {
         return "Your clinic information is missing or invalid. Please sign out and sign in again, or contact your administrator.";
       }
       return "Some fields are invalid. Please check your input and try again.";
+    }
     case "FORBIDDEN":
       return (
         MESSAGE_MAP[message] ??
@@ -187,7 +234,7 @@ export function toUserFriendlyMessage(
   const mapped = MESSAGE_MAP[err.message];
   if (mapped) return mapped;
 
-  const byCode = mapByCode(err.code, err.message);
+  const byCode = mapByCode(err.code, err.message, err.details);
   if (byCode) return byCode;
 
   if (err.status === 401) {

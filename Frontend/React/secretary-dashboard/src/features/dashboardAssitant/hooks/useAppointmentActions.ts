@@ -191,7 +191,10 @@ export function useAppointmentActions() {
             guestPatientName: patientId ? undefined : name,
             guestPatientPhone: patientId ? undefined : phone,
             scheduledAt,
-            durationMinutes: wizardData.duration,
+            durationMinutes: Math.max(
+              5,
+              Math.min(240, Math.round(wizardData.duration || 30)),
+            ),
             reason,
             notes,
           },

@@ -83,6 +83,7 @@ async function parseError(response: Response): Promise<ApiErrorBody & { status: 
         code: parsed.code ?? "REQUEST_FAILED",
         message: parsed.message ?? `Request failed (${response.status})`,
         suggestion: parsed.suggestion,
+        details: parsed.details,
       };
     }
   } catch {
@@ -135,6 +136,7 @@ export async function apiRequest<T>(
       errorBody.message ?? `Request failed (${response.status})`,
       errorBody.code,
       errorBody.suggestion,
+      errorBody.details,
     );
   }
 
