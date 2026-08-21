@@ -92,7 +92,10 @@ export function ScheduleDndProvider({ children }: { children: ReactNode }) {
         />
 
         <AppointmentWizardDrawer doctors={dnd.doctors} />
-        <ConflictDrawer onClose={dnd.cancelConflict} />
+        <ConflictDrawer
+          onClose={dnd.cancelConflict}
+          onApplyResolution={dnd.confirmConflictResolution}
+        />
       </DndContext>
     </ScheduleDndContext.Provider>
   );

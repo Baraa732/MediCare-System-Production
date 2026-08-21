@@ -30,8 +30,11 @@ import {
 import { normalizeCaughtError } from "@/lib/api/errors";
 import { useScheduleGridStore } from "@/features/dashboardAssitant/hooks/scheduleGridStore";
 import { hasSchedulingConflict } from "../utils/conflictValidator";
+import { resolveAppointmentConflict } from "../utils/conflictResolve";
 import { useWizardDrawer } from "@/features/dashboardAssitant/hooks/useWizardDrawer";
 import { isGridSlotInPast } from "@/features/dashboardAssitant/utils/editModeDrag";
+import { updateAppointmentStatus } from "@/lib/api/appointments";
+import { useAuthStore } from "@/stores/authStore";
 
 function patientNameFromTitle(title?: string) {
   if (!title) return "Unknown patient";
@@ -96,6 +99,32 @@ function applyAppointmentToDoctors(
   });
 }
 
+function removeAppointmentsFromDoctors(
+  doctors: DoctorType[],
+  removeIds: string[],
+): DoctorType[] {
+  if (removeIds.length === 0) return doctors;
+  const ban = new Set(removeIds);
+  return doctors.map((doc) => ({
+    ...doc,
+    appointments: doc.appointments.filter((a) => !ban.has(a.id)),
+  }));
+}
+
+function applyResolutionBatch(
+  doctors: DoctorType[],
+  draggedApt: AppointmentType,
+  updatedExisting: AppointmentType[],
+  cancelledIds: string[] = [],
+): DoctorType[] {
+  let next = removeAppointmentsFromDoctors(doctors, cancelledIds);
+  for (const apt of updatedExisting) {
+    next = applyAppointmentToDoctors(next, apt);
+  }
+  next = applyAppointmentToDoctors(next, draggedApt);
+  return next;
+}
+
 function collectDirtyAppointments(
   working: DoctorType[],
   baseline: DoctorType[],
@@ -121,6 +150,7 @@ function collectDirtyAppointments(
 export function useDragHandlers() {
   const { doctors: scheduleDoctors, selectedDate } = useScheduleContext();
   const { persistGridUpdates } = useAppointmentActions();
+  const accessToken = useAuthStore((s) => s.accessToken);
   const openWithPendingRequestAtSlot = useWizardDrawer(
     (s) => s.openWithPendingRequestAtSlot,
   );
@@ -129,6 +159,7 @@ export function useDragHandlers() {
   const onToggleEdit = useEditeMode((state) => state.onToggleEdit);
 
   const workingDoctorsRef = useRef<DoctorType[]>([]);
+  const cancelledIdsRef = useRef<string[]>([]);
   const [doctors, setDoctors] = useState<DoctorType[]>([]);
   const [baselineDoctors, setBaselineDoctors] = useState<DoctorType[] | null>(
     null,
@@ -139,12 +170,16 @@ export function useDragHandlers() {
 
   const setConflict = useGlobalConflictStore((state) => state.setConflict);
   const setDrawerOpen = useGlobalConflictStore((state) => state.setDrawerOpen);
+  const clearConflict = useGlobalConflictStore((state) => state.clearConflict);
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeType, setActiveType] = useState<ActiveDragType>(null);
   const [activeData, setActiveData] = useState<DragDataPayload | null>(null);
   const [overSlotInfo, setOverSlotInfo] = useState<OverSlotInfo | null>(null);
-  const [undoSnapshot, setUndoSnapshot] = useState<DoctorType[] | null>(null);
+  const [undoSnapshot, setUndoSnapshot] = useState<{
+    doctors: DoctorType[];
+    cancelledIds: string[];
+  } | null>(null);
 
   const [isToastOpen, setIsToastOpen] = useState(false);
   const [toastInfo, setToastInfo] = useState<ToastInfo>({
@@ -172,9 +207,10 @@ export function useDragHandlers() {
       return;
     }
 
-    if (!baselineDoctors) {
+      if (!baselineDoctors) {
       const snap = cloneDoctors(source);
       workingDoctorsRef.current = snap;
+      cancelledIdsRef.current = [];
       setBaselineDoctors(snap);
       setDirtyCount(0);
       setDoctors(applyVisibleFilters(snap, filters, selectedDate));
@@ -184,28 +220,80 @@ export function useDragHandlers() {
     setDoctors(applyVisibleFilters(workingDoctorsRef.current, filters, selectedDate));
   }, [isEditMode, scheduleDoctors, filters, baselineDoctors, selectedDate]);
 
+  const stageLocalBoard = useCallback(
+    (
+      nextWorking: DoctorType[],
+      toast: { patientName: string; newTimeLabel: string },
+      previousCancelledIds?: string[],
+    ) => {
+      setUndoSnapshot({
+        doctors: cloneDoctors(workingDoctorsRef.current),
+        cancelledIds: previousCancelledIds ?? [...cancelledIdsRef.current],
+      });
+      workingDoctorsRef.current = nextWorking;
+      setDoctors(applyVisibleFilters(nextWorking, filters, selectedDate));
+      refreshDirtyCount(nextWorking, baselineDoctors);
+      setToastInfo(toast);
+      setIsToastOpen(true);
+      setSaveError(null);
+      clearConflict();
+    },
+    [baselineDoctors, refreshDirtyCount, filters, selectedDate, clearConflict],
+  );
+
   const stageLocalMove = useCallback(
     (updatedApt: AppointmentType) => {
-      const before = cloneDoctors(workingDoctorsRef.current);
-      setUndoSnapshot(before);
-
-      const next = applyAppointmentToDoctors(workingDoctorsRef.current, updatedApt);
-      workingDoctorsRef.current = next;
-      setDoctors(applyVisibleFilters(next, filters, selectedDate));
-      refreshDirtyCount(next, baselineDoctors);
-
+      const next = applyAppointmentToDoctors(
+        workingDoctorsRef.current,
+        updatedApt,
+      );
       const titleString = updatedApt.title || "Appointment";
-      setToastInfo({
+      stageLocalBoard(next, {
         patientName: titleString.split(" - ")[0],
         newTimeLabel: formatMinutesToTime(
           updatedApt.start,
           updatedApt.end - updatedApt.start,
         ),
       });
-      setIsToastOpen(true);
-      setSaveError(null);
     },
-    [baselineDoctors, refreshDirtyCount, filters, selectedDate],
+    [stageLocalBoard],
+  );
+
+  const applyConflictResolution = useCallback(
+    (
+      pendingDrag: AppointmentType,
+      resolution: {
+        updatedExistingAppointments: AppointmentType[];
+        cancelledIds?: string[];
+        message: string;
+      },
+    ) => {
+      const previousCancelled = [...cancelledIdsRef.current];
+      const cancelledIds = resolution.cancelledIds ?? [];
+      if (cancelledIds.length > 0) {
+        cancelledIdsRef.current = [
+          ...new Set([...cancelledIdsRef.current, ...cancelledIds]),
+        ];
+      }
+      const next = applyResolutionBatch(
+        workingDoctorsRef.current,
+        pendingDrag,
+        resolution.updatedExistingAppointments,
+        cancelledIds,
+      );
+      stageLocalBoard(
+        next,
+        {
+          patientName: patientNameFromTitle(pendingDrag.title),
+          newTimeLabel: `${formatMinutesToTime(
+            pendingDrag.start,
+            pendingDrag.end - pendingDrag.start,
+          )} · ${resolution.message}`,
+        },
+        previousCancelled,
+      );
+    },
+    [stageLocalBoard],
   );
 
   const updateAppointment = useCallback(
@@ -273,7 +361,9 @@ export function useDragHandlers() {
         height: (duration / ROW_MINUTES) * SLOT_HEIGHT,
       });
 
-      const targetDocObj = doctors.find((d) => d.id === targetDoctorId);
+      const targetDocObj =
+        workingDoctorsRef.current.find((d) => d.id === targetDoctorId) ??
+        doctors.find((d) => d.id === targetDoctorId);
       if (!targetDocObj) return;
 
       const excludeId =
@@ -385,17 +475,41 @@ export function useDragHandlers() {
         const duration = live.end - live.start;
         const newStart = targetSlotIdx * ROW_MINUTES;
         const newEnd = newStart + duration;
+        const board = workingDoctorsRef.current;
 
         if (
           hasSchedulingConflict(
             newStart,
             newEnd,
             targetDoctorId,
-            doctors,
+            board,
             live.id,
           )
         ) {
-          const targetDoc = doctors.find((d) => d.id === targetDoctorId);
+          const pendingDrag: AppointmentType = {
+            ...live,
+            start: newStart,
+            end: newEnd,
+            docId: targetDoctorId,
+          };
+          const resolution = resolveAppointmentConflict(pendingDrag, board, {
+            selectedDate,
+            preferSameSpecialty: true,
+          });
+
+          if (
+            resolution.status === "Resolved" &&
+            resolution.action !== "None"
+          ) {
+            applyConflictResolution(pendingDrag, {
+              updatedExistingAppointments:
+                resolution.updatedExistingAppointments,
+              message: resolution.message,
+            });
+            return;
+          }
+
+          const targetDoc = board.find((d) => d.id === targetDoctorId);
           const collisions = (targetDoc?.appointments || []).filter(
             (apt) =>
               apt.id !== live.id &&
@@ -409,6 +523,8 @@ export function useDragHandlers() {
               newEnd,
               targetDoc?.name ?? "Doctor",
             ),
+            pendingDrag,
+            resolution,
           });
           setDrawerOpen(true);
           return;
@@ -426,9 +542,10 @@ export function useDragHandlers() {
         const duration = request.end - request.start || request.duration || 30;
         const newStart = targetSlotIdx * ROW_MINUTES;
         const newEnd = newStart + duration;
+        const board = workingDoctorsRef.current;
 
-        if (hasSchedulingConflict(newStart, newEnd, targetDoctorId, doctors)) {
-          const targetDoc = doctors.find((d) => d.id === targetDoctorId);
+        if (hasSchedulingConflict(newStart, newEnd, targetDoctorId, board)) {
+          const targetDoc = board.find((d) => d.id === targetDoctorId);
           const collisions = (targetDoc?.appointments || []).filter(
             (apt) =>
               Math.max(newStart, apt.start) < Math.min(newEnd, apt.end),
@@ -460,12 +577,12 @@ export function useDragHandlers() {
     },
     [
       isEditMode,
-      doctors,
       executeMove,
       openWithPendingRequestAtSlot,
       selectedDate,
       setConflict,
       setDrawerOpen,
+      applyConflictResolution,
     ],
   );
 
@@ -479,43 +596,99 @@ export function useDragHandlers() {
 
   const handleUndoAction = useCallback(() => {
     if (!undoSnapshot) return;
-    workingDoctorsRef.current = undoSnapshot;
-    setDoctors(applyVisibleFilters(undoSnapshot, filters, selectedDate));
-    refreshDirtyCount(undoSnapshot, baselineDoctors);
+    workingDoctorsRef.current = undoSnapshot.doctors;
+    cancelledIdsRef.current = undoSnapshot.cancelledIds;
+    setDoctors(
+      applyVisibleFilters(undoSnapshot.doctors, filters, selectedDate),
+    );
+    refreshDirtyCount(undoSnapshot.doctors, baselineDoctors);
     setUndoSnapshot(null);
     setIsToastOpen(false);
-  }, [undoSnapshot, filters, baselineDoctors, refreshDirtyCount]);
+  }, [undoSnapshot, filters, baselineDoctors, refreshDirtyCount, selectedDate]);
 
   const cancelConflict = useCallback(() => {
-    setConflict(null);
-  }, [setConflict]);
+    clearConflict();
+  }, [clearConflict]);
+
+  const confirmConflictResolution = useCallback(
+    (withCancellations: boolean) => {
+      const payload = useGlobalConflictStore.getState().conflictPayload;
+      if (!payload?.pendingDrag || !payload.resolution) return;
+
+      const resolution = payload.resolution;
+      const cancelledIds = withCancellations
+        ? resolution.proposedCancelIds ?? []
+        : [];
+
+      if (
+        resolution.updatedExistingAppointments.length === 0 &&
+        cancelledIds.length === 0
+      ) {
+        return;
+      }
+
+      applyConflictResolution(payload.pendingDrag, {
+        updatedExistingAppointments: resolution.updatedExistingAppointments,
+        cancelledIds,
+        message: withCancellations
+          ? `${resolution.message} (cancellations confirmed)`
+          : resolution.message,
+      });
+    },
+    [applyConflictResolution],
+  );
 
   const discardEditChanges = useCallback(() => {
     if (baselineDoctors) {
       workingDoctorsRef.current = cloneDoctors(baselineDoctors);
       setDoctors(applyVisibleFilters(workingDoctorsRef.current, filters, selectedDate));
     }
+    cancelledIdsRef.current = [];
     setDirtyCount(0);
     setUndoSnapshot(null);
     setSaveError(null);
     setIsToastOpen(false);
-    setConflict(null);
-  }, [baselineDoctors, filters, setConflict]);
+    clearConflict();
+  }, [baselineDoctors, filters, clearConflict, selectedDate]);
 
   const saveEditChanges = useCallback(async () => {
-    if (!baselineDoctors || dirtyCount === 0) {
+    const toCancel = [...cancelledIdsRef.current].filter(isApiAppointmentId);
+    if (!baselineDoctors && toCancel.length === 0) {
       onToggleEdit();
       return;
     }
 
-    const dirty = collectDirtyAppointments(
-      workingDoctorsRef.current,
-      baselineDoctors,
-    );
+    const dirty = baselineDoctors
+      ? collectDirtyAppointments(workingDoctorsRef.current, baselineDoctors)
+      : [];
+
+    if (dirty.length === 0 && toCancel.length === 0) {
+      onToggleEdit();
+      return;
+    }
+
     setIsSaving(true);
     setSaveError(null);
     try {
-      await persistGridUpdates(dirty);
+      if (dirty.length > 0) {
+        await persistGridUpdates(dirty);
+      }
+      if (accessToken) {
+        for (const id of toCancel) {
+          await updateAppointmentStatus(
+            id,
+            {
+              status: "CANCELLED",
+              cancellationReason: "Cancelled to resolve schedule conflict",
+            },
+            accessToken,
+          );
+        }
+      }
+      if (toCancel.length > 0 && dirty.length === 0) {
+        await persistGridUpdates([]);
+      }
+      cancelledIdsRef.current = [];
       setBaselineDoctors(null);
       setDirtyCount(0);
       setUndoSnapshot(null);
@@ -531,12 +704,12 @@ export function useDragHandlers() {
     } finally {
       setIsSaving(false);
     }
-  }, [baselineDoctors, dirtyCount, onToggleEdit, persistGridUpdates]);
+  }, [baselineDoctors, onToggleEdit, persistGridUpdates, accessToken]);
 
   const requestExitEditMode = useCallback(() => {
-    if (dirtyCount > 0) {
+    if (dirtyCount > 0 || cancelledIdsRef.current.length > 0) {
       const leave = window.confirm(
-        `You have ${dirtyCount} unsaved change${dirtyCount > 1 ? "s" : ""}. Discard them and exit Edit Mode?`,
+        `You have unsaved schedule changes. Discard them and exit Edit Mode?`,
       );
       if (!leave) return;
       discardEditChanges();
@@ -561,6 +734,7 @@ export function useDragHandlers() {
     closeToast: () => setIsToastOpen(false),
     updateAppointment,
     cancelConflict,
+    confirmConflictResolution,
     dirtyCount,
     isSaving,
     saveError,

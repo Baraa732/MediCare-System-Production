@@ -1,9 +1,18 @@
-import { X, AlertTriangle, Calendar, Clock, User } from "lucide-react";
+import {
+  X,
+  AlertTriangle,
+  Calendar,
+  Clock,
+  User,
+  Wand2,
+  Ban,
+} from "lucide-react";
 import { useGlobalConflictStore } from "../../hooks/useGlobalConflictStore";
 import { START_TIME_MINUTES } from "../../data/scheduleGrid";
 
 interface ConflictDrawerProps {
   onClose: () => void;
+  onApplyResolution: (withCancellations: boolean) => void;
 }
 
 function formatTime(minutes: number) {
@@ -14,13 +23,25 @@ function formatTime(minutes: number) {
   return `${displayH}:${m === 0 ? "00" : m < 10 ? "0" + m : m} ${h >= 12 ? "PM" : "AM"}`;
 }
 
-export function ConflictDrawer({ onClose }: ConflictDrawerProps) {
+export function ConflictDrawer({
+  onClose,
+  onApplyResolution,
+}: ConflictDrawerProps) {
   const { isDrawerOpen, conflictPayload, clearConflict } =
     useGlobalConflictStore();
 
   if (!isDrawerOpen || !conflictPayload) return null;
 
   const isAssign = conflictPayload.attemptedAction === "assign";
+  const resolution = conflictPayload.resolution;
+  const canApplyUpdates =
+    !!conflictPayload.pendingDrag &&
+    !!resolution &&
+    resolution.updatedExistingAppointments.length > 0;
+  const canConfirmCancel =
+    !!conflictPayload.pendingDrag &&
+    !!resolution &&
+    (resolution.proposedCancelIds?.length ?? 0) > 0;
 
   const handleClose = () => {
     clearConflict();
@@ -37,12 +58,12 @@ export function ConflictDrawer({ onClose }: ConflictDrawerProps) {
             </div>
             <div>
               <h2 className="text-base font-semibold tracking-tight text-slate-900">
-                Time slot unavailable
+                Scheduling conflict
               </h2>
               <p className="mt-0.5 text-xs font-medium text-slate-500">
                 {isAssign
                   ? "Choose an empty slot for this pending request."
-                  : "This slot already has an appointment."}
+                  : "This drop overlaps existing appointments."}
               </p>
             </div>
           </div>
@@ -55,10 +76,11 @@ export function ConflictDrawer({ onClose }: ConflictDrawerProps) {
           </button>
         </div>
 
-        <div className="flex items-center gap-2 border-b border-amber-100 bg-amber-50/80 px-5 py-3 text-xs font-medium text-amber-900">
-          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+        <div className="flex items-start gap-2 border-b border-amber-100 bg-amber-50/80 px-5 py-3 text-xs font-medium text-amber-900">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
           <span>
-            Pick another time or move the conflicting appointment first.
+            {resolution?.message ||
+              "Pick another time or resolve the conflicting appointments."}
           </span>
         </div>
 
@@ -93,13 +115,39 @@ export function ConflictDrawer({ onClose }: ConflictDrawerProps) {
           ))}
         </div>
 
-        <div className="rounded-2xl border-t border-slate-200 bg-white p-4 shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
+        <div className="space-y-2 rounded-2xl border-t border-slate-200 bg-white p-4 shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
+          {canApplyUpdates && (
+            <button
+              type="button"
+              onClick={() => onApplyResolution(false)}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-xs font-semibold text-blue-700 transition-all hover:bg-blue-100 active:scale-98"
+            >
+              <Wand2 className="h-3.5 w-3.5" />
+              Apply auto-fix
+            </button>
+          )}
+          {canConfirmCancel && (
+            <button
+              type="button"
+              onClick={() => {
+                const ok = window.confirm(
+                  `Cancel ${resolution?.proposedCancelIds?.length ?? 0} conflicting appointment(s) and place yours? Patients will be notified when you save.`,
+                );
+                if (!ok) return;
+                onApplyResolution(true);
+              }}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-semibold text-red-700 transition-all hover:bg-red-100 active:scale-98"
+            >
+              <Ban className="h-3.5 w-3.5" />
+              Cancel conflicting & place mine
+            </button>
+          )}
           <button
             type="button"
             onClick={handleClose}
             className="flex w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 transition-all hover:bg-slate-50 active:scale-98"
           >
-            Got it
+            Keep looking
           </button>
         </div>
       </div>

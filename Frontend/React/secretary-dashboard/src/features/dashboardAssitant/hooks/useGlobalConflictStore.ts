@@ -1,4 +1,6 @@
 import { create } from "zustand";
+import type { AppointmentType } from "@/features/dashboardAssitant/types";
+import type { MultiResolutionResult } from "../components/SchedualeGrid/DNDGrid/utils/conflictResolve";
 
 export interface ConflictingItem {
   appointmentId: string;
@@ -12,6 +14,10 @@ export interface ConflictingItem {
 export interface ConflictPayload {
   conflictingItems: ConflictingItem[];
   attemptedAction: "move" | "assign";
+  /** Proposed drop for the dragged appointment (edit-mode local). */
+  pendingDrag?: AppointmentType;
+  /** Auto-mitigation proposal from conflictResolve. */
+  resolution?: MultiResolutionResult | null;
 }
 
 interface GlobalConflictStore {
