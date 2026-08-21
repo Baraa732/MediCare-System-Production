@@ -9,6 +9,7 @@ import {
   forgotPasswordSchema,
   type ForgotPasswordFormData,
 } from "../../schemas/forgotPasswordSchema";
+import { normalizeSyrianPhone, sanitizePhoneInput } from "@/lib/phone";
 
 export function ForgotPasswordForm({
   onSendResetCode,
@@ -18,6 +19,7 @@ export function ForgotPasswordForm({
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm<ForgotPasswordFormData>({
     resolver: zodResolver(forgotPasswordSchema),
@@ -25,7 +27,7 @@ export function ForgotPasswordForm({
   });
 
   const onSubmit = (data: ForgotPasswordFormData) => {
-    onSendResetCode(data.phoneNumber);
+    onSendResetCode(normalizeSyrianPhone(data.phoneNumber));
   };
 
   return (
@@ -44,8 +46,14 @@ export function ForgotPasswordForm({
           <input
             {...register("phoneNumber")}
             type="tel"
-            placeholder="Enter your phone number (e.g. +963912345680)"
+            inputMode="tel"
+            autoComplete="tel"
+            placeholder="Phone (09… or +963…)"
             disabled={isLoading}
+            onChange={(e) => {
+              const next = sanitizePhoneInput(e.target.value);
+              setValue("phoneNumber", next, { shouldValidate: true });
+            }}
             className={cn(
               "w-full px-4 py-3 font-inter text-[18px] border rounded-lg outline-hidden focus:ring-4 transition-all",
               errors.phoneNumber

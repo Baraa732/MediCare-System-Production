@@ -10,6 +10,11 @@ import { listAvailableSlots } from "@/lib/api/schedule";
 import { absoluteMinutesFromIso } from "@/lib/time/gridTime";
 import { useScheduleContext } from "../context/ScheduleContext";
 import { isAbsoluteSlotInPast } from "../utils/editModeDrag";
+import {
+  isValidSyrianPhone,
+  normalizeSyrianPhone,
+  sanitizePhoneInput,
+} from "@/lib/phone";
 
 export interface TreatmentOption {
   id: string;
@@ -248,15 +253,20 @@ export function useAppointmentWizard(
   }, [searchQuery, lookupPatients]);
 
   useEffect(() => {
-    const phone = formData.patientPhone.replace(/\D/g, "");
-    if (!accessToken || phone.length < 8) {
+    if (!accessToken || !isValidSyrianPhone(formData.patientPhone)) {
       setLookupPatients([]);
       return;
     }
 
     let cancelled = false;
     const timer = setTimeout(() => {
-      void lookupPatientByPhone(formData.patientPhone.trim(), accessToken)
+      let phone: string;
+      try {
+        phone = normalizeSyrianPhone(formData.patientPhone);
+      } catch {
+        return;
+      }
+      void lookupPatientByPhone(phone, accessToken)
         .then((result) => {
           if (cancelled) return;
           const name =
@@ -318,11 +328,16 @@ export function useAppointmentWizard(
       }
 
       if (field === "patientPhone") {
-        const cleanedPhone = (value as string).replace(/\s+/g, "");
+        const cleanedPhone = sanitizePhoneInput(value as string);
+        next.patientPhone = cleanedPhone;
         setIsDuplicatePhone(false);
         if (!cleanedPhone) {
           setLookupPatients([]);
         }
+      }
+
+      if (field === "patientAge") {
+        next.patientAge = String(value).replace(/\D/g, "").slice(0, 3);
       }
 
       return next;
@@ -430,11 +445,17 @@ export function useAppointmentWizard(
 
   const step2Errors = useMemo(() => {
     const ageValue = parseInt(formData.patientAge, 10);
+    const phone = formData.patientPhone.trim();
     return {
       nameEmpty: formData.patientName.trim().length === 0,
-      ageInvalid: isNaN(ageValue) || ageValue < 0 || ageValue > 120,
+      ageInvalid:
+        formData.patientAge.trim().length === 0 ||
+        isNaN(ageValue) ||
+        ageValue < 0 ||
+        ageValue > 120,
       genderEmpty: !formData.patientGender,
-      phoneEmpty: formData.patientPhone.trim().length < 7,
+      phoneEmpty: phone.length === 0,
+      phoneInvalid: phone.length > 0 && !isValidSyrianPhone(phone),
     };
   }, [formData, isDuplicatePhone]);
 

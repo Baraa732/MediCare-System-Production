@@ -16,6 +16,7 @@ interface Step2PatientInfoProps {
     ageInvalid: boolean;
     genderEmpty: boolean;
     phoneEmpty: boolean;
+    phoneInvalid: boolean;
   };
   isDuplicatePhone: boolean;
   viewOnlyMode?: boolean;
@@ -207,18 +208,28 @@ export function Step2PatientInfo({
         <div className="relative flex items-center">
           <input
             disabled={viewOnlyMode}
-            type="text"
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
             value={formData.patientPhone}
             onChange={(e) => handleFieldChange("patientPhone", e.target.value)}
-            placeholder="Patient phone number..."
+            placeholder="09… or +963…"
             className={`w-full bg-white border rounded-xl pl-3.5 pr-10 py-2.5 text-xs font-medium outline-none text-left transition-colors ${
               isDuplicatePhone
                 ? "border-violet-400 bg-violet-50/10 focus:border-violet-400"
-                : "border-neutral-200 focus:border-neutral-300"
+                : step2Errors.phoneInvalid ||
+                    (formData.patientPhone && step2Errors.phoneEmpty)
+                  ? "border-red-400 bg-red-50/10"
+                  : "border-neutral-200 focus:border-neutral-300"
             }`}
           />
           <Phone className="w-4 h-4 text-neutral-400 absolute right-3.5 pointer-events-none" />
         </div>
+        {step2Errors.phoneInvalid && (
+          <p className="text-[10px] font-bold text-red-600 mt-1.5">
+            Enter a valid Syrian number (09XXXXXXXX or +963XXXXXXXXX). Letters are not allowed.
+          </p>
+        )}
         {isDuplicatePhone && (
           <div className="flex items-center justify-end gap-1.5 text-violet-700 text-[10px] font-bold mt-1.5 bg-violet-50 border border-violet-200/50 p-2 rounded-lg animate-in fade-in duration-150">
             <span>A patient with this phone number already exists. You can still continue or book manually.</span>

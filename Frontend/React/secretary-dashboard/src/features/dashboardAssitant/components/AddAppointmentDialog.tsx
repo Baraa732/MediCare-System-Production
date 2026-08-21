@@ -11,6 +11,12 @@ import { Button } from "@/components/ui/button";
 import { createAppointment } from "@/lib/api/appointments";
 import { lookupPatientByPhone } from "@/lib/api/users";
 import { normalizeCaughtError } from "@/lib/api/errors";
+import {
+  isValidSyrianPhone,
+  normalizeSyrianPhone,
+  sanitizePhoneInput,
+  SYRIAN_PHONE_HINT,
+} from "@/lib/phone";
 import { formatSlotLabel, listAvailableSlots } from "@/lib/api/schedule";
 import {
   formatAbsoluteRangeLabel,
@@ -156,14 +162,20 @@ export function AddAppointmentDialog() {
       setLookupError("Enter the patient's phone number.");
       return;
     }
+    if (!isValidSyrianPhone(phoneNumber)) {
+      setLookupError(`Enter a valid Syrian phone number (${SYRIAN_PHONE_HINT}).`);
+      return;
+    }
 
     setIsLookingUp(true);
     setLookupError(null);
     setPatient(null);
 
     try {
-      const result = await lookupPatientByPhone(phoneNumber.trim(), accessToken);
+      const phone = normalizeSyrianPhone(phoneNumber);
+      const result = await lookupPatientByPhone(phone, accessToken);
       setPatient(result);
+      setPhoneNumber(phone);
       setPatientName(
         result.fullName || `${result.firstName ?? ""} ${result.lastName ?? ""}`.trim(),
       );
@@ -192,6 +204,10 @@ export function AddAppointmentDialog() {
       setSubmitError("Enter the patient's phone number.");
       return;
     }
+    if (!isValidSyrianPhone(phoneNumber)) {
+      setSubmitError(`Enter a valid Syrian phone number (${SYRIAN_PHONE_HINT}).`);
+      return;
+    }
     if (!doctorId) {
       setSubmitError("Select a doctor.");
       return;
@@ -215,13 +231,14 @@ export function AddAppointmentDialog() {
     setSubmitError(null);
 
     try {
+      const phone = normalizeSyrianPhone(phoneNumber);
       await createAppointment(
         {
           clinicId,
           doctorId,
           patientId: patient?.id,
           guestPatientName: patient ? undefined : patientName.trim(),
-          guestPatientPhone: patient ? undefined : phoneNumber.trim(),
+          guestPatientPhone: patient ? undefined : phone,
           scheduledAt,
           durationMinutes,
           reason: reason.trim() || undefined,
@@ -365,9 +382,15 @@ export function AddAppointmentDialog() {
             <div className="flex gap-2">
               <input
                 type="tel"
+                inputMode="tel"
+                autoComplete="tel"
                 value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                placeholder="+963..."
+                onChange={(e) => {
+                  setPhoneNumber(sanitizePhoneInput(e.target.value));
+                  setPatient(null);
+                  setLookupError(null);
+                }}
+                placeholder="09… or +963…"
                 className="input-modern flex-1 text-sm"
               />
               <Button

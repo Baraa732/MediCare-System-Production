@@ -5,6 +5,7 @@ import { useNavigate } from "react-router";
 import { signInSchema, type SignInFormValues } from "../schemas/loginSchema";
 import { isMfaRequired, login } from "@/lib/api/auth";
 import { toLoginErrorMessage } from "@/lib/api/errors";
+import { normalizeSyrianPhone } from "@/lib/phone";
 import { useAuthStore } from "@/stores/authStore";
 
 export function useSignIn() {
@@ -28,12 +29,13 @@ export function useSignIn() {
     setError(null);
 
     try {
-      const response = await login(data.phoneNumber, data.password);
+      const phoneNumber = normalizeSyrianPhone(data.phoneNumber);
+      const response = await login(phoneNumber, data.password);
 
       if (isMfaRequired(response)) {
         setPendingMfa({
           mfaToken: response.mfaToken,
-          phoneNumber: data.phoneNumber,
+          phoneNumber,
           requiresPasswordChange: response.requiresPasswordChange,
           clinicId: response.clinicId,
           userId: response.userId,

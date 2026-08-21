@@ -60,7 +60,7 @@ const MESSAGE_MAP: Record<string, string> = {
   "Please activate your dashboard before logging in":
     "Your account isn't activated yet. Use the activation link from your clinic administrator.",
   "One or more fields are invalid.":
-    "Please check your phone number format (e.g. +963912345680) and try again.",
+    "Some fields are invalid. Please check your input and try again.",
   "Bad gateway — upstream service unreachable":
     "We're having trouble connecting to the server. Please try again in a moment.",
   "Service temporarily unavailable. Please retry in a moment.":

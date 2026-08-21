@@ -1,11 +1,14 @@
-// src/features/auth/schemas/auth.schema.ts
+// src/features/auth/schemas/loginSchema.ts
 import { z } from "zod";
+import { isValidSyrianPhone, SYRIAN_PHONE_HINT } from "@/lib/phone";
 
 export const signInSchema = z.object({
   phoneNumber: z
     .string()
     .min(1, "Phone number is required")
-    .regex(/^\+?[1-9]\d{7,14}$/, "Enter a valid phone number (e.g. +963912345680)"),
+    .refine(isValidSyrianPhone, {
+      message: `Enter a valid Syrian phone number (${SYRIAN_PHONE_HINT})`,
+    }),
   password: z.string().min(6, "Password must be at least 6 characters long"),
   rememberMe: z.boolean().default(false),
 });

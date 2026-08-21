@@ -10,6 +10,7 @@ export  function SignInForm() {
 
   const {
     register,
+    setValue,
     formState: { errors },
   } = form;
 
@@ -31,9 +32,15 @@ export  function SignInForm() {
               {...register("phoneNumber")}
               type="tel"
               id="phoneNumber"
-              placeholder="Enter your phone number (e.g. +963912345680)"
+              placeholder="Phone (09… or +963…)"
+              inputMode="tel"
+              autoComplete="tel"
               disabled={isLoading}
               aria-invalid={errors.phoneNumber || errorAPI ? "true" : "false"}
+              onChange={(e) => {
+                const next = e.target.value.replace(/[^\d+]/g, "");
+                setValue("phoneNumber", next, { shouldValidate: true });
+              }}
               className={cn(
                 "w-full px-4 py-3  font-inter font-normal text-[18px] leading-0 tracking-[1.5] text-[#1A1B1E] placeholder:text-neutral-400 bg-white border rounded-lg outline-hidden focus:ring-4 transition-all duration-200",
                 errors.phoneNumber || errorAPI

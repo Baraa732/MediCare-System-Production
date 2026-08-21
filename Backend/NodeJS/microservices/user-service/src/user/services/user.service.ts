@@ -622,11 +622,33 @@ export class UserService {
   }
 
   async findByPhoneNumber(phoneNumber: string): Promise<User> {
-    const user = await this.userRepository.findOne({ where: { phoneNumber } });
-    if (!user) {
-      throw new NotFoundException('User not found');
+    const candidates = this.phoneLookupCandidates(phoneNumber);
+    for (const candidate of candidates) {
+      const user = await this.userRepository.findOne({ where: { phoneNumber: candidate } });
+      if (user) return user;
     }
-    return user;
+    throw new NotFoundException('User not found');
+  }
+
+  /** Accept +963 / 09… / 9… when looking up stored E.164 numbers. */
+  private phoneLookupCandidates(raw: string): string[] {
+    const digits = String(raw ?? '').replace(/\D/g, '');
+    const out = new Set<string>();
+    if (raw?.trim()) out.add(raw.trim());
+    if (digits) out.add(digits);
+
+    let e164: string | null = null;
+    if (digits.startsWith('963') && digits.length === 12) e164 = `+${digits}`;
+    else if (digits.startsWith('0') && digits.length === 10) e164 = `+963${digits.slice(1)}`;
+    else if (digits.length === 9 && digits.startsWith('9')) e164 = `+963${digits}`;
+
+    if (e164) {
+      out.add(e164);
+      out.add(e164.slice(1));
+      out.add(`0${e164.slice(4)}`);
+    }
+
+    return [...out];
   }
 
   private sanitizeProfileData(

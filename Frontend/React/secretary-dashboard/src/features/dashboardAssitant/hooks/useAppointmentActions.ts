@@ -10,6 +10,7 @@ import {
   scheduledAtFromGridMinutes,
   encodeAppointmentNotes,
 } from "@/lib/api/mappers";
+import { normalizeSyrianPhone } from "@/lib/phone";
 import { useAuthStore } from "@/stores/authStore";
 import { useScheduleContext } from "../context/ScheduleContext";
 import { useHandleDatePicker } from "./useHandleDatePicker";
@@ -161,8 +162,18 @@ export function useAppointmentActions() {
           accessToken,
         );
       } else {
-        const phone = wizardData.patientPhone.trim();
+        let phone: string;
+        try {
+          phone = normalizeSyrianPhone(wizardData.patientPhone);
+        } catch {
+          throw new Error(
+            "Enter a valid Syrian phone number (09… or +963…).",
+          );
+        }
         const name = wizardData.patientName.trim();
+        if (!name) {
+          throw new Error("Enter the patient's name.");
+        }
         let patientId: string | undefined;
 
         try {

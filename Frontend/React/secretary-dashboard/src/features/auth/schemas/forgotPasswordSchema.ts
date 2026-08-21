@@ -1,10 +1,13 @@
 import z from "zod";
+import { isValidSyrianPhone, SYRIAN_PHONE_HINT } from "@/lib/phone";
 
 export const forgotPasswordSchema = z.object({
   phoneNumber: z
     .string()
     .min(1, { message: "Phone number is required" })
-    .regex(/^\+?[1-9]\d{7,14}$/, "Enter a valid phone number (e.g. +963912345680)"),
+    .refine(isValidSyrianPhone, {
+      message: `Enter a valid Syrian phone number (${SYRIAN_PHONE_HINT})`,
+    }),
 });
 
 export type ForgotPasswordFormData = z.infer<typeof forgotPasswordSchema>;
@@ -40,4 +43,6 @@ export const forgotPasswordVerifySchema = z
     path: ["confirmPassword"],
   });
 
-export type ForgotPasswordVerifyFormData = z.infer<typeof forgotPasswordVerifySchema>;
+export type ForgotPasswordVerifyFormData = z.infer<
+  typeof forgotPasswordVerifySchema
+>;
