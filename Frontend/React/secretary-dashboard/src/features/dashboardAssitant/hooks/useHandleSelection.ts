@@ -10,6 +10,7 @@ import {
   slotRangeDurationMinutes,
 } from "@/lib/time/gridTime";
 import { isGridSlotInPast, isClinicDateBeforeToday } from "../utils/editModeDrag";
+import { isGridRangeOutsideClinicHours } from "../utils/clinicHours";
 
 interface HandleSelectionState {
   selection: SelectionType;
@@ -70,6 +71,14 @@ export const useHandleSelection = create<HandleSelectionState>((set) => {
           if (isGridSlotInPast(minSlot * ROW_MINUTES, date)) {
             return { selection: null };
           }
+          const startMinutes = minSlot * ROW_MINUTES;
+          const endMinutes = (maxSlot + 1) * ROW_MINUTES;
+          const hours = useScheduleGridStore.getState().clinicHours;
+          if (
+            isGridRangeOutsideClinicHours(startMinutes, endMinutes, date, hours)
+          ) {
+            return { selection: null };
+          }
           const duration = slotRangeDurationMinutes(minSlot, maxSlot);
           const doctor = useScheduleGridStore
             .getState()
@@ -96,6 +105,17 @@ export const useHandleSelection = create<HandleSelectionState>((set) => {
       const date = useHandleDatePicker.getState().date;
       if (isClinicDateBeforeToday(date)) return;
       if (isGridSlotInPast(slotIdx * ROW_MINUTES, date)) return;
+      const hours = useScheduleGridStore.getState().clinicHours;
+      if (
+        isGridRangeOutsideClinicHours(
+          slotIdx * ROW_MINUTES,
+          (slotIdx + 1) * ROW_MINUTES,
+          date,
+          hours,
+        )
+      ) {
+        return;
+      }
       set({
         isSelecting: true,
         selection: { docId: idDoctor, startSlot: slotIdx, endSlot: slotIdx },
@@ -120,6 +140,17 @@ export const useHandleSelection = create<HandleSelectionState>((set) => {
 
         const targetStartMinutes = potentialMinSlot * ROW_MINUTES;
         const targetEndMinutes = (potentialMaxSlot + 1) * ROW_MINUTES;
+        const hours = useScheduleGridStore.getState().clinicHours;
+        if (
+          isGridRangeOutsideClinicHours(
+            targetStartMinutes,
+            targetEndMinutes,
+            date,
+            hours,
+          )
+        ) {
+          return {};
+        }
 
         if (
           !isTimeRangeOccupied(idDoctor, targetStartMinutes, targetEndMinutes)

@@ -7,6 +7,20 @@ export function dateKey(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
+export interface ClinicHoursDay {
+  dayOfWeek: number;
+  openTime: string;
+  closeTime: string;
+  isClosed?: boolean;
+}
+
+export function getClinicHours(clinicId: string, token: string) {
+  return apiRequest<{ success: boolean; hours: ClinicHoursDay[] }>(
+    `/schedule/clinics/${clinicId}/hours`,
+    { token },
+  );
+}
+
 export function listAvailableSlots(
   query: {
     clinicId: string;

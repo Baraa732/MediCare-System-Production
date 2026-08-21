@@ -31,6 +31,7 @@ import { useScheduleGridStore } from "@/features/dashboardAssitant/hooks/schedul
 import { hasSchedulingConflict } from "../utils/conflictValidator";
 import { resolveAppointmentConflict } from "../utils/conflictResolve";
 import { isGridSlotInPast } from "@/features/dashboardAssitant/utils/editModeDrag";
+import { isGridRangeOutsideClinicHours } from "@/features/dashboardAssitant/utils/clinicHours";
 import { updateAppointmentStatus } from "@/lib/api/appointments";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -153,6 +154,7 @@ export function useDragHandlers() {
   const { persistGridUpdates } = useAppointmentActions();
   const accessToken = useAuthStore((s) => s.accessToken);
   const filters = useScheduleGridStore((s) => s.filters);
+  const clinicHours = useScheduleGridStore((s) => s.clinicHours);
   const isEditMode = useEditeMode((state) => state.isEditMode);
   const onToggleEdit = useEditeMode((state) => state.onToggleEdit);
 
@@ -355,6 +357,19 @@ export function useDragHandlers() {
       const targetStart = targetSlotIdx * ROW_MINUTES;
       const targetEnd = targetStart + duration;
 
+      if (
+        isGridRangeOutsideClinicHours(
+          targetStart,
+          targetEnd,
+          selectedDate,
+          clinicHours,
+        )
+      ) {
+        setOverSlotInfo(null);
+        setConflict(null);
+        return;
+      }
+
       setOverSlotInfo({
         docId: targetDoctorId,
         slotIdx: targetSlotIdx,
@@ -394,6 +409,8 @@ export function useDragHandlers() {
       activeType,
       activeData,
       doctors,
+      selectedDate,
+      clinicHours,
       setConflict,
       getDragDuration,
     ],
@@ -477,6 +494,18 @@ export function useDragHandlers() {
       const board = workingDoctorsRef.current;
 
       if (
+        isGridRangeOutsideClinicHours(
+          newStart,
+          newEnd,
+          selectedDate,
+          clinicHours,
+        )
+      ) {
+        // Appointment must fit entirely within clinic open hours.
+        return;
+      }
+
+      if (
         hasSchedulingConflict(
           newStart,
           newEnd,
@@ -494,6 +523,7 @@ export function useDragHandlers() {
         const resolution = resolveAppointmentConflict(pendingDrag, board, {
           selectedDate,
           preferSameSpecialty: true,
+          clinicHours,
         });
 
         if (
@@ -544,6 +574,7 @@ export function useDragHandlers() {
       isEditMode,
       executeMove,
       selectedDate,
+      clinicHours,
       setConflict,
       setDrawerOpen,
       applyConflictResolution,

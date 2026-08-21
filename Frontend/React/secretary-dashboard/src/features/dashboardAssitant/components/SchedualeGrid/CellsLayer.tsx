@@ -4,6 +4,7 @@ import type { AppointmentType } from "../../types";
 import { useDroppable } from "@dnd-kit/core";
 import { useScheduleContext } from "../../context/ScheduleContext";
 import { isGridSlotInPast } from "../../utils/editModeDrag";
+import { isGridSlotOutsideClinicHours } from "../../utils/clinicHours";
 import { cn } from "@/lib/utils";
 
 interface GridCellProps {
@@ -11,7 +12,8 @@ interface GridCellProps {
   idDoctor: string;
   isOccupied: boolean;
   isEditMode: boolean;
-  isPast: boolean;
+  isUnavailable: boolean;
+  unavailableReason?: string;
   onMouseDown: (
     e: React.MouseEvent<HTMLDivElement, MouseEvent>,
     data: { idDoctor: string; isEditMode: boolean; slotIdx: number },
@@ -24,12 +26,13 @@ function GridCell({
   idDoctor,
   isOccupied,
   isEditMode,
-  isPast,
+  isUnavailable,
+  unavailableReason,
   onMouseDown,
   onMouseEnter,
 }: GridCellProps) {
   const slotMinutesStart = slotIdx * ROW_MINUTES;
-  const dropDisabled = !isEditMode || isPast;
+  const dropDisabled = !isEditMode || isUnavailable;
 
   const { setNodeRef, isOver, active } = useDroppable({
     id: `slot-${idDoctor}-${slotIdx}`,
@@ -38,7 +41,7 @@ function GridCell({
       idDoctor,
       slotIdx,
       timeStart: slotMinutesStart,
-      isPast,
+      isUnavailable,
     },
     disabled: dropDisabled,
   });
@@ -47,29 +50,28 @@ function GridCell({
     return <div style={{ height: SLOT_HEIGHT }} />;
   }
 
-  // Only grid appointments may be dropped onto slots (not sidebar pending requests).
   const isValidIncomingType =
-    !isPast && active?.data.current?.type === "appointment";
+    !isUnavailable && active?.data.current?.type === "appointment";
 
   return (
     <div
       ref={setNodeRef}
       style={{ height: SLOT_HEIGHT }}
       onMouseDown={(e) => {
-        if (isPast) return;
+        if (isUnavailable) return;
         onMouseDown(e, { idDoctor, isEditMode, slotIdx });
       }}
       onMouseEnter={() => {
-        if (isPast) return;
+        if (isUnavailable) return;
         onMouseEnter({ idDoctor, slotIdx });
       }}
       className={cn(
         "relative w-full h-full border-b border-transparent transition-colors duration-150",
-        isPast
+        isUnavailable
           ? "cursor-not-allowed bg-neutral-50/70"
           : "cursor-crosshair group",
       )}
-      title={isPast ? "Past time — not available" : undefined}
+      title={isUnavailable ? unavailableReason : undefined}
     >
       {isOver && isEditMode && isValidIncomingType && (
         <div className="absolute inset-x-2 inset-y-1 z-30 flex animate-pulse items-center justify-center rounded-xl border-2 border-dashed border-orange-400 bg-orange-50/70 transition-all">
@@ -79,11 +81,11 @@ function GridCell({
         </div>
       )}
 
-      {!isOver && !isPast && (
+      {!isOver && !isUnavailable && (
         <div className="absolute inset-x-3 inset-y-1 hidden rounded-xl border border-dashed border-[#0066ff]/30 bg-blue-50/40 transition-all group-hover:flex" />
       )}
 
-      {isPast && !isOccupied ? (
+      {isUnavailable && !isOccupied ? (
         <div className="pointer-events-none absolute inset-x-2 inset-y-1 rounded-lg bg-neutral-100/50" />
       ) : null}
     </div>
@@ -100,7 +102,7 @@ export function CellsLayer({
   const onMouseDown = useHandleSelection((state) => state.onMouseDown);
   const onMouseEnter = useHandleSelection((state) => state.onMouseEnter);
   const isEditMode = useEditeMode((state) => state.isEditMode);
-  const selectedDate = useScheduleContext().selectedDate;
+  const { selectedDate, clinicHours } = useScheduleContext();
 
   return (
     <>
@@ -110,6 +112,18 @@ export function CellsLayer({
           (a) => slotMinutesStart >= a.start && slotMinutesStart < a.end,
         );
         const isPast = isGridSlotInPast(slotMinutesStart, selectedDate);
+        const isOutsideHours = isGridSlotOutsideClinicHours(
+          slotMinutesStart,
+          selectedDate,
+          clinicHours,
+          ROW_MINUTES,
+        );
+        const isUnavailable = isPast || isOutsideHours;
+        const unavailableReason = isPast
+          ? "Past time — not available"
+          : isOutsideHours
+            ? "Outside clinic open hours"
+            : undefined;
 
         return (
           <GridCell
@@ -118,7 +132,8 @@ export function CellsLayer({
             idDoctor={idDoctor}
             isOccupied={isOccupied}
             isEditMode={isEditMode}
-            isPast={isPast}
+            isUnavailable={isUnavailable}
+            unavailableReason={unavailableReason}
             onMouseDown={onMouseDown}
             onMouseEnter={onMouseEnter}
           />

@@ -1,8 +1,10 @@
 import { TOTAL_SLOTS, ROW_MINUTES } from "@/features/dashboardAssitant/data/scheduleGrid";
 import type { DoctorType, AppointmentType } from "@/features/dashboardAssitant/types";
 import { clinicNowGridMinutes } from "@/features/dashboardAssitant/utils/editModeDrag";
+import { isGridRangeOutsideClinicHours } from "@/features/dashboardAssitant/utils/clinicHours";
 import { normalizeAppointmentStatus } from "@/features/dashboardAssitant/utils/appointmentStatusStyles";
 import { hasSchedulingConflict } from "./conflictValidator";
+import type { ClinicHoursDay } from "@/lib/api/schedule";
 
 const MAX_GRID_MINUTES = TOTAL_SLOTS * ROW_MINUTES;
 const SAFETY_BUFFER_MINUTES = 15;
@@ -35,6 +37,7 @@ export interface MultiResolutionResult {
 export interface ResolveConflictOptions {
   selectedDate?: Date;
   preferSameSpecialty?: boolean;
+  clinicHours?: ClinicHoursDay[];
 }
 
 function patientLabel(apt: AppointmentType): string {
@@ -176,11 +179,22 @@ function canShiftAppointment(
   allDoctors: DoctorType[],
   ignoreIds: Set<string>,
   selectedDate?: Date,
+  clinicHours?: ClinicHoursDay[],
 ): boolean {
   if (shiftedEnd > MAX_GRID_MINUTES || shiftedStart < 0) return false;
   if (selectedDate) {
     const nowGrid = clinicNowGridMinutes(selectedDate);
     if (Number.isFinite(nowGrid) && shiftedStart < nowGrid) return false;
+    if (
+      isGridRangeOutsideClinicHours(
+        shiftedStart,
+        shiftedEnd,
+        selectedDate,
+        clinicHours,
+      )
+    ) {
+      return false;
+    }
   }
   const simulated = boardWithoutIds(allDoctors, ignoreIds);
   return !hasSchedulingConflict(
@@ -197,6 +211,7 @@ function tryShiftChain(
   chain: AppointmentType[],
   allDoctors: DoctorType[],
   selectedDate?: Date,
+  clinicHours?: ClinicHoursDay[],
 ): AppointmentType[] | null {
   const sorted = [...chain].sort((a, b) => a.start - b.start);
   let cursor = draggedApt.end;
@@ -216,6 +231,7 @@ function tryShiftChain(
         allDoctors,
         ignore,
         selectedDate,
+        clinicHours,
       )
     ) {
       return null;
@@ -237,6 +253,7 @@ function handleSingleConflict(
   allDoctors: DoctorType[],
   preferSameSpecialty: boolean,
   selectedDate?: Date,
+  clinicHours?: ClinicHoursDay[],
 ): MultiResolutionResult {
   const durationA = Math.max(aptA.end - aptA.start, ROW_MINUTES);
   const shiftedStart = draggedApt.end;
@@ -252,6 +269,7 @@ function handleSingleConflict(
       allDoctors,
       ignore,
       selectedDate,
+      clinicHours,
     )
   ) {
     const updated = {
@@ -334,12 +352,14 @@ function handleMultiConflict(
   allDoctors: DoctorType[],
   preferSameSpecialty: boolean,
   selectedDate?: Date,
+  clinicHours?: ClinicHoursDay[],
 ): MultiResolutionResult {
   const fullShift = tryShiftChain(
     draggedApt,
     affectedChain,
     allDoctors,
     selectedDate,
+    clinicHours,
   );
   if (fullShift) {
     return {
@@ -402,6 +422,7 @@ function handleMultiConflict(
     remaining,
     boardAfterTransfers,
     selectedDate,
+    clinicHours,
   );
 
   if (shiftedRemaining) {
@@ -530,6 +551,7 @@ export function resolveAppointmentConflict(
       allDoctors,
       preferSameSpecialty,
       options.selectedDate,
+      options.clinicHours,
     );
   }
 
@@ -539,5 +561,6 @@ export function resolveAppointmentConflict(
     allDoctors,
     preferSameSpecialty,
     options.selectedDate,
+    options.clinicHours,
   );
 }

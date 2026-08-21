@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { listAppointments } from "@/lib/api/appointments";
 import { listDoctors, listMyClinics } from "@/lib/api/clinics";
+import { getClinicHours, type ClinicHoursDay } from "@/lib/api/schedule";
 import { normalizeCaughtError } from "@/lib/api/errors";
 import {
   dayRangeIso,
@@ -33,6 +34,7 @@ export function useScheduleData(selectedDate = new Date()) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [clinicName, setClinicName] = useState<string | undefined>();
+  const [clinicHours, setClinicHours] = useState<ClinicHoursDay[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
 
   const refetch = useCallback(() => setRefreshKey((k) => k + 1), []);
@@ -108,9 +110,13 @@ export function useScheduleData(selectedDate = new Date()) {
 
       try {
         const { from, to } = dayRangeIso(selectedDate);
-        const [doctorRes, appointmentRes] = await Promise.all([
+        const [doctorRes, appointmentRes, hoursRes] = await Promise.all([
           listDoctors(clinicId!, accessToken!),
           listAppointments({ clinicId: clinicId!, from, to }, accessToken!),
+          getClinicHours(clinicId!, accessToken!).catch(() => ({
+            success: false as const,
+            hours: [] as ClinicHoursDay[],
+          })),
         ]);
 
         if (cancelled) return;
@@ -132,6 +138,7 @@ export function useScheduleData(selectedDate = new Date()) {
 
         setDoctors(mappedDoctors);
         setAppointments(activeAppointments);
+        setClinicHours(hoursRes.hours ?? []);
       } catch (err) {
         if (!cancelled) {
           setError(
@@ -173,5 +180,14 @@ export function useScheduleData(selectedDate = new Date()) {
     return () => clearTimeout(timeout);
   }, [accessToken, clinicId, resolvingClinic]);
 
-  return { doctors, appointments, loading, error, clinicId, clinicName, refetch };
+  return {
+    doctors,
+    appointments,
+    loading,
+    error,
+    clinicId,
+    clinicName,
+    clinicHours,
+    refetch,
+  };
 }
