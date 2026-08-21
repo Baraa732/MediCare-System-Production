@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { DoctorWithAppointments } from "./useScheduleData";
+import type { DoctorWithAppointments } from "../types/DoctorWithAppointments";
 import type { ClinicHoursDay, ScheduleBlock } from "@/lib/api/schedule";
 import {
   DEFAULT_SCHEDULE_FILTERS,

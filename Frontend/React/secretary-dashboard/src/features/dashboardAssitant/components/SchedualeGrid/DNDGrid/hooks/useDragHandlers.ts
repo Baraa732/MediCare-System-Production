@@ -175,7 +175,7 @@ export function useDragHandlers() {
   const {
     doctors: scheduleDoctors,
     selectedDate,
-    refetch: refetchSchedule,
+    softRefetch,
   } = useScheduleContext();
   const { persistGridUpdates } = useAppointmentActions();
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -745,7 +745,7 @@ export function useDragHandlers() {
       );
       // Resync from server after partial failure so slots match reality.
       try {
-        await refetchSchedule();
+        await softRefetch();
       } catch {
         /* ignore refetch errors */
       }
@@ -757,7 +757,7 @@ export function useDragHandlers() {
     onToggleEdit,
     persistGridUpdates,
     accessToken,
-    refetchSchedule,
+    softRefetch,
   ]);
 
   const requestExitEditMode = useCallback(() => {

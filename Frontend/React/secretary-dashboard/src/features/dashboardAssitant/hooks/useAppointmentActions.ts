@@ -11,10 +11,12 @@ import {
   encodeAppointmentNotes,
 } from "@/lib/api/mappers";
 import { normalizeSyrianPhone } from "@/lib/phone";
+import { emitStaffRealtime } from "@/lib/realtimeEvents";
 import { useAuthStore } from "@/stores/authStore";
 import { useScheduleContext } from "../context/ScheduleContext";
 import { useHandleDatePicker } from "./useHandleDatePicker";
 import type { AppointmentType } from "../types";
+import type { EnrichedAppointment } from "@/lib/api/types";
 import {
   TREATMENT_OPTIONS,
   type WizardFormData,
@@ -27,10 +29,38 @@ export function isApiAppointmentId(id: string) {
   return UUID_RE.test(id);
 }
 
+function publishAppointment(appointment: EnrichedAppointment) {
+  emitStaffRealtime({
+    source: "local-mutation",
+    action: "upsert",
+    appointmentId: appointment.id,
+    appointment,
+    category: appointment.status === "REQUESTED" ? "APPOINTMENT_REQUEST" : "APPOINTMENT",
+  });
+}
+
 export function useAppointmentActions() {
-  const { refetch, selectedDate, clinicId } = useScheduleContext();
+  const {
+    softRefetch,
+    applyAppointmentLocally,
+    selectedDate,
+    clinicId,
+    refetch,
+  } = useScheduleContext();
   const accessToken = useAuthStore((s) => s.accessToken);
   const changeDate = useHandleDatePicker((s) => s.handleChangeDate);
+
+  const syncLocalAndBackground = useCallback(
+    (appointment?: EnrichedAppointment | null) => {
+      if (appointment) {
+        applyAppointmentLocally(appointment);
+        publishAppointment(appointment);
+      }
+      // Confirm with server in background — do not block UI.
+      void softRefetch();
+    },
+    [applyAppointmentLocally, softRefetch],
+  );
 
   const persistGridUpdate = useCallback(
     async (updatedApt: AppointmentType, options?: { skipRefetch?: boolean }) => {
@@ -38,7 +68,7 @@ export function useAppointmentActions() {
         return;
       }
 
-      await updateAppointment(
+      const res = await updateAppointment(
         updatedApt.id,
         {
           doctorId: updatedApt.docId,
@@ -56,13 +86,13 @@ export function useAppointmentActions() {
         accessToken,
       );
       if (!options?.skipRefetch) {
-        refetch();
+        syncLocalAndBackground(res.appointment);
       }
     },
-    [accessToken, refetch, selectedDate],
+    [accessToken, selectedDate, syncLocalAndBackground],
   );
 
-  /** Persist many edit-mode moves, then refetch once. Each update emits APPOINTMENT_UPDATED notifications. */
+  /** Persist many edit-mode moves, then soft-sync once. */
   const persistGridUpdates = useCallback(
     async (updatedApts: AppointmentType[]) => {
       if (!accessToken) {
@@ -70,14 +100,14 @@ export function useAppointmentActions() {
       }
 
       const apiApts = updatedApts.filter((a) => isApiAppointmentId(a.id));
-      // Vacate earlier / lower starts first so chain shifts don't fight each other.
       const ordered = [...apiApts].sort(
         (a, b) => a.docId.localeCompare(b.docId) || a.start - b.start,
       );
       const batchExcludeIds = ordered.map((a) => a.id);
 
+      let last: EnrichedAppointment | undefined;
       for (const apt of ordered) {
-        await updateAppointment(
+        const res = await updateAppointment(
           apt.id,
           {
             doctorId: apt.docId,
@@ -92,10 +122,19 @@ export function useAppointmentActions() {
           },
           accessToken,
         );
+        if (res.appointment) {
+          applyAppointmentLocally(res.appointment);
+          last = res.appointment;
+        }
       }
-      refetch();
+      if (last) {
+        publishAppointment(last);
+      } else {
+        emitStaffRealtime({ source: "local-mutation", action: "refresh" });
+      }
+      void softRefetch();
     },
-    [accessToken, refetch, selectedDate],
+    [accessToken, applyAppointmentLocally, selectedDate, softRefetch],
   );
 
   const saveWizardAppointment = useCallback(
@@ -132,6 +171,8 @@ export function useAppointmentActions() {
         refuseTransfer: wizardData.isLockedToDoctor,
       });
 
+      let saved: EnrichedAppointment | undefined;
+
       if (options.pendingRequestId && isApiAppointmentId(options.pendingRequestId)) {
         await updateAppointment(
           options.pendingRequestId,
@@ -144,13 +185,14 @@ export function useAppointmentActions() {
           },
           accessToken,
         );
-        await updateAppointmentStatus(
+        const statusRes = await updateAppointmentStatus(
           options.pendingRequestId,
           { status: "CONFIRMED" },
           accessToken,
         );
+        saved = statusRes.appointment;
       } else if (options.editingId && isApiAppointmentId(options.editingId)) {
-        await updateAppointment(
+        const res = await updateAppointment(
           options.editingId,
           {
             doctorId: wizardData.doctorId,
@@ -161,6 +203,7 @@ export function useAppointmentActions() {
           },
           accessToken,
         );
+        saved = res.appointment;
       } else {
         let phone: string;
         try {
@@ -183,7 +226,7 @@ export function useAppointmentActions() {
           patientId = undefined;
         }
 
-        await createAppointment(
+        const res = await createAppointment(
           {
             clinicId,
             doctorId: wizardData.doctorId,
@@ -200,13 +243,31 @@ export function useAppointmentActions() {
           },
           accessToken,
         );
+        saved = res.appointment
+          ? {
+              ...res.appointment,
+              patientName:
+                res.appointment.patientName ??
+                (patientId ? name : res.appointment.guestPatientName) ??
+                name,
+              patientPhone:
+                res.appointment.patientPhone ??
+                (patientId ? phone : res.appointment.guestPatientPhone) ??
+                phone,
+            }
+          : undefined;
       }
 
-      // Jump the schedule grid to the booked day so the new card is visible.
+      // Show on grid immediately for the booked day.
       changeDate(bookingDate);
-      refetch();
+      syncLocalAndBackground(saved);
     },
-    [accessToken, changeDate, clinicId, refetch, selectedDate],
+    [
+      accessToken,
+      changeDate,
+      clinicId,
+      syncLocalAndBackground,
+    ],
   );
 
   return {
@@ -214,5 +275,6 @@ export function useAppointmentActions() {
     persistGridUpdates,
     saveWizardAppointment,
     refetch,
+    softRefetch,
   };
 }

@@ -43,7 +43,7 @@ export function AppointmentDetailDrawer() {
   const appointmentId = useAppointmentDrawer((s) => s.appointmentId);
   const close = useAppointmentDrawer((s) => s.close);
   const accessToken = useAuthStore((s) => s.accessToken);
-  const { refetch } = useScheduleContext();
+  const { softRefetch, applyAppointmentLocally } = useScheduleContext();
 
   const [appointment, setAppointment] = useState<EnrichedAppointment | null>(
     null,
@@ -133,7 +133,8 @@ export function AppointmentDetailDrawer() {
       );
       setAppointment(res.appointment);
       setNotes((res.appointment.notes ?? "").slice(0, GRID_NOTE_MAX_LENGTH));
-      refetch();
+      applyAppointmentLocally(res.appointment);
+      void softRefetch();
     } catch (err) {
       setError(normalizeCaughtError(err, "Could not save note."));
     } finally {
@@ -154,14 +155,16 @@ export function AppointmentDetailDrawer() {
           accessToken,
           cancelReason.trim() || undefined,
         );
+        applyAppointmentLocally({ ...appointment, status: "CANCELLED" });
       } else {
-        await updateAppointmentStatus(
+        const res = await updateAppointmentStatus(
           appointment.id,
           { status },
           accessToken,
         );
+        if (res.appointment) applyAppointmentLocally(res.appointment);
       }
-      refetch();
+      void softRefetch();
       close();
     } catch (err) {
       setError(

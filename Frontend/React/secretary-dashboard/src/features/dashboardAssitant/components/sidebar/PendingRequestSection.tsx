@@ -15,6 +15,7 @@ import {
 } from "@/lib/api/appointments";
 import { isApiAppointmentId } from "../../hooks/useAppointmentActions";
 import { normalizeCaughtError } from "@/lib/api/errors";
+import { emitStaffRealtime } from "@/lib/realtimeEvents";
 import { pendingRequestMatchesFilters } from "../../utils/scheduleFilters";
 
 export function PendingRequestSection() {
@@ -96,7 +97,7 @@ function PendingRequestCard({
     (s) => s.onRemovePendingRequest,
   );
   const accessToken = useAuthStore((s) => s.accessToken);
-  const { refetch } = useScheduleContext();
+  const { softRefetch, applyAppointmentLocally } = useScheduleContext();
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -105,9 +106,22 @@ function PendingRequestCard({
     setBusy(true);
     setActionError(null);
     try {
-      await updateAppointmentStatus(item.id, { status: "CONFIRMED" }, accessToken);
+      const res = await updateAppointmentStatus(
+        item.id,
+        { status: "CONFIRMED" },
+        accessToken,
+      );
       onRemovePendingRequest(item.id);
-      refetch();
+      if (res.appointment) {
+        applyAppointmentLocally(res.appointment);
+        emitStaffRealtime({
+          source: "local-mutation",
+          action: "upsert",
+          appointmentId: res.appointment.id,
+          appointment: res.appointment,
+        });
+      }
+      void softRefetch();
     } catch (err) {
       setActionError(
         normalizeCaughtError(err, "Could not confirm this request."),
@@ -124,7 +138,12 @@ function PendingRequestCard({
     try {
       await cancelAppointment(item.id, accessToken, "Declined by secretary");
       onRemovePendingRequest(item.id);
-      refetch();
+      emitStaffRealtime({
+        source: "local-mutation",
+        action: "remove",
+        appointmentId: item.id,
+      });
+      void softRefetch();
     } catch (err) {
       setActionError(
         normalizeCaughtError(err, "Could not decline this request."),

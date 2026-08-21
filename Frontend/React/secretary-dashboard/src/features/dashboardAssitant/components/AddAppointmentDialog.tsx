@@ -17,6 +17,7 @@ import {
   sanitizePhoneInput,
   SYRIAN_PHONE_HINT,
 } from "@/lib/phone";
+import { emitStaffRealtime } from "@/lib/realtimeEvents";
 import { formatSlotLabel, listAvailableSlots } from "@/lib/api/schedule";
 import {
   formatAbsoluteRangeLabel,
@@ -39,7 +40,8 @@ export function AddAppointmentDialog() {
   const closeDialog = useAppointmentDialog((s) => s.closeDialog);
 
   const accessToken = useAuthStore((s) => s.accessToken);
-  const { doctors, selectedDate, refetch, clinicId } = useScheduleContext();
+  const { doctors, selectedDate, softRefetch, applyAppointmentLocally, clinicId } =
+    useScheduleContext();
 
   const [phoneNumber, setPhoneNumber] = useState("");
   const [patientName, setPatientName] = useState("");
@@ -232,7 +234,7 @@ export function AddAppointmentDialog() {
 
     try {
       const phone = normalizeSyrianPhone(phoneNumber);
-      await createAppointment(
+      const res = await createAppointment(
         {
           clinicId,
           doctorId,
@@ -246,7 +248,29 @@ export function AddAppointmentDialog() {
         accessToken,
       );
 
-      refetch();
+      if (res.appointment) {
+        const enriched = {
+          ...res.appointment,
+          patientName:
+            res.appointment.patientName ??
+            patient?.fullName ??
+            patientName.trim() ??
+            res.appointment.guestPatientName ??
+            undefined,
+          patientPhone:
+            res.appointment.patientPhone ??
+            patient?.phoneNumber ??
+            phone,
+        };
+        applyAppointmentLocally(enriched);
+        emitStaffRealtime({
+          source: "local-mutation",
+          action: "upsert",
+          appointmentId: enriched.id,
+          appointment: enriched,
+        });
+      }
+      void softRefetch();
       closeDialog();
     } catch (err) {
       setSubmitError(

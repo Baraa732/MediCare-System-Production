@@ -447,7 +447,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       if (document.visibilityState === "visible") {
         void refreshInbox();
       }
-    }, 12_000);
+    }, pushEnabled ? 20_000 : 10_000);
 
     const onVisible = () => {
       if (document.visibilityState === "visible") {
@@ -478,7 +478,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         window.clearTimeout(liveAlertTimerRef.current);
       }
     };
-  }, [accessToken, presentAlert, refreshInbox]);
+  }, [accessToken, presentAlert, refreshInbox, pushEnabled]);
 
   const value = useMemo<NotificationContextValue>(
     () => ({

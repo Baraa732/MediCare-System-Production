@@ -7,7 +7,7 @@ import {
 import { usePendingRequestsSync } from "@/features/dashboardAssitant/hooks/usePendingRequestsSync";
 import { useScheduleGridStore } from "@/features/dashboardAssitant/hooks/scheduleGridStore";
 import { useHandleSelection } from "@/features/dashboardAssitant/hooks/useHandleSelection";
-import type { ApiAppointment } from "@/lib/api/types";
+import type { ApiAppointment, EnrichedAppointment } from "@/lib/api/types";
 import type { ClinicHoursDay } from "@/lib/api/schedule";
 
 interface ScheduleContextValue {
@@ -21,6 +21,10 @@ interface ScheduleContextValue {
   scheduleBlocks: import("@/lib/api/schedule").ScheduleBlock[];
   selectedDate: Date;
   refetch: () => void;
+  softRefetch: () => Promise<void>;
+  applyAppointmentLocally: (
+    appointment: ApiAppointment | EnrichedAppointment,
+  ) => void;
 }
 
 const ScheduleContext = createContext<ScheduleContextValue | null>(null);
