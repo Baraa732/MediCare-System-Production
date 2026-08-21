@@ -23,34 +23,45 @@ export function patientDisplayName(item: PatientRegistryItem): string {
   if (item.fullName?.trim()) return item.fullName.trim();
   const composed = `${item.firstName ?? ""} ${item.lastName ?? ""}`.trim();
   if (composed) return composed;
-  return `Patient ${item.patientId.slice(0, 8)}`;
+  const id = item.patientId?.trim();
+  return id ? `Patient ${id.slice(0, 8)}` : "Unknown patient";
+}
+
+function shortId(value: string | null | undefined, fallback = "—"): string {
+  const id = value?.trim();
+  return id ? id.slice(0, 8) : fallback;
 }
 
 export function buildPatientRegistry(appointments: ApiAppointment[]): PatientRegistryItem[] {
   const map = new Map<string, PatientRegistryItem>();
 
   for (const apt of appointments) {
-    const existing = map.get(apt.patientId);
+    const patientId = apt.patientId?.trim();
+    if (!patientId) continue;
+    const doctorId = apt.doctorId?.trim() || "unknown";
     const scheduled = apt.scheduledAt;
+    if (!scheduled) continue;
+
+    const existing = map.get(patientId);
 
     if (!existing) {
-      map.set(apt.patientId, {
-        patientId: apt.patientId,
+      map.set(patientId, {
+        patientId,
         appointmentCount: 1,
         lastVisit: scheduled,
         nextVisit: isFuture(parseISO(scheduled)) ? scheduled : null,
-        doctorIds: [apt.doctorId],
-        visitStatuses: [apt.status],
+        doctorIds: [doctorId],
+        visitStatuses: [apt.status].filter(Boolean),
         source: "appointments",
       });
       continue;
     }
 
     existing.appointmentCount += 1;
-    if (!existing.doctorIds.includes(apt.doctorId)) {
-      existing.doctorIds.push(apt.doctorId);
+    if (!existing.doctorIds.includes(doctorId)) {
+      existing.doctorIds.push(doctorId);
     }
-    if (!existing.visitStatuses.includes(apt.status)) {
+    if (apt.status && !existing.visitStatuses.includes(apt.status)) {
       existing.visitStatuses.push(apt.status);
     }
 
@@ -138,14 +149,14 @@ export function filterPatients(
     if (!q) return true;
 
     const name = patientDisplayName(p).toLowerCase();
-    const id = p.patientId.toLowerCase();
+    const id = (p.patientId ?? "").toLowerCase();
     const phone = (p.phoneNumber ?? "").replace(/\D/g, "");
 
     return (
       name.includes(q) ||
       id.includes(q) ||
       (qDigits.length >= 3 && phone.includes(qDigits)) ||
-      p.patientId.slice(0, 8).toLowerCase().includes(q)
+      shortId(p.patientId, "").toLowerCase().includes(q)
     );
   });
 }
@@ -173,7 +184,10 @@ export function appointmentsForPatient(
   appointments: ApiAppointment[],
   patientId: string,
 ): ApiAppointment[] {
+  if (!patientId) return [];
   return appointments
     .filter((a) => a.patientId === patientId)
     .sort((a, b) => compareDesc(parseISO(a.scheduledAt), parseISO(b.scheduledAt)));
 }
+
+export { shortId };

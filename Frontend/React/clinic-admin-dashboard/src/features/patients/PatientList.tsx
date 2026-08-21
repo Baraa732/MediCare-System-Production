@@ -2,6 +2,7 @@ import { format, parseISO } from "date-fns";
 import { Loader2, Search } from "lucide-react";
 import {
   patientDisplayName,
+  shortId,
   type PatientRegistryItem,
 } from "./patientRegistry";
 import { cn } from "@/lib/utils";
@@ -70,7 +71,7 @@ export function PatientList({
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold truncate">{name}</p>
               <p className="text-xs text-[#929296] truncate">
-                {patient.phoneNumber ?? `ID ${patient.patientId.slice(0, 8)}…`}
+                {patient.phoneNumber ?? `ID ${shortId(patient.patientId)}…`}
               </p>
             </div>
             <div className="text-right shrink-0">

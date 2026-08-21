@@ -164,10 +164,11 @@ export const useAuthStore = create<AuthState>()(
         otpSentAt: state.otpSentAt,
       }),
       onRehydrateStorage: () => (_state, error) => {
+        // Do not call useAuthStore.setState here — store may still be undefined
+        // while create() is assigning the export (TDZ / circular init).
         if (error) {
           console.warn("Auth session rehydration failed:", error);
         }
-        useAuthStore.setState({ _hasHydrated: true });
       },
     },
   ),
@@ -176,3 +177,7 @@ export const useAuthStore = create<AuthState>()(
 useAuthStore.persist.onFinishHydration(() => {
   useAuthStore.setState({ _hasHydrated: true });
 });
+
+if (useAuthStore.persist.hasHydrated()) {
+  useAuthStore.setState({ _hasHydrated: true });
+}

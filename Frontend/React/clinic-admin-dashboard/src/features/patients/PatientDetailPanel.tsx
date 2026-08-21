@@ -32,7 +32,9 @@ type PatientDetailPanelProps = {
 
 function doctorName(doctors: ClinicDoctor[], id: string) {
   const d = doctors.find((x) => x.userId === id);
-  return d?.fullName ?? d?.firstName ?? id.slice(0, 8);
+  if (d?.fullName) return d.fullName;
+  if (d?.firstName) return d.firstName;
+  return id?.trim() ? id.slice(0, 8) : "Unknown";
 }
 
 export function PatientDetailPanel({

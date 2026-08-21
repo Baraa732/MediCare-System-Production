@@ -120,7 +120,7 @@ export function PatientSearchToolbar({
           <option value="ALL">All doctors</option>
           {doctors.map((d) => (
             <option key={d.userId} value={d.userId}>
-              {d.fullName ?? d.firstName ?? d.userId.slice(0, 8)}
+              {d.fullName ?? d.firstName ?? (d.userId?.slice(0, 8) || "Doctor")}
             </option>
           ))}
         </select>
