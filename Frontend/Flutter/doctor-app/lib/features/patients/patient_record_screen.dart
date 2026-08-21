@@ -27,6 +27,8 @@ class PatientRecordScreen extends StatefulWidget {
     this.appointmentReason,
     this.appointmentNotes,
     this.appointmentDuration,
+    this.isGuestPatient = false,
+    this.guestPhone,
   });
 
   final String patientId;
@@ -39,6 +41,9 @@ class PatientRecordScreen extends StatefulWidget {
   final String? appointmentReason;
   final String? appointmentNotes;
   final String? appointmentDuration;
+  /// Manual secretary bookings without a registered patient account.
+  final bool isGuestPatient;
+  final String? guestPhone;
 
   @override
   State<PatientRecordScreen> createState() => _PatientRecordScreenState();
@@ -72,12 +77,29 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
     super.dispose();
   }
 
+  bool get _isGuest =>
+      widget.isGuestPatient || widget.patientId.trim().isEmpty;
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
       _error = null;
       _emrMissing = false;
     });
+
+    // Manual / guest visits: no OpenEMR chart — appointment notes only.
+    if (_isGuest) {
+      if (!mounted) return;
+      setState(() {
+        _chart = _syntheticChart();
+        _visits = const [];
+        _loading = false;
+        _emrMissing = false;
+        _error = null;
+      });
+      return;
+    }
+
     try {
       var chart = await _tryFetchChart();
       if (chart == null) {
@@ -186,6 +208,11 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
   }
 
   Future<void> _writeClinicalNote() async {
+    if (_isGuest) {
+      await _writeGuestVisitNote();
+      return;
+    }
+
     final contentCtrl = TextEditingController();
     final typeCtrl = TextEditingController(text: 'Visit note');
     final saved = await showModalBottomSheet<bool>(
@@ -321,6 +348,115 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
           SnackBar(content: Text('Could not save note: $inner')),
         );
       }
+    }
+  }
+
+  Future<void> _writeGuestVisitNote() async {
+    final contentCtrl = TextEditingController(
+      text: widget.appointmentNotes?.trim() ?? '',
+    );
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            bottom: MediaQuery.viewInsetsOf(ctx).bottom + 16,
+            top: 12,
+          ),
+          child: Material(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Visit note',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF1A1B1E),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '$_displayName · manual booking (no EMR)',
+                    style: const TextStyle(
+                        fontSize: 13, color: Color(0xFF929296)),
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: contentCtrl,
+                    maxLines: 6,
+                    decoration: const InputDecoration(
+                      labelText: 'Appointment notes',
+                      alignLabelWithHint: true,
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: () {
+                        if (contentCtrl.text.trim().isEmpty) return;
+                        Navigator.pop(ctx, true);
+                      },
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF0B74FA),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: const Text('Save visit notes'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    final content = contentCtrl.text.trim();
+    contentCtrl.dispose();
+    if (saved != true || content.isEmpty || !mounted) return;
+    final appointmentId = widget.appointmentId;
+    if (appointmentId == null || appointmentId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No appointment to attach notes to')),
+      );
+      return;
+    }
+    try {
+      await appointmentApi.updateNotes(appointmentId, content);
+      if (!mounted) return;
+      setState(() {
+        final existing = _chart?.clinicalNotes ?? const [];
+        _chart = (_chart ?? _syntheticChart()).copyWith(
+          clinicalNotes: [
+            {
+              'type': 'Visit note',
+              'content': content,
+              'title': 'Visit note',
+            },
+            ...existing,
+          ],
+        );
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Visit notes saved on appointment')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
     }
   }
 
@@ -541,7 +677,10 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
                               const SizedBox(height: 12),
                             ],
                           ],
-                          if (_emrMissing) ...[
+                          if (_isGuest) ...[
+                            _guestNoEmrBanner(),
+                            const SizedBox(height: 12),
+                          ] else if (_emrMissing) ...[
                             _emrSoftBanner(),
                             const SizedBox(height: 12),
                           ],
@@ -554,8 +693,12 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
                               width: double.infinity,
                               child: OutlinedButton.icon(
                                 onPressed: _writeClinicalNote,
-                                icon: const Icon(Icons.edit_note_rounded),
-                                label: const Text('Write on EMR'),
+                                icon: Icon(_isGuest
+                                    ? Icons.sticky_note_2_outlined
+                                    : Icons.edit_note_rounded),
+                                label: Text(_isGuest
+                                    ? 'Add visit notes'
+                                    : 'Write on EMR'),
                                 style: OutlinedButton.styleFrom(
                                   foregroundColor: const Color(0xFF0B74FA),
                                   side: const BorderSide(
@@ -764,6 +907,42 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
                 fontWeight: FontWeight.w600,
                 color: Color(0xFF1A1B1E),
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _guestNoEmrBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7ED),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFFDBA74)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Manual booking — no EMR chart',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF9A3412),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            widget.guestPhone != null && widget.guestPhone!.trim().isNotEmpty
+                ? 'This walk-in patient is not registered in MediCare. Notes stay on the appointment only. Phone: ${widget.guestPhone}'
+                : 'This walk-in patient is not registered in MediCare. Notes stay on the appointment only — OpenEMR is not available.',
+            style: const TextStyle(
+              fontSize: 13,
+              height: 1.35,
+              color: Color(0xFF9A3412),
             ),
           ),
         ],
@@ -1120,6 +1299,17 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
   Future<void> _add(
     Future<PatientEmrChart?> Function(BuildContext ctx) open,
   ) async {
+    if (_isGuest) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'EMR is only available for registered patients. Use visit notes for this manual booking.',
+          ),
+        ),
+      );
+      return;
+    }
     try {
       final chart = await open(context);
       if (chart != null && mounted) {

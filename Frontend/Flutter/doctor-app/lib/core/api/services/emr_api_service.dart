@@ -112,7 +112,11 @@ class EmrApiService {
   final ApiClient _client;
 
   Future<PatientEmrChart> getPatientEmr(String userId) async {
-    final response = await _client.get('/emr/patients/$userId');
+    final id = userId.trim();
+    if (id.isEmpty) {
+      throw Exception('No registered patient — EMR is unavailable for guest visits');
+    }
+    final response = await _client.get('/emr/patients/$id');
     return _parseChart(response.data);
   }
 
@@ -120,8 +124,12 @@ class EmrApiService {
     String userId, {
     Map<String, dynamic>? profileHint,
   }) async {
+    final id = userId.trim();
+    if (id.isEmpty) {
+      throw Exception('No registered patient — EMR is unavailable for guest visits');
+    }
     final response = await _client.post(
-      '/emr/patients/$userId/ensure',
+      '/emr/patients/$id/ensure',
       data: profileHint ?? const {},
     );
     final data = response.data;
@@ -134,8 +142,12 @@ class EmrApiService {
     required String content,
     String? type,
   }) async {
+    final id = userId.trim();
+    if (id.isEmpty) {
+      throw Exception('No registered patient — EMR is unavailable for guest visits');
+    }
     final response = await _client.post(
-      '/emr/patients/$userId/clinical-notes',
+      '/emr/patients/$id/clinical-notes',
       data: {
         'content': content,
         if (type != null && type.trim().isNotEmpty) 'type': type.trim(),

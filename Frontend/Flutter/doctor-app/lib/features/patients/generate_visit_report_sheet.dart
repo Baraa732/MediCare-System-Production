@@ -98,13 +98,16 @@ class _GenerateVisitReportSheetState extends State<GenerateVisitReportSheet> {
     });
     try {
       await appointmentApi.updateNotes(appointmentId, report);
-      try {
-        await emrApi.addClinicalNote(
-          widget.patientId,
-          content: report,
-          type: 'Visit report',
-        );
-      } catch (_) {}
+      // Only registered patients write into OpenEMR.
+      if (widget.patientId.trim().isNotEmpty) {
+        try {
+          await emrApi.addClinicalNote(
+            widget.patientId,
+            content: report,
+            type: 'Visit report',
+          );
+        } catch (_) {}
+      }
       if (!mounted) return;
       HapticFeedback.mediumImpact();
       Navigator.pop(context, true);

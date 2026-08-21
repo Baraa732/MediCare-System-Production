@@ -162,6 +162,7 @@ class AppointmentCard extends StatelessWidget {
                 appointmentReason:
                     appointment.tags.isNotEmpty ? appointment.tags.first : null,
                 appointmentNotes: appointment.notes,
+                isGuestPatient: appointment.patientId.trim().isEmpty,
               ),
             ),
           ),

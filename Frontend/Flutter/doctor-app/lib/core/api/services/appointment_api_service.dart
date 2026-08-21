@@ -17,6 +17,8 @@ class DoctorAppointment {
   final String? patientBirthDate;
   final String? patientPhone;
   final String? clinicName;
+  final String? guestPatientName;
+  final String? guestPatientPhone;
 
   const DoctorAppointment({
     required this.id,
@@ -33,12 +35,23 @@ class DoctorAppointment {
     this.patientBirthDate,
     this.patientPhone,
     this.clinicName,
+    this.guestPatientName,
+    this.guestPatientPhone,
   });
 
-  String get displayPatient =>
-      (patientName == null || patientName!.trim().isEmpty)
-          ? 'Patient'
-          : patientName!.trim();
+  /// Manual / walk-in bookings have no registered MediCare patient account.
+  bool get isGuestPatient => patientId.trim().isEmpty;
+
+  /// Only registered patients have an OpenEMR chart.
+  bool get hasEmr => patientId.trim().isNotEmpty;
+
+  String get displayPatient {
+    final registered = patientName?.trim();
+    if (registered != null && registered.isNotEmpty) return registered;
+    final guest = guestPatientName?.trim();
+    if (guest != null && guest.isNotEmpty) return guest;
+    return 'Patient';
+  }
 
   String get timeLabel => DateFormat.jm().format(scheduledAt.toLocal());
 
@@ -76,11 +89,12 @@ class DoctorAppointment {
   }
 
   factory DoctorAppointment.fromJson(Map<String, dynamic> json) {
+    final patientId = json['patientId']?.toString() ?? '';
     return DoctorAppointment(
       id: json['id']?.toString() ?? '',
       clinicId: json['clinicId']?.toString() ?? json['tenantId']?.toString() ?? '',
       doctorId: json['doctorId']?.toString() ?? '',
-      patientId: json['patientId']?.toString() ?? '',
+      patientId: patientId,
       scheduledAt: DateTime.tryParse(json['scheduledAt']?.toString() ?? '')?.toLocal() ??
           DateTime.now(),
       durationMinutes: int.tryParse(json['durationMinutes']?.toString() ?? '') ?? 30,
@@ -90,8 +104,11 @@ class DoctorAppointment {
       patientName: json['patientName']?.toString(),
       patientGender: json['patientGender']?.toString(),
       patientBirthDate: json['patientBirthDate']?.toString(),
-      patientPhone: json['patientPhone']?.toString(),
+      patientPhone: json['patientPhone']?.toString() ??
+          json['guestPatientPhone']?.toString(),
       clinicName: json['clinicName']?.toString(),
+      guestPatientName: json['guestPatientName']?.toString(),
+      guestPatientPhone: json['guestPatientPhone']?.toString(),
     );
   }
 }

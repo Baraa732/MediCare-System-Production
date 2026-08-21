@@ -1,15 +1,19 @@
 import 'package:cms_doctor_app/core/api/services/appointment_api_service.dart';
+import 'package:cms_doctor_app/core/utils/date_format.dart';
 import 'package:cms_doctor_app/features/patients/patient_record_screen.dart';
 import 'package:cms_doctor_app/injection.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:syncfusion_flutter_calendar/calendar.dart';
 
 import '../../core/layout/app_shell.dart';
 import '../../core/navigation/app_navigation.dart';
 import 'visit_actions.dart';
+import 'widgets/advanced_day_timeline.dart';
 import 'widgets/schedule_chrome.dart';
 import 'widgets/schedule_workspace.dart';
 
+/// Day tab: locked to the clinic's current calendar day.
+/// Vertical time-grid only — no scrollable week strip / day paging.
 class DayViewScreen extends StatefulWidget {
   const DayViewScreen({super.key, this.showEmpty = false});
   final bool showEmpty;
@@ -20,47 +24,36 @@ class DayViewScreen extends StatefulWidget {
 
 class _DayViewScreenState extends State<DayViewScreen> {
   final int _navIndex = 0;
+  final CalendarController _calendarController = CalendarController();
+
   late DateTime _today;
   List<DoctorAppointment> _appointments = [];
   List<Map<String, dynamic>> _clinicHours = [];
+  DoctorCalendarDataSource _dataSource = DoctorCalendarDataSource([]);
   bool _loading = true;
   String? _error;
 
   @override
   void initState() {
     super.initState();
-    final now = DateTime.now();
-    _today = DateTime(now.year, now.month, now.day);
+    _today = _startOfToday();
+    _calendarController.view = CalendarView.day;
+    _calendarController.displayDate = _today;
     _load();
   }
 
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      final dayEnd = _today.add(const Duration(days: 1));
-      final results = await Future.wait([
-        appointmentApi.getMySchedule(from: _today, to: dayEnd),
-        scheduleApi.getClinicHours().catchError((_) => <Map<String, dynamic>>[]),
-      ]);
-      if (!mounted) return;
-      setState(() {
-        _appointments = results[0] as List<DoctorAppointment>;
-        _clinicHours = results[1] as List<Map<String, dynamic>>;
-        _loading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _loading = false;
-        _error = e.toString();
-        _appointments = [];
-        _clinicHours = [];
-      });
-    }
+  @override
+  void dispose() {
+    _calendarController.dispose();
+    super.dispose();
   }
+
+  DateTime _startOfToday() {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day);
+  }
+
+  DateTime get _dayEnd => _today.add(const Duration(days: 1));
 
   int get _completedCount =>
       _appointments.where((a) => a.status == 'COMPLETED').length;
@@ -88,99 +81,104 @@ class _DayViewScreenState extends State<DayViewScreen> {
 
   Map<String, dynamic>? get _todayHours => _hoursByDay[_today.weekday % 7];
 
-  int get _gridStartHour {
+  bool get _isClosed {
     final slot = _todayHours;
-    if (slot == null || slot['isClosed'] == true) return 8;
-    final openTime = slot['openTime']?.toString() ?? '09:00';
-    return (_minutes(openTime) ~/ 60).clamp(0, 23);
-  }
-
-  int get _gridEndHour {
-    final slot = _todayHours;
-    if (slot == null || slot['isClosed'] == true) return 17;
-    final closeTime = slot['closeTime']?.toString() ?? '17:00';
-    return (_minutes(closeTime) / 60).ceil().clamp(1, 24);
-  }
-
-  List<DoctorAppointment> _forDayHour(DateTime day, int hour) {
-    return _appointments.where((a) {
-      final d = a.scheduledAt;
-      return d.year == day.year &&
-          d.month == day.month &&
-          d.day == day.day &&
-          d.hour == hour;
-    }).toList()
-      ..sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
-  }
-
-  bool _isClosed(DateTime day) {
-    final slot = _hoursByDay[day.weekday % 7];
     if (slot == null) return false;
     return slot['isClosed'] == true;
   }
 
-  Widget _buildDayTable(int hourStart, int hourEnd) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        const timeAxisWidth = 62.0;
-        final dayWidth = constraints.maxWidth - timeAxisWidth;
-        final closed = _isClosed(_today);
-        return Column(
-          children: [
-            for (int hour = hourStart; hour < hourEnd; hour++)
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(
-                    width: timeAxisWidth,
-                    child: Container(
-                      padding: const EdgeInsets.only(top: 12, right: 8),
-                      child: Text(
-                        DateFormat.j().format(DateTime(2020, 1, 1, hour)),
-                        textAlign: TextAlign.right,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF929296),
-                        ),
-                      ),
-                    ),
-                  ),
-                  Container(
-                    width: dayWidth,
-                    constraints: const BoxConstraints(minHeight: 74),
-                    margin: const EdgeInsets.symmetric(horizontal: 1, vertical: 2),
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: closed
-                          ? const Color(0xFFF2F2F2)
-                          : const Color(0xFFFBFCFF),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFFE4E6EB)),
-                    ),
-                    child: closed
-                        ? const Text(
-                            'Off',
-                            style: TextStyle(
-                              color: Color(0xFF929296),
-                              fontSize: 12,
-                            ),
-                          )
-                        : Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              for (final a in _forDayHour(_today, hour))
-                                _WeekAppointmentChip(
-                                  appointment: a,
-                                  onRefresh: _load,
-                                ),
-                            ],
-                          ),
-                  ),
-                ],
-              ),
-          ],
+  double get _gridStartHour {
+    final slot = _todayHours;
+    if (slot == null || slot['isClosed'] == true) return 8;
+    final open = _minutes(slot['openTime']?.toString() ?? '09:00');
+    return ((open ~/ 60) - 1).clamp(0, 23).toDouble();
+  }
+
+  double get _gridEndHour {
+    final slot = _todayHours;
+    if (slot == null || slot['isClosed'] == true) return 17;
+    final close = _minutes(
+      slot['closeTime']?.toString() ?? '17:00',
+      fallback: 17 * 60,
+    );
+    return (close / 60).ceil().clamp(1, 24).toDouble();
+  }
+
+  String get _hoursLabel {
+    final slot = _todayHours;
+    if (slot == null) return 'Clinic hours unset';
+    if (slot['isClosed'] == true) return 'Clinic closed';
+    final open = _minutes(slot['openTime']?.toString() ?? '09:00');
+    final close = _minutes(
+      slot['closeTime']?.toString() ?? '17:00',
+      fallback: 17 * 60,
+    );
+    return '${_hhmm(open)} – ${_hhmm(close)}';
+  }
+
+  String _hhmm(int mins) {
+    final h = (mins ~/ 60).clamp(0, 23);
+    final m = mins % 60;
+    return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+      _today = _startOfToday();
+    });
+    try {
+      final results = await Future.wait([
+        appointmentApi.getMySchedule(from: _today, to: _dayEnd),
+        scheduleApi.getClinicHours().catchError((_) => <Map<String, dynamic>>[]),
+      ]);
+      if (!mounted) return;
+      final list = (results[0] as List<DoctorAppointment>)
+          .where((a) => isSameDay(a.scheduledAt, _today))
+          .toList()
+        ..sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
+
+      setState(() {
+        _appointments = list;
+        _clinicHours = results[1] as List<Map<String, dynamic>>;
+        _dataSource = DoctorCalendarDataSource(
+          list.map(toCalendarAppointment).toList(),
         );
-      },
+        _loading = false;
+        _calendarController.displayDate = _today;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = e.toString();
+        _appointments = [];
+        _clinicHours = [];
+        _dataSource = DoctorCalendarDataSource([]);
+      });
+    }
+  }
+
+  void _openPatient(DoctorAppointment appointment) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PatientRecordScreen(
+          patientId: appointment.patientId,
+          patientName: appointment.displayPatient,
+          gender: appointment.patientGender,
+          age: appointment.ageYears,
+          appointmentId: appointment.id,
+          appointmentTime: appointment.timeLabel,
+          appointmentDuration: appointment.durationLabel,
+          appointmentStatus: appointment.uiStatus ?? appointment.status,
+          appointmentReason: appointment.reason,
+          appointmentNotes: appointment.notes,
+          isGuestPatient: appointment.isGuestPatient,
+          guestPhone: appointment.patientPhone ?? appointment.guestPatientPhone,
+        ),
+      ),
     );
   }
 
@@ -190,17 +188,15 @@ class _DayViewScreenState extends State<DayViewScreen> {
     final doneProgress = total == 0 ? 0.0 : _completedCount / total;
     final pendingProgress = total == 0 ? 0.0 : _pendingCount / total;
     final arrivedProgress = total == 0 ? 0.0 : _arrivedCount / total;
-    final hourStart = _gridStartHour;
-    final hourEnd = _gridEndHour;
-    final dateLabel = DateFormat('EEEE, MMM d').format(_today);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF2F2F2),
       body: ScheduleWorkspace(
         activeTab: 0,
+        scrollEntirePage: true,
         boardCaption: total == 0
-            ? 'Today schedule is ready.'
-            : '$total visits today.',
+            ? 'Your schedule for today is clear.'
+            : "$total visit${total == 1 ? '' : 's'} on today's board.",
         onNotificationTap: () => openNotifications(context),
         onRefresh: _load,
         metrics: [
@@ -225,255 +221,35 @@ class _DayViewScreenState extends State<DayViewScreen> {
             accent: const Color(0xFF2E7D32),
           ),
         ],
-        slivers: [
-          SliverToBoxAdapter(
-            child: ExpandingPanel(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Daily Schedule',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF1A1B1E),
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFEEF4FF),
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(
-                                    Icons.calendar_month_rounded,
-                                    size: 16,
-                                    color: Color(0xFF0B74FA),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    dateLabel,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 12.5,
-                                      color: Color(0xFF1A1B1E),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  const Icon(
-                                    Icons.keyboard_arrow_down_rounded,
-                                    size: 16,
-                                    color: Color(0xFF929296),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const Spacer(),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFEEF4FF),
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: const Color(0xFF0B74FA),
-                              width: 1.0,
-                            ),
-                          ),
-                          child: const Text(
-                            'Today',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 12,
-                              color: Color(0xFF0B74FA),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    _buildDayTable(hourStart, hourEnd),
-                  ],
-                ),
-              ),
-            ),
+        child: AdvancedDayTimeline(
+          day: _today,
+          appointments: _appointments,
+          hoursLabel: _hoursLabel,
+          closed: _isClosed,
+          loading: _loading,
+          error: _error,
+          controller: _calendarController,
+          dataSource: _dataSource,
+          specialRegions: clinicTimeRegions(
+            weekDays: [_today],
+            hoursByDay: _hoursByDay,
+            startHour: _gridStartHour,
+            endHour: _gridEndHour,
+            parseMinutes: _minutes,
           ),
-          if (_loading)
-            const SliverFillRemaining(
-              hasScrollBody: false,
-              child: Center(
-                child: CircularProgressIndicator(color: Color(0xFF0B74FA)),
-              ),
-            )
-          else if (_error != null)
-            SliverFillRemaining(
-              hasScrollBody: false,
-              child: ScheduleEmptyState(
-                error: _error,
-                title: 'Could not load daily scheduler',
-              ),
-            )
-          else
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                child: Text(
-                  'Clinic hours are read-only from clinic admin configuration.',
-                  style: TextStyle(
-                    color: Colors.blueGrey.shade600,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-            ),
-        ],
+          startHour: _gridStartHour,
+          endHour: _gridEndHour,
+          onRefresh: _load,
+          onAppointmentTap: _openPatient,
+          onAppointmentLongPress: (a) => VisitActions.showBoardActions(
+            context,
+            appointment: a,
+            onDone: _load,
+          ),
+        ),
       ),
       bottomNavigationBar:
           buildBottomNav(_navIndex, (i) => switchMainTab(context, _navIndex, i)),
-    );
-  }
-
-}
-
-class _WeekAppointmentChip extends StatelessWidget {
-  const _WeekAppointmentChip({
-    required this.appointment,
-    required this.onRefresh,
-  });
-
-  final DoctorAppointment appointment;
-  final Future<void> Function() onRefresh;
-
-  @override
-  Widget build(BuildContext context) {
-    final accent = appointment.status == 'COMPLETED'
-        ? const Color(0xFF2E7D32)
-        : appointment.status == 'NO_SHOW'
-            ? const Color(0xFFE53935)
-            : appointment.status == 'CANCELLED'
-                ? const Color(0xFF929296)
-                : appointment.status == 'REQUESTED'
-                    ? const Color(0xFFE65C00)
-                    : const Color(0xFF0B74FA);
-    return InkWell(
-      borderRadius: BorderRadius.circular(8),
-      onLongPress: () => showModalBottomSheet<void>(
-        context: context,
-        builder: (ctx) => SafeArea(
-          child: Wrap(
-            children: [
-              ListTile(
-                leading: const Icon(Icons.check_circle_outline),
-                title: const Text('Complete'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  VisitActions.showCompleteSheet(
-                    context,
-                    patient: appointment.displayPatient,
-                    time: appointment.timeLabel,
-                    appointmentId: appointment.id,
-                    patientId: appointment.patientId,
-                    onDone: onRefresh,
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.login_rounded),
-                title: const Text('Mark arrived'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  VisitActions.markArrived(
-                    context,
-                    appointmentId: appointment.id,
-                    onDone: onRefresh,
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.event_busy, color: Color(0xFFE53935)),
-                title: const Text('No show'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  VisitActions.markNoShow(
-                    context,
-                    appointmentId: appointment.id,
-                    onDone: onRefresh,
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => PatientRecordScreen(
-            patientId: appointment.patientId,
-            patientName: appointment.displayPatient,
-            gender: appointment.patientGender,
-            age: appointment.ageYears,
-            appointmentId: appointment.id,
-            appointmentTime: appointment.timeLabel,
-            appointmentDuration: appointment.durationLabel,
-            appointmentStatus: appointment.uiStatus ?? appointment.status,
-            appointmentReason: appointment.reason,
-            appointmentNotes: appointment.notes,
-          ),
-        ),
-      ),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 4),
-        padding: const EdgeInsets.all(6),
-        decoration: BoxDecoration(
-          color: accent.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: accent.withValues(alpha: 0.35)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '${DateFormat.jm().format(appointment.scheduledAt)} • ${appointment.durationMinutes}m',
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                color: accent,
-                fontSize: 11.5,
-              ),
-            ),
-            Text(
-              appointment.displayPatient,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF1A1B1E),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

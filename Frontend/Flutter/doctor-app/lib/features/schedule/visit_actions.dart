@@ -21,13 +21,16 @@ class VisitActions {
     try {
       if (notes.trim().isNotEmpty) {
         await appointmentApi.updateNotes(appointmentId, notes.trim());
-        try {
-          await emrApi.addClinicalNote(
-            patientId,
-            content: notes.trim(),
-            type: 'Visit note',
-          );
-        } catch (_) {}
+        // EMR only for registered MediCare patients — never for manual guests.
+        if (patientId.trim().isNotEmpty) {
+          try {
+            await emrApi.addClinicalNote(
+              patientId,
+              content: notes.trim(),
+              type: 'Visit note',
+            );
+          } catch (_) {}
+        }
       }
       await appointmentApi.updateStatus(appointmentId, 'COMPLETED');
       if (context.mounted) showSnack(context, 'Visit marked completed');
@@ -160,6 +163,78 @@ class VisitActions {
           patientId: patientId,
           notes: notes,
           onDone: onDone,
+        ),
+      ),
+    );
+  }
+
+  static void showBoardActions(
+    BuildContext context, {
+    required DoctorAppointment appointment,
+    required VoidCallback onDone,
+  }) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFDBDBDC),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.check_circle_outline),
+                title: const Text('Complete'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  showCompleteSheet(
+                    context,
+                    patient: appointment.displayPatient,
+                    time: appointment.timeLabel,
+                    appointmentId: appointment.id,
+                    patientId: appointment.patientId,
+                    onDone: onDone,
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.login_rounded),
+                title: const Text('Mark arrived'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  markArrived(
+                    context,
+                    appointmentId: appointment.id,
+                    onDone: onDone,
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.event_busy, color: Color(0xFFE53935)),
+                title: const Text('No show'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  markNoShow(
+                    context,
+                    appointmentId: appointment.id,
+                    onDone: onDone,
+                  );
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
