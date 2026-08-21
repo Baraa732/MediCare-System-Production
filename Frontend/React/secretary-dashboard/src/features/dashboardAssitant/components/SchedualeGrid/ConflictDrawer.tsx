@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   X,
@@ -6,8 +7,7 @@ import {
   ArrowDownRight,
   UserRoundCog,
   Ban,
-  ShieldAlert,
-  Sparkles,
+  Check,
 } from "lucide-react";
 import { useGlobalConflictStore } from "../../hooks/useGlobalConflictStore";
 import { START_TIME_MINUTES } from "../../data/scheduleGrid";
@@ -15,8 +15,10 @@ import { cn } from "@/lib/utils";
 
 interface ConflictDrawerProps {
   onClose: () => void;
-  onApplyResolution: (withCancellations: boolean) => void;
+  onApplyResolution: (choice: "apply" | "cancel") => void;
 }
+
+type DecisionChoice = "apply" | "cancel" | "abort";
 
 function formatTime(minutes: number) {
   const total = START_TIME_MINUTES + minutes;
@@ -33,29 +35,114 @@ function StepIcon({ kind }: { kind?: string }) {
   return <AlertTriangle className="h-3.5 w-3.5" />;
 }
 
+function planLabel(action?: string | null) {
+  switch (action) {
+    case "Shifted Down":
+    case "Shifted Down Chain":
+      return "Push overlapping visits later";
+    case "Transferred Doctor":
+      return "Transfer overlapping visits";
+    default:
+      return "Apply suggested plan";
+  }
+}
+
 export function ConflictDrawer({
   onClose,
   onApplyResolution,
 }: ConflictDrawerProps) {
   const { isDrawerOpen, conflictPayload, clearConflict } =
     useGlobalConflictStore();
+  const [choice, setChoice] = useState<DecisionChoice>("abort");
+
+  const resolution = conflictPayload?.resolution;
+  const pending = conflictPayload?.pendingDrag;
+  const canApplyPlan =
+    !!pending &&
+    resolution?.status === "Resolved" &&
+    (resolution.updatedExistingAppointments.length ?? 0) > 0;
+  const canCancel =
+    !!pending &&
+    ((resolution?.proposedCancelIds?.length ?? 0) > 0 ||
+      (conflictPayload?.conflictingItems.length ?? 0) > 0);
+
+  useEffect(() => {
+    if (!isDrawerOpen || !conflictPayload) return;
+    if (canApplyPlan) setChoice("apply");
+    else if (canCancel) setChoice("cancel");
+    else setChoice("abort");
+  }, [isDrawerOpen, conflictPayload, canApplyPlan, canCancel]);
+
+  const options = useMemo(() => {
+    const list: Array<{
+      id: DecisionChoice;
+      title: string;
+      description: string;
+      enabled: boolean;
+    }> = [];
+
+    if (canApplyPlan) {
+      list.push({
+        id: "apply",
+        title: planLabel(resolution?.action),
+        description:
+          resolution?.message ||
+          "Place your drop and adjust overlapping visits as proposed.",
+        enabled: true,
+      });
+    }
+
+    if (canCancel) {
+      const count =
+        resolution?.proposedCancelIds?.length ||
+        conflictPayload?.conflictingItems.length ||
+        0;
+      list.push({
+        id: "cancel",
+        title: `Cancel ${count} overlapping visit${count === 1 ? "" : "s"}`,
+        description:
+          "Place yours and mark conflicts cancelled. Patients are notified when you Save.",
+        enabled: true,
+      });
+    }
+
+    list.push({
+      id: "abort",
+      title: "Don't move — keep looking",
+      description:
+        "Cancel this drop. The appointment stays in its original slot.",
+      enabled: true,
+    });
+
+    return list;
+  }, [canApplyPlan, canCancel, resolution, conflictPayload]);
 
   if (!isDrawerOpen || !conflictPayload) return null;
 
   const isAssign = conflictPayload.attemptedAction === "assign";
-  const resolution = conflictPayload.resolution;
-  const canApplyAuto =
-    !!conflictPayload.pendingDrag &&
-    resolution?.status === "Resolved" &&
-    (resolution.updatedExistingAppointments.length ?? 0) > 0;
-  const canConfirmCancel =
-    !!conflictPayload.pendingDrag &&
-    (resolution?.proposedCancelIds?.length ?? 0) > 0;
-  const pending = conflictPayload.pendingDrag;
 
   const handleClose = () => {
     clearConflict();
     onClose();
+  };
+
+  const handleConfirm = () => {
+    if (choice === "abort") {
+      handleClose();
+      return;
+    }
+    if (choice === "cancel") {
+      const count =
+        resolution?.proposedCancelIds?.length ||
+        conflictPayload.conflictingItems.length;
+      const ok = window.confirm(
+        `Cancel ${count} overlapping appointment${count === 1 ? "" : "s"} and place yours?\n\nPatients are notified when you save Edit Mode changes.`,
+      );
+      if (!ok) return;
+      onApplyResolution("cancel");
+      return;
+    }
+    onApplyResolution("apply");
   };
 
   return createPortal(
@@ -63,7 +150,7 @@ export function ConflictDrawer({
       <button
         type="button"
         aria-label="Close conflict dialog"
-        className="conflict-modal-backdrop absolute inset-0 bg-slate-950/45"
+        className="conflict-modal-backdrop absolute inset-0 bg-neutral-900/40"
         onClick={handleClose}
       />
 
@@ -71,52 +158,49 @@ export function ConflictDrawer({
         role="dialog"
         aria-modal="true"
         aria-labelledby="conflict-title"
-        className="conflict-modal-panel relative z-10 flex max-h-[min(92vh,720px)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-white/70 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.28)]"
+        className="conflict-modal-panel surface-card relative z-10 flex max-h-[min(92vh,720px)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white"
       >
-        <div className="relative overflow-hidden border-b border-slate-200/80 bg-[linear-gradient(135deg,#fff7ed_0%,#ffffff_45%,#eff6ff_100%)] px-5 pb-4 pt-5">
-          <div className="pointer-events-none absolute -right-8 -top-10 h-36 w-36 rounded-full bg-amber-300/20 blur-2xl" />
-          <div className="pointer-events-none absolute -left-10 bottom-0 h-28 w-28 rounded-full bg-sky-300/20 blur-2xl" />
+        <div className="relative border-b border-neutral-100 bg-blue-50/50 px-5 pb-4 pt-5">
+          <div className="pointer-events-none absolute -right-8 -top-10 h-36 w-36 rounded-full bg-[#0066ff]/10 blur-2xl" />
 
           <div className="relative flex items-start justify-between gap-3">
             <div className="flex items-start gap-3">
-              <div className="mt-0.5 flex h-11 w-11 items-center justify-center rounded-xl border border-amber-200 bg-amber-50 text-amber-700 shadow-sm">
-                <ShieldAlert className="h-5 w-5" />
+              <div className="mt-0.5 flex h-11 w-11 items-center justify-center rounded-xl border border-[#0066ff]/20 bg-white text-[#0066ff] shadow-sm">
+                <AlertTriangle className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-amber-700/80">
-                  Conflict engine
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#0066ff]">
+                  Schedule conflict
                 </p>
                 <h2
                   id="conflict-title"
-                  className="mt-0.5 text-lg font-semibold tracking-tight text-slate-900"
+                  className="mt-0.5 text-lg font-semibold tracking-tight text-neutral-900"
                 >
-                  {isAssign ? "Slot unavailable" : "Drop blocked by overlap"}
+                  {isAssign ? "Slot unavailable" : "Choose how to resolve"}
                 </h2>
-                <p className="mt-1 max-w-[34ch] text-xs leading-relaxed text-slate-600">
-                  {resolution?.message ||
-                    (isAssign
-                      ? "Choose an empty slot for this pending request."
-                      : "This drop overlaps existing appointments on the target doctor.")}
+                <p className="mt-1 max-w-[36ch] text-xs leading-relaxed text-neutral-500">
+                  The system suggests options — nothing moves until you confirm.
                 </p>
               </div>
             </div>
             <button
               type="button"
               onClick={handleClose}
-              className="rounded-lg border border-transparent p-1.5 text-slate-400 transition hover:border-slate-200 hover:bg-white hover:text-slate-700"
+              className="rounded-lg border border-transparent p-1.5 text-neutral-400 transition hover:border-neutral-200 hover:bg-white hover:text-neutral-700"
             >
               <X className="h-4 w-4" />
             </button>
           </div>
 
           {pending && (
-            <div className="relative mt-4 flex items-center gap-2 rounded-xl border border-sky-200/80 bg-white/80 px-3 py-2.5 text-xs shadow-sm backdrop-blur-sm">
-              <CalendarClock className="h-4 w-4 shrink-0 text-sky-600" />
+            <div className="relative mt-4 flex items-center gap-2 rounded-xl border border-[#0066ff]/20 bg-white px-3 py-2.5 text-xs shadow-sm">
+              <CalendarClock className="h-4 w-4 shrink-0 text-[#0066ff]" />
               <div className="min-w-0">
-                <p className="font-semibold text-slate-800">
-                  Your drop · {formatTime(pending.start)}–{formatTime(pending.end)}
+                <p className="font-semibold text-neutral-800">
+                  Your drop · {formatTime(pending.start)}–
+                  {formatTime(pending.end)}
                 </p>
-                <p className="truncate text-[11px] text-slate-500">
+                <p className="truncate text-[11px] text-neutral-500">
                   {pending.patient?.name ||
                     pending.title?.split(" - ")[0] ||
                     "Dragged appointment"}
@@ -127,76 +211,121 @@ export function ConflictDrawer({
         </div>
 
         <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
-          {resolution?.steps && resolution.steps.length > 0 && (
-            <section>
-              <div className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">
-                <Sparkles className="h-3 w-3" />
-                Resolution plan
-              </div>
-              <ol className="space-y-2">
-                {resolution.steps.map((step, idx) => (
-                  <li
-                    key={`${step.appointmentId}-${step.kind}-${idx}`}
-                    className="conflict-step-card flex gap-3 rounded-xl border border-slate-200/90 bg-slate-50/80 p-3"
-                    style={{ animationDelay: `${idx * 60}ms` }}
+          <section>
+            <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-neutral-400">
+              Your decision
+            </div>
+            <div className="space-y-2" role="radiogroup" aria-label="Conflict decision">
+              {options.map((opt) => {
+                const selected = choice === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    disabled={!opt.enabled}
+                    onClick={() => setChoice(opt.id)}
+                    className={cn(
+                      "conflict-step-card flex w-full gap-3 rounded-xl border p-3 text-left transition",
+                      selected
+                        ? "border-[#0066ff]/40 bg-blue-50 shadow-sm"
+                        : "border-neutral-200 bg-white hover:border-[#0066ff]/25 hover:bg-blue-50/40",
+                    )}
                   >
-                    <div
+                    <span
                       className={cn(
-                        "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border",
-                        step.kind === "shift" &&
-                          "border-sky-200 bg-sky-50 text-sky-700",
-                        step.kind === "transfer" &&
-                          "border-emerald-200 bg-emerald-50 text-emerald-700",
-                        step.kind === "cancel" &&
-                          "border-rose-200 bg-rose-50 text-rose-700",
+                        "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border",
+                        selected
+                          ? "border-[#0066ff] bg-[#0066ff] text-white"
+                          : "border-neutral-300 bg-white text-transparent",
                       )}
                     >
-                      <StepIcon kind={step.kind} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-slate-900">
-                        {step.patientName}
-                      </p>
-                      <p className="mt-0.5 text-[11px] text-slate-500">
-                        {step.detail}
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            </section>
-          )}
+                      <Check className="h-3 w-3" strokeWidth={3} />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-neutral-900">
+                        {opt.title}
+                      </span>
+                      <span className="mt-0.5 block text-[11px] leading-relaxed text-neutral-500">
+                        {opt.description}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          {resolution?.steps &&
+            resolution.steps.length > 0 &&
+            choice === "apply" && (
+              <section>
+                <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-neutral-400">
+                  Plan preview
+                </div>
+                <ol className="space-y-2">
+                  {resolution.steps.map((step, idx) => (
+                    <li
+                      key={`${step.appointmentId}-${step.kind}-${idx}`}
+                      className="flex gap-3 rounded-xl border border-neutral-200 bg-neutral-50/80 p-3"
+                    >
+                      <div
+                        className={cn(
+                          "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border",
+                          step.kind === "shift" &&
+                            "border-[#0066ff]/20 bg-blue-50 text-[#0066ff]",
+                          step.kind === "transfer" &&
+                            "border-emerald-200 bg-emerald-50 text-emerald-700",
+                          step.kind === "cancel" &&
+                            "border-rose-200 bg-rose-50 text-rose-700",
+                        )}
+                      >
+                        <StepIcon kind={step.kind} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-neutral-900">
+                          {step.patientName}
+                        </p>
+                        <p className="mt-0.5 text-[11px] text-neutral-500">
+                          {step.detail}
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            )}
 
           <section>
-            <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">
+            <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-neutral-400">
               Overlapping visits
             </div>
             <div className="space-y-2">
-              {conflictPayload.conflictingItems.map((item, idx) => (
+              {conflictPayload.conflictingItems.map((item) => (
                 <div
                   key={item.appointmentId}
-                  className="conflict-step-card overflow-hidden rounded-xl border border-slate-200 bg-white"
-                  style={{ animationDelay: `${80 + idx * 50}ms` }}
+                  className="overflow-hidden rounded-xl border border-neutral-200 bg-white"
                 >
-                  <div className="flex items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/90 px-3.5 py-2.5">
-                    <p className="truncate text-sm font-semibold text-slate-900">
+                  <div className="flex items-center justify-between gap-2 border-b border-neutral-100 bg-neutral-50/90 px-3.5 py-2.5">
+                    <p className="truncate text-sm font-semibold text-neutral-900">
                       {item.patientName}
                     </p>
                     {item.overlapMinutes > 0 && (
-                      <span className="shrink-0 rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700 ring-1 ring-rose-100">
+                      <span className="shrink-0 rounded-md border border-rose-100 bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700">
                         −{item.overlapMinutes}m
                       </span>
                     )}
                   </div>
-                  <div className="grid grid-cols-2 gap-2 px-3.5 py-2.5 text-[11px] text-slate-600">
+                  <div className="grid grid-cols-2 gap-2 px-3.5 py-2.5 text-[11px] text-neutral-600">
                     <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
                         Doctor
                       </p>
                       <p className="mt-0.5 font-medium">{item.doctorName}</p>
                     </div>
                     <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
                         Time
                       </p>
                       <p className="mt-0.5 font-medium tabular-nums">
@@ -210,40 +339,20 @@ export function ConflictDrawer({
           </section>
         </div>
 
-        <div className="space-y-2 border-t border-slate-200 bg-white/95 px-5 py-4 backdrop-blur">
-          {canApplyAuto && (
-            <button
-              type="button"
-              onClick={() => onApplyResolution(false)}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-sky-700 active:scale-[0.99]"
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              Apply safe auto-fix
-            </button>
-          )}
-          {canConfirmCancel && (
-            <button
-              type="button"
-              onClick={() => {
-                const count = resolution?.proposedCancelIds?.length ?? 0;
-                const ok = window.confirm(
-                  `Cancel ${count} locked appointment${count === 1 ? "" : "s"} and place yours?\n\nPatients are notified when you save Edit Mode changes.`,
-                );
-                if (!ok) return;
-                onApplyResolution(true);
-              }}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 active:scale-[0.99]"
-            >
-              <Ban className="h-3.5 w-3.5" />
-              Cancel conflicting & place mine
-            </button>
-          )}
+        <div className="flex gap-2 border-t border-neutral-100 bg-white px-5 py-4">
           <button
             type="button"
             onClick={handleClose}
-            className="flex w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 active:scale-[0.99]"
+            className="flex h-10 flex-1 items-center justify-center rounded-xl border border-neutral-200 bg-white px-4 text-xs font-bold text-neutral-700 transition hover:bg-neutral-50"
           >
-            Keep looking for another slot
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleConfirm}
+            className="btn-brand flex h-10 flex-[1.4] items-center justify-center rounded-xl border-0 px-4 text-xs font-bold text-white shadow-sm"
+          >
+            {choice === "abort" ? "Close without moving" : "Confirm decision"}
           </button>
         </div>
       </div>

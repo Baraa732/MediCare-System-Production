@@ -532,25 +532,13 @@ export function useDragHandlers() {
           clinicHours,
         });
 
-        if (
-          resolution.status === "Resolved" &&
-          resolution.action !== "None"
-        ) {
-          applyConflictResolution(pendingDrag, {
-            updatedExistingAppointments:
-              resolution.updatedExistingAppointments,
-            message: resolution.message,
-          });
-          return;
-        }
-
+        // Never auto-apply push/transfer — secretary must confirm in the modal.
         const targetDoc = board.find((d) => d.id === targetDoctorId);
         const collisions = (targetDoc?.appointments || []).filter(
           (apt) =>
             apt.id !== live.id &&
             Math.max(newStart, apt.start) < Math.min(newEnd, apt.end),
         );
-        // Prefer expanded chain for richer drawer context when available.
         const chainIds = new Set(
           (resolution.steps ?? []).map((s) => s.appointmentId),
         );
@@ -584,7 +572,6 @@ export function useDragHandlers() {
       scheduleBlocks,
       setConflict,
       setDrawerOpen,
-      applyConflictResolution,
     ],
   );
 
@@ -613,25 +600,31 @@ export function useDragHandlers() {
   }, [clearConflict]);
 
   const confirmConflictResolution = useCallback(
-    (withCancellations: boolean) => {
+    (choice: "apply" | "cancel") => {
       const payload = useGlobalConflictStore.getState().conflictPayload;
-      if (!payload?.pendingDrag || !payload.resolution) return;
+      if (!payload?.pendingDrag) return;
 
       const resolution = payload.resolution;
 
-      if (withCancellations) {
-        const cancelledIds = resolution.proposedCancelIds ?? [];
+      if (choice === "cancel") {
+        const cancelledIds =
+          resolution?.proposedCancelIds?.length
+            ? resolution.proposedCancelIds
+            : payload.conflictingItems.map((c) => c.appointmentId);
         if (cancelledIds.length === 0) return;
         applyConflictResolution(payload.pendingDrag, {
           updatedExistingAppointments: [],
           cancelledIds,
-          message: resolution.message,
+          message:
+            resolution?.message ||
+            "Cancelled overlapping visits to place yours.",
         });
         return;
       }
 
-      // Only apply non-cancel plans that fully resolve.
+      // Apply suggested shift / transfer plan — only after secretary confirm.
       if (
+        !resolution ||
         resolution.status !== "Resolved" ||
         resolution.updatedExistingAppointments.length === 0
       ) {

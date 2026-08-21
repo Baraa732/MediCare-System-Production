@@ -473,11 +473,12 @@
 
 .conflict-modal-backdrop {
   animation: conflict-backdrop-in 220ms ease-out both;
-  backdrop-filter: blur(6px);
+  backdrop-filter: blur(4px);
 }
 
 .conflict-modal-panel {
   animation: conflict-panel-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.14);
 }
 
 .conflict-step-card {
