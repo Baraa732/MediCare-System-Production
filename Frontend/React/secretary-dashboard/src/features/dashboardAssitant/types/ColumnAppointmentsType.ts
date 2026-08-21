@@ -10,6 +10,8 @@ export interface ColumnAppointmentsType {
   duration?: number;
   /** Short secretary note shown on the grid card. */
   notes?: string;
+  complexity?: "standard" | "complex" | "elderly" | "urgent";
+  refuseTransfer?: boolean;
   patient?: {
     name: string;
     age: number;

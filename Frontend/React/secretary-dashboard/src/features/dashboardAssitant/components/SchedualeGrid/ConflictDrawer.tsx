@@ -5,20 +5,24 @@ import {
   AlertTriangle,
   CalendarClock,
   ArrowDownRight,
+  ArrowUpRight,
   UserRoundCog,
   Ban,
   Check,
+  ShieldAlert,
 } from "lucide-react";
 import { useGlobalConflictStore } from "../../hooks/useGlobalConflictStore";
 import { START_TIME_MINUTES } from "../../data/scheduleGrid";
 import { cn } from "@/lib/utils";
+import type {
+  ResolutionPlan,
+  ResolutionStep,
+} from "./DNDGrid/utils/conflictResolve";
 
 interface ConflictDrawerProps {
   onClose: () => void;
-  onApplyResolution: (choice: "apply" | "cancel") => void;
+  onApplyResolution: (planId: string) => void;
 }
-
-type DecisionChoice = "apply" | "cancel" | "abort";
 
 function formatTime(minutes: number) {
   const total = START_TIME_MINUTES + minutes;
@@ -29,22 +33,82 @@ function formatTime(minutes: number) {
 }
 
 function StepIcon({ kind }: { kind?: string }) {
-  if (kind === "shift") return <ArrowDownRight className="h-3.5 w-3.5" />;
+  if (kind === "shift_earlier") return <ArrowUpRight className="h-3.5 w-3.5" />;
+  if (kind === "shift_later" || kind === "shift")
+    return <ArrowDownRight className="h-3.5 w-3.5" />;
   if (kind === "transfer") return <UserRoundCog className="h-3.5 w-3.5" />;
   if (kind === "cancel") return <Ban className="h-3.5 w-3.5" />;
   return <AlertTriangle className="h-3.5 w-3.5" />;
 }
 
-function planLabel(action?: string | null) {
-  switch (action) {
-    case "Shifted Down":
-    case "Shifted Down Chain":
-      return "Push overlapping visits later";
-    case "Transferred Doctor":
-      return "Transfer overlapping visits";
+function strategyAccent(strategy: ResolutionPlan["strategy"]) {
+  switch (strategy) {
+    case "push_earlier":
+      return "border-[#0066ff]/35 bg-blue-50";
+    case "push_later":
+      return "border-[#0066ff]/25 bg-blue-50/70";
+    case "transfer":
+      return "border-emerald-200 bg-emerald-50/60";
+    case "hybrid":
+      return "border-[#0066ff]/20 bg-sky-50/80";
+    case "cancel_place":
+      return "border-rose-200 bg-rose-50/50";
     default:
-      return "Apply suggested plan";
+      return "border-neutral-200 bg-white";
   }
+}
+
+function StepRow({ step }: { step: ResolutionStep }) {
+  const timeChanged =
+    step.fromStart !== step.toStart || step.fromEnd !== step.toEnd;
+  const docChanged = step.fromDocId !== step.toDocId;
+
+  return (
+    <li className="flex gap-3 rounded-xl border border-neutral-200 bg-white p-3">
+      <div
+        className={cn(
+          "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border",
+          (step.kind === "shift_earlier" || step.kind === "shift_later") &&
+            "border-[#0066ff]/20 bg-blue-50 text-[#0066ff]",
+          step.kind === "transfer" &&
+            "border-emerald-200 bg-emerald-50 text-emerald-700",
+          step.kind === "cancel" && "border-rose-200 bg-rose-50 text-rose-700",
+        )}
+      >
+        <StepIcon kind={step.kind} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-neutral-900">
+          {step.patientName}
+        </p>
+        {timeChanged && (
+          <p className="mt-0.5 text-[11px] tabular-nums text-neutral-600">
+            <span className="text-neutral-400">
+              {formatTime(step.fromStart)}–{formatTime(step.fromEnd)}
+            </span>
+            <span className="mx-1.5 text-[#0066ff]">→</span>
+            <span className="font-semibold text-neutral-800">
+              {formatTime(step.toStart)}–{formatTime(step.toEnd)}
+            </span>
+          </p>
+        )}
+        {docChanged && (
+          <p className="mt-0.5 text-[11px] text-neutral-600">
+            <span className="text-neutral-400">
+              {step.fromDoctorName || "Current doctor"}
+            </span>
+            <span className="mx-1.5 text-[#0066ff]">→</span>
+            <span className="font-semibold">
+              {step.toDoctorName || "Other doctor"}
+            </span>
+          </p>
+        )}
+        {!timeChanged && !docChanged && (
+          <p className="mt-0.5 text-[11px] text-neutral-500">{step.detail}</p>
+        )}
+      </div>
+    </li>
+  );
 }
 
 export function ConflictDrawer({
@@ -53,73 +117,36 @@ export function ConflictDrawer({
 }: ConflictDrawerProps) {
   const { isDrawerOpen, conflictPayload, clearConflict } =
     useGlobalConflictStore();
-  const [choice, setChoice] = useState<DecisionChoice>("abort");
+  const [selectedPlanId, setSelectedPlanId] = useState<string>("abort");
 
-  const resolution = conflictPayload?.resolution;
-  const pending = conflictPayload?.pendingDrag;
-  const canApplyPlan =
-    !!pending &&
-    resolution?.status === "Resolved" &&
-    (resolution.updatedExistingAppointments.length ?? 0) > 0;
-  const canCancel =
-    !!pending &&
-    ((resolution?.proposedCancelIds?.length ?? 0) > 0 ||
-      (conflictPayload?.conflictingItems.length ?? 0) > 0);
+  const plans = useMemo(() => {
+    if (!conflictPayload) return [] as ResolutionPlan[];
+    if (conflictPayload.plans?.length) return conflictPayload.plans;
+    return conflictPayload.resolution?.plans ?? [];
+  }, [conflictPayload]);
+
+  const recommendedId =
+    conflictPayload?.recommendedPlanId ??
+    conflictPayload?.resolution?.recommendedPlanId ??
+    null;
 
   useEffect(() => {
     if (!isDrawerOpen || !conflictPayload) return;
-    if (canApplyPlan) setChoice("apply");
-    else if (canCancel) setChoice("cancel");
-    else setChoice("abort");
-  }, [isDrawerOpen, conflictPayload, canApplyPlan, canCancel]);
-
-  const options = useMemo(() => {
-    const list: Array<{
-      id: DecisionChoice;
-      title: string;
-      description: string;
-      enabled: boolean;
-    }> = [];
-
-    if (canApplyPlan) {
-      list.push({
-        id: "apply",
-        title: planLabel(resolution?.action),
-        description:
-          resolution?.message ||
-          "Place your drop and adjust overlapping visits as proposed.",
-        enabled: true,
-      });
-    }
-
-    if (canCancel) {
-      const count =
-        resolution?.proposedCancelIds?.length ||
-        conflictPayload?.conflictingItems.length ||
-        0;
-      list.push({
-        id: "cancel",
-        title: `Cancel ${count} overlapping visit${count === 1 ? "" : "s"}`,
-        description:
-          "Place yours and mark conflicts cancelled. Patients are notified when you Save.",
-        enabled: true,
-      });
-    }
-
-    list.push({
-      id: "abort",
-      title: "Don't move — keep looking",
-      description:
-        "Cancel this drop. The appointment stays in its original slot.",
-      enabled: true,
-    });
-
-    return list;
-  }, [canApplyPlan, canCancel, resolution, conflictPayload]);
+    const initial =
+      recommendedId && plans.some((p) => p.id === recommendedId)
+        ? recommendedId
+        : plans[0]?.id ?? "abort";
+    setSelectedPlanId(initial);
+  }, [isDrawerOpen, conflictPayload, recommendedId, plans]);
 
   if (!isDrawerOpen || !conflictPayload) return null;
 
   const isAssign = conflictPayload.attemptedAction === "assign";
+  const pending = conflictPayload.pendingDrag;
+  const lockMessages =
+    conflictPayload.lockMessages ??
+    conflictPayload.resolution?.lockMessages ??
+    [];
 
   const handleClose = () => {
     clearConflict();
@@ -127,23 +154,25 @@ export function ConflictDrawer({
   };
 
   const handleConfirm = () => {
-    if (choice === "abort") {
+    if (selectedPlanId === "abort") {
       handleClose();
       return;
     }
-    if (choice === "cancel") {
-      const count =
-        resolution?.proposedCancelIds?.length ||
-        conflictPayload.conflictingItems.length;
+    const plan = plans.find((p) => p.id === selectedPlanId);
+    if (!plan) return;
+
+    if (plan.strategy === "cancel_place") {
+      const count = plan.proposedCancelIds?.length ?? 0;
       const ok = window.confirm(
         `Cancel ${count} overlapping appointment${count === 1 ? "" : "s"} and place yours?\n\nPatients are notified when you save Edit Mode changes.`,
       );
       if (!ok) return;
-      onApplyResolution("cancel");
-      return;
     }
-    onApplyResolution("apply");
+
+    onApplyResolution(plan.id);
   };
+
+  const selectedPlan = plans.find((p) => p.id === selectedPlanId);
 
   return createPortal(
     <div className="conflict-modal-root fixed inset-0 z-[120] flex items-center justify-center p-4 sm:p-6">
@@ -158,7 +187,7 @@ export function ConflictDrawer({
         role="dialog"
         aria-modal="true"
         aria-labelledby="conflict-title"
-        className="conflict-modal-panel surface-card relative z-10 flex max-h-[min(92vh,720px)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white"
+        className="conflict-modal-panel surface-card relative z-10 flex max-h-[min(92vh,760px)] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white"
       >
         <div className="relative border-b border-neutral-100 bg-blue-50/50 px-5 pb-4 pt-5">
           <div className="pointer-events-none absolute -right-8 -top-10 h-36 w-36 rounded-full bg-[#0066ff]/10 blur-2xl" />
@@ -176,10 +205,10 @@ export function ConflictDrawer({
                   id="conflict-title"
                   className="mt-0.5 text-lg font-semibold tracking-tight text-neutral-900"
                 >
-                  {isAssign ? "Slot unavailable" : "Choose how to resolve"}
+                  {isAssign ? "Slot unavailable" : "Choose a resolution plan"}
                 </h2>
-                <p className="mt-1 max-w-[36ch] text-xs leading-relaxed text-neutral-500">
-                  The system suggests options — nothing moves until you confirm.
+                <p className="mt-1 max-w-[40ch] text-xs leading-relaxed text-neutral-500">
+                  Ranked options below. Nothing moves until you confirm.
                 </p>
               </div>
             </div>
@@ -208,94 +237,138 @@ export function ConflictDrawer({
               </div>
             </div>
           )}
+
+          {lockMessages.length > 0 && (
+            <div className="relative mt-3 flex gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-[11px] text-amber-900">
+              <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+              <div>
+                <p className="font-semibold">Safety locks active</p>
+                <ul className="mt-1 list-inside list-disc space-y-0.5 text-amber-800/90">
+                  {lockMessages.map((msg) => (
+                    <li key={msg}>{msg}</li>
+                  ))}
+                </ul>
+                <p className="mt-1 text-amber-700/80">
+                  Auto shift/transfer plans are hidden. You can cancel overlaps
+                  or pick another slot.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
           <section>
             <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-neutral-400">
-              Your decision
+              Resolution plans
             </div>
-            <div className="space-y-2" role="radiogroup" aria-label="Conflict decision">
-              {options.map((opt) => {
-                const selected = choice === opt.id;
+            <div
+              className="space-y-2"
+              role="radiogroup"
+              aria-label="Conflict resolution plan"
+            >
+              {plans.map((plan) => {
+                const selected = selectedPlanId === plan.id;
+                const isRecommended = plan.id === recommendedId;
                 return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    role="radio"
-                    aria-checked={selected}
-                    disabled={!opt.enabled}
-                    onClick={() => setChoice(opt.id)}
+                  <div
+                    key={plan.id}
                     className={cn(
-                      "conflict-step-card flex w-full gap-3 rounded-xl border p-3 text-left transition",
+                      "overflow-hidden rounded-xl border transition",
                       selected
-                        ? "border-[#0066ff]/40 bg-blue-50 shadow-sm"
-                        : "border-neutral-200 bg-white hover:border-[#0066ff]/25 hover:bg-blue-50/40",
+                        ? "border-[#0066ff]/45 shadow-sm"
+                        : "border-neutral-200 hover:border-[#0066ff]/25",
+                      strategyAccent(plan.strategy),
                     )}
                   >
-                    <span
-                      className={cn(
-                        "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border",
-                        selected
-                          ? "border-[#0066ff] bg-[#0066ff] text-white"
-                          : "border-neutral-300 bg-white text-transparent",
-                      )}
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      onClick={() => setSelectedPlanId(plan.id)}
+                      className="flex w-full gap-3 p-3 text-left"
                     >
-                      <Check className="h-3 w-3" strokeWidth={3} />
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block text-sm font-semibold text-neutral-900">
-                        {opt.title}
-                      </span>
-                      <span className="mt-0.5 block text-[11px] leading-relaxed text-neutral-500">
-                        {opt.description}
-                      </span>
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-
-          {resolution?.steps &&
-            resolution.steps.length > 0 &&
-            choice === "apply" && (
-              <section>
-                <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-neutral-400">
-                  Plan preview
-                </div>
-                <ol className="space-y-2">
-                  {resolution.steps.map((step, idx) => (
-                    <li
-                      key={`${step.appointmentId}-${step.kind}-${idx}`}
-                      className="flex gap-3 rounded-xl border border-neutral-200 bg-neutral-50/80 p-3"
-                    >
-                      <div
+                      <span
                         className={cn(
-                          "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border",
-                          step.kind === "shift" &&
-                            "border-[#0066ff]/20 bg-blue-50 text-[#0066ff]",
-                          step.kind === "transfer" &&
-                            "border-emerald-200 bg-emerald-50 text-emerald-700",
-                          step.kind === "cancel" &&
-                            "border-rose-200 bg-rose-50 text-rose-700",
+                          "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border",
+                          selected
+                            ? "border-[#0066ff] bg-[#0066ff] text-white"
+                            : "border-neutral-300 bg-white text-transparent",
                         )}
                       >
-                        <StepIcon kind={step.kind} />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-neutral-900">
-                          {step.patientName}
+                        <Check className="h-3 w-3" strokeWidth={3} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-semibold text-neutral-900">
+                            {plan.title}
+                          </span>
+                          {isRecommended &&
+                            plan.strategy !== "cancel_place" && (
+                              <span className="rounded-md bg-[#0066ff] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
+                                Recommended
+                              </span>
+                            )}
+                        </span>
+                        <span className="mt-0.5 block text-[11px] leading-relaxed text-neutral-500">
+                          {plan.summary}
+                        </span>
+                      </span>
+                    </button>
+
+                    {selected && plan.steps.length > 0 && (
+                      <div className="border-t border-neutral-200/80 bg-white/80 px-3 py-3">
+                        <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-neutral-400">
+                          Plan preview
                         </p>
-                        <p className="mt-0.5 text-[11px] text-neutral-500">
-                          {step.detail}
-                        </p>
+                        <ol className="space-y-2">
+                          {plan.steps.map((step, idx) => (
+                            <StepRow
+                              key={`${step.appointmentId}-${step.kind}-${idx}`}
+                              step={step}
+                            />
+                          ))}
+                        </ol>
                       </div>
-                    </li>
-                  ))}
-                </ol>
-              </section>
-            )}
+                    )}
+                  </div>
+                );
+              })}
+
+              <button
+                type="button"
+                role="radio"
+                aria-checked={selectedPlanId === "abort"}
+                onClick={() => setSelectedPlanId("abort")}
+                className={cn(
+                  "flex w-full gap-3 rounded-xl border p-3 text-left transition",
+                  selectedPlanId === "abort"
+                    ? "border-[#0066ff]/40 bg-blue-50 shadow-sm"
+                    : "border-neutral-200 bg-white hover:border-[#0066ff]/25 hover:bg-blue-50/40",
+                )}
+              >
+                <span
+                  className={cn(
+                    "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border",
+                    selectedPlanId === "abort"
+                      ? "border-[#0066ff] bg-[#0066ff] text-white"
+                      : "border-neutral-300 bg-white text-transparent",
+                  )}
+                >
+                  <Check className="h-3 w-3" strokeWidth={3} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-neutral-900">
+                    Don&apos;t move — keep looking
+                  </span>
+                  <span className="mt-0.5 block text-[11px] leading-relaxed text-neutral-500">
+                    Cancel this drop. The appointment stays in its original
+                    slot.
+                  </span>
+                </span>
+              </button>
+            </div>
+          </section>
 
           <section>
             <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-neutral-400">
@@ -352,7 +425,11 @@ export function ConflictDrawer({
             onClick={handleConfirm}
             className="btn-brand flex h-10 flex-[1.4] items-center justify-center rounded-xl border-0 px-4 text-xs font-bold text-white shadow-sm"
           >
-            {choice === "abort" ? "Close without moving" : "Confirm decision"}
+            {selectedPlanId === "abort"
+              ? "Close without moving"
+              : selectedPlan?.strategy === "cancel_place"
+                ? "Confirm cancellation"
+                : "Confirm plan"}
           </button>
         </div>
       </div>

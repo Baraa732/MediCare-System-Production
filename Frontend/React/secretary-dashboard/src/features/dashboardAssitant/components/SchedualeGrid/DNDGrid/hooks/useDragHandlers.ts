@@ -530,6 +530,7 @@ export function useDragHandlers() {
           selectedDate,
           preferSameSpecialty: true,
           clinicHours,
+          scheduleBlocks,
         });
 
         // Never auto-apply push/transfer — secretary must confirm in the modal.
@@ -540,8 +541,13 @@ export function useDragHandlers() {
             Math.max(newStart, apt.start) < Math.min(newEnd, apt.end),
         );
         const chainIds = new Set(
-          (resolution.steps ?? []).map((s) => s.appointmentId),
+          (resolution.plans ?? [])
+            .flatMap((p) => p.steps)
+            .map((s) => s.appointmentId),
         );
+        for (const s of resolution.steps ?? []) {
+          chainIds.add(s.appointmentId);
+        }
         const drawerItems =
           chainIds.size > 0
             ? (targetDoc?.appointments || []).filter((a) => chainIds.has(a.id))
@@ -557,6 +563,9 @@ export function useDragHandlers() {
           ),
           pendingDrag,
           resolution,
+          plans: resolution.plans ?? [],
+          recommendedPlanId: resolution.recommendedPlanId ?? null,
+          lockMessages: resolution.lockMessages ?? [],
         });
         setDrawerOpen(true);
         return;
@@ -600,41 +609,41 @@ export function useDragHandlers() {
   }, [clearConflict]);
 
   const confirmConflictResolution = useCallback(
-    (choice: "apply" | "cancel") => {
+    (planId: string) => {
       const payload = useGlobalConflictStore.getState().conflictPayload;
       if (!payload?.pendingDrag) return;
 
-      const resolution = payload.resolution;
+      const plan =
+        payload.plans?.find((p) => p.id === planId) ??
+        (payload.resolution?.plans ?? []).find((p) => p.id === planId);
 
-      if (choice === "cancel") {
+      if (!plan) return;
+
+      if (plan.strategy === "cancel_place") {
         const cancelledIds =
-          resolution?.proposedCancelIds?.length
-            ? resolution.proposedCancelIds
+          plan.proposedCancelIds?.length
+            ? plan.proposedCancelIds
             : payload.conflictingItems.map((c) => c.appointmentId);
         if (cancelledIds.length === 0) return;
         applyConflictResolution(payload.pendingDrag, {
           updatedExistingAppointments: [],
           cancelledIds,
-          message:
-            resolution?.message ||
-            "Cancelled overlapping visits to place yours.",
+          message: plan.summary,
         });
         return;
       }
 
-      // Apply suggested shift / transfer plan — only after secretary confirm.
       if (
-        !resolution ||
-        resolution.status !== "Resolved" ||
-        resolution.updatedExistingAppointments.length === 0
+        plan.status !== "Resolved" ||
+        plan.updatedExistingAppointments.length === 0
       ) {
         return;
       }
 
       applyConflictResolution(payload.pendingDrag, {
-        updatedExistingAppointments: resolution.updatedExistingAppointments,
+        updatedExistingAppointments: plan.updatedExistingAppointments,
         cancelledIds: [],
-        message: resolution.message,
+        message: plan.summary,
       });
     },
     [applyConflictResolution],

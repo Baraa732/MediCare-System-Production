@@ -1,6 +1,9 @@
 import { create } from "zustand";
 import type { AppointmentType } from "@/features/dashboardAssitant/types";
-import type { MultiResolutionResult } from "../components/SchedualeGrid/DNDGrid/utils/conflictResolve";
+import type {
+  MultiResolutionResult,
+  ResolutionPlan,
+} from "../components/SchedualeGrid/DNDGrid/utils/conflictResolve";
 
 export interface ConflictingItem {
   appointmentId: string;
@@ -16,8 +19,12 @@ export interface ConflictPayload {
   attemptedAction: "move" | "assign";
   /** Proposed drop for the dragged appointment (edit-mode local). */
   pendingDrag?: AppointmentType;
-  /** Auto-mitigation proposal from conflictResolve. */
+  /** @deprecated Prefer plans — kept for legacy apply path. */
   resolution?: MultiResolutionResult | null;
+  /** Ranked atomic plans for secretary choice. */
+  plans?: ResolutionPlan[];
+  recommendedPlanId?: string | null;
+  lockMessages?: string[];
 }
 
 interface GlobalConflictStore {

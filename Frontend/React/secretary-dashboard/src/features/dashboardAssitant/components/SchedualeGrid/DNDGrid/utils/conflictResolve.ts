@@ -1,30 +1,70 @@
-import { TOTAL_SLOTS, ROW_MINUTES } from "@/features/dashboardAssitant/data/scheduleGrid";
+import { ROW_MINUTES } from "@/features/dashboardAssitant/data/scheduleGrid";
 import type { DoctorType, AppointmentType } from "@/features/dashboardAssitant/types";
 import { clinicNowGridMinutes } from "@/features/dashboardAssitant/utils/editModeDrag";
-import { isGridRangeOutsideClinicHours } from "@/features/dashboardAssitant/utils/clinicHours";
 import { normalizeAppointmentStatus } from "@/features/dashboardAssitant/utils/appointmentStatusStyles";
-import { hasSchedulingConflict } from "./conflictValidator";
-import type { ClinicHoursDay } from "@/lib/api/schedule";
+import {
+  findLatestEarlierStart,
+  isRangeUnavailable,
+} from "./conflictValidator";
+import type { ClinicHoursDay, ScheduleBlock } from "@/lib/api/schedule";
 
-const MAX_GRID_MINUTES = TOTAL_SLOTS * ROW_MINUTES;
 const SAFETY_BUFFER_MINUTES = 15;
 
 export type ConflictResolutionAction =
   | "None"
   | "Shifted Down"
   | "Shifted Down Chain"
+  | "Shifted Earlier"
   | "Transferred Doctor"
-  | "Prompt User Selection";
+  | "Hybrid"
+  | "Prompt User Selection"
+  | "Cancel Place";
 
-export type ResolutionStepKind = "shift" | "transfer" | "cancel";
+export type ResolutionStepKind =
+  | "shift"
+  | "shift_earlier"
+  | "shift_later"
+  | "transfer"
+  | "cancel"
+  | "place";
+
+export type ResolutionStrategy =
+  | "push_earlier"
+  | "push_later"
+  | "transfer"
+  | "hybrid"
+  | "cancel_place";
 
 export interface ResolutionStep {
   kind: ResolutionStepKind;
   appointmentId: string;
   patientName: string;
   detail: string;
+  fromStart: number;
+  fromEnd: number;
+  toStart: number;
+  toEnd: number;
+  fromDocId: string;
+  toDocId: string;
+  fromDoctorName?: string;
+  toDoctorName?: string;
+  lockReason?: string;
 }
 
+export interface ResolutionPlan {
+  id: string;
+  strategy: ResolutionStrategy;
+  rankScore: number;
+  title: string;
+  summary: string;
+  status: "Resolved" | "Requires Manual Action";
+  action: ConflictResolutionAction;
+  updatedExistingAppointments: AppointmentType[];
+  proposedCancelIds?: string[];
+  steps: ResolutionStep[];
+}
+
+/** @deprecated Prefer ResolutionPlan — kept for transitional callers. */
 export interface MultiResolutionResult {
   status: "Resolved" | "Requires Manual Action";
   action: ConflictResolutionAction;
@@ -32,12 +72,16 @@ export interface MultiResolutionResult {
   updatedExistingAppointments: AppointmentType[];
   proposedCancelIds?: string[];
   steps?: ResolutionStep[];
+  plans?: ResolutionPlan[];
+  recommendedPlanId?: string | null;
+  lockMessages?: string[];
 }
 
 export interface ResolveConflictOptions {
   selectedDate?: Date;
   preferSameSpecialty?: boolean;
-  clinicHours?: ClinicHoursDay[];
+  clinicHours?: ClinicHoursDay[] | null;
+  scheduleBlocks?: ScheduleBlock[] | null;
 }
 
 function patientLabel(apt: AppointmentType): string {
@@ -147,17 +191,71 @@ function applyTransfersToBoard(
   });
 }
 
+function applyPlacedToBoard(
+  allDoctors: DoctorType[],
+  placed: AppointmentType[],
+): DoctorType[] {
+  let next = allDoctors;
+  for (const apt of placed) {
+    const ban = new Set([apt.id]);
+    next = boardWithoutIds(next, ban);
+    next = next.map((doc) =>
+      doc.id === apt.docId
+        ? { ...doc, appointments: [...(doc.appointments || []), apt] }
+        : doc,
+    );
+  }
+  return next;
+}
+
+function slotOptions(options: ResolveConflictOptions, ignoreIds?: Set<string>) {
+  return {
+    selectedDate: options.selectedDate,
+    clinicHours: options.clinicHours,
+    scheduleBlocks: options.scheduleBlocks,
+    ignoreIds,
+  };
+}
+
+function canPlace(
+  apt: AppointmentType,
+  start: number,
+  end: number,
+  docId: string,
+  allDoctors: DoctorType[],
+  ignoreIds: Set<string>,
+  options: ResolveConflictOptions,
+): boolean {
+  return !isRangeUnavailable(
+    start,
+    end,
+    docId,
+    allDoctors,
+    slotOptions(options, ignoreIds),
+    apt.id,
+  );
+}
+
 function findTransferDoctor(
   apt: AppointmentType,
   allDoctors: DoctorType[],
   excludeDoctorIds: string[],
   preferSameSpecialty: boolean,
+  options: ResolveConflictOptions,
 ): DoctorType | undefined {
   const banned = new Set(excludeDoctorIds);
   const candidates = allDoctors.filter(
     (doc) =>
       !banned.has(doc.id) &&
-      !hasSchedulingConflict(apt.start, apt.end, doc.id, allDoctors, apt.id),
+      canPlace(
+        apt,
+        apt.start,
+        apt.end,
+        doc.id,
+        allDoctors,
+        new Set([apt.id]),
+        options,
+      ),
   );
   if (candidates.length === 0) return undefined;
 
@@ -171,47 +269,11 @@ function findTransferDoctor(
   return candidates[0];
 }
 
-function canShiftAppointment(
-  apt: AppointmentType,
-  shiftedStart: number,
-  shiftedEnd: number,
-  targetDoctorId: string,
-  allDoctors: DoctorType[],
-  ignoreIds: Set<string>,
-  selectedDate?: Date,
-  clinicHours?: ClinicHoursDay[],
-): boolean {
-  if (shiftedEnd > MAX_GRID_MINUTES || shiftedStart < 0) return false;
-  if (selectedDate) {
-    const nowGrid = clinicNowGridMinutes(selectedDate);
-    if (Number.isFinite(nowGrid) && shiftedStart < nowGrid) return false;
-    if (
-      isGridRangeOutsideClinicHours(
-        shiftedStart,
-        shiftedEnd,
-        selectedDate,
-        clinicHours,
-      )
-    ) {
-      return false;
-    }
-  }
-  const simulated = boardWithoutIds(allDoctors, ignoreIds);
-  return !hasSchedulingConflict(
-    shiftedStart,
-    shiftedEnd,
-    targetDoctorId,
-    simulated,
-    apt.id,
-  );
-}
-
-function tryShiftChain(
+function tryShiftLaterChain(
   draggedApt: AppointmentType,
   chain: AppointmentType[],
   allDoctors: DoctorType[],
-  selectedDate?: Date,
-  clinicHours?: ClinicHoursDay[],
+  options: ResolveConflictOptions,
 ): AppointmentType[] | null {
   const sorted = [...chain].sort((a, b) => a.start - b.start);
   let cursor = draggedApt.end;
@@ -223,15 +285,14 @@ function tryShiftChain(
     const shiftedStart = cursor;
     const shiftedEnd = shiftedStart + duration;
     if (
-      !canShiftAppointment(
+      !canPlace(
         apt,
         shiftedStart,
         shiftedEnd,
         draggedApt.docId,
         allDoctors,
         ignore,
-        selectedDate,
-        clinicHours,
+        options,
       )
     ) {
       return null;
@@ -247,263 +308,341 @@ function tryShiftChain(
   return shifted;
 }
 
-function handleSingleConflict(
+/**
+ * Pack conflicting visits into free gaps entirely before the drop window.
+ * Rightmost-first into latest earlier slots (minimize total shift when possible).
+ */
+function tryPushEarlierChain(
   draggedApt: AppointmentType,
-  aptA: AppointmentType,
+  chain: AppointmentType[],
   allDoctors: DoctorType[],
-  preferSameSpecialty: boolean,
-  selectedDate?: Date,
-  clinicHours?: ClinicHoursDay[],
-): MultiResolutionResult {
-  const durationA = Math.max(aptA.end - aptA.start, ROW_MINUTES);
-  const shiftedStart = draggedApt.end;
-  const shiftedEnd = shiftedStart + durationA;
-  const ignore = new Set<string>([draggedApt.id, aptA.id]);
+  options: ResolveConflictOptions,
+): AppointmentType[] | null {
+  const ignoreBase = new Set<string>([
+    draggedApt.id,
+    ...chain.map((a) => a.id),
+  ]);
+  // Board without chain + with dragged occupying the drop slot.
+  let board = boardWithoutIds(allDoctors, ignoreBase);
+  board = applyPlacedToBoard(board, [draggedApt]);
 
-  if (
-    canShiftAppointment(
-      aptA,
-      shiftedStart,
-      shiftedEnd,
+  const sorted = [...chain].sort((a, b) => b.start - a.start);
+  const placed: AppointmentType[] = [];
+
+  for (const apt of sorted) {
+    const duration = Math.max(apt.end - apt.start, ROW_MINUTES);
+    const ignore = new Set(ignoreBase);
+    for (const p of placed) ignore.add(p.id);
+
+    const start = findLatestEarlierStart(
+      duration,
       draggedApt.docId,
-      allDoctors,
-      ignore,
-      selectedDate,
-      clinicHours,
-    )
-  ) {
-    const updated = {
-      ...aptA,
-      start: shiftedStart,
-      end: shiftedEnd,
+      board,
+      draggedApt.start,
+      slotOptions(options, ignore),
+      apt.id,
+    );
+    if (start === null) return null;
+
+    const updated: AppointmentType = {
+      ...apt,
+      start,
+      end: start + duration,
       docId: draggedApt.docId,
     };
-    return {
-      status: "Resolved",
-      action: "Shifted Down",
-      message: `Moved ${patientLabel(aptA)} later to free the slot.`,
-      updatedExistingAppointments: [updated],
-      steps: [
-        {
-          kind: "shift",
-          appointmentId: aptA.id,
-          patientName: patientLabel(aptA),
-          detail: "Shift later to free the dropped time",
-        },
-      ],
-    };
+    placed.push(updated);
+    board = applyPlacedToBoard(board, [updated]);
   }
 
-  if (aptA.refuseTransfer !== true) {
-    const alternativeDoctor = findTransferDoctor(
-      aptA,
-      allDoctors,
-      [draggedApt.docId, aptA.docId],
-      preferSameSpecialty,
-    );
-    if (alternativeDoctor) {
-      return {
-        status: "Resolved",
-        action: "Transferred Doctor",
-        message: `Moved ${patientLabel(aptA)} to ${alternativeDoctor.name}.`,
-        updatedExistingAppointments: [{ ...aptA, docId: alternativeDoctor.id }],
-        steps: [
-          {
-            kind: "transfer",
-            appointmentId: aptA.id,
-            patientName: patientLabel(aptA),
-            detail: `Transfer to ${alternativeDoctor.name}`,
-          },
-        ],
-      };
-    }
-  }
+  return placed;
+}
 
-  if (aptA.refuseTransfer === true) {
-    return {
-      status: "Requires Manual Action",
-      action: "Prompt User Selection",
-      message: `${patientLabel(aptA)} is locked to this doctor. Confirm cancel to place yours, or pick another slot.`,
-      updatedExistingAppointments: [],
-      proposedCancelIds: [aptA.id],
-      steps: [
-        {
-          kind: "cancel",
-          appointmentId: aptA.id,
-          patientName: patientLabel(aptA),
-          detail: "Requires confirmed cancellation",
-        },
-      ],
-    };
-  }
-
+function makeStep(
+  kind: ResolutionStepKind,
+  apt: AppointmentType,
+  to: AppointmentType,
+  detail: string,
+  doctorNames?: { from?: string; to?: string },
+): ResolutionStep {
   return {
-    status: "Requires Manual Action",
-    action: "Prompt User Selection",
-    message:
-      "No safe shift or transfer is available. Pick another slot or resolve manually.",
-    updatedExistingAppointments: [],
+    kind,
+    appointmentId: apt.id,
+    patientName: patientLabel(apt),
+    detail,
+    fromStart: apt.start,
+    fromEnd: apt.end,
+    toStart: to.start,
+    toEnd: to.end,
+    fromDocId: apt.docId,
+    toDocId: to.docId,
+    fromDoctorName: doctorNames?.from,
+    toDoctorName: doctorNames?.to,
   };
 }
 
-function handleMultiConflict(
+function scorePlan(
+  strategy: ResolutionStrategy,
+  originals: AppointmentType[],
+  updated: AppointmentType[],
+  cancelCount: number,
+): number {
+  const byId = new Map(originals.map((a) => [a.id, a]));
+  let minutesMoved = 0;
+  let transfers = 0;
+  for (const u of updated) {
+    const o = byId.get(u.id);
+    if (!o) continue;
+    minutesMoved += Math.abs(u.start - o.start);
+    if (u.docId !== o.docId) transfers += 1;
+  }
+  let score =
+    minutesMoved + transfers * 100 + cancelCount * 1000;
+  // Prefer earlier packing and same-doctor when scores are close.
+  if (strategy === "push_earlier") score -= 5;
+  if (strategy === "push_later") score -= 2;
+  if (strategy === "transfer") score += 1;
+  if (strategy === "cancel_place") score += 50;
+  return score;
+}
+
+function planFromUpdates(
+  id: string,
+  strategy: ResolutionStrategy,
+  title: string,
+  summary: string,
+  action: ConflictResolutionAction,
+  chain: AppointmentType[],
+  updated: AppointmentType[],
+  steps: ResolutionStep[],
+  cancelIds?: string[],
+): ResolutionPlan {
+  return {
+    id,
+    strategy,
+    rankScore: scorePlan(strategy, chain, updated, cancelIds?.length ?? 0),
+    title,
+    summary,
+    status: "Resolved",
+    action,
+    updatedExistingAppointments: updated,
+    proposedCancelIds: cancelIds,
+    steps,
+  };
+}
+
+function buildTransferPlan(
   draggedApt: AppointmentType,
-  affectedChain: AppointmentType[],
+  chain: AppointmentType[],
   allDoctors: DoctorType[],
   preferSameSpecialty: boolean,
-  selectedDate?: Date,
-  clinicHours?: ClinicHoursDay[],
-): MultiResolutionResult {
-  const fullShift = tryShiftChain(
-    draggedApt,
-    affectedChain,
-    allDoctors,
-    selectedDate,
-    clinicHours,
-  );
-  if (fullShift) {
-    return {
-      status: "Resolved",
-      action: "Shifted Down Chain",
-      message: `Shifted ${fullShift.length} overlapping visit${fullShift.length === 1 ? "" : "s"} later.`,
-      updatedExistingAppointments: fullShift,
-      steps: fullShift.map((apt) => ({
-        kind: "shift" as const,
-        appointmentId: apt.id,
-        patientName: patientLabel(apt),
-        detail: "Shift later in cascade",
-      })),
-    };
+  options: ResolveConflictOptions,
+): ResolutionPlan | null {
+  const transferable = chain.filter((a) => a.refuseTransfer !== true);
+  if (transferable.length !== chain.length) return null;
+
+  const transfers: AppointmentType[] = [];
+  const steps: ResolutionStep[] = [];
+  let board = allDoctors;
+
+  for (const apt of chain) {
+    const alt = findTransferDoctor(
+      apt,
+      applyTransfersToBoard(board, transfers),
+      [draggedApt.docId, apt.docId],
+      preferSameSpecialty,
+      options,
+    );
+    if (!alt) return null;
+    const updated = { ...apt, docId: alt.id };
+    transfers.push(updated);
+    const fromDoc = allDoctors.find((d) => d.id === apt.docId);
+    steps.push(
+      makeStep(
+        "transfer",
+        apt,
+        updated,
+        `Transfer to ${alt.name}`,
+        { from: fromDoc?.name, to: alt.name },
+      ),
+    );
   }
 
+  return planFromUpdates(
+    "transfer",
+    "transfer",
+    "Transfer overlapping visits",
+    `Move ${transfers.length} visit${transfers.length === 1 ? "" : "s"} to other doctor${transfers.length === 1 ? "" : "s"} at the same time.`,
+    "Transferred Doctor",
+    chain,
+    transfers,
+    steps,
+  );
+}
+
+function buildHybridPlan(
+  draggedApt: AppointmentType,
+  chain: AppointmentType[],
+  allDoctors: DoctorType[],
+  preferSameSpecialty: boolean,
+  options: ResolveConflictOptions,
+): ResolutionPlan | null {
   const transfers: AppointmentType[] = [];
   const transferSteps: ResolutionStep[] = [];
   const remaining: AppointmentType[] = [];
 
-  for (const apt of affectedChain) {
+  for (const apt of chain) {
     if (apt.refuseTransfer === true) {
       remaining.push(apt);
       continue;
     }
-
     const alt = findTransferDoctor(
       apt,
       applyTransfersToBoard(allDoctors, transfers),
       [draggedApt.docId],
       preferSameSpecialty,
+      options,
     );
-
     if (alt) {
-      transfers.push({ ...apt, docId: alt.id });
-      transferSteps.push({
-        kind: "transfer",
-        appointmentId: apt.id,
-        patientName: patientLabel(apt),
-        detail: `Transfer to ${alt.name}`,
-      });
+      const updated = { ...apt, docId: alt.id };
+      transfers.push(updated);
+      const fromDoc = allDoctors.find((d) => d.id === apt.docId);
+      transferSteps.push(
+        makeStep(
+          "transfer",
+          apt,
+          updated,
+          `Transfer to ${alt.name}`,
+          { from: fromDoc?.name, to: alt.name },
+        ),
+      );
     } else {
       remaining.push(apt);
     }
   }
 
-  if (remaining.length === 0) {
-    return {
-      status: "Resolved",
-      action: "Transferred Doctor",
-      message: `Transferred ${transfers.length} overlapping visit${transfers.length === 1 ? "" : "s"}.`,
-      updatedExistingAppointments: transfers,
-      steps: transferSteps,
-    };
-  }
+  if (transfers.length === 0 || remaining.length === 0) return null;
 
-  const boardAfterTransfers = applyTransfersToBoard(allDoctors, transfers);
-  const shiftedRemaining = tryShiftChain(
+  const boardAfter = applyTransfersToBoard(allDoctors, transfers);
+  const earlier = tryPushEarlierChain(
     draggedApt,
     remaining,
-    boardAfterTransfers,
-    selectedDate,
-    clinicHours,
+    boardAfter,
+    options,
   );
-
-  if (shiftedRemaining) {
-    return {
-      status: "Resolved",
-      action: "Shifted Down Chain",
-      message: `Transferred ${transfers.length} and shifted ${shiftedRemaining.length} visit${shiftedRemaining.length === 1 ? "" : "s"}.`,
-      updatedExistingAppointments: [...transfers, ...shiftedRemaining],
-      steps: [
-        ...transferSteps,
-        ...shiftedRemaining.map((apt) => ({
-          kind: "shift" as const,
-          appointmentId: apt.id,
-          patientName: patientLabel(apt),
-          detail: "Shift later after transfers",
-        })),
-      ],
-    };
+  if (earlier) {
+    const steps = [
+      ...transferSteps,
+      ...earlier.map((u) => {
+        const o = remaining.find((r) => r.id === u.id)!;
+        return makeStep(
+          "shift_earlier",
+          o,
+          u,
+          `Push earlier to free the drop`,
+        );
+      }),
+    ];
+    return planFromUpdates(
+      "hybrid_earlier",
+      "hybrid",
+      "Transfer some + push others earlier",
+      `Transfer ${transfers.length}, push ${earlier.length} earlier.`,
+      "Hybrid",
+      chain,
+      [...transfers, ...earlier],
+      steps,
+    );
   }
 
-  const allRefuse = remaining.every((a) => a.refuseTransfer === true);
-  if (allRefuse && remaining.length === affectedChain.length) {
-    return {
-      status: "Requires Manual Action",
-      action: "Prompt User Selection",
-      message:
-        "Overlapping visits are locked to this doctor. Confirm cancel to place yours, or pick another slot.",
-      updatedExistingAppointments: [],
-      proposedCancelIds: remaining.map((a) => a.id),
-      steps: remaining.map((apt) => ({
-        kind: "cancel" as const,
-        appointmentId: apt.id,
-        patientName: patientLabel(apt),
-        detail: "Locked — cancellation confirmation required",
-      })),
-    };
+  const later = tryShiftLaterChain(
+    draggedApt,
+    remaining,
+    boardAfter,
+    options,
+  );
+  if (later) {
+    const steps = [
+      ...transferSteps,
+      ...later.map((u) => {
+        const o = remaining.find((r) => r.id === u.id)!;
+        return makeStep(
+          "shift_later",
+          o,
+          u,
+          `Push later after your drop`,
+        );
+      }),
+    ];
+    return planFromUpdates(
+      "hybrid_later",
+      "hybrid",
+      "Transfer some + push others later",
+      `Transfer ${transfers.length}, push ${later.length} later.`,
+      "Hybrid",
+      chain,
+      [...transfers, ...later],
+      steps,
+    );
   }
+
+  return null;
+}
+
+function buildCancelPlan(chain: AppointmentType[]): ResolutionPlan {
+  const steps: ResolutionStep[] = chain.map((apt) => ({
+    kind: "cancel" as const,
+    appointmentId: apt.id,
+    patientName: patientLabel(apt),
+    detail: "Cancel this visit to free the slot",
+    fromStart: apt.start,
+    fromEnd: apt.end,
+    toStart: apt.start,
+    toEnd: apt.end,
+    fromDocId: apt.docId,
+    toDocId: apt.docId,
+  }));
 
   return {
+    id: "cancel_place",
+    strategy: "cancel_place",
+    rankScore: scorePlan("cancel_place", chain, [], chain.length),
+    title: `Cancel ${chain.length} overlapping visit${chain.length === 1 ? "" : "s"}`,
+    summary:
+      "Place yours and mark conflicts cancelled. Patients are notified when you Save.",
     status: "Requires Manual Action",
-    action: "Prompt User Selection",
-    message:
-      "No fully safe auto-fix. Pick another slot, or move conflicting visits manually.",
+    action: "Cancel Place",
     updatedExistingAppointments: [],
-    steps: affectedChain.map((apt) => ({
-      kind: "cancel" as const,
-      appointmentId: apt.id,
-      patientName: patientLabel(apt),
-      detail: "Needs manual routing",
-    })),
+    proposedCancelIds: chain.map((a) => a.id),
+    steps,
   };
 }
 
+export interface ConflictPlansResult {
+  plans: ResolutionPlan[];
+  recommendedPlanId: string | null;
+  lockMessages: string[];
+  affectedChain: AppointmentType[];
+}
+
 /**
- * Resolve DnD drop conflicts. Plans are atomic: fully resolve, or require manual action.
- * Never silently deletes — cancellations need secretary confirmation.
+ * Build ranked atomic resolution plans. Secretary must pick one — nothing auto-applies.
  */
-export function resolveAppointmentConflict(
+export function buildConflictResolutionPlans(
   draggedApt: AppointmentType,
   allDoctors: DoctorType[],
   options: ResolveConflictOptions = {},
-): MultiResolutionResult {
+): ConflictPlansResult {
   const preferSameSpecialty = options.preferSameSpecialty !== false;
   const targetDoctor = allDoctors.find((d) => d.id === draggedApt.docId);
+  const empty: ConflictPlansResult = {
+    plans: [],
+    recommendedPlanId: null,
+    lockMessages: [],
+    affectedChain: [],
+  };
 
-  if (!targetDoctor) {
-    return {
-      status: "Requires Manual Action",
-      action: "Prompt User Selection",
-      message: "Target doctor was not found on the schedule.",
-      updatedExistingAppointments: [],
-    };
-  }
-
-  if (draggedApt.end <= draggedApt.start) {
-    return {
-      status: "Requires Manual Action",
-      action: "Prompt User Selection",
-      message: "Invalid appointment duration for this drop.",
-      updatedExistingAppointments: [],
-    };
+  if (!targetDoctor || draggedApt.end <= draggedApt.start) {
+    return empty;
   }
 
   const doctorAppointments = [...(targetDoctor.appointments || [])]
@@ -511,56 +650,173 @@ export function resolveAppointmentConflict(
     .sort((a, b) => a.start - b.start);
 
   const affectedChain = expandConflictChain(draggedApt, doctorAppointments);
-
   if (affectedChain.length === 0) {
-    return {
-      status: "Resolved",
-      action: "None",
-      message: "No conflict detected.",
-      updatedExistingAppointments: [],
-    };
+    return empty;
   }
 
+  const lockMessages: string[] = [];
+  let hardLocked = false;
   for (const existApt of affectedChain) {
     const manualCheck = isExistAptRestrictedFromMoving(
       existApt,
       options.selectedDate,
     );
     if (manualCheck.isManual) {
-      return {
-        status: "Requires Manual Action",
-        action: "Prompt User Selection",
-        message: `Safety lock: ${manualCheck.reason}. Manual routing required.`,
-        updatedExistingAppointments: [],
-        steps: [
-          {
-            kind: "cancel",
-            appointmentId: existApt.id,
-            patientName: patientLabel(existApt),
-            detail: manualCheck.reason,
-          },
-        ],
-      };
+      lockMessages.push(manualCheck.reason);
+      hardLocked = true;
     }
   }
 
-  if (affectedChain.length === 1) {
-    return handleSingleConflict(
+  const plans: ResolutionPlan[] = [];
+
+  if (!hardLocked) {
+    const earlier = tryPushEarlierChain(
       draggedApt,
-      affectedChain[0],
+      affectedChain,
+      allDoctors,
+      options,
+    );
+    if (earlier) {
+      plans.push(
+        planFromUpdates(
+          "push_earlier",
+          "push_earlier",
+          "Push overlapping visits earlier",
+          `Use free slot${earlier.length === 1 ? "" : "s"} before your drop to free the time.`,
+          "Shifted Earlier",
+          affectedChain,
+          earlier,
+          earlier.map((u) => {
+            const o = affectedChain.find((c) => c.id === u.id)!;
+            return makeStep(
+              "shift_earlier",
+              o,
+              u,
+              "Push earlier into a free gap",
+            );
+          }),
+        ),
+      );
+    }
+
+    const later = tryShiftLaterChain(
+      draggedApt,
+      affectedChain,
+      allDoctors,
+      options,
+    );
+    if (later) {
+      plans.push(
+        planFromUpdates(
+          "push_later",
+          "push_later",
+          "Push overlapping visits later",
+          `Shift ${later.length} visit${later.length === 1 ? "" : "s"} to start after your drop.`,
+          later.length > 1 ? "Shifted Down Chain" : "Shifted Down",
+          affectedChain,
+          later,
+          later.map((u) => {
+            const o = affectedChain.find((c) => c.id === u.id)!;
+            return makeStep(
+              "shift_later",
+              o,
+              u,
+              "Push later after your drop",
+            );
+          }),
+        ),
+      );
+    }
+
+    const transfer = buildTransferPlan(
+      draggedApt,
+      affectedChain,
       allDoctors,
       preferSameSpecialty,
-      options.selectedDate,
-      options.clinicHours,
+      options,
     );
+    if (transfer) plans.push(transfer);
+
+    const hybrid = buildHybridPlan(
+      draggedApt,
+      affectedChain,
+      allDoctors,
+      preferSameSpecialty,
+      options,
+    );
+    if (hybrid) plans.push(hybrid);
   }
 
-  return handleMultiConflict(
-    draggedApt,
+  // Cancel is always available when there are overlaps (secretary choice).
+  plans.push(buildCancelPlan(affectedChain));
+
+  plans.sort((a, b) => a.rankScore - b.rankScore);
+
+  const recommended =
+    plans.find((p) => p.strategy !== "cancel_place" && p.status === "Resolved")
+      ?.id ?? plans[0]?.id ?? null;
+
+  return {
+    plans,
+    recommendedPlanId: recommended,
+    lockMessages,
     affectedChain,
-    allDoctors,
-    preferSameSpecialty,
-    options.selectedDate,
-    options.clinicHours,
-  );
+  };
+}
+
+/**
+ * Resolve DnD drop conflicts. Returns recommended plan + full plans list.
+ * Plans are atomic; cancellations need secretary confirmation.
+ */
+export function resolveAppointmentConflict(
+  draggedApt: AppointmentType,
+  allDoctors: DoctorType[],
+  options: ResolveConflictOptions = {},
+): MultiResolutionResult {
+  const result = buildConflictResolutionPlans(draggedApt, allDoctors, options);
+
+  if (result.affectedChain.length === 0) {
+    return {
+      status: "Resolved",
+      action: "None",
+      message: "No conflict detected.",
+      updatedExistingAppointments: [],
+      plans: [],
+      recommendedPlanId: null,
+      lockMessages: [],
+    };
+  }
+
+  const recommended =
+    result.plans.find((p) => p.id === result.recommendedPlanId) ??
+    result.plans[0];
+
+  if (!recommended) {
+    return {
+      status: "Requires Manual Action",
+      action: "Prompt User Selection",
+      message: "No resolution plan available.",
+      updatedExistingAppointments: [],
+      plans: [],
+      recommendedPlanId: null,
+      lockMessages: result.lockMessages,
+    };
+  }
+
+  const message =
+    result.lockMessages.length > 0
+      ? `Safety lock: ${result.lockMessages[0]}. Choose cancel or another slot.`
+      : recommended.summary;
+
+  return {
+    status: recommended.status,
+    action: recommended.action,
+    message,
+    updatedExistingAppointments: recommended.updatedExistingAppointments,
+    proposedCancelIds: recommended.proposedCancelIds,
+    steps: recommended.steps,
+    plans: result.plans,
+    recommendedPlanId: result.recommendedPlanId,
+    lockMessages: result.lockMessages,
+  };
 }

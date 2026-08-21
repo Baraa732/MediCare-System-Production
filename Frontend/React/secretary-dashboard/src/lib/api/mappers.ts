@@ -27,6 +27,93 @@ function minutesFromGridStart(scheduledAt: string): number {
   return gridMinutesFromIso(scheduledAt);
 }
 
+function parseNotesMetadata(notes?: string | null): Record<string, unknown> {
+  if (!notes?.trim()) return {};
+  const trimmed = notes.trim();
+  if (!trimmed.startsWith("{")) return {};
+  try {
+    const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Human-readable note text (strips embedded Medicare metadata JSON when present). */
+export function displayNotesFromStored(notes?: string | null): string | undefined {
+  if (!notes?.trim()) return undefined;
+  const meta = parseNotesMetadata(notes);
+  if (typeof meta.text === "string") return meta.text || undefined;
+  if (notes.trim().startsWith("{")) return undefined;
+  return notes;
+}
+
+/** Persist secretary note + conflict-engine metadata in the notes field. */
+export function encodeAppointmentNotes(
+  userNotes: string | undefined | null,
+  meta: {
+    complexity?: string | null;
+    refuseTransfer?: boolean | null;
+  } = {},
+): string | undefined {
+  const text = userNotes?.trim() ?? "";
+  const hasMeta =
+    !!meta.complexity || typeof meta.refuseTransfer === "boolean";
+  if (!hasMeta) return text || undefined;
+  return JSON.stringify({
+    text,
+    ...(meta.complexity ? { complexity: meta.complexity } : {}),
+    ...(typeof meta.refuseTransfer === "boolean"
+      ? { refuseTransfer: meta.refuseTransfer }
+      : {}),
+  });
+}
+
+function resolveComplexity(
+  appointment: ApiAppointment & { complexity?: string | null },
+): string | undefined {
+  const meta = {
+    ...parseNotesMetadata(appointment.notes),
+    ...(appointment.metadata ?? {}),
+  };
+  const raw =
+    appointment.complexity ??
+    (typeof meta.complexity === "string" ? meta.complexity : undefined);
+  if (!raw) return undefined;
+  const normalized = raw.toLowerCase();
+  if (
+    normalized === "standard" ||
+    normalized === "complex" ||
+    normalized === "elderly" ||
+    normalized === "urgent"
+  ) {
+    return normalized;
+  }
+  return undefined;
+}
+
+function resolveRefuseTransfer(
+  appointment: ApiAppointment & {
+    refuseTransfer?: boolean | null;
+    lockedToDoctor?: boolean | null;
+  },
+): boolean | undefined {
+  if (typeof appointment.refuseTransfer === "boolean") {
+    return appointment.refuseTransfer;
+  }
+  if (typeof appointment.lockedToDoctor === "boolean") {
+    return appointment.lockedToDoctor;
+  }
+  const meta = {
+    ...parseNotesMetadata(appointment.notes),
+    ...(appointment.metadata ?? {}),
+  };
+  if (typeof meta.refuseTransfer === "boolean") return meta.refuseTransfer;
+  if (typeof meta.lockedToDoctor === "boolean") return meta.lockedToDoctor;
+  if (typeof meta.isLockedToDoctor === "boolean") return meta.isLockedToDoctor;
+  return undefined;
+}
+
 export function mapAppointmentToGrid(
   appointment: ApiAppointment & {
     patientName?: string | null;
@@ -43,6 +130,10 @@ export function mapAppointmentToGrid(
     appointment.guestPatientName ??
     (appointment.patientId ? `Patient ${appointment.patientId.slice(0, 8)}` : "Guest patient");
 
+  const complexity = resolveComplexity(appointment);
+  const refuseTransfer = resolveRefuseTransfer(appointment);
+  const displayNotes = displayNotesFromStored(appointment.notes);
+
   return {
     id: appointment.id,
     docId: appointment.doctorId,
@@ -52,7 +143,11 @@ export function mapAppointmentToGrid(
     status: STATUS_MAP[appointment.status] ?? appointment.status.toLowerCase(),
     date: new Date(appointment.scheduledAt),
     duration,
-    notes: appointment.notes ?? undefined,
+    notes: displayNotes,
+    ...(complexity
+      ? { complexity: complexity as ColumnAppointmentsType["complexity"] }
+      : {}),
+    ...(typeof refuseTransfer === "boolean" ? { refuseTransfer } : {}),
     patient: {
       name: title,
       age: 0,

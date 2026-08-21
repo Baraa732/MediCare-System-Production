@@ -8,7 +8,8 @@ import { lookupPatientByPhone } from "@/lib/api/users";
 import {
   scheduledAtFromAbsoluteMinutes,
   scheduledAtFromGridMinutes,
-} from "@/lib/time/gridTime";
+  encodeAppointmentNotes,
+} from "@/lib/api/mappers";
 import { useAuthStore } from "@/stores/authStore";
 import { useScheduleContext } from "../context/ScheduleContext";
 import { useHandleDatePicker } from "./useHandleDatePicker";
@@ -46,7 +47,10 @@ export function useAppointmentActions() {
           ),
           durationMinutes: updatedApt.end - updatedApt.start,
           reason: updatedApt.title,
-          notes: updatedApt.notes,
+          notes: encodeAppointmentNotes(updatedApt.notes, {
+            complexity: updatedApt.complexity,
+            refuseTransfer: updatedApt.refuseTransfer,
+          }),
         },
         accessToken,
       );
@@ -73,7 +77,10 @@ export function useAppointmentActions() {
             scheduledAt: scheduledAtFromGridMinutes(apt.start, selectedDate),
             durationMinutes: apt.end - apt.start,
             reason: apt.title,
-            notes: apt.notes,
+            notes: encodeAppointmentNotes(apt.notes, {
+              complexity: apt.complexity,
+              refuseTransfer: apt.refuseTransfer,
+            }),
           },
           accessToken,
         );
@@ -112,6 +119,10 @@ export function useAppointmentActions() {
       const reason =
         wizardData.notes?.trim() ||
         `${wizardData.patientName} - ${treatmentName}`;
+      const notes = encodeAppointmentNotes(wizardData.notes, {
+        complexity: wizardData.complexity,
+        refuseTransfer: wizardData.isLockedToDoctor,
+      });
 
       if (options.pendingRequestId && isApiAppointmentId(options.pendingRequestId)) {
         await updateAppointment(
@@ -121,7 +132,7 @@ export function useAppointmentActions() {
             scheduledAt,
             durationMinutes: wizardData.duration,
             reason,
-            notes: wizardData.notes,
+            notes,
           },
           accessToken,
         );
@@ -138,7 +149,7 @@ export function useAppointmentActions() {
             scheduledAt,
             durationMinutes: wizardData.duration,
             reason,
-            notes: wizardData.notes,
+            notes,
           },
           accessToken,
         );
@@ -164,6 +175,7 @@ export function useAppointmentActions() {
             scheduledAt,
             durationMinutes: wizardData.duration,
             reason,
+            notes,
           },
           accessToken,
         );

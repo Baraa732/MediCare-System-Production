@@ -26,6 +26,7 @@ export interface CreateAppointmentBody {
   scheduledAt: string;
   durationMinutes?: number;
   reason?: string;
+  notes?: string;
 }
 
 export type AppointmentStatus =

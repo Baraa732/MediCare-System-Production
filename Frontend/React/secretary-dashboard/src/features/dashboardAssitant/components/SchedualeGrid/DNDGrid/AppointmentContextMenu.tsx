@@ -27,7 +27,7 @@ export function AppointmentContextMenu({
   const openWithEditAppointment = useWizardDrawer(
     (s) => s.openWithEditAppointment,
   );
-  const { selectedDate } = useScheduleContext();
+  const { selectedDate, clinicHours, scheduleBlocks } = useScheduleContext();
   const [menuState, setMenuState] = useState<ContextMenuState | null>(null);
   const [activeSubmenu, setActiveSubmenu] = useState<SubmenuType>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -68,16 +68,24 @@ export function AppointmentContextMenu({
   if (!menuState) return null;
 
   const { appointment, x, y } = menuState;
-  const availableDocs = getAvailableDoctorsForTransfer(appointment, doctors);
+  const availableDocs = getAvailableDoctorsForTransfer(appointment, doctors, {
+    selectedDate,
+    clinicHours,
+    scheduleBlocks,
+  });
   const earlierIntervals = getValidEarlierIntervals(
     appointment,
     doctors,
     selectedDate,
+    clinicHours,
+    scheduleBlocks,
   );
   const laterIntervals = getValidLaterIntervals(
     appointment,
     doctors,
     selectedDate,
+    clinicHours,
+    scheduleBlocks,
   );
 
   const handleTrigger = (updated: AppointmentType) => {

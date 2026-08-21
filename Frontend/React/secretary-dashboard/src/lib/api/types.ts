@@ -76,6 +76,11 @@ export interface ApiAppointment {
   status: string;
   reason?: string;
   notes?: string;
+  /** Optional metadata when backend / gateway enriches the payload. */
+  complexity?: string | null;
+  refuseTransfer?: boolean | null;
+  lockedToDoctor?: boolean | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 export interface EnrichedAppointment extends ApiAppointment {
