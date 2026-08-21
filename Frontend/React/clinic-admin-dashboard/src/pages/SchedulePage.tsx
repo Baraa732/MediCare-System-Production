@@ -32,7 +32,7 @@ function toastCancelled(count: number | undefined) {
 export function SchedulePage() {
   const token = useAuthStore((s) => s.accessToken)!;
   const clinicId = useAuthStore((s) => s.clinicId ?? s.tenantId)!;
-  const { doctors, reload: reloadClinic } = useClinicAdmin();
+  const { doctors, appointments, reload: reloadClinic } = useClinicAdmin();
 
   const [selectedDate, setSelectedDate] = useState(() => startOfToday());
   const [hours, setHours] = useState<scheduleApi.ClinicHoursDay[]>(DEFAULT_HOURS);
@@ -265,6 +265,7 @@ export function SchedulePage() {
             hours={hours}
             availability={availability}
             blocks={blocks}
+            appointments={appointments}
             doctorName={doctorName}
             selectedDate={selectedDate}
             onDateChange={setSelectedDate}
