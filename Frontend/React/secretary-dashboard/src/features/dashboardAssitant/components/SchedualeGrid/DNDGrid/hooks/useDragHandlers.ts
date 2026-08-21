@@ -114,17 +114,38 @@ function removeAppointmentsFromDoctors(
   }));
 }
 
+function boardHasOverlaps(doctors: DoctorType[]): boolean {
+  for (const doc of doctors) {
+    const active = [...(doc.appointments || [])].sort(
+      (a, b) => a.start - b.start || a.end - b.end,
+    );
+    for (let i = 0; i < active.length; i++) {
+      for (let j = i + 1; j < active.length; j++) {
+        if (active[j].start >= active[i].end) break;
+        if (
+          Math.max(active[i].start, active[j].start) <
+          Math.min(active[i].end, active[j].end)
+        ) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
 function applyResolutionBatch(
   doctors: DoctorType[],
   draggedApt: AppointmentType,
   updatedExisting: AppointmentType[],
   cancelledIds: string[] = [],
-): DoctorType[] {
+): DoctorType[] | null {
   let next = removeAppointmentsFromDoctors(doctors, cancelledIds);
   for (const apt of updatedExisting) {
     next = applyAppointmentToDoctors(next, apt);
   }
   next = applyAppointmentToDoctors(next, draggedApt);
+  if (boardHasOverlaps(next)) return null;
   return next;
 }
 
@@ -277,17 +298,23 @@ export function useDragHandlers() {
     ) => {
       const previousCancelled = [...cancelledIdsRef.current];
       const cancelledIds = resolution.cancelledIds ?? [];
-      if (cancelledIds.length > 0) {
-        cancelledIdsRef.current = [
-          ...new Set([...cancelledIdsRef.current, ...cancelledIds]),
-        ];
-      }
       const next = applyResolutionBatch(
         workingDoctorsRef.current,
         pendingDrag,
         resolution.updatedExistingAppointments,
         cancelledIds,
       );
+      if (!next) {
+        window.alert(
+          "This plan would leave overlapping appointments. It was not applied — try another option or another slot.",
+        );
+        return;
+      }
+      if (cancelledIds.length > 0) {
+        cancelledIdsRef.current = [
+          ...new Set([...cancelledIdsRef.current, ...cancelledIds]),
+        ];
+      }
       stageLocalBoard(
         next,
         {

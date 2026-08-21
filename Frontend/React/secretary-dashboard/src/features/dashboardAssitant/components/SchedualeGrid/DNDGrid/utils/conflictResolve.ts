@@ -269,48 +269,109 @@ function findTransferDoctor(
   return candidates[0];
 }
 
+/**
+ * Find an appointment on the doctor column that overlaps [start, end).
+ */
+function findOverlapOnBoard(
+  allDoctors: DoctorType[],
+  docId: string,
+  start: number,
+  end: number,
+): AppointmentType | undefined {
+  const doctor = allDoctors.find((d) => d.id === docId);
+  if (!doctor) return undefined;
+  return (doctor.appointments || []).find((apt) =>
+    rangesOverlap(start, end, apt.start, apt.end),
+  );
+}
+
+/**
+ * Push-later cascade: pack the conflict chain (and any further blockers hit by
+ * the packed block) back-to-back starting at draggedApt.end.
+ * Simulates placements on a live board so each step sees prior moves.
+ */
 function tryShiftLaterChain(
   draggedApt: AppointmentType,
   chain: AppointmentType[],
   allDoctors: DoctorType[],
   options: ResolveConflictOptions,
 ): AppointmentType[] | null {
-  const sorted = [...chain].sort((a, b) => a.start - b.start);
-  let cursor = draggedApt.end;
-  const shifted: AppointmentType[] = [];
-  const ignore = new Set<string>([draggedApt.id, ...sorted.map((a) => a.id)]);
+  const seedIds = new Set<string>([draggedApt.id, ...chain.map((a) => a.id)]);
+  let board = boardWithoutIds(allDoctors, seedIds);
+  board = applyPlacedToBoard(board, [draggedApt]);
 
-  for (const apt of sorted) {
+  const queue = [...chain].sort((a, b) => a.start - b.start);
+  const queuedIds = new Set(queue.map((a) => a.id));
+  const shifted: AppointmentType[] = [];
+  let cursor = draggedApt.end;
+  const maxSteps = 64;
+  let steps = 0;
+
+  while (queue.length > 0) {
+    if (++steps > maxSteps) return null;
+    const apt = queue.shift()!;
     const duration = Math.max(apt.end - apt.start, ROW_MINUTES);
     const shiftedStart = cursor;
     const shiftedEnd = shiftedStart + duration;
+
     if (
-      !canPlace(
-        apt,
+      isRangeUnavailable(
         shiftedStart,
         shiftedEnd,
         draggedApt.docId,
-        allDoctors,
-        ignore,
-        options,
+        board,
+        slotOptions(options),
+        apt.id,
       )
     ) {
+      // If a non-queued appointment blocks this slot, pull it into the cascade.
+      const blocker = findOverlapOnBoard(
+        board,
+        draggedApt.docId,
+        shiftedStart,
+        shiftedEnd,
+      );
+      if (
+        blocker &&
+        !queuedIds.has(blocker.id) &&
+        blocker.id !== draggedApt.id &&
+        !isTerminalAppointment(blocker)
+      ) {
+        const lock = isExistAptRestrictedFromMoving(
+          blocker,
+          options.selectedDate,
+        );
+        if (lock.isManual) return null;
+        queuedIds.add(blocker.id);
+        queue.unshift(apt);
+        queue.unshift(blocker);
+        // Remove blocker from board so we can re-place it later in the cascade.
+        board = boardWithoutIds(board, new Set([blocker.id]));
+        continue;
+      }
       return null;
     }
-    shifted.push({
+
+    const updated: AppointmentType = {
       ...apt,
       start: shiftedStart,
       end: shiftedEnd,
       docId: draggedApt.docId,
-    });
+    };
+    shifted.push(updated);
+    board = applyPlacedToBoard(board, [updated]);
     cursor = shiftedEnd;
   }
+
   return shifted;
 }
 
 /**
  * Pack conflicting visits into free gaps entirely before the drop window.
  * Rightmost-first into latest earlier slots (minimize total shift when possible).
+ *
+ * Critical: already-placed moves must stay visible on the board and must NOT be
+ * listed in ignoreIds — otherwise later placements stack onto the same gap.
  */
 function tryPushEarlierChain(
   draggedApt: AppointmentType,
@@ -318,12 +379,12 @@ function tryPushEarlierChain(
   allDoctors: DoctorType[],
   options: ResolveConflictOptions,
 ): AppointmentType[] | null {
-  const ignoreBase = new Set<string>([
+  const removeIds = new Set<string>([
     draggedApt.id,
     ...chain.map((a) => a.id),
   ]);
   // Board without chain + with dragged occupying the drop slot.
-  let board = boardWithoutIds(allDoctors, ignoreBase);
+  let board = boardWithoutIds(allDoctors, removeIds);
   board = applyPlacedToBoard(board, [draggedApt]);
 
   const sorted = [...chain].sort((a, b) => b.start - a.start);
@@ -331,15 +392,14 @@ function tryPushEarlierChain(
 
   for (const apt of sorted) {
     const duration = Math.max(apt.end - apt.start, ROW_MINUTES);
-    const ignore = new Set(ignoreBase);
-    for (const p of placed) ignore.add(p.id);
 
+    // No ignoreIds for already-placed visits — they occupy real time on `board`.
     const start = findLatestEarlierStart(
       duration,
       draggedApt.docId,
       board,
       draggedApt.start,
-      slotOptions(options, ignore),
+      slotOptions(options),
       apt.id,
     );
     if (start === null) return null;
@@ -350,11 +410,64 @@ function tryPushEarlierChain(
       end: start + duration,
       docId: draggedApt.docId,
     };
+
+    // Belt-and-suspenders: never emit a placement that overlaps the live board.
+    if (
+      isRangeUnavailable(
+        updated.start,
+        updated.end,
+        updated.docId,
+        board,
+        slotOptions(options),
+        apt.id,
+      )
+    ) {
+      return null;
+    }
+
     placed.push(updated);
     board = applyPlacedToBoard(board, [updated]);
   }
 
   return placed;
+}
+
+/**
+ * Simulate applying a plan on a copy of the board; reject if any doctor has overlaps.
+ */
+function isPlanConflictFree(
+  draggedApt: AppointmentType,
+  updatedExisting: AppointmentType[],
+  cancelledIds: string[],
+  allDoctors: DoctorType[],
+): boolean {
+  let board = boardWithoutIds(allDoctors, new Set(cancelledIds));
+  for (const apt of updatedExisting) {
+    board = applyPlacedToBoard(board, [apt]);
+  }
+  board = applyPlacedToBoard(board, [draggedApt]);
+
+  for (const doc of board) {
+    const active = [...(doc.appointments || [])]
+      .filter((a) => !isTerminalAppointment(a) && !cancelledIds.includes(a.id))
+      .sort((a, b) => a.start - b.start || a.end - b.end);
+    for (let i = 0; i < active.length; i++) {
+      for (let j = i + 1; j < active.length; j++) {
+        if (active[j].start >= active[i].end) break;
+        if (
+          rangesOverlap(
+            active[i].start,
+            active[i].end,
+            active[j].start,
+            active[j].end,
+          )
+        ) {
+          return false;
+        }
+      }
+    }
+  }
+  return true;
 }
 
 function makeStep(
@@ -414,12 +527,20 @@ function planFromUpdates(
   chain: AppointmentType[],
   updated: AppointmentType[],
   steps: ResolutionStep[],
+  draggedApt: AppointmentType,
+  allDoctors: DoctorType[],
   cancelIds?: string[],
-): ResolutionPlan {
+): ResolutionPlan | null {
+  const cancelled = cancelIds ?? [];
+  if (
+    !isPlanConflictFree(draggedApt, updated, cancelled, allDoctors)
+  ) {
+    return null;
+  }
   return {
     id,
     strategy,
-    rankScore: scorePlan(strategy, chain, updated, cancelIds?.length ?? 0),
+    rankScore: scorePlan(strategy, chain, updated, cancelled.length),
     title,
     summary,
     status: "Resolved",
@@ -476,6 +597,8 @@ function buildTransferPlan(
     chain,
     transfers,
     steps,
+    draggedApt,
+    allDoctors,
   );
 }
 
@@ -551,6 +674,8 @@ function buildHybridPlan(
       chain,
       [...transfers, ...earlier],
       steps,
+      draggedApt,
+      allDoctors,
     );
   }
 
@@ -564,7 +689,9 @@ function buildHybridPlan(
     const steps = [
       ...transferSteps,
       ...later.map((u) => {
-        const o = remaining.find((r) => r.id === u.id)!;
+        const o =
+          remaining.find((r) => r.id === u.id) ||
+          chain.find((r) => r.id === u.id)!;
         return makeStep(
           "shift_later",
           o,
@@ -582,6 +709,8 @@ function buildHybridPlan(
       chain,
       [...transfers, ...later],
       steps,
+      draggedApt,
+      allDoctors,
     );
   }
 
@@ -677,26 +806,27 @@ export function buildConflictResolutionPlans(
       options,
     );
     if (earlier) {
-      plans.push(
-        planFromUpdates(
-          "push_earlier",
-          "push_earlier",
-          "Push overlapping visits earlier",
-          `Use free slot${earlier.length === 1 ? "" : "s"} before your drop to free the time.`,
-          "Shifted Earlier",
-          affectedChain,
-          earlier,
-          earlier.map((u) => {
-            const o = affectedChain.find((c) => c.id === u.id)!;
-            return makeStep(
-              "shift_earlier",
-              o,
-              u,
-              "Push earlier into a free gap",
-            );
-          }),
-        ),
+      const plan = planFromUpdates(
+        "push_earlier",
+        "push_earlier",
+        "Push overlapping visits earlier",
+        `Use free slot${earlier.length === 1 ? "" : "s"} before your drop to free the time.`,
+        "Shifted Earlier",
+        affectedChain,
+        earlier,
+        earlier.map((u) => {
+          const o = affectedChain.find((c) => c.id === u.id)!;
+          return makeStep(
+            "shift_earlier",
+            o,
+            u,
+            "Push earlier into a free gap",
+          );
+        }),
+        draggedApt,
+        allDoctors,
       );
+      if (plan) plans.push(plan);
     }
 
     const later = tryShiftLaterChain(
@@ -706,26 +836,32 @@ export function buildConflictResolutionPlans(
       options,
     );
     if (later) {
-      plans.push(
-        planFromUpdates(
-          "push_later",
-          "push_later",
-          "Push overlapping visits later",
-          `Shift ${later.length} visit${later.length === 1 ? "" : "s"} to start after your drop.`,
-          later.length > 1 ? "Shifted Down Chain" : "Shifted Down",
-          affectedChain,
-          later,
-          later.map((u) => {
-            const o = affectedChain.find((c) => c.id === u.id)!;
-            return makeStep(
-              "shift_later",
-              o,
-              u,
-              "Push later after your drop",
-            );
-          }),
-        ),
+      const plan = planFromUpdates(
+        "push_later",
+        "push_later",
+        "Push overlapping visits later",
+        `Shift ${later.length} visit${later.length === 1 ? "" : "s"} to start after your drop.`,
+        later.length > 1 ? "Shifted Down Chain" : "Shifted Down",
+        affectedChain,
+        later,
+        later.map((u) => {
+          const live =
+            affectedChain.find((c) => c.id === u.id) ||
+            allDoctors
+              .flatMap((d) => d.appointments || [])
+              .find((a) => a.id === u.id) ||
+            u;
+          return makeStep(
+            "shift_later",
+            live,
+            u,
+            "Push later after your drop",
+          );
+        }),
+        draggedApt,
+        allDoctors,
       );
+      if (plan) plans.push(plan);
     }
 
     const transfer = buildTransferPlan(
