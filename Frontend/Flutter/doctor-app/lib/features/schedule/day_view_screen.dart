@@ -176,6 +176,7 @@ class _DayViewScreenState extends State<DayViewScreen> {
           appointmentStatus: appointment.uiStatus ?? appointment.status,
           appointmentReason: appointment.reason,
           appointmentNotes: appointment.notes,
+          appointmentStoredNotes: appointment.storedNotes,
           isGuestPatient: appointment.isGuestPatient,
           guestPhone: appointment.patientPhone ?? appointment.guestPatientPhone,
         ),

@@ -1,7 +1,7 @@
 name: cms_doctor_app
 description: MediCare Doctor Flutter app
 publish_to: 'none'
-version: 1.0.10+14
+version: 1.0.11+15
 
 environment:
   sdk: ^3.5.0

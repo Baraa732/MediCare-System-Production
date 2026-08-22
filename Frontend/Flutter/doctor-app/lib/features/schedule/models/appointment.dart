@@ -1,4 +1,5 @@
 import 'package:cms_doctor_app/core/api/services/appointment_api_service.dart';
+import 'package:cms_doctor_app/core/utils/appointment_notes_util.dart';
 import 'package:cms_doctor_app/features/patients/patient_record_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -21,6 +22,7 @@ class Appointment {
     required this.color,
     required this.scheduledAt,
     this.notes,
+    this.storedNotes,
     this.rawStatus,
     this.gender,
     this.age,
@@ -38,6 +40,7 @@ class Appointment {
   final Color color;
   final DateTime scheduledAt;
   final String? notes;
+  final String? storedNotes;
   final String? rawStatus;
   final String? gender;
   final int? age;
@@ -61,8 +64,9 @@ class Appointment {
       patient: a.displayPatient,
       status: a.uiStatus,
       tags: tags.isEmpty ? const ['Visit'] : tags,
-      hasNotes: a.notes != null && a.notes!.trim().isNotEmpty,
+      hasNotes: hasDisplayNotes(a.storedNotes),
       notes: a.notes,
+      storedNotes: a.storedNotes,
       color: color,
       rawStatus: a.status,
       scheduledAt: a.scheduledAt,
@@ -83,6 +87,7 @@ class Appointment {
     bool? hasNotes,
     Color? color,
     String? notes,
+    String? storedNotes,
     String? rawStatus,
     DateTime? scheduledAt,
     String? gender,
@@ -100,6 +105,7 @@ class Appointment {
       hasNotes: hasNotes ?? this.hasNotes,
       color: color ?? this.color,
       notes: notes ?? this.notes,
+      storedNotes: storedNotes ?? this.storedNotes,
       rawStatus: rawStatus ?? this.rawStatus,
       scheduledAt: scheduledAt ?? this.scheduledAt,
       gender: gender ?? this.gender,
@@ -168,6 +174,7 @@ class AppointmentCard extends StatelessWidget {
                 appointmentReason:
                     appointment.tags.isNotEmpty ? appointment.tags.first : null,
                 appointmentNotes: appointment.notes,
+                appointmentStoredNotes: appointment.storedNotes,
                 isGuestPatient: appointment.patientId.trim().isEmpty,
               ),
             ),

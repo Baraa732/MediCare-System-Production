@@ -538,6 +538,7 @@ class _ShiftsScreenState extends State<ShiftsScreen> {
                                                 a.uiStatus ?? a.status,
                                             appointmentReason: a.reason,
                                             appointmentNotes: a.notes,
+                                            appointmentStoredNotes: a.storedNotes,
                                             isGuestPatient: a.isGuestPatient,
                                             guestPhone: a.patientPhone ??
                                                 a.guestPatientPhone,

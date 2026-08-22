@@ -17,11 +17,16 @@ class VisitActions {
     required String appointmentId,
     required String patientId,
     required String notes,
+    String? existingStoredNotes,
     VoidCallback? onDone,
   }) async {
     try {
       if (notes.trim().isNotEmpty) {
-        await appointmentApi.updateNotes(appointmentId, notes.trim());
+        await appointmentApi.updateNotes(
+          appointmentId,
+          notes.trim(),
+          existingStoredNotes: existingStoredNotes,
+        );
         // EMR only for registered MediCare patients — never for manual guests.
         if (patientId.trim().isNotEmpty) {
           try {
@@ -148,6 +153,7 @@ class VisitActions {
     required String time,
     required String appointmentId,
     required String patientId,
+    String? existingStoredNotes,
     VoidCallback? onDone,
   }) {
     showModalBottomSheet<void>(
@@ -165,6 +171,7 @@ class VisitActions {
           appointmentId: appointmentId,
           patientId: patientId,
           notes: notes,
+          existingStoredNotes: existingStoredNotes,
           onDone: onDone,
         ),
       ),
@@ -208,6 +215,7 @@ class VisitActions {
                     time: appointment.timeLabel,
                     appointmentId: appointment.id,
                     patientId: appointment.patientId,
+                    existingStoredNotes: appointment.storedNotes,
                     onDone: onDone,
                   );
                 },
@@ -262,6 +270,7 @@ class VisitActions {
         time: apt.timeLabel,
         appointmentId: apt.id,
         patientId: apt.patientId,
+        existingStoredNotes: apt.storedNotes,
         onDone: onDone,
       ),
       onReschedule: () => reschedule(

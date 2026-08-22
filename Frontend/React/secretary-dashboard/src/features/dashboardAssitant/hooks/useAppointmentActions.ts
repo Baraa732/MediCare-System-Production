@@ -39,6 +39,16 @@ function publishAppointment(appointment: EnrichedAppointment) {
   });
 }
 
+function wizardNoteMeta(wizardData: WizardFormData) {
+  const ageValue = parseInt(wizardData.patientAge, 10);
+  return {
+    complexity: wizardData.complexity,
+    refuseTransfer: wizardData.isLockedToDoctor,
+    patientGender: wizardData.patientGender,
+    patientAge: Number.isFinite(ageValue) ? ageValue : undefined,
+  };
+}
+
 export function useAppointmentActions() {
   const {
     softRefetch,
@@ -166,10 +176,7 @@ export function useAppointmentActions() {
       const reason =
         wizardData.notes?.trim() ||
         `${wizardData.patientName} - ${treatmentName}`;
-      const notes = encodeAppointmentNotes(wizardData.notes, {
-        complexity: wizardData.complexity,
-        refuseTransfer: wizardData.isLockedToDoctor,
-      });
+      const notes = encodeAppointmentNotes(wizardData.notes, wizardNoteMeta(wizardData));
 
       let saved: EnrichedAppointment | undefined;
 

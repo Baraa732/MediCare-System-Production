@@ -31,6 +31,7 @@ class _GenerateVisitReportSheetState extends State<GenerateVisitReportSheet> {
   String? _error;
   String? _resolvedAppointmentId;
   String? _resolvedLabel;
+  String? _resolvedStoredNotes;
 
   @override
   void initState() {
@@ -58,6 +59,7 @@ class _GenerateVisitReportSheetState extends State<GenerateVisitReportSheet> {
       setState(() {
         _resolvedAppointmentId = a.id;
         _resolvedLabel = '${a.timeLabel} · ${a.uiStatus ?? a.status}';
+        _resolvedStoredNotes = a.storedNotes;
       });
     } catch (_) {}
   }
@@ -97,7 +99,11 @@ class _GenerateVisitReportSheetState extends State<GenerateVisitReportSheet> {
       _error = null;
     });
     try {
-      await appointmentApi.updateNotes(appointmentId, report);
+      await appointmentApi.updateNotes(
+        appointmentId,
+        report,
+        existingStoredNotes: _resolvedStoredNotes,
+      );
       // Only registered patients write into OpenEMR.
       if (widget.patientId.trim().isNotEmpty) {
         try {

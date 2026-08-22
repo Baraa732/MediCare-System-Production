@@ -32,6 +32,7 @@ import { tenantFindWhere } from '../../tenant-shared/tenant-query.util';
 import { SignedKafkaPublisher } from '../../kafka-security-shared/signed-kafka.publisher';
 import { PhiAuditPublisherService } from '../../phi-audit-shared/phi-audit.publisher';
 import { PhiAuditAction, PhiAuditResourceType } from '../../phi-audit-shared/types';
+import { mergePatientDemographics } from '../utils/notes-metadata.util';
 
 export interface AuthUser {
   userId: string;
@@ -581,6 +582,7 @@ export class AppointmentService {
         : Promise.resolve(null),
     ]);
     const doctor = doctors[0];
+    const demographics = mergePatientDemographics(patient, appointment.notes);
     return {
       ...base,
       clinicName: clinic?.name,
@@ -595,8 +597,8 @@ export class AppointmentService {
         (patient
           ? `${patient.firstName ?? ''} ${patient.lastName ?? ''}`.trim() || undefined
           : undefined) ?? appointment.guestPatientName ?? undefined,
-      patientGender: patient?.gender,
-      patientBirthDate: patient?.birthDate,
+      patientGender: demographics.patientGender,
+      patientBirthDate: demographics.patientBirthDate,
       patientPhone: patient?.phoneNumber ?? appointment.guestPatientPhone ?? undefined,
       patientAvatarUrl: patient?.avatarUrl,
     };
@@ -632,6 +634,7 @@ export class AppointmentService {
       const patient = appointment.patientId
         ? patientMap.get(appointment.patientId)
         : undefined;
+      const demographics = mergePatientDemographics(patient, appointment.notes);
       return {
         ...base,
         clinicName: clinic?.name,
@@ -646,8 +649,8 @@ export class AppointmentService {
           (patient
             ? `${patient.firstName ?? ''} ${patient.lastName ?? ''}`.trim() || undefined
             : undefined) ?? appointment.guestPatientName ?? undefined,
-        patientGender: patient?.gender,
-        patientBirthDate: patient?.birthDate,
+        patientGender: demographics.patientGender,
+        patientBirthDate: demographics.patientBirthDate,
         patientPhone: patient?.phoneNumber ?? appointment.guestPatientPhone ?? undefined,
         patientAvatarUrl: patient?.avatarUrl,
       };

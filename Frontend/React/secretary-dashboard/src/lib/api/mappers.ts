@@ -49,6 +49,20 @@ export function displayNotesFromStored(notes?: string | null): string | undefine
   return notes;
 }
 
+function normalizeWizardGender(value?: string | null): string | undefined {
+  if (!value?.trim()) return undefined;
+  const v = value.trim().toLowerCase();
+  if (v === "male" || v === "m") return "MALE";
+  if (v === "female" || v === "f") return "FEMALE";
+  return value.trim().toUpperCase();
+}
+
+function parseWizardAge(value?: number | null): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+  const age = Math.floor(value);
+  return age >= 0 && age <= 120 ? age : undefined;
+}
+
 /**
  * Persist the human note. Metadata is only embedded when it is not the
  * default (standard / unlocked) so the field never shows JSON for empty notes.
@@ -58,6 +72,8 @@ export function encodeAppointmentNotes(
   meta: {
     complexity?: string | null;
     refuseTransfer?: boolean | null;
+    patientGender?: string | null;
+    patientAge?: number | null;
   } = {},
 ): string | undefined {
   const text = userNotes?.trim() ?? "";
@@ -65,11 +81,17 @@ export function encodeAppointmentNotes(
   const nonDefaultComplexity =
     complexity && complexity !== "standard" ? complexity : undefined;
   const locked = meta.refuseTransfer === true;
-  if (!nonDefaultComplexity && !locked) return text || undefined;
+  const patientGender = normalizeWizardGender(meta.patientGender);
+  const patientAge = parseWizardAge(meta.patientAge ?? undefined);
+  if (!nonDefaultComplexity && !locked && !patientGender && patientAge == null) {
+    return text || undefined;
+  }
   return JSON.stringify({
     text,
     ...(nonDefaultComplexity ? { complexity: nonDefaultComplexity } : {}),
     ...(locked ? { refuseTransfer: true } : {}),
+    ...(patientGender ? { patientGender } : {}),
+    ...(patientAge != null ? { patientAge } : {}),
   });
 }
 

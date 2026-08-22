@@ -11,6 +11,7 @@ import '../../core/constants/app_assets.dart';
 import '../../core/layout/app_shell.dart';
 import '../../core/navigation/app_navigation.dart';
 import '../../core/utils/gender_format.dart';
+import '../../core/utils/appointment_notes_util.dart';
 import '../../core/widgets/common_widgets.dart';
 import 'generate_visit_report_sheet.dart';
 import 'emr_write_sheets.dart';
@@ -28,6 +29,7 @@ class PatientRecordScreen extends StatefulWidget {
     this.appointmentStatus,
     this.appointmentReason,
     this.appointmentNotes,
+    this.appointmentStoredNotes,
     this.appointmentDuration,
     this.isGuestPatient = false,
     this.guestPhone,
@@ -43,6 +45,7 @@ class PatientRecordScreen extends StatefulWidget {
   final String? appointmentStatus;
   final String? appointmentReason;
   final String? appointmentNotes;
+  final String? appointmentStoredNotes;
   final String? appointmentDuration;
   /// Manual secretary bookings without a registered patient account.
   final bool isGuestPatient;
@@ -193,8 +196,11 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
       patient: {
         'firstName': first,
         'lastName': last,
-        'gender': widget.gender,
-        'birthDate': null,
+        'gender': pickDisplayGender([
+          widget.gender,
+          patientGenderFromStoredNotes(widget.appointmentStoredNotes),
+        ]),
+        'birthDate': _resolvedBirthDate.isEmpty ? null : _resolvedBirthDate,
       },
       allergies: const [],
       medications: const [],
@@ -309,7 +315,11 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
       // Also mirror onto appointment notes when available.
       if (widget.appointmentId != null && widget.appointmentId!.isNotEmpty) {
         try {
-          await appointmentApi.updateNotes(widget.appointmentId!, content);
+          await appointmentApi.updateNotes(
+            widget.appointmentId!,
+            content,
+            existingStoredNotes: widget.appointmentStoredNotes,
+          );
         } catch (_) {}
       }
       if (!mounted) return;
@@ -321,7 +331,11 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
       // Fallback: keep doctor productive via appointment notes.
       try {
         if (widget.appointmentId != null && widget.appointmentId!.isNotEmpty) {
-          await appointmentApi.updateNotes(widget.appointmentId!, content);
+          await appointmentApi.updateNotes(
+            widget.appointmentId!,
+            content,
+            existingStoredNotes: widget.appointmentStoredNotes,
+          );
         }
         if (!mounted) return;
         setState(() {
@@ -437,7 +451,11 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
       return;
     }
     try {
-      await appointmentApi.updateNotes(appointmentId, content);
+      await appointmentApi.updateNotes(
+        appointmentId,
+        content,
+        existingStoredNotes: widget.appointmentStoredNotes,
+      );
       if (!mounted) return;
       setState(() {
         final existing = _chart?.clinicalNotes ?? const [];
@@ -471,25 +489,52 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
 
   String get _displayGender => pickDisplayGender([
         widget.gender,
+        patientGenderFromStoredNotes(widget.appointmentStoredNotes),
         _chart?.patient['gender']?.toString(),
         for (final visit in _visits) visit.patientGender,
       ]);
 
-  String get _subtitle {
-    final birth = _chart?.patient['birthDate']?.toString();
-    int? age = widget.age;
+  int? get _resolvedAge {
+    if (widget.age != null) return widget.age;
+    final fromNotes = patientAgeFromStoredNotes(widget.appointmentStoredNotes);
+    if (fromNotes != null) return fromNotes;
+    final birth = _chart?.patient['birthDate']?.toString() ??
+        patientBirthDateFromStoredNotes(widget.appointmentStoredNotes);
     if (birth != null && birth.isNotEmpty) {
       final dob = DateTime.tryParse(birth);
       if (dob != null) {
         final now = DateTime.now();
-        age = now.year - dob.year;
+        var age = now.year - dob.year;
         if (now.month < dob.month ||
             (now.month == dob.month && now.day < dob.day)) {
           age--;
         }
+        return age;
       }
     }
-    final ageLabel = age != null ? '$age years old' : 'Age unknown';
+    for (final visit in _visits) {
+      final visitAge = visit.ageYears;
+      if (visitAge != null) return visitAge;
+    }
+    return null;
+  }
+
+  String get _resolvedBirthDate {
+    final chartBirth = _chart?.patient['birthDate']?.toString();
+    if (chartBirth != null && chartBirth.isNotEmpty) return chartBirth;
+    final fromNotes =
+        patientBirthDateFromStoredNotes(widget.appointmentStoredNotes);
+    if (fromNotes != null && fromNotes.isNotEmpty) return fromNotes;
+    for (final visit in _visits) {
+      final birth = visit.patientBirthDate;
+      if (birth != null && birth.isNotEmpty) return birth;
+    }
+    return '';
+  }
+
+  String get _subtitle {
+    final ageLabel =
+        _resolvedAge != null ? '$_resolvedAge years old' : 'Age unknown';
     return '$_displayGender | $ageLabel';
   }
 
@@ -760,6 +805,7 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
                     time: widget.appointmentTime ?? '',
                     appointmentId: id,
                     patientId: widget.patientId,
+                    existingStoredNotes: widget.appointmentStoredNotes,
                     onDone: _load,
                   ),
                   style: ElevatedButton.styleFrom(
@@ -1088,7 +1134,8 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
 
   List<Widget> _buildOverviewContent() {
     final chart = _chart!;
-    final birth = chart.patient['birthDate']?.toString();
+    final birth = _resolvedBirthDate;
+    final age = _resolvedAge;
     return [
       Container(
         decoration: BoxDecoration(
@@ -1118,7 +1165,7 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
               children: [
                 _statBox(
                   'Age',
-                  widget.age != null ? '${widget.age} y' : '—',
+                  age != null ? '$age y' : '—',
                 ),
                 const SizedBox(width: 8),
                 _statBox(
@@ -1128,7 +1175,7 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
                 const SizedBox(width: 8),
                 _statBox(
                   'Date of birth',
-                  birth != null && birth.isNotEmpty ? _fmtDate(birth) : '—',
+                  birth.isNotEmpty ? _fmtDate(birth) : '—',
                 ),
               ],
             ),

@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:cms_doctor_app/core/utils/appointment_notes_util.dart';
 import 'package:cms_doctor_app/core/api/services/appointment_api_service.dart';
 import 'package:cms_doctor_app/core/utils/date_format.dart';
 import 'package:flutter/material.dart';
@@ -507,8 +508,7 @@ class VisitAppointmentBlock extends StatelessWidget {
     final compact = height < 38 || narrow;
     final medium = height < 58 || narrow;
     final reason = (appointment.reason ?? '').trim();
-    final hasNotes =
-        appointment.notes != null && appointment.notes!.trim().isNotEmpty;
+    final hasNotes = hasDisplayNotes(appointment.storedNotes);
     final label = narrow
         ? appointment.displayPatient.split(' ').first
         : compact

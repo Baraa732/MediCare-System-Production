@@ -1,5 +1,6 @@
 import 'package:cms_doctor_app/core/api/api_client.dart';
 import 'package:cms_doctor_app/core/storage/session_storage.dart';
+import 'package:cms_doctor_app/core/utils/appointment_notes_util.dart';
 import 'package:intl/intl.dart';
 
 class DoctorAppointment {
@@ -11,7 +12,10 @@ class DoctorAppointment {
   final int durationMinutes;
   final String status;
   final String? reason;
+  /// Human-readable notes (metadata JSON stripped).
   final String? notes;
+  /// Raw value persisted in the database (may contain embedded JSON metadata).
+  final String? storedNotes;
   final String? patientName;
   final String? patientGender;
   final String? patientBirthDate;
@@ -31,6 +35,7 @@ class DoctorAppointment {
     required this.status,
     this.reason,
     this.notes,
+    this.storedNotes,
     this.patientName,
     this.patientGender,
     this.patientBirthDate,
@@ -92,6 +97,11 @@ class DoctorAppointment {
 
   factory DoctorAppointment.fromJson(Map<String, dynamic> json) {
     final patientId = json['patientId']?.toString() ?? '';
+    final rawNotes = json['notes']?.toString();
+    final metaGender = patientGenderFromStoredNotes(rawNotes);
+    final metaBirthDate = patientBirthDateFromStoredNotes(rawNotes);
+    final apiGender = json['patientGender']?.toString();
+    final apiBirthDate = json['patientBirthDate']?.toString();
     return DoctorAppointment(
       id: json['id']?.toString() ?? '',
       clinicId: json['clinicId']?.toString() ?? json['tenantId']?.toString() ?? '',
@@ -102,10 +112,15 @@ class DoctorAppointment {
       durationMinutes: int.tryParse(json['durationMinutes']?.toString() ?? '') ?? 30,
       status: json['status']?.toString() ?? 'REQUESTED',
       reason: json['reason']?.toString(),
-      notes: json['notes']?.toString(),
+      notes: displayNotesFromStored(rawNotes),
+      storedNotes: rawNotes,
       patientName: json['patientName']?.toString(),
-      patientGender: json['patientGender']?.toString(),
-      patientBirthDate: json['patientBirthDate']?.toString(),
+      patientGender: (apiGender != null && apiGender.trim().isNotEmpty)
+          ? apiGender
+          : metaGender,
+      patientBirthDate: (apiBirthDate != null && apiBirthDate.trim().isNotEmpty)
+          ? apiBirthDate
+          : metaBirthDate,
       patientPhone: json['patientPhone']?.toString() ??
           json['guestPatientPhone']?.toString(),
       patientAvatarUrl: json['patientAvatarUrl']?.toString() ??
@@ -164,10 +179,15 @@ class AppointmentApiService {
     return DoctorAppointment.fromJson(json);
   }
 
-  Future<DoctorAppointment> updateNotes(String id, String notes) async {
+  Future<DoctorAppointment> updateNotes(
+    String id,
+    String notes, {
+    String? existingStoredNotes,
+  }) async {
+    final encoded = mergeAppointmentNotes(existingStoredNotes, notes);
     final response = await _client.put(
       '/appointments/$id',
-      data: {'notes': notes},
+      data: {'notes': encoded ?? ''},
     );
     final data = response.data as Map<String, dynamic>;
     final json = data['appointment'] as Map<String, dynamic>? ?? data;

@@ -594,6 +594,7 @@ class _DayAgendaSliver extends StatelessWidget {
                   time: a.timeLabel,
                   appointmentId: a.id,
                   patientId: a.patientId,
+                  existingStoredNotes: a.storedNotes,
                   onDone: onReload,
                 ),
                 onReschedule: () => VisitActions.reschedule(
