@@ -18,6 +18,7 @@ import 'package:cms/features/home/presentation/widgets/iconic_filter_row.dart';
 import 'package:cms/features/notifications/presentation/screens/notifications_screen.dart';
 import 'package:cms/features/search/presentation/screens/filter_screen.dart';
 import 'package:cms/features/search/presentation/screens/search_screen.dart';
+import 'package:cms/features/search/presentation/cubit/searchresult_state.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -125,11 +126,18 @@ class _ModernHomeTabState extends State<ModernHomeTab> {
                         ),
                       );
                     },
-                    onFilterTap: () {
-                      Navigator.push(
+                    onFilterTap: () async {
+                      final applied = await Navigator.push<SearchFilters>(
                         context,
                         AppPageRoute(
                           builder: (_) => const FilterScreen(),
+                        ),
+                      );
+                      if (!context.mounted || applied == null) return;
+                      Navigator.push(
+                        context,
+                        AppPageRoute(
+                          builder: (_) => SearchScreen(initialFilters: applied),
                         ),
                       );
                     },
@@ -409,29 +417,43 @@ class _BeeOrderHeader extends StatelessWidget {
               child: Row(
                 children: [
                   Expanded(
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(28),
+                    child: TextField(
+                      textInputAction: TextInputAction.search,
                       onTap: onSearchTap,
-                      child: Row(
-                        children: [
-                          const SizedBox(width: 16),
-                          Icon(
-                            Icons.search_rounded,
-                            color: AppColors.main_background_blue,
-                            size: 24,
+                      onSubmitted: (value) {
+                        final q = value.trim();
+                        Navigator.push(
+                          context,
+                          AppPageRoute(
+                            builder: (_) => SearchScreen(initialQuery: q),
                           ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'Search clinics, doctors...',
-                              style: FontHeading.bodySmall.copyWith(
-                                color: AppColors.customGray,
-                                fontSize: 14,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
+                        );
+                      },
+                      decoration: InputDecoration(
+                        hintText: 'Search clinics, doctors...',
+                        hintStyle: FontHeading.bodySmall.copyWith(
+                          color: AppColors.customGray,
+                          fontSize: 14,
+                        ),
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 0,
+                          vertical: 14,
+                        ),
+                        prefixIcon: Icon(
+                          Icons.search_rounded,
+                          color: AppColors.main_background_blue,
+                          size: 24,
+                        ),
+                        prefixIconConstraints: const BoxConstraints(
+                          minWidth: 48,
+                          minHeight: 24,
+                        ),
+                      ),
+                      style: FontHeading.bodySmall.copyWith(
+                        color: AppColors.black,
+                        fontSize: 14,
                       ),
                     ),
                   ),

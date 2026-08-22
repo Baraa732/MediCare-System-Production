@@ -1,7 +1,7 @@
 class FilterState {
   final String? location;
   final String? specialty;
-  final double? selectedRating; // 👈 New: null = no rating filter
+  final double? selectedRating;
   final String? sortBy;
   final bool hasChanges;
 
@@ -19,11 +19,13 @@ class FilterState {
     double? selectedRating,
     String? sortBy,
     bool? hasChanges,
+    bool clearLocation = false,
+    bool clearRating = false,
   }) {
     return FilterState(
-      location: location ?? this.location,
+      location: clearLocation ? null : (location ?? this.location),
       specialty: specialty ?? this.specialty,
-      selectedRating: selectedRating ?? this.selectedRating,
+      selectedRating: clearRating ? null : (selectedRating ?? this.selectedRating),
       sortBy: sortBy ?? this.sortBy,
       hasChanges: hasChanges ?? this.hasChanges,
     );

@@ -2,42 +2,93 @@ import 'package:cms/core/constants/font_heading.dart';
 import 'package:cms/core/theme/app_colors.dart';
 import 'package:cms/features/search/presentation/cubit/filter_cubit.dart';
 import 'package:cms/features/search/presentation/cubit/filter_state.dart';
-import 'package:cms/injection_container.dart';
+import 'package:cms/features/search/presentation/cubit/searchresult_state.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_rating/flutter_rating.dart';
 
-class FilterScreen extends StatelessWidget {
+class FilterScreen extends StatefulWidget {
   static const routeName = '/filter';
 
-  const FilterScreen({super.key});
+  const FilterScreen({super.key, this.initial});
 
-  final List<String> _specialties = const [
+  final SearchFilters? initial;
+
+  @override
+  State<FilterScreen> createState() => _FilterScreenState();
+}
+
+class _FilterScreenState extends State<FilterScreen> {
+  static const _specialties = <String>[
     'All',
+    'General Medicine',
     'Dentist',
-    'Heart',
-    'Something',
+    'Cardiology',
+    'Dermatology',
+    'Pediatrics',
+    'Orthopedics',
+    'Ophthalmology',
+    'ENT',
+    'Gynecology',
+    'Neurology',
+    'Psychiatry',
   ];
 
-  final List<String> _sortOptions = const [
-    'Popular',
-    'Nearest',
-    'Rating',
-    'Something',
+  static const _sortOptions = <String>['Popular', 'Nearest', 'Rating'];
+
+  static const _cities = <String>[
+    'Damascus',
+    'Aleppo',
+    'Homs',
+    'Latakia',
+    'Hama',
+    'Tartus',
+    'Idlib',
+    'Daraa',
+    'Sweida',
+    'Quneitra',
+    'Raqqa',
+    'Deir ez-Zor',
+    'Hasakah',
   ];
+
+  late final TextEditingController _locationCtrl;
+  late final FilterCubit _cubit;
+
+  @override
+  void initState() {
+    super.initState();
+    final seed = widget.initial;
+    _locationCtrl = TextEditingController(
+      text: seed?.city ?? seed?.governorate ?? '',
+    );
+    _cubit = FilterCubit(
+      initial: FilterState(
+        location: seed?.city ?? seed?.governorate,
+        specialty: seed?.specialty ?? 'All',
+        selectedRating: seed?.minRating,
+        sortBy: seed?.sortBy ?? 'Popular',
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _locationCtrl.dispose();
+    _cubit.close();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (context) => getIt<FilterCubit>(),
+    return BlocProvider.value(
+      value: _cubit,
       child: Scaffold(
         backgroundColor: Colors.white,
         body: SafeArea(
           child: Column(
             children: [
-              // ---- App Bar ----
               _buildBlueHeader(context),
-              // ---- Body (Scrollable content) ----
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -45,25 +96,18 @@ class FilterScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SizedBox(height: 16),
-                      // ---- Location ----
-                      _buildLocationSection(context),
+                      _buildLocationSection(),
                       const SizedBox(height: 24),
-                      // ---- Specialty ----
-                      _buildSpecialtySection(context),
+                      _buildSpecialtySection(),
                       const SizedBox(height: 24),
-                      // ---- Rating ----
                       _buildStarRate(),
                       const SizedBox(height: 24),
-                      // ---- Sorted By ----
-                      _buildSortSection(context),
+                      _buildSortSection(),
                       const SizedBox(height: 40),
-                      // Extra bottom padding to push content above buttons
-                      const SizedBox(height: 20),
                     ],
                   ),
                 ),
               ),
-              // ---- Bottom Buttons (Sticky) ----
               _buildBottomButtons(context),
             ],
           ),
@@ -72,142 +116,107 @@ class FilterScreen extends StatelessWidget {
     );
   }
 
-  // ============================================================
-  //  BLUE HEADER
-  // ============================================================
   Widget _buildBlueHeader(BuildContext context) {
-    return RepaintBoundary(
-      child: Container(
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: AppColors.main_background_blue,
-          borderRadius: const BorderRadius.only(
-            bottomLeft: Radius.circular(24),
-            bottomRight: Radius.circular(24),
+    return Container(
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        color: AppColors.main_background_blue,
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(24),
+          bottomRight: Radius.circular(24),
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 30, 20, 16),
+      child: Row(
+        children: [
+          GestureDetector(
+            onTap: () => Navigator.pop(context),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.main_background_white,
+                borderRadius: BorderRadius.circular(117),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.arrow_back, color: AppColors.black, size: 16),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Back',
+                    style: FontHeading.bodySmall.copyWith(color: AppColors.black),
+                  ),
+                ],
+              ),
+            ),
           ),
-        ),
-        padding: const EdgeInsets.fromLTRB(20, 30, 20, 16),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            // ---- Back Button ----
-            GestureDetector(
-              onTap: () => Navigator.pop(context),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.main_background_white,
-                  borderRadius: BorderRadius.circular(117),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.arrow_back, color: AppColors.black, size: 16),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Back',
-                      style: FontHeading.bodySmall.copyWith(
-                        color: AppColors.black,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            // ---- Title ----
-            Center(
-              child: Text(
-                'Filters',
-                style: FontHeading.heading4.copyWith(color: Colors.white),
-              ),
-            ),
-            // ---- Empty Spacer (to balance the row) ----
-            const SizedBox(width: 60),
-          ],
-        ),
+          const Spacer(),
+          Text(
+            'Filters',
+            style: FontHeading.heading4.copyWith(color: Colors.white),
+          ),
+          const Spacer(),
+          const SizedBox(width: 64),
+        ],
       ),
     );
   }
 
-  // ============================================================
-  //  LOCATION SECTION (Outlined Button → Navigates to Location Screen)
-  // ============================================================
-  Widget _buildLocationSection(BuildContext context) {
-    return BlocBuilder<FilterCubit, FilterState>(
-      builder: (context, state) {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Location',
-              style: FontHeading.heading4.copyWith(color: Colors.black),
+  Widget _buildLocationSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'City / location',
+          style: FontHeading.heading4.copyWith(color: Colors.black),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _locationCtrl,
+          onChanged: _cubit.setLocation,
+          decoration: InputDecoration(
+            hintText: 'e.g. Damascus',
+            filled: true,
+            fillColor: AppColors.lightGray,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
             ),
-            const SizedBox(height: 8),
-            // ---- Outlined Button (Navigates to Location Screen) ----
-            GestureDetector(
-              onTap: () {
-                // Navigate to location picker screen (to be implemented)
-                // Navigator.push(
-                //   context,
-                //   MaterialPageRoute(
-                //     builder: (context) => const LocationPickerPlaceholder(),
-                //   ),
-                // );
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.customGray, width: 1.5),
-                ),
-                child: Row(
-                  children: [
-                    // ---- Location Icon ----
-                    Icon(
-                      Icons.location_on_outlined,
-                      color: AppColors.CustomgrayDark,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 12),
-                    // ---- Selected Location Text ----
-                    Expanded(
-                      child: Text(
-                        state.location ?? 'Choose your Location',
-                        style: FontHeading.body.copyWith(
-                          color: state.location != null
-                              ? AppColors.black
-                              : AppColors.customGray,
-                        ),
-                      ),
-                    ),
-                    // ---- Down Arrow ----
-                    Icon(
-                      Icons.arrow_drop_down,
-                      color: AppColors.black,
-                      size: 24,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        );
-      },
+            prefixIcon: const Icon(Icons.location_on_outlined),
+          ),
+        ),
+        const SizedBox(height: 10),
+        BlocBuilder<FilterCubit, FilterState>(
+          builder: (context, state) {
+            return Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _cities.map((city) {
+                final selected =
+                    (state.location ?? '').toLowerCase() == city.toLowerCase();
+                return ChoiceChip(
+                  label: Text(city),
+                  selected: selected,
+                  onSelected: (_) {
+                    _locationCtrl.text = city;
+                    _cubit.setLocation(city);
+                  },
+                  selectedColor: AppColors.main_background_blue,
+                  labelStyle: TextStyle(
+                    color: selected
+                        ? Colors.white
+                        : AppColors.main_background_blue,
+                  ),
+                );
+              }).toList(),
+            );
+          },
+        ),
+      ],
     );
   }
 
-  // ============================================================
-  //  SPECIALTY SECTION
-  // ============================================================
-  Widget _buildSpecialtySection(BuildContext context) {
+  Widget _buildSpecialtySection() {
     return BlocBuilder<FilterCubit, FilterState>(
       builder: (context, state) {
         return Column(
@@ -221,27 +230,26 @@ class FilterScreen extends StatelessWidget {
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: _specialties.map((specialty) {
-                final bool isSelected = state.specialty == specialty;
+              children: _specialties.map((option) {
+                final selected = state.specialty == option;
                 return GestureDetector(
-                  onTap: () {
-                    context.read<FilterCubit>().setSpecialty(specialty);
-                  },
+                  onTap: () => _cubit.setSpecialty(option),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 8,
                     ),
                     decoration: BoxDecoration(
-                      color: isSelected
+                      color: selected
                           ? AppColors.main_background_blue
-                          : AppColors.main_background_blue.withOpacity(0.1),
+                          : AppColors.main_background_blue
+                              .withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
-                      specialty,
+                      option,
                       style: FontHeading.bodySmall.copyWith(
-                        color: isSelected
+                        color: selected
                             ? Colors.white
                             : AppColors.main_background_blue,
                       ),
@@ -256,51 +264,35 @@ class FilterScreen extends StatelessWidget {
     );
   }
 
-  // ============================================================
-  //  RATING SECTION
-  // ============================================================
   Widget _buildStarRate() {
     return BlocBuilder<FilterCubit, FilterState>(
       builder: (context, state) {
-        final double? currentRating = state.selectedRating;
-
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Rating',
+              'Minimum rating',
               style: FontHeading.heading4.copyWith(color: Colors.black),
             ),
             const SizedBox(height: 8),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // ---- Star Rating with Key ----
                 StarRating(
-                  key: ValueKey(
-                    currentRating ?? 0,
-                  ), // ✅ Forces rebuild on rating change
-                  rating: currentRating ?? 0,
-                  color: Colors.amberAccent,
-                  borderColor: Colors.amberAccent,
-                  starCount: 5,
-                  size: 40,
-                  onRatingChanged: (rating) {
-                    final newRating = rating == 0 ? null : rating;
-                    context.read<FilterCubit>().setRating(newRating);
-                  },
+                  rating: state.selectedRating ?? 0,
+                  size: 28,
+                  color: AppColors.main_background_blue,
+                  borderColor: AppColors.main_background_blue,
+                  allowHalfRating: false,
+                  onRatingChanged: (rating) => _cubit.setRating(rating),
                 ),
-                // ---- "Clear rating" Button ----
+                const Spacer(),
                 TextButton(
-                  onPressed: () {
-                    context.read<FilterCubit>().setRating(0);
-                  },
+                  onPressed: () => _cubit.setRating(null),
                   child: Text(
-                    currentRating == 0 ? 'Any rating' : 'Clear rating',
+                    'Clear',
                     style: FontHeading.bodySmall.copyWith(
                       color: AppColors.customGray,
                       decoration: TextDecoration.underline,
-                      decorationColor: AppColors.customGray,
                     ),
                   ),
                 ),
@@ -312,10 +304,7 @@ class FilterScreen extends StatelessWidget {
     );
   }
 
-  // ============================================================
-  //  SORTED BY SECTION
-  // ============================================================
-  Widget _buildSortSection(BuildContext context) {
+  Widget _buildSortSection() {
     return BlocBuilder<FilterCubit, FilterState>(
       builder: (context, state) {
         return Column(
@@ -330,26 +319,25 @@ class FilterScreen extends StatelessWidget {
               spacing: 8,
               runSpacing: 8,
               children: _sortOptions.map((option) {
-                final bool isSelected = state.sortBy == option;
+                final selected = state.sortBy == option;
                 return GestureDetector(
-                  onTap: () {
-                    context.read<FilterCubit>().setSortBy(option);
-                  },
+                  onTap: () => _cubit.setSortBy(option),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 8,
                     ),
                     decoration: BoxDecoration(
-                      color: isSelected
+                      color: selected
                           ? AppColors.main_background_blue
-                          : AppColors.main_background_blue.withOpacity(0.1),
+                          : AppColors.main_background_blue
+                              .withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
                       option,
                       style: FontHeading.bodySmall.copyWith(
-                        color: isSelected
+                        color: selected
                             ? Colors.white
                             : AppColors.main_background_blue,
                       ),
@@ -364,29 +352,25 @@ class FilterScreen extends StatelessWidget {
     );
   }
 
-  // ============================================================
-  //  BOTTOM BUTTONS (Sticky Bottom Sheet)
-  // ============================================================
   Widget _buildBottomButtons(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-      decoration: BoxDecoration(color: Colors.white),
+      color: Colors.white,
       child: Row(
         children: [
-          // ---- Reset Filters ----
           Expanded(
             child: ElevatedButton(
               onPressed: () {
-                // context.read<FilterCubit>().resetFilters();
+                _locationCtrl.clear();
+                _cubit.resetFilters();
               },
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
-                backgroundColor: AppColors.main_background_blue.withOpacity(
-                  0.1,
-                ),
+                backgroundColor:
+                    AppColors.main_background_blue.withValues(alpha: 0.1),
                 shadowColor: Colors.transparent,
               ),
               child: Text(
@@ -398,12 +382,20 @@ class FilterScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          // ---- Apply ----
           Expanded(
             child: ElevatedButton(
               onPressed: () {
-                // context.read<FilterCubit>().applyFilters();
-                // Navigator.pop(context);
+                final applied = _cubit.applyFilters();
+                final location = applied.location?.trim();
+                Navigator.pop(
+                  context,
+                  SearchFilters(
+                    city: location,
+                    specialty: applied.specialty,
+                    sortBy: applied.sortBy ?? 'Popular',
+                    minRating: applied.selectedRating,
+                  ),
+                );
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.main_background_blue,

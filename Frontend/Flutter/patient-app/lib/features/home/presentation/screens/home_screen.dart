@@ -18,6 +18,7 @@ import 'package:cms/features/profile/presentation/cubit/profile_cubit.dart';
 import 'package:cms/features/profile/presentation/screens/profile_screen.dart';
 import 'package:cms/features/search/presentation/screens/filter_screen.dart';
 import 'package:cms/features/search/presentation/screens/search_screen.dart';
+import 'package:cms/features/search/presentation/cubit/searchresult_state.dart';
 import 'package:cms/injection_container.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -314,10 +315,17 @@ class HomeScreen extends StatelessWidget {
               ],
             ),
             child: IconButton(
-              onPressed: () {
-                Navigator.push(
+              onPressed: () async {
+                final applied = await Navigator.push<SearchFilters>(
                   context,
                   AppPageRoute(builder: (context) => const FilterScreen()),
+                );
+                if (!context.mounted || applied == null) return;
+                Navigator.push(
+                  context,
+                  AppPageRoute(
+                    builder: (_) => SearchScreen(initialFilters: applied),
+                  ),
                 );
               },
               icon: Icon(

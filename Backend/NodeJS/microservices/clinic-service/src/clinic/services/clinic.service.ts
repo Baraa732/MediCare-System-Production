@@ -441,19 +441,70 @@ export class ClinicService {
 
     if (actor.role === 'PATIENT') {
       qb.where('tenant.status = :active', { active: TenantStatus.ACTIVE });
-    } else if (filters.q || filters.city || filters.governorate) {
-      qb.where('1=1');
     } else {
       qb.where('1=1');
     }
 
-    if (filters.q?.trim()) {
-      const term = `%${filters.q.trim().toLowerCase()}%`;
-      qb.andWhere(
-        '(LOWER(tenant.name) LIKE :term OR LOWER(tenant.description) LIKE :term OR LOWER(tenant.address) LIKE :term)',
-        { term },
-      );
+    const q = filters.q?.trim();
+    const specialization = filters.specialization?.trim();
+
+    // Match clinics by text fields AND/OR by doctors assigned to the clinic.
+    if (q || specialization) {
+      const doctorIds = await this.userHttpClient.searchDoctorIds({
+        q: q || undefined,
+        specialization: specialization || undefined,
+      });
+      let doctorTenantIds: string[] = [];
+      if (doctorIds.length > 0) {
+        const assignments = await this.assignmentRepo.find({
+          where: {
+            userId: In(doctorIds),
+            staffRole: StaffRole.DOCTOR,
+            status: In([AssignmentStatus.ACTIVE, AssignmentStatus.PENDING]),
+          },
+        });
+        doctorTenantIds = [...new Set(assignments.map((a) => a.tenantId))];
+      }
+
+      if (specialization && !q) {
+        // Specialty-only filter: clinics that have matching doctors.
+        if (doctorTenantIds.length === 0) {
+          return { clinics: [], total: 0, page: Math.max(page, 1), limit: take };
+        }
+        qb.andWhere('tenant.id IN (:...doctorTenantIds)', { doctorTenantIds });
+      } else if (q) {
+        const term = `%${q.toLowerCase()}%`;
+        if (doctorTenantIds.length > 0) {
+          qb.andWhere(
+            `(LOWER(tenant.name) LIKE :term
+              OR LOWER(COALESCE(tenant.description, '')) LIKE :term
+              OR LOWER(COALESCE(tenant.address, '')) LIKE :term
+              OR LOWER(COALESCE(tenant.city, '')) LIKE :term
+              OR LOWER(COALESCE(tenant.governorate, '')) LIKE :term
+              OR tenant.id IN (:...doctorTenantIds))`,
+            { term, doctorTenantIds },
+          );
+        } else {
+          qb.andWhere(
+            `(LOWER(tenant.name) LIKE :term
+              OR LOWER(COALESCE(tenant.description, '')) LIKE :term
+              OR LOWER(COALESCE(tenant.address, '')) LIKE :term
+              OR LOWER(COALESCE(tenant.city, '')) LIKE :term
+              OR LOWER(COALESCE(tenant.governorate, '')) LIKE :term)`,
+            { term },
+          );
+        }
+        // Optional specialty narrows the OR-set further.
+        if (specialization && doctorTenantIds.length > 0) {
+          qb.andWhere('tenant.id IN (:...specialtyTenantIds)', {
+            specialtyTenantIds: doctorTenantIds,
+          });
+        } else if (specialization && doctorTenantIds.length === 0) {
+          return { clinics: [], total: 0, page: Math.max(page, 1), limit: take };
+        }
+      }
     }
+
     if (filters.city?.trim()) {
       qb.andWhere('LOWER(tenant.city) LIKE :city', {
         city: `%${filters.city.trim().toLowerCase()}%`,
@@ -463,28 +514,6 @@ export class ClinicService {
       qb.andWhere('LOWER(tenant.governorate) LIKE :gov', {
         gov: `%${filters.governorate.trim().toLowerCase()}%`,
       });
-    }
-
-    if (filters.specialization?.trim()) {
-      const doctorIds = await this.userHttpClient.searchDoctorIds({
-        specialization: filters.specialization,
-        q: filters.q,
-      });
-      if (doctorIds.length === 0) {
-        return { clinics: [], total: 0, page: Math.max(page, 1), limit: take };
-      }
-      const assignments = await this.assignmentRepo.find({
-        where: {
-          userId: In(doctorIds),
-          staffRole: StaffRole.DOCTOR,
-          status: AssignmentStatus.ACTIVE,
-        },
-      });
-      const tenantIds = [...new Set(assignments.map((a) => a.tenantId))];
-      if (tenantIds.length === 0) {
-        return { clinics: [], total: 0, page: Math.max(page, 1), limit: take };
-      }
-      qb.andWhere('tenant.id IN (:...tenantIds)', { tenantIds });
     }
 
     qb.orderBy('tenant.name', 'ASC');
