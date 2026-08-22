@@ -169,7 +169,13 @@ export class StaffPushService {
     const clinicName = clinic?.name ?? 'your clinic';
     const when = formatClinicDateTime(payload.scheduledAt, clinic?.timezone);
 
-    const { title, body } = this.buildCopy(category, clinicName, when, payload.status);
+    const { title, body } = this.buildCopy(
+      category,
+      clinicName,
+      when,
+      payload.status,
+      payload.changeKind,
+    );
 
     for (const secretary of secretaries) {
       await this.deliverToUser(secretary.userId, {
@@ -263,7 +269,13 @@ export class StaffPushService {
     const clinic = await this.clinicHttpClient.getClinicById(tenantId);
     const clinicName = clinic?.name ?? 'your clinic';
     const when = formatClinicDateTime(payload.scheduledAt, clinic?.timezone);
-    const copy = this.doctorCopy(category, clinicName, when, payload.status);
+    const copy = this.doctorCopy(
+      category,
+      clinicName,
+      when,
+      payload.status,
+      payload.changeKind,
+    );
     await this.deliverToUser(payload.doctorId, {
       category,
       title: copy.title,
@@ -347,7 +359,20 @@ export class StaffPushService {
     clinicName: string,
     when: string,
     status: string,
+    changeKind?: string,
   ): { title: string; body: string } {
+    if (changeKind === 'CONFIRMED') {
+      return {
+        title: 'Appointment confirmed',
+        body: `A booking at ${clinicName} on ${when} was confirmed.`,
+      };
+    }
+    if (changeKind === 'NO_SHOW') {
+      return {
+        title: 'Patient marked no-show',
+        body: `A booking at ${clinicName} on ${when} was marked as no-show.`,
+      };
+    }
     switch (category) {
       case StaffNotificationCategory.APPOINTMENT_CANCELLED:
         return {
@@ -384,7 +409,20 @@ export class StaffPushService {
     clinicName: string,
     when: string,
     status: string,
+    changeKind?: string,
   ): { title: string; body: string } {
+    if (changeKind === 'CONFIRMED') {
+      return {
+        title: 'Appointment confirmed',
+        body: `Your visit at ${clinicName} on ${when} is confirmed.`,
+      };
+    }
+    if (changeKind === 'NO_SHOW') {
+      return {
+        title: 'Patient marked no-show',
+        body: `A visit at ${clinicName} on ${when} was marked as no-show.`,
+      };
+    }
     switch (category) {
       case StaffNotificationCategory.APPOINTMENT_CANCELLED:
         return {

@@ -422,6 +422,10 @@ export class AppointmentService {
       }
     }
 
+    const previousScheduledAt = appointment.scheduledAt;
+    const previousDoctorId = appointment.doctorId;
+    const previousDuration = appointment.durationMinutes;
+
     if (dto.durationMinutes !== undefined) appointment.durationMinutes = dto.durationMinutes;
     if (dto.reason !== undefined) appointment.reason = dto.reason;
     if (dto.notes !== undefined) appointment.notes = dto.notes;
@@ -444,7 +448,20 @@ export class AppointmentService {
         actor.userId,
       );
     }
-    this.signedKafka.emit(KafkaTopics.APPOINTMENT_UPDATED, this.toEventPayload(saved));
+
+    // Notes/reason-only saves must not look like a reschedule to patients or staff.
+    if (this.didScheduleChange(previousScheduledAt, previousDoctorId, previousDuration, saved)) {
+      this.signedKafka.emit(
+        KafkaTopics.APPOINTMENT_UPDATED,
+        this.toEventPayload(saved, {
+          changeKind: 'RESCHEDULED',
+          previousStatus: saved.status,
+          previousScheduledAt: previousScheduledAt.toISOString(),
+          previousDoctorId,
+        }),
+      );
+    }
+
     this.auditAppointment(
       PhiAuditAction.APPOINTMENT_UPDATE,
       actor,
@@ -463,6 +480,8 @@ export class AppointmentService {
     await this.assertCanChangeStatus(appointment, actor, dto.status);
     this.assertValidStatusTransition(appointment.status, dto.status, actor, appointment);
 
+    const previousStatus = appointment.status;
+
     if (dto.status === AppointmentStatus.CANCELLED) {
       appointment.cancelledBy = actor.userId;
       appointment.cancelledAt = new Date();
@@ -472,14 +491,50 @@ export class AppointmentService {
     appointment.status = dto.status;
     const saved = await this.appointmentRepo.save(appointment);
 
-    const topic =
-      dto.status === AppointmentStatus.CANCELLED
-        ? KafkaTopics.APPOINTMENT_CANCELLED
-        : dto.status === AppointmentStatus.COMPLETED
-          ? KafkaTopics.APPOINTMENT_COMPLETED
-          : KafkaTopics.APPOINTMENT_UPDATED;
-
-    this.signedKafka.emit(topic, this.toEventPayload(saved));
+    if (dto.status === AppointmentStatus.CANCELLED) {
+      this.signedKafka.emit(
+        KafkaTopics.APPOINTMENT_CANCELLED,
+        this.toEventPayload(saved, {
+          changeKind: 'CANCELLED',
+          previousStatus,
+        }),
+      );
+    } else if (dto.status === AppointmentStatus.COMPLETED) {
+      this.signedKafka.emit(
+        KafkaTopics.APPOINTMENT_COMPLETED,
+        this.toEventPayload(saved, {
+          changeKind: 'COMPLETED',
+          previousStatus,
+        }),
+      );
+    } else if (
+      dto.status === AppointmentStatus.CONFIRMED &&
+      previousStatus === AppointmentStatus.REQUESTED
+    ) {
+      this.signedKafka.emit(
+        KafkaTopics.APPOINTMENT_UPDATED,
+        this.toEventPayload(saved, {
+          changeKind: 'CONFIRMED',
+          previousStatus,
+        }),
+      );
+    } else if (dto.status === AppointmentStatus.NO_SHOW) {
+      this.signedKafka.emit(
+        KafkaTopics.APPOINTMENT_UPDATED,
+        this.toEventPayload(saved, {
+          changeKind: 'NO_SHOW',
+          previousStatus,
+        }),
+      );
+    } else if (previousStatus !== dto.status) {
+      this.signedKafka.emit(
+        KafkaTopics.APPOINTMENT_UPDATED,
+        this.toEventPayload(saved, {
+          changeKind: 'STATUS',
+          previousStatus,
+        }),
+      );
+    }
 
     this.auditAppointment(
       dto.status === AppointmentStatus.CANCELLED
@@ -1003,8 +1058,31 @@ export class AppointmentService {
     return true;
   }
 
-  private toEventPayload(appointment: Appointment) {
-    const payload = {
+  private didScheduleChange(
+    previousScheduledAt: Date,
+    previousDoctorId: string,
+    previousDuration: number,
+    saved: Appointment,
+  ): boolean {
+    const timeChanged =
+      Math.abs(saved.scheduledAt.getTime() - previousScheduledAt.getTime()) >= 30_000;
+    return (
+      timeChanged ||
+      saved.doctorId !== previousDoctorId ||
+      saved.durationMinutes !== previousDuration
+    );
+  }
+
+  private toEventPayload(
+    appointment: Appointment,
+    extras: {
+      changeKind?: 'RESCHEDULED' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED' | 'NO_SHOW' | 'STATUS';
+      previousStatus?: string;
+      previousScheduledAt?: string;
+      previousDoctorId?: string;
+    } = {},
+  ) {
+    return {
       appointmentId: appointment.id,
       tenantId: appointment.tenantId,
       clinicId: appointment.tenantId,
@@ -1015,7 +1093,10 @@ export class AppointmentService {
       scheduledAt: appointment.scheduledAt.toISOString(),
       durationMinutes: appointment.durationMinutes,
       status: appointment.status,
+      changeKind: extras.changeKind,
+      previousStatus: extras.previousStatus,
+      previousScheduledAt: extras.previousScheduledAt,
+      previousDoctorId: extras.previousDoctorId,
     };
-    return payload;
   }
 }

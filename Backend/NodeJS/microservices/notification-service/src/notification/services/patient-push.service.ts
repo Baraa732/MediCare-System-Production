@@ -270,8 +270,8 @@ export class PatientPushService {
         };
       default:
         return {
-          title: 'MediCare update',
-          body: `There is an update about your care at ${clinicName}.`,
+          title: 'Request received',
+          body: `Your appointment request at ${clinicName} for ${when} was sent. The clinic will confirm it.`,
         };
     }
   }

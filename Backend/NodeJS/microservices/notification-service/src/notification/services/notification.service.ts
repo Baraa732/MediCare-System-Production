@@ -21,6 +21,14 @@ import { withTenantEvent } from '../../tenant-shared/tenant.constants';
 import { TenantContextService } from '../../tenant-shared/tenant-context.service';
 import { createTenantLogger } from '../../tenant-shared/tenant-logger';
 
+export type AppointmentChangeKind =
+  | 'RESCHEDULED'
+  | 'CONFIRMED'
+  | 'CANCELLED'
+  | 'COMPLETED'
+  | 'NO_SHOW'
+  | 'STATUS';
+
 export interface AppointmentEventPayload extends Record<string, unknown> {
   appointmentId: string;
   clinicId: string;
@@ -33,6 +41,43 @@ export interface AppointmentEventPayload extends Record<string, unknown> {
   durationMinutes?: number;
   status: string;
   timestamp?: string;
+  changeKind?: AppointmentChangeKind;
+  previousStatus?: string;
+  previousScheduledAt?: string;
+  previousDoctorId?: string;
+}
+
+function resolveUpdateKind(payload: AppointmentEventPayload): AppointmentChangeKind | 'SKIP' {
+  if (payload.changeKind === 'RESCHEDULED' || payload.changeKind === 'CONFIRMED' || payload.changeKind === 'NO_SHOW') {
+    return payload.changeKind;
+  }
+  if (payload.changeKind === 'STATUS' || payload.changeKind === 'COMPLETED' || payload.changeKind === 'CANCELLED') {
+    return 'SKIP';
+  }
+
+  const previousStatus = payload.previousStatus;
+  if (previousStatus === 'REQUESTED' && payload.status === 'CONFIRMED') {
+    return 'CONFIRMED';
+  }
+  if (payload.status === 'NO_SHOW') {
+    return 'NO_SHOW';
+  }
+
+  const previousTime = payload.previousScheduledAt
+    ? Date.parse(payload.previousScheduledAt)
+    : NaN;
+  const nextTime = Date.parse(payload.scheduledAt);
+  const timeChanged =
+    Number.isFinite(previousTime) &&
+    Number.isFinite(nextTime) &&
+    Math.abs(nextTime - previousTime) >= 30_000;
+  const doctorChanged =
+    typeof payload.previousDoctorId === 'string' &&
+    payload.previousDoctorId !== payload.doctorId;
+
+  if (timeChanged || doctorChanged) return 'RESCHEDULED';
+  // Legacy events without change metadata used to spam "rescheduled". Drop them.
+  return 'SKIP';
 }
 
 @Injectable()
@@ -54,7 +99,9 @@ export class NotificationService {
   }
 
   async handleAppointmentCreated(payload: AppointmentEventPayload): Promise<void> {
-    await this.sendAppointmentNotification(payload, NotificationType.APPOINTMENT_CONFIRMED);
+    if (payload.status !== 'REQUESTED') {
+      await this.sendAppointmentNotification(payload, NotificationType.APPOINTMENT_CONFIRMED);
+    }
     if (payload.patientId) {
       await this.patientPushService.notifyFromAppointmentEvent(
         payload,
@@ -89,6 +136,45 @@ export class NotificationService {
   }
 
   async handleAppointmentUpdated(payload: AppointmentEventPayload): Promise<void> {
+    const kind = resolveUpdateKind(payload);
+    if (kind === 'SKIP') {
+      this.logger.log(
+        `Skipping appointment.updated notifications for ${payload.appointmentId} (no schedule/status change)`,
+      );
+      return;
+    }
+
+    if (kind === 'CONFIRMED') {
+      await this.sendAppointmentNotification(payload, NotificationType.APPOINTMENT_CONFIRMED);
+      if (payload.patientId) {
+        await this.patientPushService.notifyFromAppointmentEvent(
+          payload,
+          NotificationType.APPOINTMENT_CONFIRMED,
+        );
+      }
+      await this.staffPushService.notifyDoctorAppointment(
+        payload,
+        StaffNotificationCategory.APPOINTMENT_CREATED,
+      );
+      await this.staffPushService.notifyClinicSecretaries(
+        payload,
+        StaffNotificationCategory.APPOINTMENT_CREATED,
+      );
+      return;
+    }
+
+    if (kind === 'NO_SHOW') {
+      await this.staffPushService.notifyDoctorAppointment(
+        payload,
+        StaffNotificationCategory.APPOINTMENT_UPDATED,
+      );
+      await this.staffPushService.notifyClinicSecretaries(
+        payload,
+        StaffNotificationCategory.APPOINTMENT_UPDATED,
+      );
+      return;
+    }
+
     await this.sendAppointmentNotification(payload, NotificationType.APPOINTMENT_RESCHEDULED);
     if (payload.patientId) {
       await this.patientPushService.notifyFromAppointmentEvent(

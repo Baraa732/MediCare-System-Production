@@ -20,6 +20,9 @@ export interface AppointmentEventPayload extends Record<string, unknown> {
   patientId: string;
   scheduledAt: string;
   status: string;
+  changeKind?: string;
+  previousScheduledAt?: string;
+  previousDoctorId?: string;
 }
 
 @Injectable()
@@ -47,9 +50,35 @@ export class ReminderService {
   }
 
   async handleAppointmentUpdated(payload: AppointmentEventPayload): Promise<void> {
+    const kind = typeof payload.changeKind === 'string' ? payload.changeKind : undefined;
+    if (kind && kind !== 'RESCHEDULED') {
+      this.logger.log(
+        `Skipping reminder reschedule for ${payload.appointmentId} (${kind})`,
+      );
+      return;
+    }
+    const previousTime = payload.previousScheduledAt
+      ? Date.parse(String(payload.previousScheduledAt))
+      : NaN;
+    const nextTime = Date.parse(payload.scheduledAt);
+    const timeUnchanged =
+      Number.isFinite(previousTime) &&
+      Number.isFinite(nextTime) &&
+      Math.abs(nextTime - previousTime) < 30_000;
+    const doctorUnchanged =
+      !payload.previousDoctorId || payload.previousDoctorId === payload.doctorId;
+    if (kind !== 'RESCHEDULED' && timeUnchanged && doctorUnchanged) {
+      this.logger.log(
+        `Skipping reminder reschedule for ${payload.appointmentId} (time unchanged)`,
+      );
+      return;
+    }
+
     const tenantId = payload.tenantId ?? payload.clinicId;
     await this.cancelPending(payload.appointmentId, tenantId);
-    if (payload.status === 'CANCELLED') return;
+    if (payload.status === 'CANCELLED' || payload.status === 'NO_SHOW' || payload.status === 'COMPLETED') {
+      return;
+    }
     await this.scheduleReminder(payload);
   }
 
