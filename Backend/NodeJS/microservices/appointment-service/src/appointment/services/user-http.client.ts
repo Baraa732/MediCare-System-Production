@@ -44,6 +44,7 @@ export class UserHttpClient {
     birthDate?: string;
     phoneNumber?: string;
     avatarUrl?: string;
+    hasAvatar?: boolean;
   }> {
     try {
       const path = `/users/internal/by-id/${userId}`;
