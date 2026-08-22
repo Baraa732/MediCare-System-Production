@@ -15,6 +15,14 @@ const INTERNAL_PATH_MARKERS = ['/internal', '/v1/clinics/internal', '/v1/appoint
 /** Internal service routes without /internal in the URL (protected by InternalServiceGuard). */
 const INTERNAL_SERVICE_EXACT_PATHS = new Set(['/users/validate-login']);
 
+function isPublicMediaRoute(path: string): boolean {
+  // Image.network / <img> fetch these without JWT or tenant headers.
+  return (
+    /^\/v1\/users\/avatars\/[^/]+$/.test(path) ||
+    /\/users\/avatars\/[^/]+$/.test(path)
+  );
+}
+
 function requestPath(req: Request): string {
   const raw = (req.originalUrl || req.url || req.path || '').split('?')[0];
   if (!raw) return '/';
@@ -30,6 +38,7 @@ function isPublicOrInternal(req: Request): boolean {
   if (isPublicOrInternalServiceRequest(req)) return true;
   const path = requestPath(req);
   if (PUBLIC_PATH_PREFIXES.some((p) => path.startsWith(p))) return true;
+  if (isPublicMediaRoute(path)) return true;
   if (isInternalServiceRoute(path)) return true;
   return INTERNAL_PATH_MARKERS.some((m) => path.includes(m));
 }

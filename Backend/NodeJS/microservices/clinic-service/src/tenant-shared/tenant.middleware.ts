@@ -12,10 +12,18 @@ import { isPublicOrInternalServiceRequest } from '../internal-auth-shared/tenant
 const PUBLIC_PATH_PREFIXES = ['/health', '/metrics'];
 const INTERNAL_PATH_MARKERS = ['/internal', '/v1/clinics/internal', '/v1/appointments/internal', '/v1/schedule/internal', '/v1/notifications/internal', '/internal/emr'];
 
+function isPublicMediaRoute(path: string): boolean {
+  return (
+    /^\/v1\/clinics\/logos\/[^/]+$/.test(path) ||
+    /\/clinics\/logos\/[^/]+$/.test(path)
+  );
+}
+
 function isPublicOrInternal(req: Request): boolean {
   if (isPublicOrInternalServiceRequest(req)) return true;
   const path = (req.originalUrl || req.url || req.path || '').split('?')[0];
   if (PUBLIC_PATH_PREFIXES.some((p) => path.startsWith(p))) return true;
+  if (isPublicMediaRoute(path)) return true;
   return INTERNAL_PATH_MARKERS.some((m) => path.includes(m));
 }
 
