@@ -26,6 +26,7 @@ export interface PlatformUserRecord {
   status: string;
   clinicId?: string;
   createdAt?: string;
+  avatarUrl?: string;
 }
 
 export interface PlatformStaffRecord {
@@ -189,9 +190,11 @@ export class PlatformDataService implements OnModuleDestroy {
         status: string;
         tenant_id: string | null;
         createdAt: Date;
+        avatarUrl: string | null;
       }>(
         `SELECT id, "phoneNumber", "firstName", "lastName", role::text AS role, status::text AS status,
-                tenant_id, "createdAt"
+                tenant_id, "createdAt",
+                NULLIF(TRIM("profileData"->>'avatarUrl'), '') AS "avatarUrl"
          FROM users
          WHERE "deletedAt" IS NULL
          ORDER BY "createdAt" DESC
@@ -208,6 +211,7 @@ export class PlatformDataService implements OnModuleDestroy {
         status: row.status,
         clinicId: row.tenant_id ?? undefined,
         createdAt: row.createdAt?.toISOString(),
+        avatarUrl: row.avatarUrl ?? undefined,
       }));
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));

@@ -43,6 +43,7 @@ export class UserHttpClient {
     gender?: string;
     birthDate?: string;
     phoneNumber?: string;
+    avatarUrl?: string;
   }> {
     try {
       const path = `/users/internal/by-id/${userId}`;
@@ -54,14 +55,27 @@ export class UserHttpClient {
         throw new BadRequestException('User not found');
       }
       const user = res.data.user;
+      const profileData =
+        user.profileData && typeof user.profileData === 'object'
+          ? (user.profileData as Record<string, unknown>)
+          : undefined;
+      const avatarFromProfile =
+        typeof profileData?.avatarUrl === 'string' ? profileData.avatarUrl.trim() : '';
+      const avatarUrl =
+        (typeof user.avatarUrl === 'string' && user.avatarUrl.trim()) ||
+        avatarFromProfile ||
+        undefined;
       return {
         id: user.id,
         role: user.role,
         firstName: user.firstName,
         lastName: user.lastName,
-        gender: user.gender,
-        birthDate: user.birthDate,
+        gender: user.gender ?? (typeof profileData?.gender === 'string' ? profileData.gender : undefined),
+        birthDate:
+          user.birthDate ??
+          (typeof profileData?.birthDate === 'string' ? profileData.birthDate : undefined),
         phoneNumber: user.phoneNumber,
+        avatarUrl: avatarUrl || undefined,
       };
     } catch (error) {
       if (error instanceof BadRequestException) throw error;
@@ -78,6 +92,7 @@ export class UserHttpClient {
       gender?: string;
       birthDate?: string;
       phoneNumber?: string;
+      avatarUrl?: string;
     }>
   > {
     if (!userIds.length) return [];

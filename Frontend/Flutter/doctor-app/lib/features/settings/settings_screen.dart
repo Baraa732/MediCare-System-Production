@@ -10,6 +10,7 @@ import '../../core/widgets/common_widgets.dart';
 import '../../core/widgets/language_selector.dart';
 import '../auth/forgot_password_screen.dart';
 import '../auth/login_screen.dart';
+import 'edit_profile_screen.dart';
 import 'profile_sheets.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -31,6 +32,7 @@ class _SettingsScreenState extends State<SettingsScreen>
   String? _clinicName;
   String? _firstName;
   String? _lastName;
+  String? _avatarUrl;
 
   @override
   void initState() {
@@ -56,6 +58,11 @@ class _SettingsScreenState extends State<SettingsScreen>
         _phone = map?['phoneNumber']?.toString() ?? map?['phone']?.toString();
         _email = map?['email']?.toString();
         _clinicName = clinicName;
+        final profileData = map?['profileData'];
+        _avatarUrl = map?['avatarUrl']?.toString() ??
+            (profileData is Map
+                ? profileData['avatarUrl']?.toString()
+                : null);
       });
     } catch (_) {}
   }
@@ -169,7 +176,10 @@ class _SettingsScreenState extends State<SettingsScreen>
                                 color: Colors.white.withValues(alpha: 0.5),
                               ),
                             ),
-                            child: doctorAvatar(radius: 26),
+                            child: doctorAvatar(
+                              radius: 26,
+                              imageUrl: _avatarUrl,
+                            ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
@@ -266,16 +276,15 @@ class _SettingsScreenState extends State<SettingsScreen>
                     icon: Icons.person_outline_rounded,
                     accent: const Color(0xFF0B74FA),
                     label: 'Edit profile',
-                    subtitle: 'Name, email, and specialization',
+                    subtitle: 'Photo, name, email, and specialization',
                     onTap: () async {
-                      final ok = await showEditDoctorProfileSheet(
+                      final ok = await Navigator.push<bool>(
                         context,
-                        firstName: _firstName ?? sessionStorage.firstName ?? '',
-                        lastName: _lastName ?? sessionStorage.lastName ?? '',
-                        email: _email,
-                        specialization: _specialty,
+                        MaterialPageRoute(
+                          builder: (_) => const EditDoctorProfileScreen(),
+                        ),
                       );
-                      if (ok) {
+                      if (ok == true) {
                         await _loadProfile();
                         if (context.mounted) {
                           showSnack(context, 'Profile updated');

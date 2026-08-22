@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:cms_doctor_app/core/api/api_client.dart';
 import 'package:cms_doctor_app/core/storage/session_storage.dart';
 import 'package:cms_doctor_app/core/utils/phone_utils.dart';
@@ -178,6 +180,26 @@ class AuthApiService {
       lastName: map['lastName']?.toString() ?? lastName,
     );
     return map;
+  }
+
+  Future<Map<String, dynamic>> uploadOwnAvatar(File file) async {
+    final userId = _session.userId;
+    if (userId == null) throw Exception('Not signed in');
+    final form = FormData.fromMap({
+      'file': await MultipartFile.fromFile(
+        file.path,
+        filename: file.path.split(RegExp(r'[\\/]')).last,
+      ),
+    });
+    final response = await _client.dio.post(
+      '/users/$userId/avatar',
+      data: form,
+      options: Options(contentType: 'multipart/form-data'),
+    );
+    final data = response.data;
+    if (data is Map<String, dynamic>) return data;
+    if (data is Map) return Map<String, dynamic>.from(data);
+    return {};
   }
 
   Future<void> changePassword({

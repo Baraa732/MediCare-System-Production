@@ -18,6 +18,7 @@ class _PatientItem {
     this.age,
     this.phone,
     this.lastVisit,
+    this.avatarUrl,
   });
 
   final String id;
@@ -26,6 +27,7 @@ class _PatientItem {
   final int? age;
   final String? phone;
   final DateTime? lastVisit;
+  final String? avatarUrl;
 }
 
 class PatientsScreen extends StatefulWidget {
@@ -84,6 +86,7 @@ class _PatientsScreenState extends State<PatientsScreen> {
               age: a.ageYears,
               phone: a.patientPhone,
               lastVisit: a.scheduledAt,
+              avatarUrl: a.patientAvatarUrl,
             ),
           )
           .toList()
@@ -183,7 +186,10 @@ class _PatientsScreenState extends State<PatientsScreen> {
                               child: ListTile(
                                 contentPadding: const EdgeInsets.symmetric(
                                     horizontal: 12, vertical: 6),
-                                leading: patientAvatar(radius: 24),
+                                leading: patientAvatar(
+                                  radius: 24,
+                                  imageUrl: patient.avatarUrl,
+                                ),
                                 title: Text(
                                   patient.name,
                                   style: const TextStyle(
@@ -256,6 +262,7 @@ class _PatientsScreenState extends State<PatientsScreen> {
                                       patientName: patient.name,
                                       gender: patient.gender,
                                       age: patient.age,
+                                      avatarUrl: patient.avatarUrl,
                                     ),
                                   ),
                                 ),

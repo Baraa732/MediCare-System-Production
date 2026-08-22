@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import {
   Box, Typography, Grid, Card, CardHeader, CardContent, Alert, Skeleton, Chip,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Select, MenuItem,
-  TextField, InputAdornment, TablePagination,
+  TextField, InputAdornment, TablePagination, Avatar,
 } from '@mui/material'
 import { useTheme } from '@mui/material/styles'
 import { ShieldCheck, UserCheck, Users, Search, Activity } from 'lucide-react'
@@ -10,6 +10,7 @@ import DonutChart from '../../components/charts/DonutChart'
 import { countByRole, usePlatformData } from '../../hooks/usePlatformData'
 import type { PlatformUser } from '../../api/types'
 import { AdvancedPageHeader, CommandMetric } from '../../components/advanced/AdvancedPage'
+import { resolveAssetUrl } from '../../lib/resolveAssetUrl'
 
 const roleChipColor: Record<string, 'info' | 'success' | 'warning' | 'secondary' | 'default'> = {
   PATIENT: 'info',
@@ -35,6 +36,33 @@ function statusColor(status: string): 'success' | 'warning' | 'default' {
   return 'default'
 }
 
+function UserAvatar({ user }: { user: PlatformUser }) {
+  const theme = useTheme()
+  const src = resolveAssetUrl(user.avatarUrl)
+  return (
+    <Avatar
+      src={src}
+      alt={displayName(user)}
+      sx={{
+        width: 36,
+        height: 36,
+        bgcolor: theme.palette.accent.subtle,
+        color: 'primary.main',
+        fontSize: 12,
+        fontWeight: 700,
+        border: `1px solid ${theme.palette.divider}`,
+      }}
+      imgProps={{
+        loading: 'lazy',
+        referrerPolicy: 'no-referrer',
+        style: { objectFit: 'cover' },
+      }}
+    >
+      {avatarInitials(user)}
+    </Avatar>
+  )
+}
+
 export default function PlatformUsers() {
   const theme = useTheme()
   const { users, loading, error } = usePlatformData()
@@ -48,6 +76,10 @@ export default function PlatformUsers() {
   const activeCount = useMemo(() => users.filter((u) => u.status === 'ACTIVE').length, [users])
   const staffCount = useMemo(() => users.filter((u) => ['DOCTOR', 'SECRETARY', 'CLINIC_ADMIN'].includes(u.role)).length, [users])
   const pendingCount = useMemo(() => users.filter((u) => u.status !== 'ACTIVE').length, [users])
+  const withPhotoCount = useMemo(
+    () => users.filter((u) => Boolean(resolveAssetUrl(u.avatarUrl))).length,
+    [users],
+  )
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -69,7 +101,7 @@ export default function PlatformUsers() {
       <AdvancedPageHeader
         title="Platform Users"
         eyebrow="Identity Command Center"
-        description="Advanced live account intelligence across patients, clinical staff, and platform operators. Filter, inspect, and audit every user record loaded from the real user-service."
+        description="Advanced live account intelligence across patients, clinical staff, and platform operators. Filter, inspect, and audit every user record — including profile photos — loaded from the real user-service."
         icon={Users}
         color="#8b5cf6"
         status={`${filtered.length} visible`}
@@ -78,7 +110,7 @@ export default function PlatformUsers() {
           <Grid size={{ xs: 12, sm: 6, md: 3 }}><CommandMetric label="Total Accounts" value={users.length} helper="user-service" color="#8b5cf6" icon={Users} /></Grid>
           <Grid size={{ xs: 12, sm: 6, md: 3 }}><CommandMetric label="Active Users" value={activeCount} helper={`${Math.round((activeCount / Math.max(1, users.length)) * 100)}% active`} color="#10b981" icon={UserCheck} /></Grid>
           <Grid size={{ xs: 12, sm: 6, md: 3 }}><CommandMetric label="Clinical Staff" value={staffCount} helper="assigned roles" color="#06b6d4" icon={ShieldCheck} /></Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}><CommandMetric label="Needs Review" value={pendingCount} helper="not active" color={pendingCount ? '#f59e0b' : '#10b981'} icon={Activity} /></Grid>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}><CommandMetric label="With Photos" value={withPhotoCount} helper={pendingCount ? `${pendingCount} need review` : 'profile images'} color={withPhotoCount ? '#0B74FA' : '#f59e0b'} icon={Activity} /></Grid>
         </Grid>
       </AdvancedPageHeader>
 
@@ -103,9 +135,9 @@ export default function PlatformUsers() {
                   {[
                     ['Active', activeCount, '#10b981'],
                     ['Needs Review', pendingCount, pendingCount ? '#f59e0b' : '#10b981'],
-                    ['Roles', roleData.length, '#06b6d4'],
+                    ['With Photos', withPhotoCount, '#0B74FA'],
                   ].map(([label, value, color]) => (
-                    <Box key={label} sx={{ display: 'grid', gridTemplateColumns: '120px 1fr 48px', alignItems: 'center', gap: 1, py: 0.75 }}>
+                    <Box key={String(label)} sx={{ display: 'grid', gridTemplateColumns: '120px 1fr 48px', alignItems: 'center', gap: 1, py: 0.75 }}>
                       <Typography variant="caption2" sx={{ color: 'text.secondary' }}>{label}</Typography>
                       <Box sx={{ height: 6, borderRadius: 999, bgcolor: 'background.default', overflow: 'hidden' }}>
                         <Box sx={{ width: `${Math.min(100, Number(value) / Math.max(1, users.length) * 100)}%`, height: '100%', bgcolor: color }} />
@@ -166,9 +198,7 @@ export default function PlatformUsers() {
                       <TableRow key={u.id} hover>
                         <TableCell>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                            <Box sx={{ width: 30, height: 30, borderRadius: '50%', bgcolor: theme.palette.accent.subtle, color: 'primary.main', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600 }}>
-                              {avatarInitials(u)}
-                            </Box>
+                            <UserAvatar user={u} />
                             <Box>
                               <Typography variant="body2" sx={{ fontWeight: 500 }}>{displayName(u)}</Typography>
                               <Typography variant="caption2" sx={{ color: 'text.disabled', fontFamily: theme.typography.mono.fontFamily }}>

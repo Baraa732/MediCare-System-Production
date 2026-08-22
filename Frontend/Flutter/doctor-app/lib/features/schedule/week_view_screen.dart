@@ -126,6 +126,7 @@ class _WeekViewScreenState extends State<WeekViewScreen> {
           patientName: appointment.displayPatient,
           gender: appointment.patientGender,
           age: appointment.ageYears,
+          avatarUrl: appointment.patientAvatarUrl,
           appointmentId: appointment.id,
           appointmentTime: appointment.timeLabel,
           appointmentDuration: appointment.durationLabel,

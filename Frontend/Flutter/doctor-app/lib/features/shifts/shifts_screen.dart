@@ -511,6 +511,7 @@ class _ShiftsScreenState extends State<ShiftsScreen> {
                                             patientName: a.displayPatient,
                                             gender: a.patientGender,
                                             age: a.ageYears,
+                                            avatarUrl: a.patientAvatarUrl,
                                             appointmentId: a.id,
                                             appointmentTime: a.timeLabel,
                                             appointmentDuration: a.durationLabel,

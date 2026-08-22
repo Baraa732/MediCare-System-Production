@@ -21,6 +21,7 @@ class PatientRecordScreen extends StatefulWidget {
     this.patientName,
     this.gender,
     this.age,
+    this.avatarUrl,
     this.appointmentId,
     this.appointmentTime,
     this.appointmentStatus,
@@ -35,6 +36,7 @@ class PatientRecordScreen extends StatefulWidget {
   final String? patientName;
   final String? gender;
   final int? age;
+  final String? avatarUrl;
   final String? appointmentId;
   final String? appointmentTime;
   final String? appointmentStatus;
@@ -989,7 +991,7 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
             children: [
               Row(
                 children: [
-                  patientAvatar(radius: 28),
+                  patientAvatar(radius: 28, imageUrl: widget.avatarUrl),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -1091,7 +1093,7 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
           children: [
             Row(
               children: [
-                patientAvatar(radius: 28),
+                patientAvatar(radius: 28, imageUrl: widget.avatarUrl),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(

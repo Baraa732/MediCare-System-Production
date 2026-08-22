@@ -286,7 +286,21 @@ export class InternalUserController {
 
   private toPublicUser(user: User): Record<string, unknown> {
     const { password: _, ...rest } = user;
-    return rest as Record<string, unknown>;
+    const profileData = user.profileData || {};
+    const avatarUrl =
+      typeof profileData.avatarUrl === 'string' ? profileData.avatarUrl : undefined;
+    return {
+      ...rest,
+      avatarUrl,
+      gender:
+        typeof profileData.gender === 'string'
+          ? profileData.gender
+          : (rest as { gender?: string }).gender,
+      birthDate:
+        typeof profileData.birthDate === 'string'
+          ? profileData.birthDate
+          : (rest as { birthDate?: string }).birthDate,
+    };
   }
 
   @Get('internal/exists')

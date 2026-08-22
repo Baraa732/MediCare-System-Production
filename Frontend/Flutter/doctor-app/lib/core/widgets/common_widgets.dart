@@ -3,10 +3,11 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:lottie/lottie.dart';
 
 import '../constants/app_assets.dart';
+import '../utils/media_url.dart';
 
 Widget doctorAvatar({double radius = 24, String? imageUrl}) {
   final size = radius * 2;
-  final url = imageUrl?.trim() ?? '';
+  final url = MediaUrl.resolve(imageUrl);
   return CircleAvatar(
     radius: radius,
     backgroundColor: const Color(0xFFDBDBDC),
@@ -36,7 +37,7 @@ Widget doctorAvatar({double radius = 24, String? imageUrl}) {
 
 Widget patientAvatar({double radius = 24, String? imageUrl}) {
   final size = radius * 2;
-  final url = imageUrl?.trim() ?? '';
+  final url = MediaUrl.resolve(imageUrl);
   return CircleAvatar(
     radius: radius,
     backgroundColor: const Color(0xFFDBDBDC),

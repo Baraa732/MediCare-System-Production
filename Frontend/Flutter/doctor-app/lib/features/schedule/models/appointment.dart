@@ -24,6 +24,7 @@ class Appointment {
     this.rawStatus,
     this.gender,
     this.age,
+    this.avatarUrl,
   });
 
   final String id;
@@ -40,6 +41,7 @@ class Appointment {
   final String? rawStatus;
   final String? gender;
   final int? age;
+  final String? avatarUrl;
 
   factory Appointment.fromDoctor(DoctorAppointment a) {
     Color color = const Color(0xFFEEF4FF);
@@ -66,6 +68,7 @@ class Appointment {
       scheduledAt: a.scheduledAt,
       gender: a.patientGender,
       age: a.ageYears,
+      avatarUrl: a.patientAvatarUrl,
     );
   }
 
@@ -84,6 +87,7 @@ class Appointment {
     DateTime? scheduledAt,
     String? gender,
     int? age,
+    String? avatarUrl,
   }) {
     return Appointment(
       id: id ?? this.id,
@@ -100,6 +104,7 @@ class Appointment {
       scheduledAt: scheduledAt ?? this.scheduledAt,
       gender: gender ?? this.gender,
       age: age ?? this.age,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
     );
   }
 }
@@ -155,6 +160,7 @@ class AppointmentCard extends StatelessWidget {
                 patientName: appointment.patient,
                 gender: appointment.gender,
                 age: appointment.age,
+                avatarUrl: appointment.avatarUrl,
                 appointmentId: appointment.id,
                 appointmentTime: appointment.time,
                 appointmentDuration: appointment.duration,

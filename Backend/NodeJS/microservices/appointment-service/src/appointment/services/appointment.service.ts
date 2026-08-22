@@ -542,6 +542,7 @@ export class AppointmentService {
       patientGender: patient?.gender,
       patientBirthDate: patient?.birthDate,
       patientPhone: patient?.phoneNumber ?? appointment.guestPatientPhone ?? undefined,
+      patientAvatarUrl: patient?.avatarUrl,
     };
   }
 
@@ -591,6 +592,7 @@ export class AppointmentService {
         patientGender: patient?.gender,
         patientBirthDate: patient?.birthDate,
         patientPhone: patient?.phoneNumber ?? appointment.guestPatientPhone ?? undefined,
+        patientAvatarUrl: patient?.avatarUrl,
       };
     });
   }

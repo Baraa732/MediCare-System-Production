@@ -67,6 +67,8 @@ class ApiClient {
   late final Dio _dio;
   Future<String?>? _refreshInFlight;
 
+  Dio get dio => _dio;
+
   Future<String?> _refreshAccessToken() async {
     final refreshToken = _sessionStorage.refreshToken;
     if (refreshToken == null || refreshToken.isEmpty) {

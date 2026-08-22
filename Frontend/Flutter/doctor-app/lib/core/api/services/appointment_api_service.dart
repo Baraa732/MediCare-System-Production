@@ -16,6 +16,7 @@ class DoctorAppointment {
   final String? patientGender;
   final String? patientBirthDate;
   final String? patientPhone;
+  final String? patientAvatarUrl;
   final String? clinicName;
   final String? guestPatientName;
   final String? guestPatientPhone;
@@ -34,6 +35,7 @@ class DoctorAppointment {
     this.patientGender,
     this.patientBirthDate,
     this.patientPhone,
+    this.patientAvatarUrl,
     this.clinicName,
     this.guestPatientName,
     this.guestPatientPhone,
@@ -106,6 +108,8 @@ class DoctorAppointment {
       patientBirthDate: json['patientBirthDate']?.toString(),
       patientPhone: json['patientPhone']?.toString() ??
           json['guestPatientPhone']?.toString(),
+      patientAvatarUrl: json['patientAvatarUrl']?.toString() ??
+          json['avatarUrl']?.toString(),
       clinicName: json['clinicName']?.toString(),
       guestPatientName: json['guestPatientName']?.toString(),
       guestPatientPhone: json['guestPatientPhone']?.toString(),
