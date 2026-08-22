@@ -10,6 +10,7 @@ import 'package:intl/intl.dart';
 import '../../core/constants/app_assets.dart';
 import '../../core/layout/app_shell.dart';
 import '../../core/navigation/app_navigation.dart';
+import '../../core/utils/gender_format.dart';
 import '../../core/widgets/common_widgets.dart';
 import 'generate_visit_report_sheet.dart';
 import 'emr_write_sheets.dart';
@@ -468,8 +469,13 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
     return widget.patientName ?? 'Patient';
   }
 
+  String get _displayGender => pickDisplayGender([
+        widget.gender,
+        _chart?.patient['gender']?.toString(),
+        for (final visit in _visits) visit.patientGender,
+      ]);
+
   String get _subtitle {
-    final gender = _chart?.patient['gender']?.toString() ?? widget.gender ?? '—';
     final birth = _chart?.patient['birthDate']?.toString();
     int? age = widget.age;
     if (birth != null && birth.isNotEmpty) {
@@ -484,7 +490,7 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
       }
     }
     final ageLabel = age != null ? '$age years old' : 'Age unknown';
-    return '$gender | $ageLabel';
+    return '$_displayGender | $ageLabel';
   }
 
   bool get _hasAppointmentContext =>
@@ -1020,7 +1026,7 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
                 children: [
                   _statBox('Age', widget.age != null ? '${widget.age} y' : '—'),
                   const SizedBox(width: 8),
-                  _statBox('Gender', widget.gender ?? '—'),
+                  _statBox('Gender', _displayGender),
                   const SizedBox(width: 8),
                   _statBox(
                     'Source',
@@ -1117,7 +1123,7 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
                 const SizedBox(width: 8),
                 _statBox(
                   'Gender',
-                  chart.patient['gender']?.toString() ?? widget.gender ?? '—',
+                  _displayGender,
                 ),
                 const SizedBox(width: 8),
                 _statBox(
@@ -1539,9 +1545,8 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
   }
 
   List<Widget> _buildDocumentsContent() {
-    final labs = _chart?.labResults ?? const [];
-    final docs = _chart?.documents ?? const [];
-    if (labs.isEmpty && docs.isEmpty) {
+    final entries = _documentEntries();
+    if (entries.isEmpty) {
       return [
         const Text(
           'Documents',
@@ -1552,7 +1557,7 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
         ),
         const SizedBox(height: 12),
         const Text(
-          'No lab results / documents synced yet',
+          'No visit reports or documents yet. Generate a visit report from the heartbeat button.',
           style: TextStyle(color: Color(0xFF929296)),
         ),
       ];
@@ -1566,51 +1571,194 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
             color: Color(0xFF1A1B1E)),
       ),
       const SizedBox(height: 8),
-      ...docs.map((doc) => _fileRow(
-            _mapTitle(doc, ['fileName', 'name', 'type', 'display']),
-            _mapSubtitle(doc, ['type', 'status', 'uploadedAt']),
-          )),
-      ...labs.map(
-        (doc) => _fileRow(
-          _mapTitle(doc, ['name', 'test', 'testName', 'display', 'code']),
-          _mapSubtitle(doc, ['result', 'value', 'unit', 'status', 'date']),
+      ...entries.map(
+        (entry) => _fileRow(
+          entry.title,
+          entry.subtitle,
+          icon: entry.icon,
+          onTap: entry.body == null || entry.body!.trim().isEmpty
+              ? null
+              : () => _showDocumentDetail(entry.title, entry.body!),
         ),
       ),
     ];
   }
 
-  Widget _fileRow(String title, String subtitle) => Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        decoration: BoxDecoration(
-            color: Colors.white, borderRadius: BorderRadius.circular(12)),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        child: Row(
-          children: [
-            const Icon(Icons.insert_drive_file_outlined,
-                color: Color(0xFF929296), size: 22),
-            const SizedBox(width: 10),
-            Expanded(
+  List<_DocumentEntry> _documentEntries() {
+    final entries = <_DocumentEntry>[];
+    final seenBodies = <String>{};
+
+    void addEntry(_DocumentEntry entry) {
+      final bodyKey = entry.body?.trim();
+      if (bodyKey != null && bodyKey.isNotEmpty) {
+        if (seenBodies.contains(bodyKey)) return;
+        seenBodies.add(bodyKey);
+      }
+      entries.add(entry);
+    }
+
+    for (final doc in _chart?.documents ?? const []) {
+      addEntry(
+        _DocumentEntry(
+          title: _mapTitle(doc, ['fileName', 'name', 'type', 'display']),
+          subtitle: _mapSubtitle(doc, ['type', 'status', 'uploadedAt']),
+          icon: Icons.insert_drive_file_outlined,
+        ),
+      );
+    }
+
+    for (final lab in _chart?.labResults ?? const []) {
+      addEntry(
+        _DocumentEntry(
+          title: _mapTitle(lab, ['name', 'test', 'testName', 'display', 'code']),
+          subtitle: _mapSubtitle(lab, ['result', 'value', 'unit', 'status', 'date']),
+          icon: Icons.biotech_outlined,
+        ),
+      );
+    }
+
+    for (final note in _chart?.clinicalNotes ?? const []) {
+      final type = _mapTitle(note, ['type', 'title', 'category', 'display']);
+      final content = _mapSubtitle(note, ['text', 'content', 'summary', 'note']);
+      final isVisitReport = type.toLowerCase().contains('visit report');
+      addEntry(
+        _DocumentEntry(
+          title: isVisitReport ? 'Visit report' : type,
+          subtitle: [
+            _mapSubtitle(note, ['date', 'author']),
+            if (content.isNotEmpty) _previewText(content),
+          ].where((part) => part.isNotEmpty).join(' · '),
+          body: content.isEmpty ? null : content,
+          icon: isVisitReport
+              ? Icons.description_outlined
+              : Icons.note_alt_outlined,
+        ),
+      );
+    }
+
+    for (final visit in _visits) {
+      final notes = visit.notes?.trim();
+      if (notes == null || notes.isEmpty) continue;
+      addEntry(
+        _DocumentEntry(
+          title: 'Visit report',
+          subtitle: [
+            DateFormat.yMMMd().add_jm().format(visit.scheduledAt),
+            visit.uiStatus ?? visit.status,
+            _previewText(notes),
+          ].join(' · '),
+          body: notes,
+          icon: Icons.description_outlined,
+        ),
+      );
+    }
+
+    return entries;
+  }
+
+  String _previewText(String text, {int maxLength = 72}) {
+    final normalized = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (normalized.length <= maxLength) return normalized;
+    return '${normalized.substring(0, maxLength).trim()}…';
+  }
+
+  Future<void> _showDocumentDetail(String title, String body) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final bottom = MediaQuery.viewInsetsOf(ctx).bottom;
+        return Padding(
+          padding: EdgeInsets.fromLTRB(16, 12, 16, bottom + 16),
+          child: Material(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     title,
                     style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
                       color: Color(0xFF1A1B1E),
                     ),
                   ),
-                  if (subtitle.isNotEmpty)
-                    Text(
-                      subtitle,
-                      style: const TextStyle(
-                          fontSize: 12, color: Color(0xFF929296)),
+                  const SizedBox(height: 12),
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: MediaQuery.sizeOf(ctx).height * 0.55,
                     ),
+                    child: SingleChildScrollView(
+                      child: Text(
+                        body,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          height: 1.45,
+                          color: Color(0xFF1A1B1E),
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
-          ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _fileRow(
+    String title,
+    String subtitle, {
+    IconData icon = Icons.insert_drive_file_outlined,
+    VoidCallback? onTap,
+  }) =>
+      Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: [
+                Icon(icon, color: const Color(0xFF929296), size: 22),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF1A1B1E),
+                        ),
+                      ),
+                      if (subtitle.isNotEmpty)
+                        Text(
+                          subtitle,
+                          style: const TextStyle(
+                              fontSize: 12, color: Color(0xFF929296)),
+                        ),
+                    ],
+                  ),
+                ),
+                if (onTap != null)
+                  const Icon(Icons.chevron_right_rounded,
+                      color: Color(0xFFB6B7B9)),
+              ],
+            ),
+          ),
         ),
       );
 
@@ -1702,6 +1850,20 @@ class _PatientRecordScreenState extends State<PatientRecordScreen>
           ),
         ),
       );
+}
+
+class _DocumentEntry {
+  const _DocumentEntry({
+    required this.title,
+    required this.subtitle,
+    this.body,
+    this.icon = Icons.insert_drive_file_outlined,
+  });
+
+  final String title;
+  final String subtitle;
+  final String? body;
+  final IconData icon;
 }
 
 /// Gray heartbeat control from the CMS doctor UI — opens generate visit report.

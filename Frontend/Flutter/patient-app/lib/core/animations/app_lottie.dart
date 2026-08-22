@@ -40,6 +40,8 @@ class AppLottie extends StatelessWidget {
 /// Bundled Lottie asset paths.
 abstract final class AppLottieAssets {
   static const search = 'assets/lottie/search.json';
+  static const searchHeartbeat = 'assets/lottie/search_heartbeat.json';
+  static const searchNoData = 'assets/lottie/search_no_data.json';
   static const empty = 'assets/lottie/empty.json';
   static const success = 'assets/lottie/success.json';
   static const loading = 'assets/lottie/loading.json';

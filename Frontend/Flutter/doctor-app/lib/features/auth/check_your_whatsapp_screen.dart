@@ -72,25 +72,24 @@ class _CheckYourWhatsAppScreenState extends State<CheckYourWhatsAppScreen> {
 
   Future<void> _verifyOtp() async {
     final otp = _otpCtrl.text.trim();
-    if (otp.length < 4) {
-      showSnack(context, 'Enter the OTP from WhatsApp');
+    if (otp.length != 6) {
+      showSnack(context, 'Enter the 6-digit code from WhatsApp');
       return;
     }
     setState(() => _loading = true);
     try {
-      final resetToken = await authApi.forgotPasswordVerifyOtp(
+      await authApi.forgotPasswordVerifyOtp(
         phoneNumber: widget.phoneNumber,
         otp: otp,
       );
       if (!mounted) return;
-      if (resetToken.isEmpty) {
-        showSnack(context, 'Invalid OTP response');
-        return;
-      }
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => ResetPasswordScreen(resetToken: resetToken),
+          builder: (_) => ResetPasswordScreen(
+            phoneNumber: widget.phoneNumber,
+            otp: otp,
+          ),
         ),
       );
     } catch (e) {

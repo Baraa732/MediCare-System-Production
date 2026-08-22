@@ -19,6 +19,8 @@ function isPasswordResetRoute(pathname: string): boolean {
 
 export function ProtectedRoute({ children }: { children: ReactNode }) {
   const accessToken = useAuthStore((s) => s.accessToken);
+  const role = useAuthStore((s) => s.role);
+  const logout = useAuthStore((s) => s.logout);
   const hydrated = useAuthHydration();
   const location = useLocation();
 
@@ -28,6 +30,11 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
 
   if (!accessToken) {
     return <Navigate to="/auth/login" replace state={{ from: location }} />;
+  }
+
+  if (role !== "SECRETARY") {
+    logout();
+    return <Navigate to="/auth/login" replace />;
   }
 
   return (

@@ -84,6 +84,7 @@ export class PatientSyncService {
         );
         openemrPatientId = await this.openEmrDbReader.createOrFindPatient({
           userId: event.userId,
+          tenantId,
           phoneNumber: event.phoneNumber,
           firstName: event.firstName,
           lastName: event.lastName,
@@ -145,6 +146,76 @@ export class PatientSyncService {
       (link) => link.syncStatus === EmrSyncStatus.SYNCED && !!link.openemrPatientId,
     );
     return synced ?? links[0];
+  }
+
+  /**
+   * Multi-clinic patients must not share one OpenEMR pid across tenants.
+   * Keeps the oldest link on the legacy/shared chart and provisions a tenant-scoped chart for others.
+   */
+  async ensureTenantIsolatedOpenEmrPatient(
+    link: PatientEmrLink,
+    profile?: {
+      phoneNumber?: string;
+      firstName?: string;
+      lastName?: string;
+      email?: string;
+      gender?: string;
+      birthDate?: string;
+    },
+  ): Promise<PatientEmrLink> {
+    if (!link.tenantId || !link.openemrPatientId) return link;
+
+    const siblings = await this.linkRepository.find({
+      where: { userId: link.userId, openemrPatientId: link.openemrPatientId },
+      order: { createdAt: 'ASC' },
+    });
+    if (siblings.length <= 1) return link;
+
+    const primary = siblings[0];
+    if (primary.id === link.id) return link;
+
+    const phone = profile?.phoneNumber ?? link.phoneNumber;
+    if (!phone?.trim()) return link;
+
+    const dedicatedPid = await this.openEmrDbReader.createOrFindPatient({
+      userId: link.userId,
+      tenantId: link.tenantId,
+      phoneNumber: phone,
+      firstName: profile?.firstName,
+      lastName: profile?.lastName,
+      email: profile?.email,
+      gender: profile?.gender,
+      birthDate: profile?.birthDate,
+    });
+
+    if (dedicatedPid === link.openemrPatientId) return link;
+
+    link.openemrPatientId = dedicatedPid;
+    link.syncStatus = EmrSyncStatus.SYNCED;
+    link.lastError = null;
+    link.phoneNumber = phone;
+    this.logger.log(
+      `Isolated OpenEMR chart for user ${link.userId} at tenant ${link.tenantId} → pid ${dedicatedPid}`,
+    );
+    return this.linkRepository.save(link);
+  }
+
+  isPrimaryLinkForSharedChart(link: PatientEmrLink, siblings: PatientEmrLink[]): boolean {
+    if (siblings.length <= 1) return true;
+    const sorted = [...siblings].sort(
+      (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
+    );
+    return sorted[0]?.id === link.id;
+  }
+
+  async getLinksSharingOpenEmrPatient(
+    userId: string,
+    openemrPatientId: string,
+  ): Promise<PatientEmrLink[]> {
+    return this.linkRepository.find({
+      where: { userId, openemrPatientId },
+      order: { createdAt: 'ASC' },
+    });
   }
 
   private async findLink(userId: string, tenantId: string): Promise<PatientEmrLink | null> {

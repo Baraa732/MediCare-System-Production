@@ -130,6 +130,18 @@ export class LoginDto {
   @IsString()
   @IsOptional()
   browserFingerprint?: string;
+
+  /** Identifies the client surface (mobile app / dashboard) for role enforcement. */
+  @IsString()
+  @IsOptional()
+  @IsIn([
+    'patient-mobile',
+    'doctor-mobile',
+    'secretary-web',
+    'clinic-admin-web',
+    'system-manager-web',
+  ])
+  clientApp?: string;
 }
 
 export class CreateUserByAdminDto {
@@ -254,6 +266,17 @@ export class VerifyMfaDto {
   @IsString()
   @IsOptional()
   browserFingerprint?: string;
+
+  @IsString()
+  @IsOptional()
+  @IsIn([
+    'patient-mobile',
+    'doctor-mobile',
+    'secretary-web',
+    'clinic-admin-web',
+    'system-manager-web',
+  ])
+  clientApp?: string;
 }
 
 export class UpdateUserDto {
@@ -316,6 +339,17 @@ export class ResetPasswordDto {
   @IsString()
   @IsOptional()
   browserFingerprint?: string;
+
+  @IsString()
+  @IsOptional()
+  @IsIn([
+    'patient-mobile',
+    'doctor-mobile',
+    'secretary-web',
+    'clinic-admin-web',
+    'system-manager-web',
+  ])
+  clientApp?: string;
 }
 
 export class RefreshTokenDto {

@@ -18,7 +18,7 @@ class AuthSession {
       accessToken: json['accessToken'] as String,
       refreshToken: json['refreshToken'] as String,
       userId: json['userId'] as String? ?? '',
-      role: json['role'] as String? ?? 'PATIENT',
+      role: json['role'] as String? ?? '',
     );
   }
 }
@@ -42,7 +42,8 @@ class SessionStorage {
       accessToken != null &&
       accessToken!.isNotEmpty &&
       userId != null &&
-      userId!.isNotEmpty;
+      userId!.isNotEmpty &&
+      role == 'PATIENT';
 
   Future<void> saveSession(AuthSession session) async {
     await _prefs.setString(_accessTokenKey, session.accessToken);

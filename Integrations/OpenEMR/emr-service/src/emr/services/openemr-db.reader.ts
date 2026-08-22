@@ -188,6 +188,7 @@ export class OpenEmrDbReader {
    */
   async createOrFindPatient(input: {
     userId: string;
+    tenantId?: string;
     phoneNumber: string;
     firstName?: string;
     lastName?: string;
@@ -197,7 +198,24 @@ export class OpenEmrDbReader {
   }): Promise<string> {
     return this.withConnection(async (connection) => {
       const phone = (input.phoneNumber || '').trim();
-      if (phone) {
+      const pubpid = input.tenantId
+        ? `MC-${input.tenantId.replace(/-/g, '').slice(0, 8)}-${input.userId.replace(/-/g, '').slice(0, 8)}`
+        : `MC-${input.userId.replace(/-/g, '').slice(0, 12)}`;
+
+      const [byPubpid] = await connection.execute(
+        `SELECT pid FROM patient_data WHERE pubpid = ? ORDER BY pid DESC LIMIT 1`,
+        [pubpid],
+      );
+      const pubpidMatch = (byPubpid as any[])[0]?.pid;
+      if (pubpidMatch != null) {
+        this.logger.log(
+          `Reusing OpenEMR patient pid=${pubpidMatch} for pubpid ${pubpid}`,
+        );
+        return String(pubpidMatch);
+      }
+
+      // Legacy fallback: phone reuse only when no tenant scope was provided.
+      if (!input.tenantId && phone) {
         const [existing] = await connection.execute(
           `SELECT pid FROM patient_data
            WHERE phone_cell = ? OR phone_home = ? OR phone_contact = ?
@@ -223,7 +241,6 @@ export class OpenEmrDbReader {
       const fname = (input.firstName || 'MediCare').slice(0, 255);
       const lname = (input.lastName || 'Patient').slice(0, 255);
       const email = (input.email || '').slice(0, 255);
-      const pubpid = `MC-${input.userId.replace(/-/g, '').slice(0, 12)}`;
 
       let insertId: number;
       try {

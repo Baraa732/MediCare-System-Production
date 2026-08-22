@@ -31,6 +31,8 @@ export interface PatientSyncStatusResponse {
 export interface PatientEmrLinkSummary {
   tenantId: string | null;
   clinicId: string | null;
+  clinicName: string | null;
+  clinicCity: string | null;
   synced: boolean;
   syncStatus: EmrSyncStatus;
   openemrPatientId: string | null;
@@ -112,17 +114,26 @@ export class EmrRecordService {
       throw new ForbiddenException('Only patients can list their EMR links');
     }
     const links = await this.patientSyncService.getLinksByUserId(actor.userId);
-    return {
-      links: links.map((link) => ({
-        tenantId: link.tenantId,
-        clinicId: link.tenantId,
-        synced: link.syncStatus === EmrSyncStatus.SYNCED && !!link.openemrPatientId,
-        syncStatus: link.syncStatus,
-        openemrPatientId: link.openemrPatientId,
-        lastError: link.lastError,
-        updatedAt: link.updatedAt.toISOString(),
-      })),
-    };
+    const enriched = await Promise.all(
+      links.map(async (link) => {
+        const clinic =
+          link.tenantId != null
+            ? await this.fetchClinicSummary(link.tenantId)
+            : null;
+        return {
+          tenantId: link.tenantId,
+          clinicId: link.tenantId,
+          clinicName: clinic?.name ?? null,
+          clinicCity: clinic?.city ?? null,
+          synced: link.syncStatus === EmrSyncStatus.SYNCED && !!link.openemrPatientId,
+          syncStatus: link.syncStatus,
+          openemrPatientId: link.openemrPatientId,
+          lastError: link.lastError,
+          updatedAt: link.updatedAt.toISOString(),
+        };
+      }),
+    );
+    return { links: enriched };
   }
 
   async getMySyncStatus(
@@ -160,6 +171,11 @@ export class EmrRecordService {
     }
 
     if (link?.tenantId && link.syncStatus === EmrSyncStatus.SYNCED && link.openemrPatientId) {
+      const profile = await this.userCorroborator.fetchUserProfile(actor.userId);
+      link = await this.patientSyncService.ensureTenantIsolatedOpenEmrPatient(
+        link,
+        profile ?? undefined,
+      );
       try {
         const chart = await this.getPatientEmr(actor.userId, actor, link.tenantId);
         return this.stripBillingForPatient(chart);
@@ -207,7 +223,7 @@ export class EmrRecordService {
 
     try {
       await this.assertActorAccess(actor, tenantId, userId);
-      const link = await this.patientSyncService.getLinkByUserId(userId, tenantId);
+      let link = await this.patientSyncService.getLinkByUserId(userId, tenantId);
       if (!link || link.syncStatus !== EmrSyncStatus.SYNCED || !link.openemrPatientId) {
         if (actor.role === 'PATIENT' && actor.userId === userId) {
           return this.stripBillingForPatient(await this.emptyChartForUser(userId, link));
@@ -222,6 +238,31 @@ export class EmrRecordService {
 
       await this.tenantGuard.assertLinkBelongsToTenant(link, tenantId);
 
+      const profile = await this.userCorroborator.fetchUserProfile(userId);
+      await this.maybeHealPatientGender(link, profile?.gender);
+      link = await this.patientSyncService.ensureTenantIsolatedOpenEmrPatient(
+        link,
+        profile ?? undefined,
+      );
+
+      const clinic = await this.fetchClinicSummary(tenantId);
+      const sharedLinks = link.openemrPatientId
+        ? await this.patientSyncService.getLinksSharingOpenEmrPatient(
+            userId,
+            link.openemrPatientId,
+          )
+        : [link];
+      const clinicFilter =
+        clinic?.name && sharedLinks.length > 1
+          ? {
+              clinicName: clinic.name,
+              includeUnattributed: this.patientSyncService.isPrimaryLinkForSharedChart(
+                link,
+                sharedLinks,
+              ),
+            }
+          : undefined;
+
       const chart = await this.tenantContext.run(
         {
           tenantId,
@@ -235,6 +276,7 @@ export class EmrRecordService {
             medicareUserId: link.userId,
             syncStatus: link.syncStatus,
             lastSyncAt: link.updatedAt.toISOString(),
+            clinicFilter,
           }),
       );
 
@@ -290,12 +332,19 @@ export class EmrRecordService {
     await this.assertActorAccess(actor, tenantId, userId);
 
     const existing = await this.patientSyncService.getLinkByUserId(userId, tenantId);
-    if (existing?.syncStatus === EmrSyncStatus.SYNCED && existing.openemrPatientId) {
-      return this.toSyncStatus(existing, userId);
-    }
-
     const profile =
       (await this.userCorroborator.fetchUserProfile(userId)) ?? profileHint ?? null;
+    if (existing?.syncStatus === EmrSyncStatus.SYNCED && existing.openemrPatientId) {
+      await this.maybeHealPatientGender(
+        existing,
+        profile?.gender ?? profileHint?.gender,
+      );
+      await this.patientSyncService.ensureTenantIsolatedOpenEmrPatient(
+        existing,
+        profile ?? profileHint ?? undefined,
+      );
+      return this.toSyncStatus(existing, userId);
+    }
     if (!profile?.phoneNumber) {
       throw new NotFoundException({
         message: 'Cannot link EMR — patient phone/profile is missing',
@@ -623,23 +672,9 @@ export class EmrRecordService {
     });
   }
 
-  private async resolveWriterMeta(
-    actor: AuthUser,
+  private async fetchClinicSummary(
     tenantId: string,
-  ): Promise<{ doctorName: string; clinicName: string }> {
-    let doctorName = 'Doctor';
-    try {
-      const profile = await this.userCorroborator.fetchUserProfile(actor.userId);
-      const full = [profile?.firstName, profile?.lastName]
-        .map((v) => v?.trim())
-        .filter(Boolean)
-        .join(' ');
-      if (full) doctorName = full.startsWith('Dr') ? full : `Dr. ${full}`;
-    } catch {
-      /* keep default */
-    }
-
-    let clinicName = 'Clinic';
+  ): Promise<{ name: string; city: string | null } | null> {
     try {
       const clinicBase =
         process.env.CLINIC_SERVICE_URL || 'http://clinic-service:3003';
@@ -656,6 +691,7 @@ export class EmrRecordService {
         {},
         { headers, timeout: 4000, validateStatus: () => true },
       );
+      if (response.status >= 400) return null;
       const clinic =
         response.data?.clinic ?? response.data?.data ?? response.data;
       const name =
@@ -663,12 +699,36 @@ export class EmrRecordService {
         clinic?.clinicName ??
         clinic?.title ??
         clinic?.displayName;
-      if (typeof name === 'string' && name.trim()) clinicName = name.trim();
+      if (typeof name !== 'string' || !name.trim()) return null;
+      const city =
+        typeof clinic?.city === 'string' && clinic.city.trim()
+          ? clinic.city.trim()
+          : null;
+      return { name: name.trim(), city };
     } catch (error: any) {
-      this.logger.warn(`Clinic name lookup failed: ${error?.message}`);
+      this.logger.warn(`Clinic lookup failed for ${tenantId}: ${error?.message}`);
+      return null;
+    }
+  }
+
+  private async resolveWriterMeta(
+    actor: AuthUser,
+    tenantId: string,
+  ): Promise<{ doctorName: string; clinicName: string }> {
+    let doctorName = 'Doctor';
+    try {
+      const profile = await this.userCorroborator.fetchUserProfile(actor.userId);
+      const full = [profile?.firstName, profile?.lastName]
+        .map((v) => v?.trim())
+        .filter(Boolean)
+        .join(' ');
+      if (full) doctorName = full.startsWith('Dr') ? full : `Dr. ${full}`;
+    } catch {
+      /* keep default */
     }
 
-    return { doctorName, clinicName };
+    const clinic = await this.fetchClinicSummary(tenantId);
+    return { doctorName, clinicName: clinic?.name ?? 'Clinic' };
   }
 
   private async resolveStaffWriteContext(
@@ -943,5 +1003,30 @@ export class EmrRecordService {
     if (normalized === 'male' || normalized === 'm') return 'Male';
     if (normalized === 'female' || normalized === 'f') return 'Female';
     return gender.trim() || '';
+  }
+
+  private isUnknownGender(value?: string | null): boolean {
+    if (!value?.trim()) return true;
+    const normalized = value.trim().toLowerCase();
+    return normalized === 'unknown' || normalized === 'other' || normalized === 'u';
+  }
+
+  private async maybeHealPatientGender(
+    link: PatientEmrLink,
+    gender?: string | null,
+  ): Promise<void> {
+    if (!link.openemrPatientId || this.isUnknownGender(gender)) return;
+
+    try {
+      const row = await this.dbReader.getPatientRow(link.openemrPatientId);
+      if (!row || !this.isUnknownGender(row.sex)) return;
+
+      const sex = this.toOpenEmrSex(gender!);
+      if (this.isUnknownGender(sex)) return;
+
+      await this.dbReader.updatePatientPortalFields(row.pid, { sex });
+    } catch (error: any) {
+      this.logger.warn(`OpenEMR gender heal skipped: ${error?.message}`);
+    }
   }
 }

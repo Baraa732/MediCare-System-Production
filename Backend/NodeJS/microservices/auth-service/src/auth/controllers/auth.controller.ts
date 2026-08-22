@@ -269,7 +269,13 @@ export class AuthController {
       browserFingerprint: body.browserFingerprint,
     };
     const requestId = req.headers['x-request-id'] as string;
-    return this.authService.verifyMfa(body.mfaToken, body.otp, deviceInfo, requestId);
+    return this.authService.verifyMfa(
+      body.mfaToken,
+      body.otp,
+      deviceInfo,
+      requestId,
+      body.clientApp,
+    );
   }
 
   /** Staff onboarding: set permanent password after MFA (returns access + refresh tokens). */

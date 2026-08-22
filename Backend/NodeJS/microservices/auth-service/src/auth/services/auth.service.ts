@@ -36,6 +36,7 @@ import {
 import { TenantContextService } from '../../tenant-shared/tenant-context.service';
 import { withOptionalTenantEvent } from '../../tenant-shared/tenant-kafka';
 import { createTenantLogger } from '../../tenant-shared/tenant-logger';
+import { assertRoleAllowedForClientApp } from '../utils/client-app.util';
 
 const LOGIN_MFA_ROLES = new Set(['CLINIC_ADMIN', 'DOCTOR', 'SECRETARY', 'PATIENT']);
 
@@ -761,6 +762,8 @@ export class AuthService implements OnModuleInit {
 
     const user = userResponse.user as AuthUserProfile;
 
+    assertRoleAllowedForClientApp(loginDto.clientApp, user.role);
+
     await Promise.all([
       this.rateLimitService.resetLoginRateLimits(ip, formattedPhoneNumber),
       this.accountLockService.resetLock(formattedPhoneNumber),
@@ -790,7 +793,14 @@ export class AuthService implements OnModuleInit {
       const mfaTtlSeconds = 900;
       const mfaJti = crypto.randomUUID();
       const mfaToken = this.jwtService.sign(
-        { sub: user.id, role: user.role, type: 'mfa_pending', jti: mfaJti, phoneNumber: formattedPhoneNumber },
+        {
+          sub: user.id,
+          role: user.role,
+          type: 'mfa_pending',
+          jti: mfaJti,
+          phoneNumber: formattedPhoneNumber,
+          ...(loginDto.clientApp ? { clientApp: loginDto.clientApp } : {}),
+        },
         { expiresIn: `${mfaTtlSeconds}s` } as any,
       );
 
@@ -798,6 +808,7 @@ export class AuthService implements OnModuleInit {
         userId: user.id,
         phoneNumber: formattedPhoneNumber,
         type: 'mfa_pending',
+        ...(loginDto.clientApp ? { clientApp: loginDto.clientApp } : {}),
       });
 
       const pendingActivation = user.status === 'PENDING_ACTIVATION' || user.mustChangePassword;
@@ -1089,6 +1100,7 @@ export class AuthService implements OnModuleInit {
     otp: string,
     deviceInfo?: any,
     requestId?: string,
+    clientApp?: string,
   ): Promise<
     | AuthSessionResponse
     | (AuthIdentityFields & {
@@ -1123,6 +1135,10 @@ export class AuthService implements OnModuleInit {
 
     const user = userResponse.user as AuthUserProfile;
     const phone = PhoneUtils.validateAndFormat(user.phoneNumber);
+    const effectiveClientApp =
+      clientApp ?? payload.clientApp ?? metadata.clientApp;
+
+    assertRoleAllowedForClientApp(effectiveClientApp, user.role);
 
     // CRITICAL FIX: Validate that the phone number matches the MFA token
     if (metadata.phoneNumber !== phone) {
@@ -1632,6 +1648,8 @@ export class AuthService implements OnModuleInit {
     }
 
     const user = userResponse.user as AuthUserProfile;
+
+    assertRoleAllowedForClientApp(resetPasswordDto.clientApp, user.role);
 
     if (this.usesLoginMfa(user.role)) {
       await this.trustedDeviceService.trustDevice(user.id, deviceInfo);

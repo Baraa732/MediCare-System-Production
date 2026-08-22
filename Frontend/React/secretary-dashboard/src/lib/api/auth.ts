@@ -9,14 +9,14 @@ import type {
 export function login(phoneNumber: string, password: string) {
   return apiRequest<LoginResponse>("/auth/login", {
     method: "POST",
-    body: { phoneNumber, password },
+    body: { phoneNumber, password, clientApp: "secretary-web" },
   });
 }
 
 export function verifyMfa(mfaToken: string, otp: string) {
   return apiRequest<AuthSession | VerifyMfaPasswordChange>("/auth/verify-mfa", {
     method: "POST",
-    body: { mfaToken, otp },
+    body: { mfaToken, otp, clientApp: "secretary-web" },
   });
 }
 
@@ -68,7 +68,7 @@ export function resetPassword(body: {
 }) {
   return apiRequest<AuthSession>("/auth/reset-password", {
     method: "POST",
-    body,
+    body: { ...body, clientApp: "secretary-web" },
   });
 }
 

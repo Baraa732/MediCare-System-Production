@@ -1,16 +1,24 @@
+import 'package:cms_doctor_app/features/auth/no_clinic_access_screen.dart';
+import 'package:cms_doctor_app/features/schedule/day_view_screen.dart';
 import 'package:cms_doctor_app/injection.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_assets.dart';
 import '../../core/navigation/app_navigation.dart';
+import '../../core/utils/password_validation.dart';
 import '../../core/widgets/common_widgets.dart';
 import '../../core/widgets/language_selector.dart';
-import 'good_to_go_screen.dart';
+import 'login_screen.dart';
 
 class ResetPasswordScreen extends StatefulWidget {
-  const ResetPasswordScreen({super.key, this.resetToken});
+  const ResetPasswordScreen({
+    super.key,
+    required this.phoneNumber,
+    required this.otp,
+  });
 
-  final String? resetToken;
+  final String phoneNumber;
+  final String otp;
 
   @override
   State<ResetPasswordScreen> createState() => _ResetPasswordScreenState();
@@ -31,32 +39,56 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   }
 
   Future<void> _confirm() async {
-    if (_newPassCtrl.text.trim().length < 6) {
-      showSnack(context, 'Password must be at least 6 characters');
+    final password = _newPassCtrl.text;
+    final passwordError = validateMediCarePassword(password);
+    if (passwordError != null) {
+      showSnack(context, passwordError);
       return;
     }
-    if (_newPassCtrl.text != _confirmPassCtrl.text) {
-      showSnack(context, 'Passwords do not match');
-      return;
-    }
-    final token = widget.resetToken;
-    if (token == null || token.isEmpty) {
-      showSnack(context, 'Missing reset token. Restart forgot-password flow.');
+    final confirmError =
+        validatePasswordConfirmation(password, _confirmPassCtrl.text);
+    if (confirmError != null) {
+      showSnack(context, confirmError);
       return;
     }
     setState(() => _loading = true);
     try {
       await authApi.resetPassword(
-        resetToken: token,
-        newPassword: _newPassCtrl.text,
+        phoneNumber: widget.phoneNumber,
+        otp: widget.otp,
+        newPassword: password,
       );
       if (!mounted) return;
-      Navigator.pushReplacement(
+      await pushNotificationService.onUserAuthenticated();
+      if (!mounted) return;
+      Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (_) => const GoodToGoScreen()),
+        MaterialPageRoute(builder: (_) => const DayViewScreen()),
+        (route) => false,
       );
     } catch (e) {
-      if (mounted) showSnack(context, e.toString());
+      if (!mounted) return;
+      final message = e.toString();
+      if (message.contains('not linked to a clinic')) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const NoClinicAccessScreen()),
+        );
+        return;
+      }
+      if (message.contains('Invalid or expired OTP')) {
+        showSnack(
+          context,
+          'Reset code expired. Start forgot password again from login.',
+        );
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+          (route) => false,
+        );
+        return;
+      }
+      showSnack(context, message);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -91,7 +123,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'Enter a new password to reset your password',
+                  'Choose a strong password with uppercase, lowercase, number, and special character.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                       fontSize: 18, color: Color(0xFF929296), height: 1.6),

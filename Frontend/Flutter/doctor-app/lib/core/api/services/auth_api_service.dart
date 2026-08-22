@@ -36,6 +36,8 @@ class MfaVerifyResult {
 class AuthApiService {
   AuthApiService(this._client, this._session);
 
+  static const _clientApp = 'doctor-mobile';
+
   final ApiClient _client;
   final SessionStorage _session;
 
@@ -48,6 +50,7 @@ class AuthApiService {
       data: {
         'phoneNumber': formatPhoneForApi(phoneNumber),
         'password': password,
+        'clientApp': _clientApp,
       },
       options: Options(extra: {'skipAuth': true}),
     );
@@ -78,7 +81,7 @@ class AuthApiService {
   }) async {
     final response = await _client.post(
       '/auth/verify-mfa',
-      data: {'mfaToken': mfaToken, 'otp': otp},
+      data: {'mfaToken': mfaToken, 'otp': otp, 'clientApp': _clientApp},
       options: Options(extra: {'skipAuth': true}),
     );
     final data = response.data as Map<String, dynamic>;
@@ -238,11 +241,11 @@ class AuthApiService {
     );
   }
 
-  Future<String> forgotPasswordVerifyOtp({
+  Future<void> forgotPasswordVerifyOtp({
     required String phoneNumber,
     required String otp,
   }) async {
-    final response = await _client.post(
+    await _client.post(
       '/auth/forgot-password/verify-otp',
       data: {
         'phoneNumber': formatPhoneForApi(phoneNumber),
@@ -250,23 +253,35 @@ class AuthApiService {
       },
       options: Options(extra: {'skipAuth': true}),
     );
-    final data = response.data as Map<String, dynamic>;
-    return data['resetToken']?.toString() ?? data['token']?.toString() ?? '';
   }
 
-  Future<void> resetPassword({
-    required String resetToken,
+  Future<AuthSession> resetPassword({
+    required String phoneNumber,
+    required String otp,
     required String newPassword,
   }) async {
-    await _client.post(
+    final response = await _client.post(
       '/auth/reset-password',
       data: {
-        'resetToken': resetToken,
+        'phoneNumber': formatPhoneForApi(phoneNumber),
+        'otp': otp,
         'newPassword': newPassword,
-        'password': newPassword,
+        'clientApp': _clientApp,
       },
       options: Options(extra: {'skipAuth': true}),
     );
+    final session = AuthSession.fromJson(response.data as Map<String, dynamic>);
+    if (session.role != 'DOCTOR') {
+      await _session.clearSession();
+      throw Exception('This app is for doctors only');
+    }
+    if (session.clinicId == null || session.clinicId!.isEmpty) {
+      await _session.clearSession();
+      throw Exception('Your account is not linked to a clinic');
+    }
+    await _session.saveSession(session);
+    await refreshProfileNames();
+    return session;
   }
 
   Future<void> logout() async {

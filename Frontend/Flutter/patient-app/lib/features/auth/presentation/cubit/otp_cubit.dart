@@ -42,12 +42,15 @@ class OtpCubit extends Cubit<OtpState> {
           await _authApi.verifyMfa(mfaToken: token, otp: state.otpCode);
           break;
         case OtpMode.signupVerify:
-        case OtpMode.forgotPassword:
           await _authApi.verifyOtp(
             phoneNumber: session.phoneNumber,
             otp: state.otpCode,
           );
           break;
+        case OtpMode.forgotPassword:
+          throw ApiException(
+            'Use the forgot-password screens from login.',
+          );
       }
       emit(state.copyWith(isLoading: false, shouldNavigateToHome: true));
     } on ApiException catch (e) {

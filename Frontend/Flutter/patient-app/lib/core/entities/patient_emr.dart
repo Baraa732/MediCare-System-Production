@@ -701,6 +701,8 @@ class EmrSyncStatus {
 class EmrClinicLink {
   final String? tenantId;
   final String? clinicId;
+  final String? clinicName;
+  final String? clinicCity;
   final bool synced;
   final String syncStatus;
   final String? openemrPatientId;
@@ -710,6 +712,8 @@ class EmrClinicLink {
   const EmrClinicLink({
     this.tenantId,
     this.clinicId,
+    this.clinicName,
+    this.clinicCity,
     required this.synced,
     required this.syncStatus,
     this.openemrPatientId,
@@ -719,10 +723,48 @@ class EmrClinicLink {
 
   String? get id => tenantId ?? clinicId;
 
+  String get displayName {
+    final name = clinicName?.trim();
+    if (name != null && name.isNotEmpty) return name;
+    return 'Clinic record';
+  }
+
+  String get displaySubtitle {
+    final city = clinicCity?.trim();
+    if (city != null && city.isNotEmpty) return city;
+    return synced ? 'Synced with clinic' : syncStatus.toLowerCase();
+  }
+
+  EmrClinicLink copyWith({
+    String? tenantId,
+    String? clinicId,
+    String? clinicName,
+    String? clinicCity,
+    bool? synced,
+    String? syncStatus,
+    String? openemrPatientId,
+    String? lastError,
+    String? updatedAt,
+  }) {
+    return EmrClinicLink(
+      tenantId: tenantId ?? this.tenantId,
+      clinicId: clinicId ?? this.clinicId,
+      clinicName: clinicName ?? this.clinicName,
+      clinicCity: clinicCity ?? this.clinicCity,
+      synced: synced ?? this.synced,
+      syncStatus: syncStatus ?? this.syncStatus,
+      openemrPatientId: openemrPatientId ?? this.openemrPatientId,
+      lastError: lastError ?? this.lastError,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
   factory EmrClinicLink.fromJson(Map<String, dynamic> json) {
     return EmrClinicLink(
       tenantId: _str(json['tenantId']),
       clinicId: _str(json['clinicId']),
+      clinicName: _str(json['clinicName']),
+      clinicCity: _str(json['clinicCity']),
       synced: json['synced'] == true,
       syncStatus: _str(json['syncStatus']) ?? 'PENDING',
       openemrPatientId: _str(json['openemrPatientId']),

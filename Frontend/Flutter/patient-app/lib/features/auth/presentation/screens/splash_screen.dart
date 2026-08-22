@@ -42,7 +42,13 @@ class _SplashScreenState extends State<SplashScreen>
     await localDataSource.setOnboardingCompleted();
     if (!mounted) return;
 
-    final loggedIn = getIt<SessionStorage>().isLoggedIn;
+    final storage = getIt<SessionStorage>();
+    if (storage.accessToken != null &&
+        storage.accessToken!.isNotEmpty &&
+        storage.role != 'PATIENT') {
+      await storage.clearSession();
+    }
+    final loggedIn = storage.isLoggedIn;
     final nextRoute =
         loggedIn ? HomeScreen.routeName : '/welcome';
 

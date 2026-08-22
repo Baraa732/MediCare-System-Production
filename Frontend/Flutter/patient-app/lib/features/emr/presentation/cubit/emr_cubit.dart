@@ -1,13 +1,15 @@
 import 'package:cms/core/api/api_exception.dart';
+import 'package:cms/core/api/services/clinic_api_service.dart';
 import 'package:cms/core/api/services/emr_api_service.dart';
 import 'package:cms/core/entities/patient_emr.dart';
 import 'package:cms/features/emr/presentation/cubit/emr_state.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 class EmrCubit extends Cubit<EmrState> {
-  EmrCubit(this._emrApi) : super(const EmrState());
+  EmrCubit(this._emrApi, this._clinicApi) : super(const EmrState());
 
   final EmrApiService _emrApi;
+  final ClinicApiService _clinicApi;
 
   Future<void> load({bool showLoading = true, String? tenantId}) async {
     if (showLoading) {
@@ -19,7 +21,7 @@ class EmrCubit extends Cubit<EmrState> {
     try {
       List<EmrClinicLink> links = state.links;
       try {
-        links = await _emrApi.getMyLinks();
+        links = await _enrichLinks(await _emrApi.getMyLinks());
       } catch (_) {
         // Links endpoint may be older on some deploys; chart still works.
       }
@@ -65,9 +67,41 @@ class EmrCubit extends Cubit<EmrState> {
     }
   }
 
+  Future<List<EmrClinicLink>> _enrichLinks(List<EmrClinicLink> links) async {
+    if (links.isEmpty) return links;
+
+    final enriched = <EmrClinicLink>[];
+    for (final link in links) {
+      final hasName = link.clinicName?.trim().isNotEmpty == true;
+      final id = link.id;
+      if (hasName || id == null) {
+        enriched.add(link);
+        continue;
+      }
+      try {
+        final clinic = await _clinicApi.getClinic(id);
+        enriched.add(
+          link.copyWith(
+            clinicName: clinic.name,
+            clinicCity: clinic.city,
+          ),
+        );
+      } catch (_) {
+        enriched.add(link);
+      }
+    }
+    return enriched;
+  }
+
   Future<void> selectClinic(String? tenantId) async {
-    emit(state.copyWith(selectedTenantId: tenantId));
-    await load(tenantId: tenantId);
+    if (tenantId == null || tenantId == state.selectedTenantId) return;
+    emit(state.copyWith(
+      selectedTenantId: tenantId,
+      status: EmrLoadStatus.loading,
+      clearChart: true,
+      clearError: true,
+    ));
+    await load(tenantId: tenantId, showLoading: false);
   }
 
   Future<bool> updatePortal({

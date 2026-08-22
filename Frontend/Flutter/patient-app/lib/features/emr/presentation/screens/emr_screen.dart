@@ -70,24 +70,27 @@ class _EmrViewState extends State<_EmrView> {
     final top = MediaQuery.paddingOf(context).top;
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7FB),
-      body: Column(
-        children: [
-          _TopBar(
-            topInset: top,
-            exporting: _exporting,
-            onSharePdf: () {
-              final chart = context.read<EmrCubit>().state.chart;
-              if (chart == null) return;
-              _sharePdf(chart);
-            },
-            onPrintPdf: () {
-              final chart = context.read<EmrCubit>().state.chart;
-              if (chart == null) return;
-              _printPdf(chart);
-            },
-          ),
-          Expanded(
-            child: BlocConsumer<EmrCubit, EmrState>(
+      body: BlocBuilder<EmrCubit, EmrState>(
+        builder: (context, headerState) {
+          return Column(
+            children: [
+              _TopBar(
+                topInset: top,
+                exporting: _exporting,
+                subtitle: _headerSubtitle(headerState.activeLink),
+                onSharePdf: () {
+                  final chart = context.read<EmrCubit>().state.chart;
+                  if (chart == null) return;
+                  _sharePdf(chart);
+                },
+                onPrintPdf: () {
+                  final chart = context.read<EmrCubit>().state.chart;
+                  if (chart == null) return;
+                  _printPdf(chart);
+                },
+              ),
+              Expanded(
+                child: BlocConsumer<EmrCubit, EmrState>(
               listenWhen: (prev, next) =>
                   next.errorMessage != null &&
                   next.status == EmrLoadStatus.ready &&
@@ -111,7 +114,7 @@ class _EmrViewState extends State<_EmrView> {
                     return FadeSlideIn(
                       child: Column(
                         children: [
-                          if (state.links.length > 1)
+                          if (state.links.isNotEmpty)
                             _ClinicPicker(
                               links: state.links,
                               selectedTenantId: state.selectedTenantId,
@@ -142,22 +145,35 @@ class _EmrViewState extends State<_EmrView> {
               },
             ),
           ),
-        ],
+            ],
+          );
+        },
       ),
     );
   }
+}
+
+String _headerSubtitle(EmrClinicLink? link) {
+  if (link == null) return 'Live OpenEMR chart · cash at clinic';
+  final parts = <String>[link.displayName];
+  final city = link.clinicCity?.trim();
+  if (city != null && city.isNotEmpty) parts.add(city);
+  parts.add(link.synced ? 'Synced' : link.syncStatus);
+  return parts.join(' · ');
 }
 
 class _TopBar extends StatelessWidget {
   const _TopBar({
     required this.topInset,
     required this.exporting,
+    required this.subtitle,
     required this.onSharePdf,
     required this.onPrintPdf,
   });
 
   final double topInset;
   final bool exporting;
+  final String subtitle;
   final VoidCallback onSharePdf;
   final VoidCallback onPrintPdf;
 
@@ -180,11 +196,11 @@ class _TopBar extends StatelessWidget {
             icon: const Icon(Icons.arrow_back_ios_new_rounded,
                 color: Colors.white, size: 20),
           ),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'Health record',
                   style: TextStyle(
                     color: Colors.white,
@@ -193,10 +209,12 @@ class _TopBar extends StatelessWidget {
                     letterSpacing: -0.3,
                   ),
                 ),
-                SizedBox(height: 2),
+                const SizedBox(height: 2),
                 Text(
-                  'Live OpenEMR chart · cash at clinic',
-                  style: TextStyle(color: Color(0xCCFFFFFF), fontSize: 12),
+                  subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Color(0xCCFFFFFF), fontSize: 12),
                 ),
               ],
             ),
@@ -315,8 +333,18 @@ class _ClinicPicker extends StatelessWidget {
                               ? Colors.white
                               : AppColors.grayDark,
                           fontSize: 13,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
+                      avatar: link.synced
+                          ? null
+                          : Icon(
+                              Icons.sync_problem_rounded,
+                              size: 16,
+                              color: (selectedTenantId ?? '') == (link.id ?? '')
+                                  ? Colors.white
+                                  : AppColors.CustomgrayDark,
+                            ),
                       selected: (selectedTenantId ?? '') == (link.id ?? ''),
                       selectedColor: AppColors.main_background_blue,
                       onSelected: (_) {
@@ -335,10 +363,10 @@ class _ClinicPicker extends StatelessWidget {
   }
 
   String _clinicLabel(EmrClinicLink link) {
-    final id = link.id ?? 'clinic';
-    final short = id.length > 8 ? id.substring(0, 8) : id;
-    final status = link.synced ? 'synced' : link.syncStatus.toLowerCase();
-    return 'Clinic $short · $status';
+    if (!link.synced) {
+      return '${link.displayName} · ${link.syncStatus.toLowerCase()}';
+    }
+    return link.displayName;
   }
 }
 
@@ -1712,8 +1740,12 @@ class _PatientEditSheetState extends State<_PatientEditSheet> {
               onPressed: _busy ? null : _save,
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.main_background_blue,
+                foregroundColor: Colors.white,
               ),
-              child: Text(_busy ? 'Saving…' : 'Save'),
+              child: Text(
+                _busy ? 'Saving…' : 'Save',
+                style: FontHeading.button,
+              ),
             ),
           ],
         ),
@@ -1794,8 +1826,12 @@ class _EmergencyEditSheetState extends State<_EmergencyEditSheet> {
               onPressed: _busy ? null : _save,
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.main_background_blue,
+                foregroundColor: Colors.white,
               ),
-              child: Text(_busy ? 'Saving…' : 'Save'),
+              child: Text(
+                _busy ? 'Saving…' : 'Save',
+                style: FontHeading.button,
+              ),
             ),
           ],
         ),

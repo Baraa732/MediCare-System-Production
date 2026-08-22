@@ -9,7 +9,7 @@ import type {
 export function login(phoneNumber: string, password: string) {
   return apiRequest<LoginResponse>("/auth/login", {
     method: "POST",
-    body: { phoneNumber, password },
+    body: { phoneNumber, password, clientApp: "clinic-admin-web" },
   });
 }
 
@@ -117,7 +117,7 @@ export function verifyRegistrationOtp(phoneNumber: string, otp: string) {
 export function verifyMfa(mfaToken: string, otp: string) {
   return apiRequest<AuthSession | VerifyMfaPasswordChange>("/auth/verify-mfa", {
     method: "POST",
-    body: { mfaToken, otp },
+    body: { mfaToken, otp, clientApp: "clinic-admin-web" },
   });
 }
 
@@ -163,7 +163,7 @@ export function resetPassword(body: {
 }) {
   return apiRequest<AuthSession>("/auth/reset-password", {
     method: "POST",
-    body,
+    body: { ...body, clientApp: "clinic-admin-web" },
   });
 }
 

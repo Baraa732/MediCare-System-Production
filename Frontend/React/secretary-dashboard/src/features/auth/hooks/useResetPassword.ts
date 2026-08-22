@@ -5,6 +5,9 @@ import { toPasswordResetErrorMessage } from "@/lib/api/errors";
 import { ApiError } from "@/lib/api/types";
 import { useAuthStore } from "@/stores/authStore";
 
+const INVALID_CREDENTIALS =
+  "Incorrect phone number or password. Please try again.";
+
 export function useResetPassword() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,6 +35,10 @@ export function useResetPassword() {
       });
       clearPasswordResetFlow();
       if (response.accessToken) {
+        if (response.role !== "SECRETARY") {
+          setError(INVALID_CREDENTIALS);
+          return;
+        }
         setSession(response);
         navigate("/dashboard", { replace: true });
         return;

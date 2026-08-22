@@ -194,7 +194,7 @@ class _ShiftsScreenState extends State<ShiftsScreen> {
                                   final end = DateTime.tryParse(
                                           b['endsAt']?.toString() ?? '')
                                       ?.toLocal();
-                                  const reason =
+                                  final reason =
                                       b['reason']?.toString() ?? 'Leave';
                                   final status =
                                       (b['status']?.toString() ?? 'APPROVED')

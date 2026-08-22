@@ -10,6 +10,8 @@ import 'package:cms/features/auth/presentation/screens/splash_screen.dart';
 import 'package:cms/features/auth/presentation/screens/login_screen.dart';
 import 'package:cms/features/auth/presentation/screens/signup_screen.dart';
 import 'package:cms/features/auth/presentation/screens/forgot_password_screen.dart';
+import 'package:cms/features/auth/presentation/screens/forgot_password_otp_screen.dart';
+import 'package:cms/features/auth/presentation/screens/reset_password_screen.dart';
 import 'package:cms/features/auth/presentation/screens/otp_screen.dart';
 import 'package:cms/features/auth/presentation/screens/on_bording_screen.dart';
 import 'package:cms/features/auth/presentation/screens/welcome_screen.dart';
@@ -30,6 +32,7 @@ import 'package:cms/features/search/presentation/screens/search_screen.dart';
 import 'package:cms/features/search/presentation/cubit/searchresult_cubit.dart';
 import 'package:cms/features/search/presentation/screens/searchresult_screen.dart';
 import 'package:cms/injection_container.dart';
+import 'package:cms/core/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -67,7 +70,54 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'MediCare Patient',
       navigatorKey: appNavigatorKey,
-      theme: ThemeData(primarySwatch: Colors.blue),
+      theme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: AppColors.main_background_blue,
+          primary: AppColors.main_background_blue,
+          onPrimary: Colors.white,
+          surface: Colors.white,
+          onSurface: const Color(0xFF1A1B1E),
+        ),
+        scaffoldBackgroundColor: const Color(0xFFF5F7FB),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.white,
+          foregroundColor: Color(0xFF1A1B1E),
+          surfaceTintColor: Colors.transparent,
+        ),
+        dialogTheme: DialogThemeData(
+          backgroundColor: Colors.white,
+          titleTextStyle: const TextStyle(
+            color: Color(0xFF1A1B1E),
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+          ),
+          contentTextStyle: const TextStyle(
+            color: Color(0xFF6F7076),
+            fontSize: 15,
+          ),
+        ),
+        listTileTheme: const ListTileThemeData(
+          iconColor: AppColors.main_background_blue,
+          textColor: Color(0xFF1A1B1E),
+        ),
+        filledButtonTheme: FilledButtonThemeData(
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.main_background_blue,
+            foregroundColor: Colors.white,
+          ),
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            foregroundColor: Colors.white,
+          ),
+        ),
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(
+            foregroundColor: AppColors.main_background_blue,
+          ),
+        ),
+      ),
       // Use `home` instead of `initialRoute: '/splash'`.
       // With initialRoute '/splash', Flutter also pushes '/', which hit the
       // default case and showed "Page not found" under the splash.
@@ -104,6 +154,21 @@ class MyApp extends StatelessWidget {
             return AppPageRoute(
               settings: settings,
               builder: (_) => const ForgotPasswordScreen(),
+            );
+          case ForgotPasswordOtpScreen.routeName:
+            final phone = settings.arguments as String? ?? '';
+            return AppPageRoute(
+              settings: settings,
+              builder: (_) => ForgotPasswordOtpScreen(phoneNumber: phone),
+            );
+          case ResetPasswordScreen.routeName:
+            final args = settings.arguments as ResetPasswordArgs?;
+            return AppPageRoute(
+              settings: settings,
+              builder: (_) => ResetPasswordScreen(
+                args: args ??
+                    const ResetPasswordArgs(phoneNumber: '', otp: ''),
+              ),
             );
           case OtpScreen.routeName:
             final phone = settings.arguments as String? ?? '';

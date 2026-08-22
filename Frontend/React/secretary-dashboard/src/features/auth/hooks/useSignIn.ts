@@ -8,6 +8,13 @@ import { toLoginErrorMessage } from "@/lib/api/errors";
 import { normalizeSyrianPhone } from "@/lib/phone";
 import { useAuthStore } from "@/stores/authStore";
 
+const INVALID_CREDENTIALS =
+  "Incorrect phone number or password. Please try again.";
+
+function isSecretaryRole(role?: string): boolean {
+  return role === "SECRETARY";
+}
+
 export function useSignIn() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorAPI, setError] = useState<string | null>(null);
@@ -33,6 +40,10 @@ export function useSignIn() {
       const response = await login(phoneNumber, data.password);
 
       if (isMfaRequired(response)) {
+        if (!isSecretaryRole(response.role)) {
+          setError(INVALID_CREDENTIALS);
+          return;
+        }
         setPendingMfa({
           mfaToken: response.mfaToken,
           phoneNumber,
@@ -44,6 +55,11 @@ export function useSignIn() {
           whatsappHint: response.whatsappHint,
         });
         navigate("/auth/otp", { replace: true });
+        return;
+      }
+
+      if (!isSecretaryRole(response.role)) {
+        setError(INVALID_CREDENTIALS);
         return;
       }
 

@@ -45,4 +45,14 @@ class EmrState {
       isSaving: isSaving ?? this.isSaving,
     );
   }
+
+  EmrClinicLink? get activeLink {
+    if (links.isEmpty) return null;
+    final id = selectedTenantId;
+    if (id == null) return links.first;
+    for (final link in links) {
+      if (link.id == id) return link;
+    }
+    return links.first;
+  }
 }

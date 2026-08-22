@@ -1,4 +1,4 @@
-import 'dart:async';
+import 'dart:ui';
 
 import 'package:cms/core/animations/app_lottie.dart';
 import 'package:cms/core/animations/app_page_route.dart';
@@ -34,12 +34,14 @@ class SearchScreen extends StatefulWidget {
   State<SearchScreen> createState() => _SearchScreenState();
 }
 
-class _SearchScreenState extends State<SearchScreen> {
+class _SearchScreenState extends State<SearchScreen>
+    with TickerProviderStateMixin {
   final FocusNode _focusNode = FocusNode();
   late final TextEditingController _controller;
   late final SearchCubit _searchCubit;
   late final SearchResultsCubit _resultsCubit;
-  Timer? _debounce;
+  late final AnimationController _headerPulse;
+  late final AnimationController _fieldGlow;
 
   @override
   void initState() {
@@ -50,6 +52,22 @@ class _SearchScreenState extends State<SearchScreen> {
     });
     _searchCubit = getIt<SearchCubit>();
     _resultsCubit = getIt<SearchResultsCubit>();
+    _headerPulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2200),
+    )..repeat(reverse: true);
+    _fieldGlow = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+
+    _focusNode.addListener(() {
+      if (_focusNode.hasFocus) {
+        _fieldGlow.forward();
+      } else {
+        _fieldGlow.reverse();
+      }
+    });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -72,9 +90,10 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   void dispose() {
-    _debounce?.cancel();
     _focusNode.dispose();
     _controller.dispose();
+    _headerPulse.dispose();
+    _fieldGlow.dispose();
     _searchCubit.close();
     _resultsCubit.close();
     super.dispose();
@@ -82,7 +101,6 @@ class _SearchScreenState extends State<SearchScreen> {
 
   void _onQueryChanged(String value) {
     _searchCubit.onQueryChanged(value);
-    _debounce?.cancel();
 
     final trimmed = value.trim();
     if (trimmed.isEmpty && !_resultsCubit.state.filters.hasActiveFilters) {
@@ -90,18 +108,16 @@ class _SearchScreenState extends State<SearchScreen> {
       return;
     }
 
-    _debounce = Timer(const Duration(milliseconds: 160), () {
-      if (!mounted) return;
-      final filters = _resultsCubit.state.filters;
-      _resultsCubit.search(
-        trimmed,
-        city: filters.city,
-        governorate: filters.governorate,
-        specialization: filters.specialty,
-        sortBy: filters.sortBy,
-        minRating: filters.minRating,
-      );
-    });
+    // Real-time: local catalog instantly + API merge in the cubit.
+    final filters = _resultsCubit.state.filters;
+    _resultsCubit.search(
+      trimmed,
+      city: filters.city,
+      governorate: filters.governorate,
+      specialization: filters.specialty,
+      sortBy: filters.sortBy,
+      minRating: filters.minRating,
+    );
   }
 
   Future<void> _openFilters() async {
@@ -134,183 +150,298 @@ class _SearchScreenState extends State<SearchScreen> {
         BlocProvider.value(value: _resultsCubit),
       ],
       child: Scaffold(
-        backgroundColor: AppColors.main_background_white,
-        body: SafeArea(
-          child: Column(
-            children: [
-              _buildSearchHeader(),
-              Expanded(
-                child: BlocBuilder<SearchCubit, SearchState>(
-                  builder: (context, searchState) {
-                    final resultsState =
-                        context.watch<SearchResultsCubit>().state;
-                    final showLiveResults =
-                        searchState.query.trim().isNotEmpty ||
-                            resultsState.filters.hasActiveFilters;
+        backgroundColor: const Color(0xFFF5F8FC),
+        body: Column(
+          children: [
+            _buildAnimatedHeader(),
+            Expanded(
+              child: BlocBuilder<SearchCubit, SearchState>(
+                builder: (context, searchState) {
+                  final resultsState =
+                      context.watch<SearchResultsCubit>().state;
+                  final showLiveResults =
+                      searchState.query.trim().isNotEmpty ||
+                          resultsState.filters.hasActiveFilters;
 
-                    if (showLiveResults) {
-                      return _buildLiveResults(
-                        searchState.query.trim().isEmpty
-                            ? 'filtered clinics'
-                            : searchState.query,
-                      );
-                    }
-
-                    return FadeSlideIn(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: SingleChildScrollView(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const SizedBox(height: 20),
-                              const Center(child: DoctorSearchHero(size: 168)),
-                              const SizedBox(height: 8),
-                              Center(
-                                child: Text(
-                                  'Find clinics and doctors',
-                                  style: FontHeading.body.copyWith(
-                                    color: AppColors.CustomgrayDark,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                              if (searchState.recentSearches.isNotEmpty) ...[
-                                const SizedBox(height: 20),
-                                Text(
-                                  'Recent searches:',
-                                  style: FontHeading.bodySmall.copyWith(
-                                    color: AppColors.customGray,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                ..._buildSuggestionItems(
-                                  searchState.recentSearches,
-                                  icon: Icons.history,
-                                ),
-                              ],
-                              const SizedBox(height: 20),
-                              Text(
-                                'Popular searches:',
-                                style: FontHeading.heading4.copyWith(
-                                  color: Colors.black,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              if (searchState.popularSearches.isEmpty)
-                                Text(
-                                  'Loading suggestions...',
-                                  style: FontHeading.bodySmall.copyWith(
-                                    color: AppColors.customGray,
-                                  ),
-                                )
-                              else
-                                ..._buildSuggestionItems(
-                                  searchState.popularSearches,
-                                  icon: Icons.search,
-                                ),
-                              const SizedBox(height: 20),
-                            ],
-                          ),
-                        ),
-                      ),
+                  if (showLiveResults) {
+                    return _buildLiveResults(
+                      searchState.query.trim().isEmpty
+                          ? 'filtered clinics'
+                          : searchState.query,
                     );
-                  },
-                ),
+                  }
+
+                  return _buildIdleDiscover(searchState);
+                },
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildSearchHeader() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-      decoration: const BoxDecoration(
-        color: AppColors.main_background_blue,
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(24),
-          bottomRight: Radius.circular(24),
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
+  Widget _buildAnimatedHeader() {
+    final top = MediaQuery.paddingOf(context).top;
+    return AnimatedBuilder(
+      animation: Listenable.merge([_headerPulse, _fieldGlow]),
+      builder: (context, _) {
+        final pulse = 0.55 + (_headerPulse.value * 0.45);
+        final glow = _fieldGlow.value;
+        return Container(
+          width: double.infinity,
+          padding: EdgeInsets.fromLTRB(16, top + 12, 16, 18),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color.lerp(
+                      const Color(0xFF0B74FA),
+                      const Color(0xFF3B9BFF),
+                      _headerPulse.value,
+                    ) ??
+                    const Color(0xFF0B74FA),
+                const Color(0xFF0859C6),
+              ],
             ),
-            child: IconButton(
-              padding: EdgeInsets.zero,
-              splashColor: Colors.transparent,
-              highlightColor: Colors.transparent,
-              onPressed: () => Navigator.pop(context),
-              icon: const Icon(
-                Icons.arrow_back,
-                color: AppColors.black,
-                size: 20,
+            borderRadius: const BorderRadius.only(
+              bottomLeft: Radius.circular(28),
+              bottomRight: Radius.circular(28),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF0B74FA).withValues(alpha: 0.28 * pulse),
+                blurRadius: 24,
+                offset: const Offset(0, 10),
               ),
-            ),
+            ],
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Container(
-              height: 44,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  _roundIconButton(
+                    icon: Icons.arrow_back_rounded,
+                    onTap: () => Navigator.pop(context),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Search MediCare',
+                      style: FontHeading.heading4.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  _roundIconButton(
+                    icon: Icons.tune_rounded,
+                    onTap: _openFilters,
+                    badge: _resultsCubit.state.filters.hasActiveFilters,
+                  ),
+                ],
               ),
-              child: TextField(
-                controller: _controller,
-                focusNode: _focusNode,
-                autofocus: true,
-                textInputAction: TextInputAction.search,
-                onChanged: _onQueryChanged,
-                onSubmitted: _onQueryChanged,
-                decoration: InputDecoration(
-                  hintText: 'Search clinics, doctors, specialty...',
-                  hintStyle: FontHeading.body.copyWith(
-                    color: AppColors.customGray,
+              const SizedBox(height: 14),
+              Container(
+                height: 52,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: Color.lerp(
+                          Colors.transparent,
+                          const Color(0xFF7EC0FF),
+                          glow,
+                        ) ??
+                        Colors.transparent,
+                    width: 1.6,
                   ),
-                  prefixIcon: const Icon(
-                    Icons.search,
-                    color: AppColors.customGray,
-                    size: 20,
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF0B74FA)
+                          .withValues(alpha: 0.18 + glow * 0.2),
+                      blurRadius: 18 + glow * 8,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: TextField(
+                  controller: _controller,
+                  focusNode: _focusNode,
+                  autofocus: true,
+                  textInputAction: TextInputAction.search,
+                  onChanged: _onQueryChanged,
+                  onSubmitted: _onQueryChanged,
+                  style: FontHeading.body.copyWith(
+                    color: const Color(0xFF102A43),
+                    fontWeight: FontWeight.w600,
                   ),
-                  suffixIcon: _controller.text.isEmpty
-                      ? null
-                      : IconButton(
-                          icon: const Icon(Icons.close, size: 18),
-                          onPressed: () {
-                            _controller.clear();
-                            _onQueryChanged('');
-                          },
+                  decoration: InputDecoration(
+                    hintText: 'Clinics, doctors, city, specialty…',
+                    hintStyle: FontHeading.body.copyWith(
+                      color: AppColors.customGray,
+                    ),
+                    prefixIcon: Padding(
+                      padding: const EdgeInsets.only(left: 6, right: 2),
+                      child: SizedBox(
+                        width: 34,
+                        height: 34,
+                        child: AppLottie.asset(
+                          asset: AppLottieAssets.searchHeartbeat,
+                          height: 30,
+                          fallbackIcon: Icons.search_rounded,
                         ),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                    prefixIconConstraints: const BoxConstraints(
+                      minWidth: 42,
+                      minHeight: 34,
+                    ),
+                    suffixIcon: _controller.text.isEmpty
+                        ? null
+                        : IconButton(
+                            icon: const Icon(Icons.close_rounded, size: 20),
+                            onPressed: () {
+                              _controller.clear();
+                              _onQueryChanged('');
+                            },
+                          ),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
-          const SizedBox(width: 8),
-          Material(
-            color: Colors.white,
-            shape: const CircleBorder(),
-            child: IconButton(
-              tooltip: 'Filters',
-              onPressed: _openFilters,
-              icon: const Icon(
-                Icons.tune_rounded,
-                color: AppColors.main_background_blue,
+        );
+      },
+    );
+  }
+
+  Widget _roundIconButton({
+    required IconData icon,
+    required VoidCallback onTap,
+    bool badge = false,
+  }) {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.18),
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            SizedBox(
+              width: 42,
+              height: 42,
+              child: Icon(icon, color: Colors.white, size: 22),
+            ),
+            if (badge)
+              Positioned(
+                right: 6,
+                top: 6,
+                child: Container(
+                  width: 9,
+                  height: 9,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFFFB020),
+                    shape: BoxShape.circle,
+                  ),
+                ),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildIdleDiscover(SearchState searchState) {
+    return FadeSlideIn(
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
+        children: [
+          const Center(
+            child: DoctorSearchHero(
+              size: 168,
+              subtitle: 'Find clinics and doctors in real time',
             ),
           ),
+          const SizedBox(height: 22),
+          if (searchState.recentSearches.isNotEmpty) ...[
+            Text(
+              'Recent',
+              style: FontHeading.heading4.copyWith(color: Colors.black),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: searchState.recentSearches
+                  .map((item) => _suggestionChip(item, Icons.history_rounded))
+                  .toList(),
+            ),
+            const SizedBox(height: 22),
+          ],
+          Text(
+            'Popular',
+            style: FontHeading.heading4.copyWith(color: Colors.black),
+          ),
+          const SizedBox(height: 10),
+          if (searchState.popularSearches.isEmpty)
+            Text(
+              'Loading suggestions…',
+              style: FontHeading.bodySmall.copyWith(color: AppColors.customGray),
+            )
+          else
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: searchState.popularSearches
+                  .map((item) => _suggestionChip(item, Icons.trending_up_rounded))
+                  .toList(),
+            ),
         ],
+      ),
+    );
+  }
+
+  Widget _suggestionChip(String item, IconData icon) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(999),
+      elevation: 0,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: () {
+          _controller.text = item;
+          _controller.selection =
+              TextSelection.collapsed(offset: item.length);
+          _onQueryChanged(item);
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: const Color(0xFFE2EAF2)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: AppColors.main_background_blue),
+              const SizedBox(width: 8),
+              Text(
+                item,
+                style: FontHeading.bodySmall.copyWith(
+                  color: const Color(0xFF102A43),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -321,22 +452,25 @@ class _SearchScreenState extends State<SearchScreen> {
         final filters = state.filters;
         return Column(
           children: [
+            _liveStatusBar(state, query),
             if (filters.hasActiveFilters)
               SizedBox(
-                height: 44,
+                height: 46,
                 child: ListView(
                   scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                   children: [
                     if (filters.city != null && filters.city!.isNotEmpty)
-                      _chip('City: ${filters.city}'),
+                      _filterChip('City: ${filters.city}'),
                     if (filters.specialty != null &&
                         filters.specialty!.isNotEmpty)
-                      _chip(filters.specialty!),
+                      _filterChip(filters.specialty!),
                     if (filters.minRating != null)
-                      _chip('${filters.minRating!.toStringAsFixed(0)}+ stars'),
+                      _filterChip(
+                        '${filters.minRating!.toStringAsFixed(0)}+ ★',
+                      ),
                     if (filters.sortBy != 'Popular')
-                      _chip('Sort: ${filters.sortBy}'),
+                      _filterChip('Sort: ${filters.sortBy}'),
                   ],
                 ),
               ),
@@ -347,7 +481,66 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  Widget _chip(String label) {
+  Widget _liveStatusBar(SearchResultsState state, String query) {
+    final searching = state.isLoading;
+    final count = state.results.length;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 240),
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE6EEF7)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 28,
+            height: 28,
+            child: searching
+                ? AppLottie.asset(
+                    asset: AppLottieAssets.searchHeartbeat,
+                    height: 28,
+                    fallbackIcon: Icons.monitor_heart_outlined,
+                  )
+                : Icon(
+                    Icons.check_circle_rounded,
+                    size: 20,
+                    color: AppColors.main_background_blue,
+                  ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 220),
+              child: Text(
+                searching
+                    ? 'Searching for "$query"…'
+                    : '$count result${count == 1 ? '' : 's'} for "$query"',
+                key: ValueKey('$searching-$count-$query'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: FontHeading.bodySmall.copyWith(
+                  color: const Color(0xFF334E68),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _filterChip(String label) {
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: Chip(
@@ -355,19 +548,32 @@ class _SearchScreenState extends State<SearchScreen> {
         backgroundColor: AppColors.main_background_blue.withValues(alpha: 0.1),
         labelStyle: FontHeading.caption.copyWith(
           color: AppColors.main_background_blue,
+          fontWeight: FontWeight.w700,
         ),
         visualDensity: VisualDensity.compact,
+        side: BorderSide.none,
       ),
     );
   }
 
   Widget _resultsBody(SearchResultsState state, String query) {
     if (state.isLoading && state.results.isEmpty) {
-      return const Center(
-        child: AppLottie.asset(
-          asset: AppLottieAssets.search,
-          height: 140,
-          fallbackIcon: Icons.search_rounded,
+      return Center(
+        child: FadeSlideIn(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const DoctorSearchHero(size: 150),
+              const SizedBox(height: 8),
+              Text(
+                'Listening for matches…',
+                style: FontHeading.body.copyWith(
+                  color: AppColors.CustomgrayDark,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -379,13 +585,13 @@ class _SearchScreenState extends State<SearchScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                state.errorMessage!,
-                style: FontHeading.body.copyWith(color: Colors.orange.shade900),
-                textAlign: TextAlign.center,
+              SearchNoDataHero(
+                size: 160,
+                title: 'Search hiccup',
+                subtitle: state.errorMessage,
               ),
               const SizedBox(height: 12),
-              TextButton(
+              FilledButton(
                 onPressed: () {
                   _resultsCubit.search(
                     _controller.text,
@@ -396,6 +602,9 @@ class _SearchScreenState extends State<SearchScreen> {
                     minRating: state.filters.minRating,
                   );
                 },
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.main_background_blue,
+                ),
                 child: const Text('Retry'),
               ),
             ],
@@ -406,71 +615,44 @@ class _SearchScreenState extends State<SearchScreen> {
 
     if (state.results.isEmpty) {
       return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const DoctorSearchHero(size: 150),
-              const SizedBox(height: 12),
-              Text(
-                'No clinics found for "$query"',
-                style: FontHeading.body.copyWith(color: AppColors.customGray),
-                textAlign: TextAlign.center,
-              ),
-            ],
+        child: FadeSlideIn(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: SearchNoDataHero(
+              size: 190,
+              title: 'No matches yet',
+              subtitle:
+                  'Nothing found for "$query". Try another clinic, doctor, or city.',
+            ),
           ),
         ),
       );
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
       itemCount: state.results.length,
       itemBuilder: (context, index) {
         final clinic = state.results[index];
-        return ModernClinicCard(
-          clinic: clinic,
-          style: ModernClinicCardStyle.list,
-          onTap: () => _openClinic(clinic, query),
+        return FadeSlideIn(
+          delay: Duration(milliseconds: (40 * index).clamp(0, 280)),
+          offset: const Offset(0, 0.05),
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 0.2, sigmaY: 0.2),
+                child: ModernClinicCard(
+                  clinic: clinic,
+                  style: ModernClinicCardStyle.list,
+                  onTap: () => _openClinic(clinic, query),
+                ),
+              ),
+            ),
+          ),
         );
       },
     );
-  }
-
-  List<Widget> _buildSuggestionItems(
-    List<String> items, {
-    required IconData icon,
-  }) {
-    return items.map((item) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: GestureDetector(
-          onTap: () {
-            _controller.text = item;
-            _controller.selection =
-                TextSelection.collapsed(offset: item.length);
-            _onQueryChanged(item);
-          },
-          child: Row(
-            children: [
-              Icon(icon, color: AppColors.CustomgrayDark, size: 20),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  item,
-                  style: FontHeading.body.copyWith(color: Colors.black),
-                ),
-              ),
-              const Icon(
-                Icons.call_made,
-                size: 20,
-                color: AppColors.CustomgrayDark,
-              ),
-            ],
-          ),
-        ),
-      );
-    }).toList();
   }
 }

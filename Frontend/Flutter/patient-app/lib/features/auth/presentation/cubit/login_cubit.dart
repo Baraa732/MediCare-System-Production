@@ -69,6 +69,14 @@ class LoginCubit extends Cubit<LoginState> {
         return;
       }
 
+      if (result.errorCode == 'NOT_PATIENT') {
+        emit(state.copyWith(
+          isLoading: false,
+          errorMessage: 'This app is for patients only.',
+        ));
+        return;
+      }
+
       emit(state.copyWith(
         isLoading: false,
         shouldNavigateToHome: true,

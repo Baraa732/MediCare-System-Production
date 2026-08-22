@@ -18,13 +18,30 @@ function mergeScalar<T>(fhirValue: T | null | undefined, dbValue: T | null | und
   return null;
 }
 
+function isUnknownGender(value: string | null | undefined): boolean {
+  if (value == null) return true;
+  const normalized = String(value).trim().toLowerCase();
+  if (!normalized) return true;
+  return normalized === 'unknown' || normalized === 'other' || normalized === 'u';
+}
+
+function mergeGender(
+  fhirValue: string | null | undefined,
+  dbValue: string | null | undefined,
+): string | null {
+  for (const candidate of [fhirValue, dbValue]) {
+    if (!isUnknownGender(candidate)) return candidate!.trim();
+  }
+  return fhirValue ?? dbValue ?? null;
+}
+
 function mergeDemographics(fhir: PatientDemographics | null, db: PatientDemographics): PatientDemographics {
   return {
     firstName: mergeScalar(fhir?.firstName, db.firstName),
     middleName: mergeScalar(fhir?.middleName, db.middleName),
     lastName: mergeScalar(fhir?.lastName, db.lastName),
     birthDate: mergeScalar(fhir?.birthDate, db.birthDate),
-    gender: mergeScalar(fhir?.gender, db.gender),
+    gender: mergeGender(fhir?.gender, db.gender),
     maritalStatus: mergeScalar(fhir?.maritalStatus, db.maritalStatus),
     race: mergeScalar(fhir?.race, db.race),
     ethnicity: mergeScalar(fhir?.ethnicity, db.ethnicity),
@@ -63,6 +80,37 @@ function mergeVitalSigns(fhirItems: VitalSignRecord[], dbItems: VitalSignRecord[
   return { items: [], source: 'openemr' };
 }
 
+export interface ClinicChartFilter {
+  clinicName: string;
+  includeUnattributed: boolean;
+}
+
+function normalizeClinic(value?: string | null): string {
+  return (value ?? '').trim().toLowerCase();
+}
+
+function itemBelongsToClinic(
+  item: { clinicName?: string | null; clinic?: string | null },
+  filter: ClinicChartFilter,
+): boolean {
+  const itemClinic = normalizeClinic(item.clinicName ?? item.clinic);
+  if (!itemClinic) return filter.includeUnattributed;
+  return itemClinic === normalizeClinic(filter.clinicName);
+}
+
+function filterClinicalArray<T extends { clinicName?: string | null; clinic?: string | null }>(
+  items: T[],
+  filter?: ClinicChartFilter,
+): T[] {
+  if (!filter) return items;
+  return items.filter((item) => itemBelongsToClinic(item, filter));
+}
+
+function filterUnattributedOnly<T>(items: T[], filter?: ClinicChartFilter): T[] {
+  if (!filter) return items;
+  return filter.includeUnattributed ? items : [];
+}
+
 @Injectable()
 export class OpenEmrChartService {
   constructor(
@@ -77,8 +125,10 @@ export class OpenEmrChartService {
     medicareUserId: string;
     syncStatus: string;
     lastSyncAt: string;
+    clinicFilter?: ClinicChartFilter;
   }): Promise<PatientEmrChart> {
-    const { tenantId, openemrPatientId, medicareUserId, syncStatus, lastSyncAt } = params;
+    const { tenantId, openemrPatientId, medicareUserId, syncStatus, lastSyncAt, clinicFilter } =
+      params;
 
     try {
       await this.tenantGuard.assertOpenEmrPatientBelongsToTenant(openemrPatientId, tenantId);
@@ -162,27 +212,6 @@ export class OpenEmrChartService {
     const clinicalNotes = preferNonEmptyArray(fhir.clinicalNotes, clinicalNotesDb);
     const documents = preferNonEmptyArray(fhir.documents, documentsDb);
 
-    const sources: SyncMetadata['sources'] = {
-      patient: 'openemr',
-      contactInformation: 'openemr',
-      allergies: toSourceKey(allergies.source),
-      problems: toSourceKey(problems.source),
-      conditions: toSourceKey(conditions.source),
-      medications: toSourceKey(medications.source),
-      encounters: toSourceKey(encounters.source),
-      vitalSigns: toSourceKey(vitalSigns.source),
-      labResults: toSourceKey(labResults.source),
-      immunizations: toSourceKey(immunizations.source),
-      carePlans: toSourceKey(carePlans.source),
-      clinicalNotes: toSourceKey(clinicalNotes.source),
-      documents: documents.items.length > 0 ? 'openemr' : 'openemr',
-      insurance: 'openemr',
-      guarantor: 'openemr',
-      emergencyContacts: 'openemr',
-      preferredPharmacy: 'openemr',
-      auditTrail: auditTrail.length > 0 ? 'openemr' : 'medicare',
-    };
-
     return {
       patient: mergeDemographics(fhir.demographics, dbDemographics),
       contactInformation: {
@@ -199,25 +228,44 @@ export class OpenEmrChartService {
       insurance,
       guarantor: this.dbReader.mapGuarantor(patientRow),
       preferredPharmacy: pharmacy,
-      allergies: allergies.items,
-      problems: problems.items,
-      conditions: conditions.items,
-      medications: medications.items,
-      encounters: encounters.items,
-      vitalSigns: vitalSigns.items,
-      labResults: labResults.items,
-      immunizations: immunizations.items,
-      carePlans: carePlans.items,
-      clinicalNotes: clinicalNotes.items,
-      documents: documents.items,
-      auditTrail,
+      allergies: filterClinicalArray(allergies.items, clinicFilter),
+      problems: filterClinicalArray(problems.items, clinicFilter),
+      conditions: filterClinicalArray(conditions.items, clinicFilter),
+      medications: filterClinicalArray(medications.items, clinicFilter),
+      encounters: filterClinicalArray(encounters.items, clinicFilter),
+      vitalSigns: filterClinicalArray(vitalSigns.items, clinicFilter),
+      labResults: filterClinicalArray(labResults.items, clinicFilter),
+      immunizations: filterClinicalArray(immunizations.items, clinicFilter),
+      carePlans: filterClinicalArray(carePlans.items, clinicFilter),
+      clinicalNotes: filterClinicalArray(clinicalNotes.items, clinicFilter),
+      documents: filterUnattributedOnly(documents.items, clinicFilter),
+      auditTrail: filterUnattributedOnly(auditTrail, clinicFilter),
       syncMetadata: {
         medicareUserId,
         openEmrPid: openemrPatientId,
         syncStatus,
         lastSyncAt,
         lastVisitDate,
-        sources,
+        sources: {
+          patient: 'openemr',
+          contactInformation: 'openemr',
+          allergies: toSourceKey(allergies.source),
+          problems: toSourceKey(problems.source),
+          conditions: toSourceKey(conditions.source),
+          medications: toSourceKey(medications.source),
+          encounters: toSourceKey(encounters.source),
+          vitalSigns: toSourceKey(vitalSigns.source),
+          labResults: toSourceKey(labResults.source),
+          immunizations: toSourceKey(immunizations.source),
+          carePlans: toSourceKey(carePlans.source),
+          clinicalNotes: toSourceKey(clinicalNotes.source),
+          documents: documents.items.length > 0 ? 'openemr' : 'openemr',
+          insurance: 'openemr',
+          guarantor: 'openemr',
+          emergencyContacts: 'openemr',
+          preferredPharmacy: 'openemr',
+          auditTrail: auditTrail.length > 0 ? 'openemr' : 'medicare',
+        },
       },
       dataOwnership: DEFAULT_DATA_OWNERSHIP,
     };

@@ -4,6 +4,13 @@ import { verifyMfa } from "@/lib/api/auth";
 import { normalizeCaughtError } from "@/lib/api/errors";
 import { useAuthStore } from "@/stores/authStore";
 
+const INVALID_CREDENTIALS =
+  "Incorrect phone number or password. Please try again.";
+
+function isSecretaryRole(role?: string): boolean {
+  return role === "SECRETARY";
+}
+
 export function useVerifyOtp() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,6 +50,10 @@ export function useVerifyOtp() {
       }
 
       if ("accessToken" in response) {
+        if (!isSecretaryRole(response.role)) {
+          setError(INVALID_CREDENTIALS);
+          return;
+        }
         setSession(response);
         navigate("/dashboard", { replace: true });
       }
