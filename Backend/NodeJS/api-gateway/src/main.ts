@@ -147,7 +147,7 @@ function isPublicGatewayRoute(path: string, method: string): boolean {
 
   // Profile / clinic media must be fetchable by Image.network and <img>
   // tags, which cannot attach Authorization headers.
-  if (method === 'GET') {
+  if (method === 'GET' || method === 'HEAD') {
     if (/^\/api\/users\/avatars\/[^/]+$/.test(path)) return true;
     if (/^\/api\/clinics\/logos\/[^/]+$/.test(path)) return true;
   }
