@@ -51,11 +51,7 @@ function UserAvatar({ user }: { user: PlatformUser }) {
         fontSize: 12,
         fontWeight: 700,
         border: `1px solid ${theme.palette.divider}`,
-      }}
-      imgProps={{
-        loading: 'lazy',
-        referrerPolicy: 'no-referrer',
-        style: { objectFit: 'cover' },
+        '& img': { objectFit: 'cover' },
       }}
     >
       {avatarInitials(user)}
