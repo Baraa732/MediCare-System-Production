@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Body, Param, Query, Request, UseGuards, ParseUUIDPipe } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Body, Param, Query, Request, UseGuards, ParseUUIDPipe } from '@nestjs/common';
 import { ScheduleService } from '../services/schedule.service';
 import {
   SetClinicHoursDto,
@@ -62,6 +62,22 @@ export class ScheduleController {
   @Roles('CLINIC_ADMIN', 'SECRETARY', 'DOCTOR', 'SYSTEM_MANAGER')
   async createBlock(@Body() dto: CreateBlockDto, @Request() req) {
     const result = await this.scheduleService.createBlock(dto, this.actor(req));
+    return { success: true, ...result };
+  }
+
+  @Patch('blocked/:id/approve')
+  @UseGuards(RolesGuard)
+  @Roles('CLINIC_ADMIN', 'SYSTEM_MANAGER')
+  async approveBlock(@Param('id', ParseUUIDPipe) id: string, @Request() req) {
+    const result = await this.scheduleService.reviewBlock(id, 'APPROVED', this.actor(req));
+    return { success: true, ...result };
+  }
+
+  @Patch('blocked/:id/reject')
+  @UseGuards(RolesGuard)
+  @Roles('CLINIC_ADMIN', 'SYSTEM_MANAGER')
+  async rejectBlock(@Param('id', ParseUUIDPipe) id: string, @Request() req) {
+    const result = await this.scheduleService.reviewBlock(id, 'REJECTED', this.actor(req));
     return { success: true, ...result };
   }
 

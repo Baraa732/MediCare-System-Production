@@ -3,13 +3,15 @@ import {
   BadRequestException,
   ForbiddenException,
   Inject,
+  NotFoundException,
+  OnModuleInit,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ClientProxy } from '@nestjs/microservices';
 import { ClinicHours } from '../entities/clinic-hours.entity';
 import { DoctorAvailability } from '../entities/doctor-availability.entity';
-import { ScheduleBlock } from '../entities/schedule-block.entity';
+import { ScheduleBlock, ScheduleBlockStatus } from '../entities/schedule-block.entity';
 import {
   SetClinicHoursDto,
   CreateAvailabilityDto,
@@ -32,7 +34,7 @@ export interface AuthUser {
 }
 
 @Injectable()
-export class ScheduleService {
+export class ScheduleService implements OnModuleInit {
   constructor(
     @InjectRepository(ClinicHours) private readonly hoursRepo: Repository<ClinicHours>,
     @InjectRepository(DoctorAvailability) private readonly availabilityRepo: Repository<DoctorAvailability>,
@@ -42,6 +44,21 @@ export class ScheduleService {
     private readonly appointmentHttp: AppointmentHttpClient,
     private readonly tenantContext: TenantContextService,
   ) {}
+
+  async onModuleInit() {
+    await this.blockRepo.query(`
+      ALTER TABLE schedule_blocks
+        ADD COLUMN IF NOT EXISTS status varchar(20) NOT NULL DEFAULT 'APPROVED'
+    `);
+    await this.blockRepo.query(`
+      ALTER TABLE schedule_blocks
+        ADD COLUMN IF NOT EXISTS reviewed_by uuid
+    `);
+    await this.blockRepo.query(`
+      ALTER TABLE schedule_blocks
+        ADD COLUMN IF NOT EXISTS reviewed_at timestamptz
+    `);
+  }
 
   async setClinicHours(clinicId: string, dto: SetClinicHoursDto, actor: AuthUser) {
     const tenantId = clinicId;
@@ -128,7 +145,6 @@ export class ScheduleService {
       if (!ok) {
         throw new ForbiddenException('You do not have access to this clinic');
       }
-      // Doctors may only block their own calendar (leave / personal unavailability).
       dto.doctorId = actor.userId;
     } else {
       await this.assertCanManageClinic(dto.clinicId, actor);
@@ -136,32 +152,63 @@ export class ScheduleService {
     const startsAt = new Date(dto.startsAt);
     const endsAt = new Date(dto.endsAt);
     if (endsAt <= startsAt) throw new BadRequestException('endsAt must be after startsAt');
+    if (actor.role === 'DOCTOR' && !dto.doctorId) {
+      throw new BadRequestException('A leave request must be tied to the doctor');
+    }
+
+    const isDoctorRequest = actor.role === 'DOCTOR';
+    const status = isDoctorRequest
+      ? ScheduleBlockStatus.PENDING
+      : ScheduleBlockStatus.APPROVED;
 
     const saved = await this.blockRepo.save(
       this.blockRepo.create({
         tenantId: dto.clinicId,
-        doctorId: dto.doctorId,
+        doctorId: dto.doctorId ?? null,
         startsAt,
         endsAt,
         reason: dto.reason,
         createdBy: actor.userId,
+        status,
+        reviewedBy: isDoctorRequest ? null : actor.userId,
+        reviewedAt: isDoctorRequest ? null : new Date(),
       }),
     );
-    this.emitScheduleUpdated(dto.clinicId, 'block', dto.doctorId);
+    this.emitScheduleUpdated(dto.clinicId, isDoctorRequest ? 'leave_requested' : 'block', dto.doctorId);
 
-    const reason = dto.reason?.trim()
-      ? `Clinic closed: ${dto.reason.trim()}`
-      : 'Clinic closed / time blocked';
-    const cancelledCount = await this.appointmentHttp.cancelInRange({
-      clinicId: dto.clinicId,
-      fromIso: startsAt.toISOString(),
-      toIso: endsAt.toISOString(),
-      doctorId: dto.doctorId ?? null,
-      reason,
-      actorUserId: actor.userId,
-    });
+    let cancelledCount = 0;
+    if (status === ScheduleBlockStatus.APPROVED) {
+      cancelledCount = await this.cancelOverlappingAppointments(saved, actor.userId);
+    }
 
-    return { block: saved, cancelledCount };
+    return { block: this.toPublicBlock(saved), cancelledCount };
+  }
+
+  async reviewBlock(
+    blockId: string,
+    decision: 'APPROVED' | 'REJECTED',
+    actor: AuthUser,
+  ) {
+    const clinicId = this.resolveStaffClinic(undefined, actor);
+    await this.assertCanManageClinic(clinicId, actor);
+    const block = await this.blockRepo.findOne({ where: { id: blockId, tenantId: clinicId } });
+    if (!block) throw new NotFoundException('Leave request not found');
+    if (block.status !== ScheduleBlockStatus.PENDING) {
+      throw new BadRequestException('This leave request has already been reviewed');
+    }
+
+    block.status =
+      decision === 'APPROVED' ? ScheduleBlockStatus.APPROVED : ScheduleBlockStatus.REJECTED;
+    block.reviewedBy = actor.userId;
+    block.reviewedAt = new Date();
+    const saved = await this.blockRepo.save(block);
+    this.emitScheduleUpdated(clinicId, decision === 'APPROVED' ? 'leave_approved' : 'leave_rejected', saved.doctorId);
+
+    let cancelledCount = 0;
+    if (decision === 'APPROVED') {
+      cancelledCount = await this.cancelOverlappingAppointments(saved, actor.userId);
+    }
+    return { block: this.toPublicBlock(saved), cancelledCount };
   }
 
   /** Full-day clinic-wide closure for a local calendar date (YYYY-MM-DD). */
@@ -218,7 +265,7 @@ export class ScheduleService {
     return this.blockRepo.find({
       where,
       order: { startsAt: 'DESC' },
-    });
+    }).then((rows) => rows.map((row) => this.toPublicBlock(row)));
   }
 
   async listMyBlocks(actor: AuthUser) {
@@ -319,6 +366,7 @@ export class ScheduleService {
       .createQueryBuilder('b')
       .where('b.tenantId = :tenantId', { tenantId: dto.clinicId })
       .andWhere('(b.doctorId = :doctorId OR b.doctorId IS NULL)', { doctorId: dto.doctorId })
+      .andWhere('(b.status = :approved OR b.status IS NULL)', { approved: ScheduleBlockStatus.APPROVED })
       .andWhere('b.startsAt < :dayEnd AND b.endsAt > :dayStart', { dayStart, dayEnd })
       .getMany();
 
@@ -386,6 +434,7 @@ export class ScheduleService {
       .createQueryBuilder('b')
       .where('b.tenantId = :tenantId', { tenantId })
       .andWhere('(b.doctorId = :doctorId OR b.doctorId IS NULL)', { doctorId })
+      .andWhere('(b.status = :approved OR b.status IS NULL)', { approved: ScheduleBlockStatus.APPROVED })
       .andWhere('b.startsAt < :dayEnd AND b.endsAt > :dayStart', { dayStart, dayEnd })
       .getMany();
 
@@ -614,10 +663,40 @@ export class ScheduleService {
       .createQueryBuilder('b')
       .where('b.tenantId = :tenantId', { tenantId: clinicId })
       .andWhere('b.doctorId IS NULL')
+      .andWhere('(b.status = :approved OR b.status IS NULL)', { approved: ScheduleBlockStatus.APPROVED })
       .andWhere('b.startsAt <= :dayStart', { dayStart })
       .andWhere('b.endsAt >= :dayEnd', { dayEnd })
       .getOne();
     return Boolean(block);
+  }
+
+  private async cancelOverlappingAppointments(block: ScheduleBlock, actorUserId: string) {
+    const reason = block.reason?.trim()
+      ? `Doctor leave: ${block.reason.trim()}`
+      : 'Doctor unavailable / time blocked';
+    return this.appointmentHttp.cancelInRange({
+      clinicId: block.tenantId,
+      fromIso: block.startsAt.toISOString(),
+      toIso: block.endsAt.toISOString(),
+      doctorId: block.doctorId ?? null,
+      reason,
+      actorUserId,
+    });
+  }
+
+  toPublicBlock(block: ScheduleBlock) {
+    return {
+      id: block.id,
+      clinicId: block.tenantId,
+      doctorId: block.doctorId,
+      startsAt: block.startsAt,
+      endsAt: block.endsAt,
+      reason: block.reason,
+      status: block.status ?? ScheduleBlockStatus.APPROVED,
+      createdBy: block.createdBy,
+      reviewedBy: block.reviewedBy ?? null,
+      reviewedAt: block.reviewedAt ?? null,
+    };
   }
 
   private localDateKey(scheduledAt: Date, offsetMinutes: number): string {

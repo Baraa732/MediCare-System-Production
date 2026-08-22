@@ -28,6 +28,7 @@ export interface ScheduleBlock {
   startsAt: string;
   endsAt: string;
   reason?: string;
+  status?: "PENDING" | "APPROVED" | "REJECTED";
 }
 
 export function listScheduleBlocks(clinicId: string, token: string) {

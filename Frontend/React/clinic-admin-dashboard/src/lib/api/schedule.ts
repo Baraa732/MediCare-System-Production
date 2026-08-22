@@ -20,10 +20,14 @@ export interface AvailabilitySlot {
 export interface ScheduleBlock {
   id: string;
   clinicId: string;
-  doctorId?: string;
+  doctorId?: string | null;
   startsAt: string;
   endsAt: string;
   reason?: string;
+  status?: "PENDING" | "APPROVED" | "REJECTED";
+  createdBy?: string;
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
 }
 
 export function getClinicHours(clinicId: string, token: string) {
@@ -151,6 +155,22 @@ export function openClinicDay(
     body,
     token,
   });
+}
+
+export function approveLeaveRequest(blockId: string, token: string) {
+  return apiRequest<{
+    success: boolean;
+    block: ScheduleBlock;
+    cancelledCount?: number;
+  }>(`/schedule/blocked/${blockId}/approve`, { method: "PATCH", token });
+}
+
+export function rejectLeaveRequest(blockId: string, token: string) {
+  return apiRequest<{
+    success: boolean;
+    block: ScheduleBlock;
+    cancelledCount?: number;
+  }>(`/schedule/blocked/${blockId}/reject`, { method: "PATCH", token });
 }
 
 export function getAvailableSlots(

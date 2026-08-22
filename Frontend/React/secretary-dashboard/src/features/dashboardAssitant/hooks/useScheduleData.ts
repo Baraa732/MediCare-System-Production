@@ -221,7 +221,11 @@ export function useScheduleData(selectedDate = new Date()) {
         setDoctors(buildDoctors(doctorRes.doctors, activeAppointments));
         setAppointments(activeAppointments);
         setClinicHours(hoursRes.hours ?? []);
-        setScheduleBlocks(blocksRes.blocks ?? []);
+        setScheduleBlocks(
+          (blocksRes.blocks ?? []).filter(
+            (b) => !b.status || b.status === "APPROVED",
+          ),
+        );
         hasLoadedOnceRef.current = true;
       } catch (err) {
         if (!cancelled) {

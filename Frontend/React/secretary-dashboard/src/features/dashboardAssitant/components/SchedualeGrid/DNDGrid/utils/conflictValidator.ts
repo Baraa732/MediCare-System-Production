@@ -191,6 +191,8 @@ export function findFreeIntervals(
   if (selectedDate && scheduleBlocks?.length) {
     const dayKey = clinicDateKey(selectedDate);
     for (const block of scheduleBlocks) {
+      const status = (block.status ?? "APPROVED").toUpperCase();
+      if (status !== "APPROVED") continue;
       if (block.doctorId && block.doctorId !== docId) continue;
       if (clinicDateKey(new Date(block.startsAt)) !== dayKey) continue;
       const bs = gridMinutesFromIso(block.startsAt);

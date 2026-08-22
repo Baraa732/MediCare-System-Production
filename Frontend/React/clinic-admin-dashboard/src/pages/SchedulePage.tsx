@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { AddCoverageDialog } from "@/features/schedule/AddCoverageDialog";
 import { BlockTimeDialog } from "@/features/schedule/BlockTimeDialog";
+import { LeaveRequestsPanel } from "@/features/schedule/LeaveRequestsPanel";
 import { ScheduleCalendar } from "@/features/schedule/ScheduleCalendar";
 import { WeeklyHoursStrip } from "@/features/schedule/WeeklyHoursStrip";
 import {
@@ -45,6 +46,7 @@ export function SchedulePage() {
   const [openingDay, setOpeningDay] = useState(false);
   const [coverageOpen, setCoverageOpen] = useState(false);
   const [blockOpen, setBlockOpen] = useState(false);
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
 
   const dirty = !hoursEqual(hours, savedHours);
   const selectedDayOfWeek = selectedDate.getDay();
@@ -56,6 +58,7 @@ export function SchedulePage() {
     const dayEnd = new Date(`${selectedDateKey}T23:59:59.999`);
     return blocks.some((b) => {
       if (b.doctorId) return false;
+      if (b.status && b.status !== "APPROVED") return false;
       const start = new Date(b.startsAt).getTime();
       const end = new Date(b.endsAt).getTime();
       return start <= dayStart.getTime() + 60_000 && end >= dayEnd.getTime() - 60_000;
@@ -75,6 +78,11 @@ export function SchedulePage() {
           (d.userId?.trim() ? d.userId.slice(0, 8) : "Doctor"),
       })),
     [doctors],
+  );
+
+  const activeBlocks = useMemo(
+    () => blocks.filter((b) => !b.status || b.status === "APPROVED"),
+    [blocks],
   );
 
   const doctorName = useCallback(
@@ -178,6 +186,35 @@ export function SchedulePage() {
     } catch (err) {
       toast.error(normalizeCaughtError(err, "Could not create block"));
       throw err;
+    }
+  };
+
+  const reviewLeave = async (id: string, decision: "approve" | "reject") => {
+    setReviewingId(id);
+    try {
+      const res =
+        decision === "approve"
+          ? await scheduleApi.approveLeaveRequest(id, token)
+          : await scheduleApi.rejectLeaveRequest(id, token);
+      toast.success(
+        decision === "approve"
+          ? "Leave approved — doctor is unavailable for that period"
+          : "Leave request rejected",
+      );
+      toastCancelled(res.cancelledCount);
+      await load();
+      void reloadClinic();
+    } catch (err) {
+      toast.error(
+        normalizeCaughtError(
+          err,
+          decision === "approve"
+            ? "Could not approve leave"
+            : "Could not reject leave",
+        ),
+      );
+    } finally {
+      setReviewingId(null);
     }
   };
 
@@ -331,13 +368,21 @@ export function SchedulePage() {
           <ScheduleCalendar
             hours={hours}
             availability={availability}
-            blocks={blocks}
+            blocks={activeBlocks}
             appointments={appointments}
             doctorName={doctorName}
             selectedDate={selectedDate}
             onDateChange={setSelectedDate}
             onDatesSet={() => undefined}
             onSelectSlotDay={setSelectedDate}
+          />
+
+          <LeaveRequestsPanel
+            blocks={blocks}
+            doctorName={doctorName}
+            reviewingId={reviewingId}
+            onApprove={(id) => void reviewLeave(id, "approve")}
+            onReject={(id) => void reviewLeave(id, "reject")}
           />
 
           <section className="pbi-panel">

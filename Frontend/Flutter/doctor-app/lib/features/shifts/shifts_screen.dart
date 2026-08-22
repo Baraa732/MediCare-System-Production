@@ -194,21 +194,40 @@ class _ShiftsScreenState extends State<ShiftsScreen> {
                                   final end = DateTime.tryParse(
                                           b['endsAt']?.toString() ?? '')
                                       ?.toLocal();
-                                  final reason =
+                                  const reason =
                                       b['reason']?.toString() ?? 'Leave';
+                                  final status =
+                                      (b['status']?.toString() ?? 'APPROVED')
+                                          .toUpperCase();
+                                  final statusLabel = status == 'PENDING'
+                                      ? 'Pending admin'
+                                      : status == 'REJECTED'
+                                          ? 'Rejected'
+                                          : 'Approved';
                                   return Padding(
                                     padding: const EdgeInsets.only(bottom: 8),
                                     child: Row(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
-                                        const Icon(Icons.event_busy,
-                                            size: 16, color: Color(0xFFE65C00)),
+                                        Icon(
+                                          status == 'PENDING'
+                                              ? Icons.hourglass_empty
+                                              : status == 'REJECTED'
+                                                  ? Icons.event_busy
+                                                  : Icons.event_available,
+                                          size: 16,
+                                          color: status == 'PENDING'
+                                              ? const Color(0xFFB45309)
+                                              : status == 'REJECTED'
+                                                  ? const Color(0xFFB91C1C)
+                                                  : const Color(0xFFE65C00),
+                                        ),
                                         const SizedBox(width: 8),
                                         Expanded(
                                           child: Text(
                                             [
-                                              reason,
+                                              '$statusLabel · $reason',
                                               if (start != null)
                                                 DateFormat.yMMMd()
                                                     .add_jm()
