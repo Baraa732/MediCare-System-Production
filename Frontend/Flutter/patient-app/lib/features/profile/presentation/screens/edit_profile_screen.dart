@@ -1,4 +1,4 @@
-import 'package:cms/core/constants/assets.dart';
+import 'package:cms/core/animations/app_lottie.dart';
 import 'package:cms/core/constants/font_heading.dart';
 import 'package:cms/core/constants/responsive_constants.dart';
 import 'package:cms/core/theme/app_colors.dart';
@@ -8,6 +8,7 @@ import 'package:cms/features/profile/presentation/cubit/edit_profile_state.dart'
 import 'package:cms/injection_container.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:lottie/lottie.dart';
 
 class EditProfileScreen extends StatelessWidget {
   static const routeName = '/edit-profile';
@@ -106,21 +107,29 @@ class EditProfileScreen extends StatelessWidget {
         child: Stack(
           clipBehavior: Clip.none,
           children: [
-            Container(
-              width: 92,
-              height: 92,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.customGray,
-                image: state.profileImage != null
-                    ? DecorationImage(
-                        image: FileImage(state.profileImage!),
+            ClipOval(
+              child: SizedBox(
+                width: 92,
+                height: 92,
+                child: state.profileImage != null
+                    ? Image.file(
+                        state.profileImage!,
                         fit: BoxFit.cover,
                       )
-                    : DecorationImage(
-                        image: AssetImage(Assets.assetsImagesUserFolanAlfolani),
-                        fit: BoxFit.cover,
-                      ),
+                    : (state.existingAvatarUrl != null &&
+                            state.existingAvatarUrl!.isNotEmpty)
+                        ? Image.network(
+                            state.existingAvatarUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Lottie.asset(
+                              AppLottieAssets.patientProfile,
+                              fit: BoxFit.cover,
+                            ),
+                          )
+                        : Lottie.asset(
+                            AppLottieAssets.patientProfile,
+                            fit: BoxFit.cover,
+                          ),
               ),
             ),
             Positioned(

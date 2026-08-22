@@ -1,6 +1,7 @@
 import { Building2, Clock, Copy, MapPin, Phone } from "lucide-react";
 import type { ClinicDoctor, ClinicPublic } from "@/lib/api/types";
 import { resolveAssetUrl } from "@/lib/resolveAssetUrl";
+import { DEFAULT_CLINIC_IMAGE } from "@/lib/defaultMedia";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -32,7 +33,7 @@ export function ClinicPreviewCard({
 
   const todayHours = hours.find((h) => h.dayOfWeek === new Date().getDay());
   const openDays = hours.filter((h) => !h.isClosed).length;
-  const logoUrl = resolveAssetUrl(clinic.logoUrl);
+  const logoUrl = resolveAssetUrl(clinic.logoUrl) ?? DEFAULT_CLINIC_IMAGE;
 
   return (
     <div className="pbi-panel overflow-hidden">
@@ -40,11 +41,7 @@ export function ClinicPreviewCard({
         <div className="absolute -right-4 -top-4 w-24 h-24 rounded-full bg-white/10" />
         <div className="relative flex items-start gap-3">
           <div className="w-11 h-11 rounded-sm bg-white/15 flex items-center justify-center shrink-0 overflow-hidden">
-            {logoUrl ? (
-              <img src={logoUrl} alt="" className="w-full h-full object-cover" />
-            ) : (
-              <Building2 className="w-5 h-5" />
-            )}
+            <img src={logoUrl} alt="" className="w-full h-full object-cover" />
           </div>
           <div className="min-w-0">
             <p className="text-[10px] font-bold uppercase tracking-wider opacity-80">

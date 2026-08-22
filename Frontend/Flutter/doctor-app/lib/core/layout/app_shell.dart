@@ -50,11 +50,7 @@ Widget buildBlueHeader({
             ),
             const Spacer(),
           ] else ...[
-            CircleAvatar(
-              radius: 24,
-              backgroundColor: Colors.white.withValues(alpha: 0.3),
-              backgroundImage: const AssetImage(AppAssets.doctorPic),
-            ),
+            doctorAvatar(radius: 24),
             const SizedBox(width: 12),
             Expanded(
               child: Column(

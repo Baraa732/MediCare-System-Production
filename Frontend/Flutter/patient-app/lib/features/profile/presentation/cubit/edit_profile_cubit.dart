@@ -27,6 +27,7 @@ class EditProfileCubit extends Cubit<EditProfileState> {
         fullName: profile.fullName,
         phoneNumber: profile.phoneNumber,
         email: profile.email ?? '',
+        existingAvatarUrl: profile.avatarUrl,
         isValid: profile.fullName.trim().isNotEmpty,
       ));
     } on ApiException catch (e) {
@@ -52,9 +53,9 @@ class EditProfileCubit extends Cubit<EditProfileState> {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(
       source: ImageSource.gallery,
-      maxWidth: 300,
-      maxHeight: 300,
-      imageQuality: 80,
+      maxWidth: 800,
+      maxHeight: 800,
+      imageQuality: 85,
     );
     if (pickedFile != null) {
       emit(state.copyWith(profileImage: File(pickedFile.path)));
@@ -79,7 +80,19 @@ class EditProfileCubit extends Cubit<EditProfileState> {
         lastName: lastName,
         email: state.email.isNotEmpty ? state.email : null,
       );
-      emit(state.copyWith(isLoading: false, saved: true));
+
+      String? avatarUrl = state.existingAvatarUrl;
+      if (state.profileImage != null) {
+        final uploaded = await _userApi.uploadAvatar(userId, state.profileImage!);
+        avatarUrl = uploaded.avatarUrl ?? avatarUrl;
+      }
+
+      emit(state.copyWith(
+        isLoading: false,
+        saved: true,
+        existingAvatarUrl: avatarUrl,
+        clearProfileImage: true,
+      ));
     } on ApiException catch (e) {
       emit(state.copyWith(isLoading: false, errorMessage: e.message));
     }

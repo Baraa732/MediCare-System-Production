@@ -1,8 +1,9 @@
 import { useRef, useState } from "react";
-import { ImageIcon, Loader2, Upload } from "lucide-react";
+import { Loader2, Upload } from "lucide-react";
 import { uploadClinicLogo } from "@/lib/api/clinics";
 import { normalizeCaughtError } from "@/lib/api/errors";
 import { resolveAssetUrl } from "@/lib/resolveAssetUrl";
+import { DEFAULT_CLINIC_IMAGE } from "@/lib/defaultMedia";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -25,7 +26,8 @@ export function ClinicLogoUpload({
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const displayUrl = resolveAssetUrl(logoUrl);
+  const displayUrl = resolveAssetUrl(logoUrl) ?? DEFAULT_CLINIC_IMAGE;
+  const hasCustomLogo = Boolean(resolveAssetUrl(logoUrl));
 
   const handleFile = async (file: File | null) => {
     setError(null);
@@ -57,14 +59,10 @@ export function ClinicLogoUpload({
         <div
           className={cn(
             "w-24 h-24 rounded-sm border border-[#edebe9] bg-[#faf9f8] flex items-center justify-center overflow-hidden shrink-0",
-            displayUrl && "border-[#c7dcff]",
+            hasCustomLogo && "border-[#c7dcff]",
           )}
         >
-          {displayUrl ? (
-            <img src={displayUrl} alt="Clinic logo" className="w-full h-full object-cover" />
-          ) : (
-            <ImageIcon className="w-8 h-8 text-[#929296]" />
-          )}
+          <img src={displayUrl} alt="Clinic logo" className="w-full h-full object-cover" />
         </div>
 
         <div className="flex-1 space-y-2">
@@ -86,7 +84,7 @@ export function ClinicLogoUpload({
             ) : (
               <Upload className="w-3.5 h-3.5 mr-1.5" />
             )}
-            {uploading ? "Uploading…" : displayUrl ? "Replace logo" : "Upload logo"}
+            {uploading ? "Uploading…" : hasCustomLogo ? "Replace logo" : "Upload logo"}
           </Button>
         </div>
       </div>

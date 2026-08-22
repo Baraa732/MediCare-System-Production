@@ -396,19 +396,11 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: clinic?.imageUrl.isNotEmpty == true
-                ? AppNetworkImage(
-                    imageUrl: clinic!.imageUrl,
+            child: AppNetworkImage.clinic(
+                    imageUrl: clinic?.imageUrl,
                     width: 58,
                     height: 58,
                     borderRadius: BorderRadius.circular(12),
-                    placeholderIcon: Icons.local_hospital,
-                  )
-                : Image.asset(
-                    Assets.assetsImagesReception,
-                    width: 58,
-                    height: 58,
-                    fit: BoxFit.cover,
                   ),
           ),
           const SizedBox(width: 12),
@@ -501,12 +493,11 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
                 ),
                 child: Row(
                   children: [
-                    AppNetworkImage(
+                    AppNetworkImage.doctor(
                       imageUrl: doctor.imageUrl,
                       width: 52,
                       height: 52,
                       borderRadius: BorderRadius.circular(12),
-                      placeholderIcon: Icons.person,
                     ),
                     const SizedBox(width: 12),
                     Expanded(

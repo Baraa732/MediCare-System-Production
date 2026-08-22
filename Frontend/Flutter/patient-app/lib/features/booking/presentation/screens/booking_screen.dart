@@ -1,10 +1,10 @@
-// lib/features/booking/presentation/screens/booking_screen.dart
 import 'package:cms/core/animations/app_page_route.dart';
 import 'package:cms/core/animations/fade_slide_in.dart';
-import 'package:cms/core/constants/assets.dart';
 import 'package:cms/core/constants/font_heading.dart';
 import 'package:cms/core/entities/appointment.dart';
 import 'package:cms/core/theme/app_colors.dart';
+import 'package:cms/core/widgets/app_avatar.dart';
+import 'package:cms/core/widgets/app_network_image.dart';
 import 'package:cms/features/appointment/presentation/screens/appointment_detail_screen.dart';
 import 'package:cms/features/booking/presentation/cubit/booking_cubit.dart';
 import 'package:cms/features/booking/presentation/cubit/booking_state.dart';
@@ -127,12 +127,9 @@ class BookingScreen extends StatelessWidget {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    CircleAvatar(
+                    AppAvatar(
+                      imageUrl: state.patientAvatarUrl,
                       radius: 26,
-                      backgroundColor: Colors.white,
-                      backgroundImage: AssetImage(
-                        Assets.assetsImagesUserFolanAlfolani,
-                      ),
                     ),
                     const SizedBox(width: 14),
                     Expanded(
@@ -287,11 +284,10 @@ class BookingScreen extends StatelessWidget {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: Image.asset(
-                  Assets.assetsImagesClinicPlaceholder,
+                child: AppNetworkImage.clinic(
+                  imageUrl: appointment.clinicImageUrl,
                   width: 87,
                   height: 87,
-                  fit: BoxFit.cover,
                 ),
               ),
               // ---- Bookmark Icon (Top Left) ----

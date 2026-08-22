@@ -6,6 +6,7 @@ import '../../core/constants/app_assets.dart';
 import '../../core/layout/app_shell.dart';
 import '../../core/navigation/app_navigation.dart';
 import '../../core/utils/app_dialogs.dart';
+import '../../core/widgets/common_widgets.dart';
 import '../../core/widgets/language_selector.dart';
 import '../auth/forgot_password_screen.dart';
 import '../auth/login_screen.dart';
@@ -168,11 +169,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                                 color: Colors.white.withValues(alpha: 0.5),
                               ),
                             ),
-                            child: const CircleAvatar(
-                              radius: 26,
-                              backgroundColor: Color(0xFFDBDBDC),
-                              backgroundImage: AssetImage(AppAssets.doctorPic),
-                            ),
+                            child: doctorAvatar(radius: 26),
                           ),
                           const SizedBox(width: 12),
                           Expanded(

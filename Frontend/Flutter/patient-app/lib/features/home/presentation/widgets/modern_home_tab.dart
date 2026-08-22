@@ -558,8 +558,12 @@ class _AppointmentsStrip extends StatelessWidget {
                     CircleAvatar(
                       radius: 28,
                       backgroundColor: Colors.white,
-                      backgroundImage: AssetImage(
-                        Assets.assetsImagesDoctorFolanAlfolani,
+                      child: ClipOval(
+                        child: AppNetworkImage.doctor(
+                          imageUrl: appointment.doctorImageUrl,
+                          width: 56,
+                          height: 56,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -653,7 +657,7 @@ class _HistoryTile extends StatelessWidget {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: const AppNetworkImage(
+            child: const AppNetworkImage.clinic(
               imageUrl: '',
               width: 64,
               height: 64,

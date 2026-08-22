@@ -9,6 +9,7 @@ import 'package:cms/core/api/services/appointment_api_service.dart';
 import 'package:cms/core/api/services/clinic_api_service.dart';
 import 'package:cms/core/api/services/schedule_api_service.dart';
 import 'package:cms/core/animations/app_page_route.dart';
+import 'package:cms/core/widgets/reschedule_success_dialog.dart';
 import 'package:cms/features/clinic/presentation/screens/clinic_detail_screen.dart';
 import 'package:cms/features/map/presentation/screens/map_test_screen.dart';
 import 'package:cms/injection_container.dart';
@@ -897,9 +898,8 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
         appointment = updated;
         _busy = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Appointment rescheduled')),
-      );
+      await showRescheduleSuccessDialog(context);
+      if (!mounted) return;
       Navigator.pop(context, true);
     } on ApiException catch (e) {
       if (!mounted) return;

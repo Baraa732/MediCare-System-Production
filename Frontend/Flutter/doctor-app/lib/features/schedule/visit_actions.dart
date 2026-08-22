@@ -1,4 +1,5 @@
 import 'package:cms_doctor_app/core/api/services/appointment_api_service.dart';
+import 'package:cms_doctor_app/core/widgets/reschedule_success_dialog.dart';
 import 'package:cms_doctor_app/injection.dart';
 import 'package:flutter/material.dart';
 
@@ -132,7 +133,9 @@ class VisitActions {
     );
     try {
       await appointmentApi.reschedule(appointmentId, scheduled);
-      if (context.mounted) showSnack(context, 'Appointment rescheduled');
+      if (context.mounted) {
+        await showRescheduleSuccessDialog(context);
+      }
       onDone?.call();
     } catch (e) {
       if (context.mounted) showSnack(context, e.toString());

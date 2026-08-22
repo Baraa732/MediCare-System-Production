@@ -131,7 +131,7 @@ class _SignupHeader extends StatelessWidget {
               ],
             ),
           ),
-          Image.asset(Assets.assetsImagesCross, height: 36, width: 36),
+          Image.asset(Assets.assetsImagesCrossBlue, height: 36, width: 36),
         ],
       ),
     );

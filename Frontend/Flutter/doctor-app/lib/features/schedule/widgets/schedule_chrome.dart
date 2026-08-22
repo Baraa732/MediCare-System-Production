@@ -242,7 +242,7 @@ class _AdvancedScheduleHeaderState extends State<AdvancedScheduleHeader>
                             width: 96,
                             height: 96,
                             child: Lottie.asset(
-                              AppAssets.lottieDoctorWave,
+                              AppAssets.lottieDoctor,
                               fit: BoxFit.contain,
                               errorBuilder: (_, __, ___) =>
                                   const SizedBox.shrink(),

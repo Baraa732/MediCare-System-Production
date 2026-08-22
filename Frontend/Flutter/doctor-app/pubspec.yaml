@@ -1,7 +1,7 @@
 name: cms_doctor_app
 description: MediCare Doctor Flutter app
 publish_to: 'none'
-version: 1.0.1+2
+version: 1.0.6+10
 
 environment:
   sdk: ^3.5.0
@@ -20,11 +20,28 @@ dependencies:
   firebase_messaging: ^15.2.5
   flutter_local_notifications: ^19.0.0
   permission_handler: ^12.0.1
+  syncfusion_flutter_calendar: ^29.2.5
+  flutter_native_splash: ^2.4.7
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.3
+
+flutter_native_splash:
+  color: "#0B74FA"
+  android: true
+  ios: true
+  # Flutter splash owns the dual Lottie carousel; native is solid brand color.
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/images/app_icon.png
+  adaptive_icon_background: "#0B74FA"
+  adaptive_icon_foreground: assets/images/app_icon.png
+  remove_alpha_ios: true
 
 flutter:
   uses-material-design: true

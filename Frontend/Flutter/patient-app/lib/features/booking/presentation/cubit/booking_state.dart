@@ -8,6 +8,7 @@ class BookingState {
   final String selectedStatus;
   final String? errorMessage;
   final String? patientName;
+  final String? patientAvatarUrl;
 
   const BookingState({
     this.isLoading = false,
@@ -16,6 +17,7 @@ class BookingState {
     this.selectedStatus = 'All',
     this.errorMessage,
     this.patientName,
+    this.patientAvatarUrl,
   });
 
   BookingState copyWith({
@@ -25,6 +27,7 @@ class BookingState {
     String? selectedStatus,
     String? errorMessage,
     String? patientName,
+    String? patientAvatarUrl,
   }) {
     return BookingState(
       isLoading: isLoading ?? this.isLoading,
@@ -33,6 +36,7 @@ class BookingState {
       selectedStatus: selectedStatus ?? this.selectedStatus,
       errorMessage: errorMessage,
       patientName: patientName ?? this.patientName,
+      patientAvatarUrl: patientAvatarUrl ?? this.patientAvatarUrl,
     );
   }
 }

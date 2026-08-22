@@ -11,17 +11,22 @@ import 'package:lottie/lottie.dart';
 import '../../../core/layout/app_shell.dart';
 import 'schedule_chrome.dart';
 
-/// Schedule shell with soft board overlap onto the blue hero.
+/// Schedule shell: metrics board soft-overlaps the blue hero.
 ///
-/// Overlap only covers sacrificial blue padding — doctor name + Lottie
-/// stay fully visible. Scroll collapse is ticker-smoothed.
+/// [scrollEntirePage] — hero + metrics + [child] share one vertical
+/// CustomScrollView (Day board). Overlap is fixed so layout never jumps.
+///
+/// Expanded [child] mode — week calendar fills remaining space; nested
+/// vertical scroll drives a smoothed hero collapse.
 class ScheduleWorkspace extends StatefulWidget {
   const ScheduleWorkspace({
     super.key,
     required this.activeTab,
     required this.boardCaption,
     required this.metrics,
-    required this.slivers,
+    this.slivers = const [],
+    this.child,
+    this.scrollEntirePage = false,
     this.onNotificationTap,
     this.onRefresh,
   });
@@ -30,6 +35,13 @@ class ScheduleWorkspace extends StatefulWidget {
   final String boardCaption;
   final List<ScheduleMetric> metrics;
   final List<Widget> slivers;
+
+  /// Day/week body. With [scrollEntirePage], must be intrinsically tall
+  /// (no Expanded). Otherwise fills the remaining viewport.
+  final Widget? child;
+
+  /// When true, the whole page scrolls together (hero + charts + calendar).
+  final bool scrollEntirePage;
   final VoidCallback? onNotificationTap;
   final Future<void> Function()? onRefresh;
 
@@ -39,8 +51,8 @@ class ScheduleWorkspace extends StatefulWidget {
 
 class _ScheduleWorkspaceState extends State<ScheduleWorkspace>
     with TickerProviderStateMixin {
-  static const _collapseRange = 160.0;
-  static const _baseOverlap = 22.0;
+  static const _collapseRange = 140.0;
+  static const _baseOverlap = 24.0;
 
   late final AnimationController _pulse;
   late final AnimationController _shimmer;
@@ -62,17 +74,36 @@ class _ScheduleWorkspaceState extends State<ScheduleWorkspace>
       duration: const Duration(milliseconds: 2400),
     )..repeat();
     _smoothTicker = createTicker(_onTick)..start();
-    _scroll.addListener(_onScroll);
+    _scroll.addListener(_onScrollController);
     _hydrateName();
   }
 
-  void _onScroll() {
+  void _onScrollController() {
     if (!_scroll.hasClients) return;
-    _collapseTarget = (_scroll.offset / _collapseRange).clamp(0.0, 1.0);
+    _setCollapseFromPixels(_scroll.offset);
+  }
+
+  /// Shared by list scroll controllers and nested calendar scrollables.
+  bool _onScrollNotification(ScrollNotification notification) {
+    // Only react to vertical metrics — ignore horizontal rubber-band.
+    if (notification.metrics.axis != Axis.vertical) return false;
+    if (notification is! ScrollUpdateNotification &&
+        notification is! OverscrollNotification &&
+        notification is! ScrollEndNotification) {
+      return false;
+    }
+    _setCollapseFromPixels(notification.metrics.pixels);
+    return false;
+  }
+
+  void _setCollapseFromPixels(double pixels) {
+    final next = (pixels / _collapseRange).clamp(0.0, 1.0);
+    if ((next - _collapseTarget).abs() < 0.001) return;
+    _collapseTarget = next;
   }
 
   void _onTick(Duration _) {
-    final next = uiLerp(_collapse, _collapseTarget, 0.16);
+    final next = uiLerp(_collapse, _collapseTarget, 0.18);
     if ((next - _collapse).abs() < 0.0008) {
       if (_collapse != _collapseTarget) {
         setState(() => _collapse = _collapseTarget);
@@ -93,7 +124,7 @@ class _ScheduleWorkspaceState extends State<ScheduleWorkspace>
   @override
   void dispose() {
     _smoothTicker.dispose();
-    _scroll.removeListener(_onScroll);
+    _scroll.removeListener(_onScrollController);
     _scroll.dispose();
     _pulse.dispose();
     _shimmer.dispose();
@@ -103,20 +134,38 @@ class _ScheduleWorkspaceState extends State<ScheduleWorkspace>
   @override
   Widget build(BuildContext context) {
     final top = MediaQuery.paddingOf(context).top;
-    final t = Curves.easeOutCubic.transform(_collapse);
-    // Overlap grows slightly as the board widens — still only into blue pad.
-    final overlap = lerpDouble(_baseOverlap, 14, t)!;
 
-    final scrollView = CustomScrollView(
-      controller: _scroll,
-      physics: const BouncingScrollPhysics(
-        parent: AlwaysScrollableScrollPhysics(),
-      ),
-      slivers: [
-        ...widget.slivers,
-        const SpiverBottomPad(),
-      ],
-    );
+    // Full-page Day mode: one scroll view, fixed overlap (no height jump).
+    if (widget.scrollEntirePage && widget.child != null) {
+      return _buildEntirePageScroll(context, top);
+    }
+
+    final t = Curves.easeOutCubic.transform(_collapse);
+    final overlap = lerpDouble(_baseOverlap, 16, t)!;
+
+    final Widget body;
+    if (widget.child != null) {
+      body = widget.child!;
+    } else {
+      body = CustomScrollView(
+        controller: _scroll,
+        physics: const BouncingScrollPhysics(
+          parent: AlwaysScrollableScrollPhysics(),
+        ),
+        slivers: [
+          ...widget.slivers,
+          const SpiverBottomPad(),
+        ],
+      );
+    }
+
+    final refreshable = widget.child != null || widget.onRefresh == null
+        ? body
+        : RefreshIndicator(
+            color: const Color(0xFF0B74FA),
+            onRefresh: widget.onRefresh!,
+            child: body,
+          );
 
     return ColoredBox(
       color: const Color(0xFFF2F2F2),
@@ -132,34 +181,212 @@ class _ScheduleWorkspaceState extends State<ScheduleWorkspace>
             overlapPad: overlap,
             onNotificationTap: widget.onNotificationTap,
           ),
-          Transform.translate(
-            offset: Offset(0, -overlap),
-            child: _BoardPanel(
-              collapse: t,
-              activeTab: widget.activeTab,
-              parentContext: context,
-              metrics: widget.metrics,
-            ),
-          ),
           Expanded(
             child: Transform.translate(
               offset: Offset(0, -overlap),
-              child: widget.onRefresh == null
-                  ? scrollView
-                  : RefreshIndicator(
-                      color: const Color(0xFF0B74FA),
-                      onRefresh: widget.onRefresh!,
-                      child: scrollView,
-                    ),
+              child: Padding(
+                padding: EdgeInsets.only(bottom: overlap),
+                child: NotificationListener<ScrollNotification>(
+                  onNotification: _onScrollNotification,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _BoardPanel(
+                        collapse: t,
+                        activeTab: widget.activeTab,
+                        parentContext: context,
+                        metrics: widget.metrics,
+                      ),
+                      Expanded(child: refreshable),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
         ],
       ),
     );
   }
+
+  /// Day mode: header behind, charts+calendar sheet in front.
+  /// Sheet overlaps the header; scrolling minimizes the header.
+  Widget _buildEntirePageScroll(BuildContext context, double topInset) {
+    final t = Curves.easeOutCubic.transform(_collapse);
+    final overlap = lerpDouble(30.0, 14.0, t)!;
+    // Layout box stays at expanded size so content padding never jumps.
+    final expandedHero = heroExtent(
+      topInset: topInset,
+      collapse: 0,
+      overlapPad: _baseOverlap,
+    );
+    final visualHero = heroExtent(
+      topInset: topInset,
+      collapse: t,
+      overlapPad: overlap,
+    );
+
+    Widget scrollView = CustomScrollView(
+      controller: _scroll,
+      physics: const BouncingScrollPhysics(
+        parent: AlwaysScrollableScrollPhysics(),
+      ),
+      slivers: [
+        // Push the sheet so it starts under the hero and overlaps by [overlap].
+        // Uses expanded height so collapse animation cannot fight scroll layout.
+        // ignore: sized_box_for_whitespace
+        SliverToBoxAdapter(
+          child: SizedBox(height: expandedHero - overlap),
+        ),
+        SliverToBoxAdapter(
+          child: _ScheduleContentSheet(
+            collapse: t,
+            activeTab: widget.activeTab,
+            parentContext: context,
+            metrics: widget.metrics,
+            child: widget.child!,
+          ),
+        ),
+        const SliverToBoxAdapter(child: SizedBox(height: 36)),
+      ],
+    );
+
+    if (widget.onRefresh != null) {
+      scrollView = RefreshIndicator(
+        color: const Color(0xFF0B74FA),
+        onRefresh: widget.onRefresh!,
+        child: scrollView,
+      );
+    }
+
+    return ColoredBox(
+      color: const Color(0xFFF2F2F2),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // CONTAINER 1 — Header (behind the sheet)
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: expandedHero,
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: SizedBox(
+                height: visualHero,
+                width: double.infinity,
+                child: ClipRect(
+                  child: _HeroHeader(
+                    topInset: topInset,
+                    collapse: t,
+                    doctorName: _doctorName,
+                    caption: widget.boardCaption,
+                    pulse: _pulse,
+                    shimmer: _shimmer,
+                    overlapPad: overlap,
+                    onNotificationTap: widget.onNotificationTap,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // CONTAINER 2 — Charts + schedule (in front, scrolls over header)
+          Positioned.fill(child: scrollView),
+        ],
+      ),
+    );
+  }
+}
+
+/// Shared hero height math — must stay in sync with [_HeroHeader].
+double heroExtent({
+  required double topInset,
+  required double collapse,
+  required double overlapPad,
+}) {
+  final bodyHeight = lerpDouble(138, 64, collapse)!;
+  const topRow = 40.0;
+  final heroPadBottom = overlapPad + lerpDouble(10, 6, collapse)!;
+  return topInset + 8 + topRow + bodyHeight + heroPadBottom;
 }
 
 double uiLerp(double a, double b, double t) => a + (b - a) * t;
+
+/// Single front sheet: metric charts + day calendar.
+class _ScheduleContentSheet extends StatelessWidget {
+  const _ScheduleContentSheet({
+    required this.collapse,
+    required this.activeTab,
+    required this.parentContext,
+    required this.metrics,
+    required this.child,
+  });
+
+  final double collapse;
+  final int activeTab;
+  final BuildContext parentContext;
+  final List<ScheduleMetric> metrics;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final topRadius = lerpDouble(26, 18, collapse)!;
+
+    return Material(
+      color: Colors.white,
+      elevation: 0,
+      shadowColor: Colors.transparent,
+      borderRadius: BorderRadius.vertical(top: Radius.circular(topRadius)),
+      clipBehavior: Clip.antiAlias,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(topRadius)),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF0B74FA).withValues(alpha: 0.16),
+              blurRadius: 28,
+              offset: const Offset(0, -4),
+            ),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Drag affordance
+            Padding(
+              padding: const EdgeInsets.only(top: 10, bottom: 4),
+              child: Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFD8DCE6),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+              ),
+            ),
+            _BoardPanel(
+              collapse: collapse,
+              activeTab: activeTab,
+              parentContext: parentContext,
+              metrics: metrics,
+              embedded: true,
+            ),
+            child,
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class SpiverBottomPad extends StatelessWidget {
   const SpiverBottomPad({super.key});
@@ -201,11 +428,10 @@ class _HeroHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final compact = collapse > 0.78;
-    // Keep name/lottie readable — never fade them out under the board.
-    final detailOpacity = (1 - collapse * 0.85).clamp(0.35, 1.0);
+    final detailOpacity = (1 - collapse * 0.72).clamp(0.42, 1.0);
     final lottieSize = lerpDouble(96, 52, collapse)!;
     final nameSize = lerpDouble(24, 18, collapse)!;
-    final bodyHeight = lerpDouble(138, 88, collapse)!;
+    final bodyHeight = lerpDouble(138, 64, collapse)!;
     final heroPadBottom = overlapPad + lerpDouble(10, 6, collapse)!;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -338,7 +564,7 @@ class _HeroHeader extends StatelessWidget {
                                 width: lottieSize,
                                 height: lottieSize,
                                 child: Lottie.asset(
-                                  AppAssets.lottieDoctorWave,
+                                  AppAssets.lottieDoctor,
                                   fit: BoxFit.contain,
                                   errorBuilder: (_, __, ___) =>
                                       const SizedBox.shrink(),
@@ -366,49 +592,20 @@ class _BoardPanel extends StatelessWidget {
     required this.activeTab,
     required this.parentContext,
     required this.metrics,
+    this.embedded = false,
   });
 
   final double collapse;
   final int activeTab;
   final BuildContext parentContext;
   final List<ScheduleMetric> metrics;
+  final bool embedded;
 
   @override
   Widget build(BuildContext context) {
-    final inset = lerpDouble(14, 0, collapse)!;
-    final radius = lerpDouble(22, 0, collapse)!;
-
-    return Padding(
-      padding: EdgeInsets.fromLTRB(inset, 0, inset, 0),
-      child: Container(
-        width: double.infinity,
-        padding: EdgeInsets.fromLTRB(
-          lerpDouble(12, 16, collapse)!,
-          12,
-          lerpDouble(12, 16, collapse)!,
-          12,
-        ),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(
-            top: Radius.circular(radius <= 1 ? 18 : radius),
-            bottom: Radius.circular(radius <= 1 ? 0 : radius),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF0B74FA).withValues(
-                alpha: lerpDouble(0.14, 0.05, collapse)!,
-              ),
-              blurRadius: lerpDouble(24, 10, collapse)!,
-              offset: Offset(0, lerpDouble(12, 4, collapse)!),
-            ),
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
+    if (embedded) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -431,6 +628,76 @@ class _BoardPanel extends StatelessWidget {
               ],
             ),
           ],
+        ),
+      );
+    }
+
+    final inset = lerpDouble(14, 0, collapse)!;
+    final radius = lerpDouble(22, 0, collapse)!;
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(inset, 0, inset, 0),
+      child: Material(
+        color: Colors.white,
+        elevation: 0,
+        shadowColor: Colors.transparent,
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(radius <= 1 ? 18 : radius),
+          bottom: Radius.circular(radius <= 1 ? 0 : radius),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Container(
+          width: double.infinity,
+          padding: EdgeInsets.fromLTRB(
+            lerpDouble(12, 16, collapse)!,
+            12,
+            lerpDouble(12, 16, collapse)!,
+            12,
+          ),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(radius <= 1 ? 18 : radius),
+              bottom: Radius.circular(radius <= 1 ? 0 : radius),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF0B74FA).withValues(
+                  alpha: lerpDouble(0.14, 0.05, collapse)!,
+                ),
+                blurRadius: lerpDouble(24, 10, collapse)!,
+                offset: Offset(0, lerpDouble(12, 4, collapse)!),
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ScheduleViewTabs(
+                activeTab: activeTab,
+                parentContext: parentContext,
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  for (var i = 0; i < metrics.length; i++) ...[
+                    if (i > 0) const SizedBox(width: 8),
+                    Expanded(
+                      child: _MetricOrb(
+                        metric: metrics[i],
+                        compact: collapse > 0.5,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -584,7 +851,7 @@ class ExpandingPanel extends StatelessWidget {
   }
 }
 
-/// Horizontal tall date pills.
+/// Horizontal tall date pills (week / month helpers — not used on Day).
 class PremiumDateStrip extends StatelessWidget {
   const PremiumDateStrip({
     super.key,

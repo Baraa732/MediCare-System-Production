@@ -49,6 +49,10 @@ export function SortableDoctorHeader({
             src={doctor.avatar}
             alt={doctor.name}
             className="w-9 h-9 rounded-xl border border-neutral-200/80 shrink-0 object-cover"
+            onError={(e) => {
+              e.currentTarget.onerror = null;
+              e.currentTarget.src = "/defaults/default-doctor.jpg";
+            }}
           />
           <div className="min-w-0 flex-1">
             <h4 className="text-xs font-bold text-neutral-900 truncate leading-none">

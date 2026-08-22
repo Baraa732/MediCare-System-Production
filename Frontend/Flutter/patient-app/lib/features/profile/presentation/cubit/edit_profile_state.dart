@@ -5,6 +5,7 @@ class EditProfileState {
   final String phoneNumber;
   final String email;
   final File? profileImage;
+  final String? existingAvatarUrl;
   final bool isLoading;
   final bool isValid;
   final bool saved;
@@ -15,6 +16,7 @@ class EditProfileState {
     this.phoneNumber = '',
     this.email = '',
     this.profileImage,
+    this.existingAvatarUrl,
     this.isLoading = false,
     this.isValid = false,
     this.saved = false,
@@ -26,16 +28,20 @@ class EditProfileState {
     String? phoneNumber,
     String? email,
     File? profileImage,
+    String? existingAvatarUrl,
     bool? isLoading,
     bool? isValid,
     bool? saved,
     String? errorMessage,
+    bool clearProfileImage = false,
   }) {
     return EditProfileState(
       fullName: fullName ?? this.fullName,
       phoneNumber: phoneNumber ?? this.phoneNumber,
       email: email ?? this.email,
-      profileImage: profileImage ?? this.profileImage,
+      profileImage:
+          clearProfileImage ? null : (profileImage ?? this.profileImage),
+      existingAvatarUrl: existingAvatarUrl ?? this.existingAvatarUrl,
       isLoading: isLoading ?? this.isLoading,
       isValid: isValid ?? this.isValid,
       saved: saved ?? this.saved,

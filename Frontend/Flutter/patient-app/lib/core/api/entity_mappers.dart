@@ -111,6 +111,13 @@ class EntityMappers {
       followUp: json['reason']?.toString(),
       scheduledAt: dt,
       clinicAddress: addressParts.join(', '),
+      doctorImageUrl: MediaUrl.resolve(
+        doctor?['avatarUrl']?.toString() ??
+            json['doctorAvatarUrl']?.toString(),
+      ),
+      clinicImageUrl: MediaUrl.resolve(
+        clinic?['logoUrl']?.toString() ?? json['clinicLogoUrl']?.toString(),
+      ),
     );
   }
 

@@ -37,10 +37,16 @@ class AppLottie extends StatelessWidget {
   }
 }
 
-/// Bundled free Lottie asset paths.
+/// Bundled Lottie asset paths.
 abstract final class AppLottieAssets {
   static const search = 'assets/lottie/search.json';
   static const empty = 'assets/lottie/empty.json';
   static const success = 'assets/lottie/success.json';
   static const loading = 'assets/lottie/loading.json';
+  static const patientSplash1 = 'assets/lottie/patient_splash_1.json';
+  static const patientSplash2 = 'assets/lottie/patient_splash_2.json';
+  static const pendingApproval = 'assets/lottie/pending_approval.json';
+  static const rescheduleAppointment =
+      'assets/lottie/reschedule_appointment.json';
+  static const patientProfile = 'assets/lottie/patient_profile.json';
 }

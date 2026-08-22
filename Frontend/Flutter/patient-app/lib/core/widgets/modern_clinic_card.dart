@@ -162,7 +162,7 @@ class _ModernClinicCardState extends State<ModernClinicCard>
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    AppNetworkImage(
+                    AppNetworkImage.clinic(
                       imageUrl: widget.clinic.imageUrl,
                       fit: BoxFit.cover,
                     ),

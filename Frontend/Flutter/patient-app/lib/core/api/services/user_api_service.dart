@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:cms/core/utils/media_url.dart';
 import 'package:cms/core/api/api_client.dart';
+import 'package:dio/dio.dart';
 
 class PatientProfile {
   final String id;
@@ -34,7 +37,9 @@ class PatientProfile {
       phoneNumber: json['phoneNumber']?.toString() ?? '',
       gender: json['gender']?.toString(),
       birthDate: json['birthDate']?.toString(),
-      avatarUrl: MediaUrl.resolve(profileData?['avatarUrl']?.toString()),
+      avatarUrl: MediaUrl.resolve(
+        json['avatarUrl']?.toString() ?? profileData?['avatarUrl']?.toString(),
+      ),
     );
   }
 }
@@ -68,5 +73,24 @@ class UserApiService {
       },
     );
     return PatientProfile.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  Future<PatientProfile> uploadAvatar(String userId, File file) async {
+    final form = FormData.fromMap({
+      'file': await MultipartFile.fromFile(
+        file.path,
+        filename: file.path.split(RegExp(r'[\\/]')).last,
+      ),
+    });
+    final response = await _client.dio.post(
+      '/users/$userId/avatar',
+      data: form,
+      options: Options(contentType: 'multipart/form-data'),
+    );
+    final data = response.data;
+    if (data is Map<String, dynamic>) {
+      return PatientProfile.fromJson(data);
+    }
+    return getProfile(userId);
   }
 }

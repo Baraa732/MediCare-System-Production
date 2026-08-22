@@ -19,6 +19,10 @@ export function TopStickyHeader({ doctors }: TopStickyHeaderProps) {
                   src={doctor.avatar}
                   alt={doctor.name}
                   className="h-9 w-9 shrink-0 rounded-xl border border-neutral-200/80 object-cover"
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = "/defaults/default-doctor.jpg";
+                  }}
                 />
                 <div className="min-w-0 flex-1">
                   <h4 className="truncate text-xs font-bold leading-none text-neutral-900">

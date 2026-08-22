@@ -22,6 +22,28 @@ class AppNetworkImage extends StatelessWidget {
   final String placeholderAsset;
   final IconData? placeholderIcon;
 
+  /// Doctor photo with branded doctor default.
+  const AppNetworkImage.doctor({
+    super.key,
+    required this.imageUrl,
+    this.width,
+    this.height,
+    this.fit = BoxFit.cover,
+    this.borderRadius,
+    this.placeholderIcon,
+  }) : placeholderAsset = Assets.assetsImagesDefaultDoctor;
+
+  /// Clinic photo with branded clinic default.
+  const AppNetworkImage.clinic({
+    super.key,
+    required this.imageUrl,
+    this.width,
+    this.height,
+    this.fit = BoxFit.cover,
+    this.borderRadius,
+    this.placeholderIcon,
+  }) : placeholderAsset = Assets.assetsImagesClinicPlaceholder;
+
   @override
   Widget build(BuildContext context) {
     final resolved = MediaUrl.resolve(imageUrl);
@@ -60,26 +82,27 @@ class AppNetworkImage extends StatelessWidget {
   }
 
   Widget _placeholder() {
-    if (placeholderIcon != null) {
-      return Container(
-        width: width,
-        height: height,
-        color: Colors.grey.shade200,
-        child: Icon(placeholderIcon, color: Colors.grey.shade500, size: 32),
-      );
-    }
-
     return Image.asset(
       placeholderAsset,
       width: width,
       height: height,
       fit: fit,
-      errorBuilder: (_, __, ___) => Container(
-        width: width,
-        height: height,
-        color: Colors.grey.shade200,
-        child: Icon(Icons.image_outlined, color: Colors.grey.shade500),
-      ),
+      errorBuilder: (_, __, ___) {
+        if (placeholderIcon != null) {
+          return Container(
+            width: width,
+            height: height,
+            color: Colors.grey.shade200,
+            child: Icon(placeholderIcon, color: Colors.grey.shade500, size: 32),
+          );
+        }
+        return Container(
+          width: width,
+          height: height,
+          color: Colors.grey.shade200,
+          child: Icon(Icons.image_outlined, color: Colors.grey.shade500),
+        );
+      },
     );
   }
 }

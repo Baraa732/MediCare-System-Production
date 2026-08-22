@@ -24,6 +24,7 @@ class BookingCubit extends Cubit<BookingState> {
     emit(state.copyWith(isLoading: true, errorMessage: null));
 
     String? patientName = state.patientName;
+    String? patientAvatarUrl = state.patientAvatarUrl;
     final userId = _sessionStorage.userId;
     if (userId != null && userId.isNotEmpty) {
       try {
@@ -31,6 +32,7 @@ class BookingCubit extends Cubit<BookingState> {
         if (profile.fullName.trim().isNotEmpty) {
           patientName = profile.fullName.trim();
         }
+        patientAvatarUrl = profile.avatarUrl;
       } catch (_) {}
     }
 
@@ -39,6 +41,7 @@ class BookingCubit extends Cubit<BookingState> {
       emit(state.copyWith(
         isLoading: false,
         patientName: patientName,
+        patientAvatarUrl: patientAvatarUrl,
         allAppointments: appointments,
         filteredAppointments: _filter(appointments, state.selectedStatus),
       ));
@@ -46,12 +49,14 @@ class BookingCubit extends Cubit<BookingState> {
       emit(state.copyWith(
         isLoading: false,
         patientName: patientName,
+        patientAvatarUrl: patientAvatarUrl,
         errorMessage: e.message,
       ));
     } catch (_) {
       emit(state.copyWith(
         isLoading: false,
         patientName: patientName,
+        patientAvatarUrl: patientAvatarUrl,
         errorMessage: 'Could not load appointments.',
       ));
     }

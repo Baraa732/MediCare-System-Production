@@ -247,9 +247,9 @@ class _SearchScreenState extends State<SearchScreen> {
         if (state.isLoading && state.results.isEmpty) {
           return const Center(
             child: AppLottie.asset(
-              asset: AppLottieAssets.loading,
-              height: 120,
-              fallbackIcon: Icons.hourglass_top_rounded,
+              asset: AppLottieAssets.search,
+              height: 140,
+              fallbackIcon: Icons.search_rounded,
             ),
           );
         }

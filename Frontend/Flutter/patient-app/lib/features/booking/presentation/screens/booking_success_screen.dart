@@ -22,48 +22,76 @@ class BookingSuccessScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.lightGray,
+      backgroundColor: const Color(0xFFF5F7FB),
       body: Column(
         children: [
           _buildBlueHeader(context),
           Expanded(
             child: Center(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32),
+                padding: const EdgeInsets.symmetric(horizontal: 28),
                 child: FadeSlideIn(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const AppLottie.asset(
-                        asset: AppLottieAssets.success,
-                        height: 140,
-                        repeat: false,
-                        fallbackIcon: Icons.check_circle_rounded,
+                      Container(
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(28),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.main_background_blue
+                                  .withValues(alpha: 0.12),
+                              blurRadius: 28,
+                              offset: const Offset(0, 14),
+                            ),
+                          ],
+                        ),
+                        child: const AppLottie.asset(
+                          asset: AppLottieAssets.pendingApproval,
+                          height: 180,
+                          repeat: true,
+                          fallbackIcon: Icons.hourglass_top_rounded,
+                        ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 28),
                       Text(
-                        'Request Submitted',
+                        'Request submitted',
                         style: FontHeading.heading1.copyWith(
                           color: Colors.black,
-                          fontSize: 24,
+                          fontSize: 26,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'You will receive a notification once the clinic confirms your appointment time',
+                        'Your appointment is waiting for clinic approval. '
+                        'We’ll notify you as soon as it’s confirmed.',
                         style: FontHeading.body.copyWith(
                           color: AppColors.CustomgrayDark,
-                          fontSize: 16,
+                          fontSize: 15.5,
+                          height: 1.45,
                         ),
                         textAlign: TextAlign.center,
                       ),
-                      const SizedBox(height: 32),
-                      Text(
-                        'Pending Review',
-                        style: FontHeading.body.copyWith(
-                          color: AppColors.orange,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 16,
+                      const SizedBox(height: 22),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.orange.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                        child: Text(
+                          'Pending approval',
+                          style: FontHeading.body.copyWith(
+                            color: AppColors.orange,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                          ),
                         ),
                       ),
                     ],
@@ -81,18 +109,22 @@ class BookingSuccessScreen extends StatelessWidget {
   Widget _buildBlueHeader(BuildContext context) {
     return Container(
       width: double.infinity,
-      decoration: BoxDecoration(
-        color: AppColors.main_background_blue,
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(24),
-          bottomRight: Radius.circular(24),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF0B74FA), Color(0xFF0A66DE)],
+        ),
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(28),
+          bottomRight: Radius.circular(28),
         ),
       ),
       padding: EdgeInsets.fromLTRB(
         16,
         MediaQuery.paddingOf(context).top + 12,
         16,
-        20,
+        22,
       ),
       child: Row(
         children: [
@@ -110,10 +142,11 @@ class BookingSuccessScreen extends StatelessWidget {
                     const Icon(Icons.arrow_back, color: Colors.black, size: 16),
                     const SizedBox(width: 4),
                     Text(
-                      'Back to home',
+                      'Home',
                       style: FontHeading.bodySmall.copyWith(
                         color: Colors.black,
                         fontSize: 14,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
@@ -123,10 +156,11 @@ class BookingSuccessScreen extends StatelessWidget {
           ),
           const Spacer(),
           Text(
-            'Booking successful',
+            'Booking',
             style: FontHeading.heading4.copyWith(
               color: Colors.white,
               fontSize: 18,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],
@@ -146,8 +180,8 @@ class BookingSuccessScreen extends StatelessWidget {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.shade200,
-            blurRadius: 8,
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
             offset: const Offset(0, -4),
           ),
         ],
@@ -173,7 +207,7 @@ class BookingSuccessScreen extends StatelessWidget {
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(14),
                 ),
               ),
             ),
@@ -190,7 +224,7 @@ class BookingSuccessScreen extends StatelessWidget {
                 foregroundColor: AppColors.main_background_blue,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(14),
                 ),
                 shadowColor: Colors.transparent,
               ),

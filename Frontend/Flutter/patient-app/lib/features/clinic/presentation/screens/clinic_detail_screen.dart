@@ -108,7 +108,7 @@ class _ClinicDetailView extends StatelessWidget {
                       children: [
                         Stack(
                           children: [
-                            AppNetworkImage(
+                            AppNetworkImage.clinic(
                               imageUrl: clinic.imageUrl,
                               width: double.infinity,
                               height: 200,
@@ -117,8 +117,6 @@ class _ClinicDetailView extends StatelessWidget {
                                 bottomLeft: Radius.circular(16),
                                 bottomRight: Radius.circular(16),
                               ),
-                              placeholderAsset:
-                                  'assets/images/clinic_placeholder.png',
                             ),
                             Positioned(
                               top: 30,
@@ -554,12 +552,11 @@ class _DoctorCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            AppNetworkImage(
+            AppNetworkImage.doctor(
               imageUrl: doctor.imageUrl,
               width: 62,
               height: 62,
               borderRadius: BorderRadius.circular(8),
-              placeholderIcon: Icons.person,
             ),
             const SizedBox(width: 14),
             Flexible(

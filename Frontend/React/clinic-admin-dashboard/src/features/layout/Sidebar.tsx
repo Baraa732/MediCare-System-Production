@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { useClinicAdmin } from "@/context/ClinicAdminContext";
 import { useSidebarStore } from "@/stores/sidebarStore";
 import { resolveAssetUrl } from "@/lib/resolveAssetUrl";
+import { DEFAULT_CLINIC_IMAGE } from "@/lib/defaultMedia";
 import { SidebarQuickStats } from "./SidebarQuickStats";
 
 const navSections = [
@@ -57,7 +58,7 @@ export function Sidebar() {
   const isCollapsed = mode === "collapsed";
   const { clinic, loading } = useClinicAdmin();
   const displayName = clinic?.name?.trim() || (loading ? "Loading…" : "Your clinic");
-  const logoUrl = resolveAssetUrl(clinic?.logoUrl);
+  const logoUrl = resolveAssetUrl(clinic?.logoUrl) ?? DEFAULT_CLINIC_IMAGE;
 
   return (
     <aside
@@ -74,11 +75,7 @@ export function Sidebar() {
       >
         <div className={cn("flex items-center gap-2.5 min-w-0", isCollapsed && "justify-center")}>
           <div className="w-8 h-8 shrink-0 rounded-sm bg-[#0066ff] text-white flex items-center justify-center font-bold text-sm shadow-sm overflow-hidden">
-            {logoUrl ? (
-              <img src={logoUrl} alt="" className="w-full h-full object-cover" />
-            ) : (
-              clinicInitial(displayName)
-            )}
+            <img src={logoUrl} alt="" className="w-full h-full object-cover" />
           </div>
           {!isCollapsed && (
             <div className="min-w-0 flex-1 sidebar-label-fade">

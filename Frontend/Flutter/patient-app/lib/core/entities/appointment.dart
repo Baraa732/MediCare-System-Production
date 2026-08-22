@@ -11,6 +11,8 @@ class Appointment {
   final String? followUp;
   final DateTime? scheduledAt;
   final String clinicAddress;
+  final String doctorImageUrl;
+  final String clinicImageUrl;
 
   Appointment({
     required this.id,
@@ -25,6 +27,8 @@ class Appointment {
     this.followUp,
     this.scheduledAt,
     this.clinicAddress = '',
+    this.doctorImageUrl = '',
+    this.clinicImageUrl = '',
   });
 
   bool get isCancellable {

@@ -2,6 +2,7 @@ import type { ApiAppointment, ClinicDoctor } from "./types";
 import type { ColumnAppointmentsType } from "@/features/dashboardAssitant/types";
 import type { DoctorType } from "@/features/dashboardAssitant/types";
 import type { PendingRequest } from "@/features/dashboardAssitant/types/PendingRequest";
+import { doctorImageSrc } from "@/lib/defaultMedia";
 import {
   gridMinutesFromIso,
   scheduledAtFromAbsoluteMinutes,
@@ -166,7 +167,9 @@ export function mapDoctorToGrid(
     id: doctor.userId,
     name: (doctor.fullName ?? `${doctor.firstName ?? ""} ${doctor.lastName ?? ""}`.trim()) || "Doctor",
     specialty: doctor.specialization ?? "General Dentistry",
-    avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(doctor.fullName ?? doctor.userId)}`,
+    avatar: doctorImageSrc(
+      (doctor as { avatarUrl?: string }).avatarUrl,
+    ),
     appointments: [],
   };
 }

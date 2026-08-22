@@ -2,15 +2,29 @@
 class Assets {
   Assets._();
   
-  /// Assets for assetsImagesClinicPlaceholder
-  /// assets/images/clinic_placeholder.png
-  static const String assetsImagesClinicPlaceholder = "assets/images/clinic_placeholder.png";
+  /// Assets for assetsImagesAppIcon
+  /// assets/images/app_icon.png
+  static const String assetsImagesAppIcon = "assets/images/app_icon.png";
 
-  /// Assets for assetsImagesCross
+  /// Assets for assetsImagesSplashLogo
+  /// assets/images/splash_logo.png
+  static const String assetsImagesSplashLogo = "assets/images/splash_logo.png";
+
+  /// Assets for assetsImagesClinicPlaceholder
+  /// assets/images/default_clinic.jpg
+  static const String assetsImagesClinicPlaceholder =
+      "assets/images/default_clinic.jpg";
+
+  /// Assets for assetsImagesDefaultDoctor
+  /// assets/images/default_doctor.jpg
+  static const String assetsImagesDefaultDoctor =
+      "assets/images/default_doctor.jpg";
+
+  /// Assets for assetsImagesCross (white logo — use on blue backgrounds)
   /// assets/images/cross.png
   static const String assetsImagesCross = "assets/images/cross.png";
 
-  /// Assets for assetsImagesCrossBlue
+  /// Assets for assetsImagesCrossBlue (blue logo — use on white backgrounds)
   /// assets/images/cross_blue.png
   static const String assetsImagesCrossBlue = "assets/images/cross_blue.png";
 
