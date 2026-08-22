@@ -47,11 +47,6 @@ const navSections = [
   },
 ];
 
-function clinicInitial(name: string): string {
-  const trimmed = name.trim();
-  return trimmed ? trimmed.charAt(0).toUpperCase() : "C";
-}
-
 export function Sidebar() {
   const mode = useSidebarStore((s) => s.mode);
   const toggleSidebar = useSidebarStore((s) => s.toggleSidebar);

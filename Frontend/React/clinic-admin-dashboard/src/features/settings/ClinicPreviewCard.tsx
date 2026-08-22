@@ -1,4 +1,4 @@
-import { Building2, Clock, Copy, MapPin, Phone } from "lucide-react";
+import { Clock, Copy, MapPin, Phone } from "lucide-react";
 import type { ClinicDoctor, ClinicPublic } from "@/lib/api/types";
 import { resolveAssetUrl } from "@/lib/resolveAssetUrl";
 import { DEFAULT_CLINIC_IMAGE } from "@/lib/defaultMedia";
