@@ -130,6 +130,16 @@ class DoctorAppointment {
       guestPatientPhone: json['guestPatientPhone']?.toString(),
     );
   }
+
+  /// Matches secretary schedule: cancelled bookings leave the live grid.
+  bool get isOnLiveSchedule => status != 'CANCELLED';
+}
+
+/// Filter for day/week/month schedule views (not patient visit history).
+List<DoctorAppointment> activeScheduleAppointments(
+  Iterable<DoctorAppointment> appointments,
+) {
+  return appointments.where((a) => a.isOnLiveSchedule).toList();
 }
 
 class AppointmentApiService {
@@ -143,6 +153,7 @@ class AppointmentApiService {
     DateTime? to,
     String? status,
     String? patientId,
+    bool includeCancelled = false,
   }) async {
     final clinicId = _session.clinicId;
     final doctorId = _session.userId;
@@ -163,10 +174,12 @@ class AppointmentApiService {
     );
     final data = response.data as Map<String, dynamic>;
     final list = data['appointments'] as List<dynamic>? ?? [];
-    return list
+    final parsed = list
         .whereType<Map>()
         .map((e) => DoctorAppointment.fromJson(Map<String, dynamic>.from(e)))
         .toList();
+    if (includeCancelled) return parsed;
+    return activeScheduleAppointments(parsed);
   }
 
   Future<DoctorAppointment> updateStatus(String id, String status) async {
@@ -200,6 +213,7 @@ class AppointmentApiService {
       from: now.subtract(const Duration(days: 730)),
       to: now.add(const Duration(days: 180)),
       patientId: patientId,
+      includeCancelled: true,
     );
     list.sort((a, b) => b.scheduledAt.compareTo(a.scheduledAt));
     return list;

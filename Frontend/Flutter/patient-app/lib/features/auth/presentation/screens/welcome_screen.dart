@@ -149,23 +149,6 @@ class WelcomeScreen extends StatelessWidget {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.pushNamed(context, '/home');
-                        },
-                        style: TextButton.styleFrom(
-                          foregroundColor: AppColors.main_background_blue,
-                        ),
-                        child: Text(
-                          'Continue as a guest',
-                          style: FontHeading.button.copyWith(
-                            color: AppColors.main_background_blue,
-                            decoration: TextDecoration.underline,
-                            decorationColor: AppColors.main_background_blue,
-                          ),
-                        ),
-                      ),
                     ],
                   ),
                 ),
