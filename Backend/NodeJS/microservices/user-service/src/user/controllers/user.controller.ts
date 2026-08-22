@@ -26,6 +26,7 @@ import {
 } from '../../phi-audit-shared/types';
 import { TenantContextService } from '../../tenant-shared/tenant-context.service';
 import { HttpTenantAccessChecker } from '../../tenant-shared/tenant-access-checker';
+import { Public } from '../decorators/public.decorator';
 
 // Internal endpoints (validate-login, reset-password-internal) are defined in
 // InternalUserController below — they must NOT inherit the class-level JwtAuthGuard.
@@ -168,11 +169,10 @@ export class UserController {
   }
 
   @Get('avatars/:userId')
-  async getAvatar(@Param('userId') userId: string, @Request() req) {
-    const { buffer, mime } = await this.userService.readAvatar(userId, {
-      userId: req.user.userId,
-      role: req.user.role,
-    });
+  @Public()
+  @SkipTenantGuard()
+  async getAvatar(@Param('userId') userId: string) {
+    const { buffer, mime } = await this.userService.readAvatarPublic(userId);
     return new StreamableFile(buffer, {
       type: mime,
       disposition: 'inline',

@@ -28,6 +28,7 @@ import { StaffRole } from '../entities/clinic-staff-assignment.entity';
 import { TenantGuard } from '../../tenant-shared/tenant.guard';
 import { SkipTenantGuard, SkipTenantAuthorization } from '../../tenant-shared/tenant.decorators';
 import { TenantAuthorizationGuard } from '../../tenant-shared/tenant-authorization.guard';
+import { Public } from '../decorators/public.decorator';
 
 @Controller('v1/clinics')
 @UseGuards(JwtAuthGuard, TenantGuard, TenantAuthorizationGuard)
@@ -109,6 +110,7 @@ export class ClinicController {
   }
 
   @Get('logos/:id')
+  @Public()
   @SkipTenantGuard()
   @SkipTenantAuthorization()
   async getLogo(@Param('id', ParseUUIDPipe) id: string) {

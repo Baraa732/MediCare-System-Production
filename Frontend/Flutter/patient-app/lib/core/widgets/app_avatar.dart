@@ -1,4 +1,5 @@
 import 'package:cms/core/animations/app_lottie.dart';
+import 'package:cms/core/utils/auth_media_headers.dart';
 import 'package:cms/core/utils/media_url.dart';
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
@@ -28,6 +29,7 @@ class AppAvatar extends StatelessWidget {
         width: size,
         height: size,
         fit: BoxFit.cover,
+        headers: AuthMediaHeaders.bearer(),
         errorBuilder: (_, __, ___) => _lottie(size),
         loadingBuilder: (context, child, progress) {
           if (progress == null) return child;

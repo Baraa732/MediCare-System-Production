@@ -2,6 +2,8 @@ import 'package:cms/core/animations/app_lottie.dart';
 import 'package:cms/core/constants/font_heading.dart';
 import 'package:cms/core/constants/responsive_constants.dart';
 import 'package:cms/core/theme/app_colors.dart';
+import 'package:cms/core/utils/auth_media_headers.dart';
+import 'package:cms/core/utils/media_url.dart';
 import 'package:cms/core/widgets/custom_text_feild.dart';
 import 'package:cms/features/profile/presentation/cubit/edit_profile_cubit.dart';
 import 'package:cms/features/profile/presentation/cubit/edit_profile_state.dart';
@@ -119,8 +121,9 @@ class EditProfileScreen extends StatelessWidget {
                     : (state.existingAvatarUrl != null &&
                             state.existingAvatarUrl!.isNotEmpty)
                         ? Image.network(
-                            state.existingAvatarUrl!,
+                            MediaUrl.resolve(state.existingAvatarUrl),
                             fit: BoxFit.cover,
+                            headers: AuthMediaHeaders.bearer(),
                             errorBuilder: (_, __, ___) => Lottie.asset(
                               AppLottieAssets.patientProfile,
                               fit: BoxFit.cover,

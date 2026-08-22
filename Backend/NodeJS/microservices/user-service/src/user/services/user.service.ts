@@ -1178,7 +1178,19 @@ export class UserService {
     userId: string,
     actor: { userId: string; role: string },
   ): Promise<{ buffer: Buffer; mime: string }> {
-    const user = await this.assertAvatarAccess(userId, actor);
+    await this.assertAvatarAccess(userId, actor);
+    return this.readAvatarPublic(userId);
+  }
+
+  /**
+   * Public media fetch for Image.network / <img> tags (no Authorization header).
+   * Avatars are addressed by opaque UUID; upload/mutation stays authenticated.
+   */
+  async readAvatarPublic(userId: string): Promise<{ buffer: Buffer; mime: string }> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException(AVATAR_NOT_FOUND);
+    }
     const filePath = this.findExistingAvatarPath(user);
     if (!filePath) {
       throw new NotFoundException(AVATAR_NOT_FOUND);

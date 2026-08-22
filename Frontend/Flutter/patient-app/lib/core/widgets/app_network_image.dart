@@ -1,4 +1,5 @@
 import 'package:cms/core/constants/assets.dart';
+import 'package:cms/core/utils/auth_media_headers.dart';
 import 'package:cms/core/utils/media_url.dart';
 import 'package:flutter/material.dart';
 
@@ -57,6 +58,7 @@ class AppNetworkImage extends StatelessWidget {
         width: width,
         height: height,
         fit: fit,
+        headers: AuthMediaHeaders.bearer(),
         errorBuilder: (_, __, ___) => _placeholder(),
         loadingBuilder: (context, child, progress) {
           if (progress == null) return child;

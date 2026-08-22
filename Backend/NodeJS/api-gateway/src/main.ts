@@ -145,6 +145,13 @@ function isPublicGatewayRoute(path: string, method: string): boolean {
 
   if (getPublicGatewayPaths().has(path)) return true;
 
+  // Profile / clinic media must be fetchable by Image.network and <img>
+  // tags, which cannot attach Authorization headers.
+  if (method === 'GET') {
+    if (/^\/api\/users\/avatars\/[^/]+$/.test(path)) return true;
+    if (/^\/api\/clinics\/logos\/[^/]+$/.test(path)) return true;
+  }
+
   if (method !== 'POST') return false;
 
   // Password reset must stay public even if PUBLIC_PATHS drifts during deploys.
