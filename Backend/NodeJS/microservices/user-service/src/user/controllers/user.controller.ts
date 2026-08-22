@@ -285,13 +285,20 @@ export class InternalUserController {
   ) {}
 
   private toPublicUser(user: User): Record<string, unknown> {
-    const { password: _, ...rest } = user;
-    const profileData = user.profileData || {};
-    const avatarUrl =
-      typeof profileData.avatarUrl === 'string' ? profileData.avatarUrl : undefined;
+    const { password: _, profileData: rawProfile, ...rest } = user;
+    const profileData = { ...(rawProfile || {}) };
+    const hasAvatar = this.userService.userHasAvatar(user);
+    delete profileData.avatarData;
+    delete profileData.avatarMime;
+    // Drop stale URL-only markers so clients never think a missing file is present.
+    if (!hasAvatar) {
+      delete profileData.avatarUrl;
+    }
     return {
       ...rest,
-      avatarUrl,
+      profileData,
+      hasAvatar,
+      avatarUrl: hasAvatar ? `/api/users/avatars/${user.id}` : undefined,
       gender:
         typeof profileData.gender === 'string'
           ? profileData.gender

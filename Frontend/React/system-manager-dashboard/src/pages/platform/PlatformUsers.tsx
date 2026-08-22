@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Box, Typography, Grid, Card, CardHeader, CardContent, Alert, Skeleton, Chip,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Select, MenuItem,
@@ -25,9 +25,11 @@ function displayName(user: PlatformUser): string {
   return name || `User ${user.id.slice(0, 8)}…`
 }
 
-function avatarInitials(user: PlatformUser): string {
-  const initials = [user.firstName, user.lastName].filter(Boolean).map((n) => n![0]).join('')
-  return initials.toUpperCase() || '?'
+function defaultAvatarForRole(role: string): string {
+  if (role === 'DOCTOR') return '/defaults/default-doctor.jpg'
+  if (role === 'PATIENT') return '/defaults/default-patient.jpg'
+  if (role === 'CLINIC_ADMIN' || role === 'SECRETARY') return '/defaults/default-doctor.jpg'
+  return '/defaults/default-clinic.jpg'
 }
 
 function statusColor(status: string): 'success' | 'warning' | 'default' {
@@ -38,24 +40,33 @@ function statusColor(status: string): 'success' | 'warning' | 'default' {
 
 function UserAvatar({ user }: { user: PlatformUser }) {
   const theme = useTheme()
-  const src = resolveAssetUrl(user.avatarUrl)
+  const fallback = defaultAvatarForRole(user.role)
+  const photo = resolveAssetUrl(user.avatarUrl)
+  const [src, setSrc] = useState(photo || fallback)
+
+  useEffect(() => {
+    setSrc(photo || fallback)
+  }, [photo, fallback])
+
   return (
     <Avatar
       src={src}
       alt={displayName(user)}
+      slotProps={{
+        img: {
+          onError: () => {
+            if (src !== fallback) setSrc(fallback)
+          },
+        },
+      }}
       sx={{
         width: 36,
         height: 36,
         bgcolor: theme.palette.accent.subtle,
-        color: 'primary.main',
-        fontSize: 12,
-        fontWeight: 700,
         border: `1px solid ${theme.palette.divider}`,
         '& img': { objectFit: 'cover' },
       }}
-    >
-      {avatarInitials(user)}
-    </Avatar>
+    />
   )
 }
 
@@ -73,7 +84,7 @@ export default function PlatformUsers() {
   const staffCount = useMemo(() => users.filter((u) => ['DOCTOR', 'SECRETARY', 'CLINIC_ADMIN'].includes(u.role)).length, [users])
   const pendingCount = useMemo(() => users.filter((u) => u.status !== 'ACTIVE').length, [users])
   const withPhotoCount = useMemo(
-    () => users.filter((u) => Boolean(resolveAssetUrl(u.avatarUrl))).length,
+    () => users.filter((u) => Boolean(u.hasAvatar || resolveAssetUrl(u.avatarUrl))).length,
     [users],
   )
 

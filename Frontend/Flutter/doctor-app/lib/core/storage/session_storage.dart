@@ -78,6 +78,7 @@ class SessionStorage {
   static const _clinicIdKey = 'doctor_clinic_id';
   static const _firstNameKey = 'doctor_first_name';
   static const _lastNameKey = 'doctor_last_name';
+  static const _avatarUrlKey = 'doctor_avatar_url';
 
   final SharedPreferences _prefs;
 
@@ -90,6 +91,7 @@ class SessionStorage {
   String? get clinicId => _prefs.getString(_clinicIdKey);
   String? get firstName => _prefs.getString(_firstNameKey);
   String? get lastName => _prefs.getString(_lastNameKey);
+  String? get avatarUrl => _prefs.getString(_avatarUrlKey);
 
   String get displayName {
     var name = '${firstName ?? ''} ${lastName ?? ''}'.trim();
@@ -133,6 +135,15 @@ class SessionStorage {
     }
   }
 
+  Future<void> updateAvatarUrl(String? avatarUrl) async {
+    final trimmed = avatarUrl?.trim();
+    if (trimmed == null || trimmed.isEmpty) {
+      await _prefs.remove(_avatarUrlKey);
+      return;
+    }
+    await _prefs.setString(_avatarUrlKey, trimmed);
+  }
+
   Future<void> updateTokens({
     required String accessToken,
     required String refreshToken,
@@ -154,5 +165,6 @@ class SessionStorage {
     await _prefs.remove(_clinicIdKey);
     await _prefs.remove(_firstNameKey);
     await _prefs.remove(_lastNameKey);
+    await _prefs.remove(_avatarUrlKey);
   }
 }

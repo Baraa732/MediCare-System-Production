@@ -82,10 +82,10 @@ class UserApiService {
         filename: file.path.split(RegExp(r'[\\/]')).last,
       ),
     });
+    // Do not set contentType manually — Dio must include the multipart boundary.
     final response = await _client.dio.post(
       '/users/$userId/avatar',
       data: form,
-      options: Options(contentType: 'multipart/form-data'),
     );
     final data = response.data;
     if (data is Map<String, dynamic>) {

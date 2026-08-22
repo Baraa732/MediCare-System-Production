@@ -27,6 +27,7 @@ export interface PlatformUserRecord {
   clinicId?: string;
   createdAt?: string;
   avatarUrl?: string;
+  hasAvatar?: boolean;
 }
 
 export interface PlatformStaffRecord {
@@ -190,11 +191,13 @@ export class PlatformDataService implements OnModuleDestroy {
         status: string;
         tenant_id: string | null;
         createdAt: Date;
-        avatarUrl: string | null;
+        hasAvatar: boolean;
       }>(
         `SELECT id, "phoneNumber", "firstName", "lastName", role::text AS role, status::text AS status,
                 tenant_id, "createdAt",
-                NULLIF(TRIM("profileData"->>'avatarUrl'), '') AS "avatarUrl"
+                (
+                  NULLIF(TRIM(COALESCE("profileData"->>'avatarData', '')), '') IS NOT NULL
+                ) AS "hasAvatar"
          FROM users
          WHERE "deletedAt" IS NULL
          ORDER BY "createdAt" DESC
@@ -211,7 +214,8 @@ export class PlatformDataService implements OnModuleDestroy {
         status: row.status,
         clinicId: row.tenant_id ?? undefined,
         createdAt: row.createdAt?.toISOString(),
-        avatarUrl: row.avatarUrl ?? undefined,
+        avatarUrl: row.hasAvatar ? `/api/users/avatars/${row.id}` : undefined,
+        hasAvatar: Boolean(row.hasAvatar),
       }));
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));

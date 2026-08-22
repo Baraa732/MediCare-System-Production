@@ -50,7 +50,7 @@ Widget buildBlueHeader({
             ),
             const Spacer(),
           ] else ...[
-            doctorAvatar(radius: 24),
+            doctorAvatar(radius: 24, imageUrl: sessionStorage.avatarUrl),
             const SizedBox(width: 12),
             Expanded(
               child: Column(

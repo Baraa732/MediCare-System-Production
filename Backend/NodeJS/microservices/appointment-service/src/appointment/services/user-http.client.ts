@@ -59,12 +59,12 @@ export class UserHttpClient {
         user.profileData && typeof user.profileData === 'object'
           ? (user.profileData as Record<string, unknown>)
           : undefined;
-      const avatarFromProfile =
-        typeof profileData?.avatarUrl === 'string' ? profileData.avatarUrl.trim() : '';
-      const avatarUrl =
-        (typeof user.avatarUrl === 'string' && user.avatarUrl.trim()) ||
-        avatarFromProfile ||
-        undefined;
+      // Trust user-service hasAvatar (disk or DB bytes). Ignore stale avatarUrl-only rows.
+      const hasAvatar =
+        user.hasAvatar === true ||
+        (typeof profileData?.avatarData === 'string' &&
+          profileData.avatarData.trim().length > 0);
+      const avatarUrl = hasAvatar ? `/api/users/avatars/${user.id}` : undefined;
       return {
         id: user.id,
         role: user.role,
@@ -75,7 +75,8 @@ export class UserHttpClient {
           user.birthDate ??
           (typeof profileData?.birthDate === 'string' ? profileData.birthDate : undefined),
         phoneNumber: user.phoneNumber,
-        avatarUrl: avatarUrl || undefined,
+        avatarUrl,
+        hasAvatar,
       };
     } catch (error) {
       if (error instanceof BadRequestException) throw error;

@@ -8,6 +8,12 @@ import '../utils/media_url.dart';
 Widget doctorAvatar({double radius = 24, String? imageUrl}) {
   final size = radius * 2;
   final url = MediaUrl.resolve(imageUrl);
+  Widget fallback() => Image.asset(
+        AppAssets.doctorPic,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+      );
   return CircleAvatar(
     radius: radius,
     backgroundColor: const Color(0xFFDBDBDC),
@@ -18,19 +24,14 @@ Widget doctorAvatar({double radius = 24, String? imageUrl}) {
               width: size,
               height: size,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Image.asset(
-                AppAssets.doctorPic,
-                width: size,
-                height: size,
-                fit: BoxFit.cover,
-              ),
+              gaplessPlayback: true,
+              errorBuilder: (_, __, ___) => fallback(),
+              loadingBuilder: (context, child, progress) {
+                if (progress == null) return child;
+                return fallback();
+              },
             )
-          : Image.asset(
-              AppAssets.doctorPic,
-              width: size,
-              height: size,
-              fit: BoxFit.cover,
-            ),
+          : fallback(),
     ),
   );
 }

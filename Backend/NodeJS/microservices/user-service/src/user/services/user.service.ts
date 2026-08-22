@@ -496,13 +496,13 @@ export class UserService {
 
   toOwnProfileResponse(user: User) {
     const { password: _, ...rest } = user;
-    const profileData = user.profileData
-      ? Object.fromEntries(
-          Object.entries(user.profileData).filter(([k]) =>
-            !['password', 'nationalId', 'internalNotes'].includes(k),
-          ),
-        )
-      : undefined;
+    const rawProfile = user.profileData || {};
+    const profileData = Object.fromEntries(
+      Object.entries(rawProfile).filter(
+        ([k]) => !['password', 'nationalId', 'internalNotes', 'avatarData', 'avatarMime'].includes(k),
+      ),
+    );
+    const hasAvatar = this.userHasAvatar(user);
     return {
       id: user.id,
       phoneNumber: user.phoneNumber,
@@ -516,7 +516,8 @@ export class UserService {
       clinicId: user.clinicId,
       specialization: user.specialization,
       licenseNumber: user.role === UserRole.DOCTOR ? user.licenseNumber : undefined,
-      avatarUrl: typeof profileData?.avatarUrl === 'string' ? profileData.avatarUrl : undefined,
+      avatarUrl: hasAvatar ? this.canonicalAvatarUrl(user.id) : undefined,
+      hasAvatar,
       profileData,
       permissions: user.permissions,
       createdAt: user.createdAt,
@@ -655,7 +656,8 @@ export class UserService {
     profileData: Record<string, unknown>,
     role: UserRole,
   ): Record<string, unknown> {
-    const blocked = new Set(['password', 'nationalId', 'internalNotes']);
+    // avatarData is write-only via updateAvatar — never accept from client profile PATCH/PUT
+    const blocked = new Set(['password', 'nationalId', 'internalNotes', 'avatarData', 'avatarMime']);
     const patientAllowed = new Set([
       'dateOfBirth',
       'gender',
@@ -1043,6 +1045,22 @@ export class UserService {
     return path.join(process.cwd(), tenantUploadPrefix(scope), 'avatars');
   }
 
+  /**
+   * True only when bytes are actually available (DB base64 and/or disk).
+   * Do not trust a lone avatarUrl — Railway ephemeral disk often leaves stale URLs.
+   */
+  userHasAvatar(user: User): boolean {
+    const raw = user.profileData || {};
+    const data = typeof raw.avatarData === 'string' ? raw.avatarData.trim() : '';
+    if (data) return true;
+    return this.findExistingAvatarPath(user) != null;
+  }
+
+  private canonicalAvatarUrl(userId: string, version?: number): string {
+    const v = version ?? Date.now();
+    return `/api/users/avatars/${userId}?v=${v}`;
+  }
+
   private ensureAvatarDirForScope(scope: string): void {
     const dir = this.avatarDirForScope(scope);
     try {
@@ -1091,7 +1109,6 @@ export class UserService {
     if (!user) {
       throw new NotFoundException('User not found');
     }
-    this.ensureAvatarDirForScope(this.avatarStorageScope(user));
 
     const ext =
       file.mimetype === 'image/png'
@@ -1100,18 +1117,32 @@ export class UserService {
           ? '.webp'
           : '.jpg';
 
-    const existing = this.findExistingAvatarPath(user);
-    const target = this.avatarFilePathForUser(user, ext);
-    if (existing && existing !== target) {
-      fs.unlinkSync(existing);
+    // Best-effort disk cache — never block durable DB persistence on ephemeral FS.
+    try {
+      this.ensureAvatarDirForScope(this.avatarStorageScope(user));
+      const existing = this.findExistingAvatarPath(user);
+      const target = this.avatarFilePathForUser(user, ext);
+      if (existing && existing !== target) {
+        try {
+          fs.unlinkSync(existing);
+        } catch {
+          // ignore cleanup failures
+        }
+      }
+      fs.writeFileSync(target, file.buffer);
+    } catch (err) {
+      this.logger.warn(
+        `Avatar disk write failed for ${userId}; persisting in DB only (${(err as Error).message})`,
+      );
     }
 
-    fs.writeFileSync(target, file.buffer);
-
     const version = Date.now();
+    // Persist bytes in DB so avatars survive Railway container redeploys (ephemeral disk).
     user.profileData = {
       ...(user.profileData || {}),
-      avatarUrl: `/api/users/avatars/${userId}?v=${version}`,
+      avatarUrl: this.canonicalAvatarUrl(userId, version),
+      avatarMime: file.mimetype,
+      avatarData: file.buffer.toString('base64'),
     };
 
     const updated = await this.userRepository.save(user);
@@ -1184,20 +1215,32 @@ export class UserService {
 
   /**
    * Public media fetch for Image.network / <img> tags (no Authorization header).
-   * Avatars are addressed by opaque UUID; upload/mutation stays authenticated.
+   * Prefers disk cache, then durable DB-backed avatarData (survives redeploys).
    */
   async readAvatarPublic(userId: string): Promise<{ buffer: Buffer; mime: string }> {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) {
       throw new NotFoundException(AVATAR_NOT_FOUND);
     }
+
     const filePath = this.findExistingAvatarPath(user);
-    if (!filePath) {
-      throw new NotFoundException(AVATAR_NOT_FOUND);
+    if (filePath) {
+      const ext = path.extname(filePath).toLowerCase();
+      const mime =
+        ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg';
+      return { buffer: fs.readFileSync(filePath), mime };
     }
-    const ext = path.extname(filePath).toLowerCase();
-    const mime =
-      ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg';
-    return { buffer: fs.readFileSync(filePath), mime };
+
+    const raw = user.profileData || {};
+    const data = typeof raw.avatarData === 'string' ? raw.avatarData.trim() : '';
+    if (data) {
+      const mime =
+        typeof raw.avatarMime === 'string' && raw.avatarMime.trim()
+          ? raw.avatarMime.trim()
+          : 'image/jpeg';
+      return { buffer: Buffer.from(data, 'base64'), mime };
+    }
+
+    throw new NotFoundException(AVATAR_NOT_FOUND);
   }
 }

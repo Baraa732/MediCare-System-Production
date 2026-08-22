@@ -151,6 +151,10 @@ class AuthApiService {
       final first = map['firstName']?.toString();
       final last = map['lastName']?.toString();
       await _session.updateNames(firstName: first, lastName: last);
+      final profileData = map['profileData'];
+      final avatar = map['avatarUrl']?.toString() ??
+          (profileData is Map ? profileData['avatarUrl']?.toString() : null);
+      await _session.updateAvatarUrl(avatar);
     } catch (_) {
       // Keep whatever name we already have from auth/session.
     }
@@ -191,15 +195,24 @@ class AuthApiService {
         filename: file.path.split(RegExp(r'[\\/]')).last,
       ),
     });
+    // Do not set contentType manually — Dio must include the multipart boundary.
     final response = await _client.dio.post(
       '/users/$userId/avatar',
       data: form,
-      options: Options(contentType: 'multipart/form-data'),
     );
     final data = response.data;
-    if (data is Map<String, dynamic>) return data;
-    if (data is Map) return Map<String, dynamic>.from(data);
-    return {};
+    final map = data is Map<String, dynamic>
+        ? data
+        : data is Map
+            ? Map<String, dynamic>.from(data)
+            : <String, dynamic>{};
+    final profileData = map['profileData'];
+    final avatar = map['avatarUrl']?.toString() ??
+        (profileData is Map ? profileData['avatarUrl']?.toString() : null);
+    if (avatar != null && avatar.isNotEmpty) {
+      await _session.updateAvatarUrl(avatar);
+    }
+    return map;
   }
 
   Future<void> changePassword({

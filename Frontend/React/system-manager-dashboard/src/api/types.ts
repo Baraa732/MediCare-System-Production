@@ -172,6 +172,7 @@ export interface PlatformUser {
   clinicId?: string
   createdAt?: string
   avatarUrl?: string
+  hasAvatar?: boolean
 }
 
 export type ClinicStaffRole = 'CLINIC_ADMIN' | 'DOCTOR' | 'SECRETARY'
