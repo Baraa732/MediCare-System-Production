@@ -28,7 +28,10 @@ RUN rm -rf ./node_modules/@medicare/telemetry && cp -a ./telemetry-pkg ./node_mo
 COPY --from=builder /build/Backend/NodeJS/microservices/user-service/dist ./dist
 COPY Messaging/Kafka/scripts/wait-for-kafka-broker.sh /usr/local/bin/wait-for-kafka-broker.sh
 RUN chmod +x /usr/local/bin/wait-for-kafka-broker.sh
-RUN mkdir -p /app/uploads/avatars && chown -R node:node /app/uploads
+# App WORKDIR is /usr/src/app and runs as USER node — uploads must be writable there
+# (tenant-scoped paths like uploads/tenant-global-patients/avatars are created at runtime).
+RUN mkdir -p /usr/src/app/uploads/avatars \
+  && chown -R node:node /usr/src/app/uploads
 
 USER node
 

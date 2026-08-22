@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger, InternalServerErrorException } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -1045,8 +1045,16 @@ export class UserService {
 
   private ensureAvatarDirForScope(scope: string): void {
     const dir = this.avatarDirForScope(scope);
-    if (!fs.existsSync(dir)) {
+    try {
       fs.mkdirSync(dir, { recursive: true });
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException)?.code;
+      const message =
+        code === 'EACCES'
+          ? `Avatar upload directory is not writable: ${dir}`
+          : `Failed to prepare avatar upload directory: ${dir}`;
+      this.logger.error(`${message} (${(err as Error).message})`);
+      throw new InternalServerErrorException(message);
     }
   }
 
