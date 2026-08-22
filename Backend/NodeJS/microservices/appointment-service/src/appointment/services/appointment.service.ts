@@ -1082,7 +1082,7 @@ export class AppointmentService {
       previousDoctorId?: string;
     } = {},
   ) {
-    return {
+    const payload: Record<string, unknown> = {
       appointmentId: appointment.id,
       tenantId: appointment.tenantId,
       clinicId: appointment.tenantId,
@@ -1093,10 +1093,11 @@ export class AppointmentService {
       scheduledAt: appointment.scheduledAt.toISOString(),
       durationMinutes: appointment.durationMinutes,
       status: appointment.status,
-      changeKind: extras.changeKind,
-      previousStatus: extras.previousStatus,
-      previousScheduledAt: extras.previousScheduledAt,
-      previousDoctorId: extras.previousDoctorId,
     };
+    if (extras.changeKind) payload.changeKind = extras.changeKind;
+    if (extras.previousStatus) payload.previousStatus = extras.previousStatus;
+    if (extras.previousScheduledAt) payload.previousScheduledAt = extras.previousScheduledAt;
+    if (extras.previousDoctorId) payload.previousDoctorId = extras.previousDoctorId;
+    return payload;
   }
 }
