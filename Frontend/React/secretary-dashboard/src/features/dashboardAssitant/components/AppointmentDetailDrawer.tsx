@@ -31,6 +31,7 @@ import {
   gridMinutesFromIso,
 } from "@/lib/time/gridTime";
 import { formatClinicDateTime } from "@/lib/time/clinicTime";
+import { displayNotesFromStored, encodeAppointmentNotes } from "@/lib/api/mappers";
 
 /** Short note shown on the schedule card — keep it readable on the grid. */
 export const GRID_NOTE_MAX_LENGTH = 60;
@@ -71,7 +72,12 @@ export function AppointmentDetailDrawer() {
       .then((res) => {
         if (cancelled) return;
         setAppointment(res.appointment);
-        setNotes((res.appointment.notes ?? "").slice(0, GRID_NOTE_MAX_LENGTH));
+        setNotes(
+          (displayNotesFromStored(res.appointment.notes) ?? "").slice(
+            0,
+            GRID_NOTE_MAX_LENGTH,
+          ),
+        );
         setCancelReason("");
       })
       .catch((err) => {
@@ -117,8 +123,8 @@ export function AppointmentDetailDrawer() {
     [patientName],
   );
 
-  const notesDirty =
-    (notes.trim() || "") !== (appointment?.notes?.trim() || "");
+  const storedDisplayNotes = displayNotesFromStored(appointment?.notes) ?? "";
+  const notesDirty = (notes.trim() || "") !== storedDisplayNotes.trim();
 
   const handleSaveNote = async () => {
     if (!accessToken || !appointment) return;
@@ -126,13 +132,23 @@ export function AppointmentDetailDrawer() {
     setError(null);
     try {
       const trimmed = notes.trim().slice(0, GRID_NOTE_MAX_LENGTH);
+      const encoded =
+        encodeAppointmentNotes(trimmed, {
+          complexity: appointment.complexity,
+          refuseTransfer: appointment.refuseTransfer ?? appointment.lockedToDoctor,
+        }) ?? "";
       const res = await updateAppointment(
         appointment.id,
-        { notes: trimmed || "" },
+        { notes: encoded },
         accessToken,
       );
       setAppointment(res.appointment);
-      setNotes((res.appointment.notes ?? "").slice(0, GRID_NOTE_MAX_LENGTH));
+      setNotes(
+        (displayNotesFromStored(res.appointment.notes) ?? "").slice(
+          0,
+          GRID_NOTE_MAX_LENGTH,
+        ),
+      );
       applyAppointmentLocally(res.appointment);
       void softRefetch();
     } catch (err) {
@@ -315,12 +331,12 @@ export function AppointmentDetailDrawer() {
                     placeholder="e.g. Bring X-rays, allergic to penicillin"
                   />
                 </section>
-              ) : appointment.notes ? (
+              ) : storedDisplayNotes ? (
                 <section className="rounded-2xl border border-neutral-100 bg-neutral-50/50 p-4">
                   <p className="mb-1 text-[11px] font-bold tracking-wider text-neutral-400 uppercase">
                     Grid note
                   </p>
-                  <p className="text-sm text-neutral-700">{appointment.notes}</p>
+                  <p className="text-sm text-neutral-700">{storedDisplayNotes}</p>
                 </section>
               ) : null}
 

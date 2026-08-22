@@ -1,4 +1,5 @@
 import type { Content, TDocumentDefinitions, TableCell } from "pdfmake/interfaces";
+import { containsArabic } from "./bidiText";
 import {
   EXPORT_COLUMNS,
   buildExportFilename,
@@ -10,6 +11,24 @@ type PdfMakeModule = typeof import("pdfmake/build/pdfmake");
 
 let pdfMakeReady: Promise<PdfMakeModule> | null = null;
 
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+async function loadFontAsBase64(url: string): Promise<string> {
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`Could not load export font (${res.status})`);
+  }
+  return arrayBufferToBase64(await res.arrayBuffer());
+}
+
 async function loadPdfMake(): Promise<PdfMakeModule> {
   if (!pdfMakeReady) {
     pdfMakeReady = (async () => {
@@ -17,10 +36,33 @@ async function loadPdfMake(): Promise<PdfMakeModule> {
       const pdfFontsMod = await import("pdfmake/build/vfs_fonts");
       const pdfMake = pdfMakeMod.default ?? pdfMakeMod;
       const fonts = (pdfFontsMod as { default?: unknown }).default ?? pdfFontsMod;
-      // pdfmake 0.3+: pass VFS via addVirtualFileSystem (Vite-safe; no import mutation).
+
+      const [regular, bold] = await Promise.all([
+        loadFontAsBase64(`${import.meta.env.BASE_URL}fonts/DejaVuSans.ttf`),
+        loadFontAsBase64(`${import.meta.env.BASE_URL}fonts/DejaVuSans-Bold.ttf`),
+      ]);
+
       if (typeof pdfMake.addVirtualFileSystem === "function") {
-        pdfMake.addVirtualFileSystem(fonts as never);
+        pdfMake.addVirtualFileSystem({
+          ...(fonts as Record<string, string>),
+          "DejaVuSans.ttf": regular,
+          "DejaVuSans-Bold.ttf": bold,
+        } as never);
       }
+      pdfMake.addFonts({
+        Roboto: {
+          normal: "Roboto-Regular.ttf",
+          bold: "Roboto-Medium.ttf",
+          italics: "Roboto-Italic.ttf",
+          bolditalics: "Roboto-MediumItalic.ttf",
+        },
+        DejaVu: {
+          normal: "DejaVuSans.ttf",
+          bold: "DejaVuSans-Bold.ttf",
+          italics: "DejaVuSans.ttf",
+          bolditalics: "DejaVuSans-Bold.ttf",
+        },
+      });
       return pdfMake;
     })();
   }
@@ -37,6 +79,29 @@ const STATUS_FILL: Record<string, string> = {
   Cancelled: "#F1F5F9",
   Unavailable: "#F1F5F9",
 };
+
+type CellExtras = {
+  alignment?: "left" | "right" | "center";
+  fillColor?: string;
+  fontSize?: number;
+  color?: string;
+  bold?: boolean;
+  margin?: number[];
+};
+
+function bilingualText(value: string, extras: CellExtras = {}): TableCell {
+  const text = value?.trim() || "—";
+  const rtl = containsArabic(text);
+  return {
+    text,
+    alignment: extras.alignment ?? (rtl ? "right" : "left"),
+    fillColor: extras.fillColor,
+    fontSize: extras.fontSize,
+    color: extras.color,
+    bold: extras.bold,
+    margin: extras.margin as never,
+  };
+}
 
 function statusCell(status: string): TableCell {
   return {
@@ -84,19 +149,26 @@ function buildTableBody(rows: ScheduleExportRow[]): TableCell[][] {
   for (const row of rows) {
     const zebra = row.rowNumber % 2 === 0 ? "#F8FAFC" : "#FFFFFF";
     body.push([
-      { text: String(row.rowNumber), alignment: "center", fillColor: zebra, fontSize: 8 },
-      { text: row.timeRange, alignment: "center", fillColor: zebra, fontSize: 8 },
-      {
-        text: String(row.durationMinutes),
+      bilingualText(String(row.rowNumber), {
         alignment: "center",
         fillColor: zebra,
         fontSize: 8,
-      },
-      { text: row.patientName, fillColor: zebra, fontSize: 8 },
-      { text: row.doctorName, fillColor: zebra, fontSize: 8 },
-      { text: row.specialty, fillColor: zebra, fontSize: 8 },
+      }),
+      bilingualText(row.timeRange, {
+        alignment: "center",
+        fillColor: zebra,
+        fontSize: 8,
+      }),
+      bilingualText(String(row.durationMinutes), {
+        alignment: "center",
+        fillColor: zebra,
+        fontSize: 8,
+      }),
+      bilingualText(row.patientName, { fillColor: zebra, fontSize: 8 }),
+      bilingualText(row.doctorName, { fillColor: zebra, fontSize: 8 }),
+      bilingualText(row.specialty, { fillColor: zebra, fontSize: 8 }),
       statusCell(row.status),
-      { text: row.reason, fillColor: zebra, fontSize: 8, color: "#475569" },
+      bilingualText(row.reason, { fillColor: zebra, fontSize: 8, color: "#475569" }),
     ]);
   }
   return body;
@@ -106,6 +178,7 @@ function buildDocDefinition(
   rows: ScheduleExportRow[],
   meta: ScheduleExportMeta,
 ): TDocumentDefinitions {
+  const clinicRtl = containsArabic(meta.clinicName);
   const headerBlock: Content = {
     columns: [
       {
@@ -114,6 +187,7 @@ function buildDocDefinition(
           {
             text: meta.clinicName,
             style: "brand",
+            alignment: clinicRtl ? "right" : "left",
             margin: [0, 0, 0, 2],
           },
           {
@@ -138,30 +212,6 @@ function buildDocDefinition(
     margin: [0, 0, 0, 12],
   };
 
-  const privacyBanner: Content = {
-    table: {
-      widths: ["*"],
-      body: [
-        [
-          {
-            text: "Privacy-safe export · Patient IDs, doctor IDs, appointment IDs, and phone numbers are excluded.",
-            fontSize: 8,
-            color: "#92400E",
-            fillColor: "#FFFBEB",
-            margin: [8, 6, 8, 6],
-          },
-        ],
-      ],
-    },
-    layout: {
-      hLineWidth: () => 0.5,
-      vLineWidth: () => 0.5,
-      hLineColor: () => "#FCD34D",
-      vLineColor: () => "#FCD34D",
-    },
-    margin: [0, 0, 0, 10],
-  };
-
   const metaLine: Content = {
     columns: [
       {
@@ -184,7 +234,7 @@ function buildDocDefinition(
     info: {
       title: `${meta.clinicName} — schedule ${meta.scheduleDateLabel}`,
       author: meta.exportedBy,
-      subject: "Operational day sheet (privacy-safe)",
+      subject: "Clinic day sheet",
       creator: "MediCare Secretary Dashboard",
       keywords: "schedule,clinic,operations",
     },
@@ -192,7 +242,7 @@ function buildDocDefinition(
       margin: [28, 14, 28, 0],
       columns: [
         {
-          text: "MediCare · Confidential clinic operations",
+          text: "MediCare · Clinic schedule",
           fontSize: 8,
           color: "#94A3B8",
         },
@@ -213,7 +263,7 @@ function buildDocDefinition(
           color: "#94A3B8",
         },
         {
-          text: "IDs & phones omitted by design",
+          text: meta.clinicName,
           alignment: "right",
           fontSize: 7,
           color: "#94A3B8",
@@ -222,7 +272,6 @@ function buildDocDefinition(
     }),
     content: [
       headerBlock,
-      privacyBanner,
       metaLine,
       {
         table: {
@@ -232,7 +281,8 @@ function buildDocDefinition(
           body: buildTableBody(rows),
         },
         layout: {
-          hLineWidth: (i, node) => (i === 0 || i === 1 || i === node.table.body.length ? 0.8 : 0.4),
+          hLineWidth: (i, node) =>
+            i === 0 || i === 1 || i === node.table.body.length ? 0.8 : 0.4,
           vLineWidth: () => 0.4,
           hLineColor: () => "#E2E8F0",
           vLineColor: () => "#E2E8F0",
@@ -272,7 +322,7 @@ function buildDocDefinition(
       },
     },
     defaultStyle: {
-      font: "Roboto",
+      font: "DejaVu",
       fontSize: 9,
       color: "#0F172A",
     },

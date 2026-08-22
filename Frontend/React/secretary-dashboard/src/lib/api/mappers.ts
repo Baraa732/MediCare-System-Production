@@ -49,7 +49,10 @@ export function displayNotesFromStored(notes?: string | null): string | undefine
   return notes;
 }
 
-/** Persist secretary note + conflict-engine metadata in the notes field. */
+/**
+ * Persist the human note. Metadata is only embedded when it is not the
+ * default (standard / unlocked) so the field never shows JSON for empty notes.
+ */
 export function encodeAppointmentNotes(
   userNotes: string | undefined | null,
   meta: {
@@ -58,15 +61,15 @@ export function encodeAppointmentNotes(
   } = {},
 ): string | undefined {
   const text = userNotes?.trim() ?? "";
-  const hasMeta =
-    !!meta.complexity || typeof meta.refuseTransfer === "boolean";
-  if (!hasMeta) return text || undefined;
+  const complexity = meta.complexity?.trim().toLowerCase() || undefined;
+  const nonDefaultComplexity =
+    complexity && complexity !== "standard" ? complexity : undefined;
+  const locked = meta.refuseTransfer === true;
+  if (!nonDefaultComplexity && !locked) return text || undefined;
   return JSON.stringify({
     text,
-    ...(meta.complexity ? { complexity: meta.complexity } : {}),
-    ...(typeof meta.refuseTransfer === "boolean"
-      ? { refuseTransfer: meta.refuseTransfer }
-      : {}),
+    ...(nonDefaultComplexity ? { complexity: nonDefaultComplexity } : {}),
+    ...(locked ? { refuseTransfer: true } : {}),
   });
 }
 
@@ -163,9 +166,13 @@ export function mapDoctorToGrid(
   doctor: ClinicDoctor,
   _appointmentCount: number,
 ): DoctorType {
+  const name =
+    doctor.fullName?.trim() ||
+    `${doctor.firstName ?? ""} ${doctor.lastName ?? ""}`.trim() ||
+    "Doctor";
   return {
     id: doctor.userId,
-    name: (doctor.fullName ?? `${doctor.firstName ?? ""} ${doctor.lastName ?? ""}`.trim()) || "Doctor",
+    name,
     specialty: doctor.specialization ?? "General Dentistry",
     avatar: doctorImageSrc(
       (doctor as { avatarUrl?: string }).avatarUrl,
@@ -218,7 +225,7 @@ export function mapApiAppointmentToPendingRequest(
     complexity: "standard",
     duration,
     price: 0,
-    notes: appointment.notes,
+    notes: displayNotesFromStored(appointment.notes),
     patient: {
       name: patientName,
       age: 0,

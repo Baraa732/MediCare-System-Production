@@ -4,8 +4,10 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   Bell,
+  ChevronRight,
   LogOut,
   Settings,
+  Shield,
   User,
   Phone,
   Check,
@@ -14,8 +16,6 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -181,42 +181,90 @@ export function RightSection() {
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Avatar className="w-9.5 h-9.5 rounded-xl border border-neutral-200 cursor-pointer hover:opacity-90 transition-opacity">
-            <AvatarFallback className="rounded-xl font-bold bg-[#0066ff] text-white text-xs">
-              {initials || "·"}
-            </AvatarFallback>
-          </Avatar>
+          <button
+            type="button"
+            className="flex items-center gap-2 rounded-xl border border-neutral-200 bg-white py-1 pr-2 pl-1 shadow-sm transition-all hover:border-blue-200 hover:shadow-[0_8px_20px_-12px_rgba(0,102,255,0.45)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0066ff]/35"
+          >
+            <Avatar className="h-8 w-8 rounded-lg">
+              <AvatarFallback className="rounded-lg bg-[#0066ff] text-[11px] font-bold text-white">
+                {initials || "·"}
+              </AvatarFallback>
+            </Avatar>
+            <span className="hidden max-w-[120px] truncate text-left text-[11px] font-bold text-neutral-800 sm:block">
+              {profile.fullName.trim() || "Secretary"}
+            </span>
+          </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-48 rounded-xl p-1">
-          <DropdownMenuItem
-            onClick={() => setIsProfileOpen(true)}
-            className="text-xs font-semibold cursor-pointer"
-          >
-            <User className="w-3.5 h-3.5 mr-2" />
-            Edit profile
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => navigate("/dashboard/notifications")}
-            className="text-xs font-semibold cursor-pointer"
-          >
-            <Bell className="w-3.5 h-3.5 mr-2" />
-            Notifications
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => navigate("/dashboard/settings")}
-            className="text-xs font-semibold cursor-pointer"
-          >
-            <Settings className="w-3.5 h-3.5 mr-2" />
-            Settings
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onClick={() => void logout()}
-            className="text-xs font-semibold text-red-600 cursor-pointer focus:text-red-600"
-          >
-            <LogOut className="w-3.5 h-3.5 mr-2" />
-            Log out
-          </DropdownMenuItem>
+        <DropdownMenuContent
+          align="end"
+          sideOffset={10}
+          className="w-[320px] overflow-hidden rounded-2xl border border-neutral-100 bg-white p-0 shadow-[0_18px_40px_-24px_rgba(0,102,255,0.35)]"
+        >
+          <div className="border-b border-neutral-100 bg-gradient-to-br from-blue-50/90 to-white px-4 py-4">
+            <div className="flex items-center gap-3">
+              <Avatar className="h-12 w-12 rounded-xl ring-2 ring-white shadow-sm">
+                <AvatarFallback className="rounded-xl bg-[#0066ff] text-sm font-bold text-white">
+                  {initials || "·"}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-bold text-neutral-900" dir="auto">
+                  {profile.fullName.trim() || "Secretary"}
+                </p>
+                <p className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-[#0066ff]">
+                  <Shield className="h-3 w-3" />
+                  Clinic secretary
+                </p>
+                {profile.phone ? (
+                  <p className="mt-1 truncate text-[11px] text-neutral-500">
+                    {profile.phone}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-1 p-2">
+            <ProfileMenuItem
+              icon={<User className="h-4 w-4 text-[#0066ff]" />}
+              iconBg="bg-blue-50"
+              title="Profile"
+              subtitle="Name shown on the clinic schedule"
+              onClick={() => setIsProfileOpen(true)}
+            />
+            <ProfileMenuItem
+              icon={<Bell className="h-4 w-4 text-amber-600" />}
+              iconBg="bg-amber-50"
+              title="Notifications"
+              subtitle="Inbox and push preferences"
+              onClick={() => navigate("/dashboard/notifications")}
+            />
+            <ProfileMenuItem
+              icon={<Settings className="h-4 w-4 text-neutral-600" />}
+              iconBg="bg-neutral-100"
+              title="Settings"
+              subtitle="Account, security, and alerts"
+              onClick={() => navigate("/dashboard/settings")}
+            />
+          </div>
+
+          <div className="border-t border-neutral-100 p-2">
+            <button
+              type="button"
+              onClick={() => void logout()}
+              className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2.5 text-left transition-colors hover:bg-red-50"
+            >
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-50">
+                <LogOut className="h-4 w-4 text-red-600" />
+              </span>
+              <span className="flex-1">
+                <span className="block text-xs font-bold text-red-600">Log out</span>
+                <span className="block text-[10px] text-red-400">
+                  End this secretary session
+                </span>
+              </span>
+            </button>
+          </div>
         </DropdownMenuContent>
       </DropdownMenu>
 
@@ -309,5 +357,38 @@ export function RightSection() {
         </SheetContent>
       </Sheet>
     </div>
+  );
+}
+
+function ProfileMenuItem({
+  icon,
+  iconBg,
+  title,
+  subtitle,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  iconBg: string;
+  title: string;
+  subtitle: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2.5 text-left transition-colors hover:bg-blue-50/70"
+    >
+      <span
+        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${iconBg}`}
+      >
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-xs font-bold text-neutral-900">{title}</span>
+        <span className="mt-0.5 block text-[10px] text-neutral-500">{subtitle}</span>
+      </span>
+      <ChevronRight className="h-4 w-4 shrink-0 text-neutral-300" />
+    </button>
   );
 }

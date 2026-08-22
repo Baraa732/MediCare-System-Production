@@ -8,6 +8,7 @@ import {
   formatClinicDateTime,
 } from "@/lib/time/clinicTime";
 import type { DoctorType } from "@/features/dashboardAssitant/types";
+import { displayNotesFromStored } from "@/lib/api/mappers";
 import {
   countActiveScheduleFilters,
   filterDoctorsByScheduleFilters,
@@ -44,9 +45,8 @@ function privacySafePatientName(name?: string | null): string {
 }
 
 function privacySafeReason(reason?: string | null, notes?: string | null): string {
-  const text = (reason || notes || "").trim();
+  const text = (displayNotesFromStored(reason) || displayNotesFromStored(notes) || "").trim();
   if (!text) return "—";
-  // Cap length; strip long digit runs (phones / IDs accidentally pasted into notes).
   return text.replace(/\+?\d[\d\s-]{6,}/g, "[redacted]").slice(0, 80);
 }
 

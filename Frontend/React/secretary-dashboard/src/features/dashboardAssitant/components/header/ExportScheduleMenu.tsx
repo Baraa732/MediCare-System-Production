@@ -1,19 +1,17 @@
 import { useMemo, useState, type ReactNode } from "react";
 import {
   CheckCircle2,
+  ChevronRight,
   Download,
   FileSpreadsheet,
   FileText,
   Loader2,
   Printer,
-  ShieldCheck,
-  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
@@ -80,9 +78,7 @@ export function ExportScheduleMenu({ exportedBy }: ExportScheduleMenuProps) {
     } catch (err) {
       console.error("[export]", err);
       setError(
-        err instanceof Error
-          ? err.message
-          : "Export failed. Please try again.",
+        err instanceof Error ? err.message : "Export failed. Please try again.",
       );
     } finally {
       setBusy(null);
@@ -107,74 +103,61 @@ export function ExportScheduleMenu({ exportedBy }: ExportScheduleMenuProps) {
 
       <DropdownMenuContent
         align="end"
-        sideOffset={8}
-        className="w-[340px] overflow-hidden rounded-2xl border border-neutral-200/80 bg-white p-0 shadow-[0_20px_50px_-24px_rgba(15,23,42,0.45)]"
+        sideOffset={10}
+        className="w-[340px] overflow-hidden rounded-2xl border border-neutral-100 bg-white p-0 shadow-[0_18px_40px_-24px_rgba(0,102,255,0.35)]"
       >
-        {/* Header */}
-        <div className="relative overflow-hidden border-b border-neutral-100 bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 px-4 py-3.5 text-white">
-          <div
-            className="pointer-events-none absolute -right-6 -top-8 h-28 w-28 rounded-full bg-[#0066ff]/30 blur-2xl"
-            aria-hidden
-          />
-          <div className="relative flex items-start justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-blue-200/90">
-                <Sparkles className="h-3 w-3" />
-                Schedule export
-              </div>
-              <p className="mt-1 text-sm font-bold leading-snug">
+        <div className="border-b border-neutral-100 bg-gradient-to-br from-blue-50/90 to-white px-4 py-3.5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#0066ff]">
+                Export schedule
+              </p>
+              <p className="mt-1 truncate text-sm font-bold text-neutral-900">
                 {preview.meta.scheduleDateLabel}
               </p>
-              <p className="mt-0.5 text-[11px] text-slate-300">
+              <p
+                className="mt-0.5 truncate text-[11px] font-medium text-neutral-500"
+                dir="auto"
+              >
                 {preview.meta.clinicName}
               </p>
             </div>
-            <div className="rounded-xl bg-white/10 px-2.5 py-1.5 text-center backdrop-blur-sm">
-              <div className="text-lg font-black leading-none tabular-nums">
+            <div className="rounded-xl bg-white px-2.5 py-1.5 text-center shadow-sm ring-1 ring-blue-100">
+              <div className="text-lg font-black leading-none tabular-nums text-[#0066ff]">
                 {preview.meta.rowCount}
               </div>
-              <div className="mt-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-300">
+              <div className="mt-0.5 text-[9px] font-bold uppercase tracking-wide text-neutral-400">
                 rows
               </div>
             </div>
           </div>
-
-          <div className="relative mt-3 flex flex-wrap gap-1.5">
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-200 ring-1 ring-emerald-400/30">
-              <ShieldCheck className="h-3 w-3" />
-              IDs & phones excluded
+          {(activeFilters > 0 || hasSearch) && (
+            <span className="mt-3 inline-flex rounded-full bg-[#0066ff]/10 px-2 py-0.5 text-[10px] font-semibold text-[#0066ff]">
+              {activeFilters > 0
+                ? `${activeFilters} filter${activeFilters === 1 ? "" : "s"}`
+                : "Search"}{" "}
+              applied
             </span>
-            {(activeFilters > 0 || hasSearch) && (
-              <span className="inline-flex items-center rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-slate-200 ring-1 ring-white/15">
-                {activeFilters > 0
-                  ? `${activeFilters} filter${activeFilters === 1 ? "" : "s"}`
-                  : "Search"}{" "}
-                applied
-              </span>
-            )}
-          </div>
+          )}
         </div>
 
-        {/* Actions */}
         <div className="space-y-1.5 p-2.5">
           <ExportOption
             disabled={busy !== null}
             loading={busy === "excel"}
-            icon={
-              <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
-            }
+            icon={<FileSpreadsheet className="h-4 w-4 text-emerald-600" />}
             iconBg="bg-emerald-50"
             title="Excel workbook"
-            subtitle=".xlsx · styled columns, frozen header, zebra rows"
+            subtitle="Arabic + English · .xlsx day sheet"
             onClick={() => void runExport("excel")}
           />
           <ExportOption
             disabled={busy !== null}
             loading={busy === "pdf"}
-            icon={<FileText className="h-4 w-4 text-rose-600" />}
-            iconBg="bg-rose-50"
+            icon={<FileText className="h-4 w-4 text-[#0066ff]" />}
+            iconBg="bg-blue-50"
             title="PDF day sheet"
-            subtitle="Landscape A4 · branded header, status colors, page numbers"
+            subtitle="Landscape A4 · bilingual clinic names"
             onClick={() => void runExport("pdf")}
           />
           <ExportOption
@@ -183,23 +166,21 @@ export function ExportScheduleMenu({ exportedBy }: ExportScheduleMenuProps) {
             icon={<Printer className="h-4 w-4 text-sky-600" />}
             iconBg="bg-sky-50"
             title="Print PDF"
-            subtitle="Opens the system print dialog from the same layout"
+            subtitle="Open the print dialog with the same layout"
             onClick={() => void runExport("print")}
           />
         </div>
 
-        <DropdownMenuSeparator className="my-0" />
-
-        <div className="space-y-1.5 bg-neutral-50/80 px-3.5 py-2.5">
+        <div className="border-t border-neutral-100 bg-neutral-50/70 px-3.5 py-2.5">
           <p className="text-[10px] leading-relaxed text-neutral-500">
-            Exports match your current day and filters. Sensitive fields
-            (patient ID, doctor ID, appointment ID, phone) are never included.
+            Matches the current day and filters. Clinic and doctor names export
+            in Arabic and English.
           </p>
           {error ? (
-            <p className="text-[11px] font-semibold text-red-600">{error}</p>
+            <p className="mt-1.5 text-[11px] font-semibold text-red-600">{error}</p>
           ) : null}
           {lastOk ? (
-            <p className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700">
+            <p className="mt-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700">
               <CheckCircle2 className="h-3.5 w-3.5" />
               {lastOk}
             </p>
@@ -233,16 +214,16 @@ function ExportOption({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "flex w-full items-start gap-3 rounded-xl border border-transparent px-2.5 py-2.5 text-left transition-all",
-        "hover:border-neutral-200 hover:bg-neutral-50",
+        "flex w-full items-center gap-3 rounded-xl border border-transparent px-2.5 py-2.5 text-left transition-all",
+        "hover:border-blue-100 hover:bg-blue-50/50",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0066ff]/40",
         "disabled:cursor-not-allowed disabled:opacity-60",
-        loading && "border-blue-100 bg-blue-50/60",
+        loading && "border-blue-100 bg-blue-50/70",
       )}
     >
       <span
         className={cn(
-          "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
+          "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
           iconBg,
         )}
       >
@@ -258,6 +239,7 @@ function ExportOption({
           {subtitle}
         </span>
       </span>
+      <ChevronRight className="h-4 w-4 shrink-0 text-neutral-300" />
     </button>
   );
 }
