@@ -376,6 +376,10 @@ export class AppointmentService {
       throw new BadRequestException('Cannot update a cancelled or completed appointment');
     }
 
+    const previousScheduledAt = appointment.scheduledAt;
+    const previousDoctorId = appointment.doctorId;
+    const previousDuration = appointment.durationMinutes;
+
     const targetDoctorId = dto.doctorId ?? appointment.doctorId;
     const doctorReassigned = Boolean(dto.doctorId && dto.doctorId !== appointment.doctorId);
     if (doctorReassigned) {
@@ -421,10 +425,6 @@ export class AppointmentService {
         appointment.scheduledAt = scheduledAt;
       }
     }
-
-    const previousScheduledAt = appointment.scheduledAt;
-    const previousDoctorId = appointment.doctorId;
-    const previousDuration = appointment.durationMinutes;
 
     if (dto.durationMinutes !== undefined) appointment.durationMinutes = dto.durationMinutes;
     if (dto.reason !== undefined) appointment.reason = dto.reason;
@@ -1065,7 +1065,7 @@ export class AppointmentService {
     saved: Appointment,
   ): boolean {
     const timeChanged =
-      Math.abs(saved.scheduledAt.getTime() - previousScheduledAt.getTime()) >= 30_000;
+      Math.abs(saved.scheduledAt.getTime() - previousScheduledAt.getTime()) >= 60_000;
     return (
       timeChanged ||
       saved.doctorId !== previousDoctorId ||
