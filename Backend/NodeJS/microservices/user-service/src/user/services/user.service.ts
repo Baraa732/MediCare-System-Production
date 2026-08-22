@@ -482,6 +482,7 @@ export class UserService {
     for (const key of ['bio', 'languages', 'yearsOfExperience', 'gender']) {
       if (raw[key] !== undefined) profile[key] = raw[key];
     }
+    const hasAvatar = this.userHasAvatar(user);
     return {
       id: user.id,
       firstName: user.firstName,
@@ -490,6 +491,8 @@ export class UserService {
       yearsOfExperience:
         typeof raw.yearsOfExperience === 'number' ? raw.yearsOfExperience : undefined,
       status: user.status,
+      hasAvatar,
+      avatarUrl: hasAvatar ? this.canonicalAvatarUrl(user.id) : undefined,
       profile,
     };
   }

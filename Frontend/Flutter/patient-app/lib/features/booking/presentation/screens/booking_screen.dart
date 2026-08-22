@@ -284,8 +284,8 @@ class BookingScreen extends StatelessWidget {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: AppNetworkImage.clinic(
-                  imageUrl: appointment.clinicImageUrl,
+                child: AppNetworkImage.doctor(
+                  imageUrl: appointment.doctorImageUrl,
                   width: 87,
                   height: 87,
                 ),

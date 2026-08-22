@@ -3,6 +3,7 @@ import 'package:cms/core/constants/font_heading.dart';
 import 'package:cms/core/entities/appointment.dart';
 import 'package:cms/core/entities/clinic.dart';
 import 'package:cms/core/theme/app_colors.dart';
+import 'package:cms/core/widgets/app_network_image.dart';
 import 'package:cms/core/widgets/safe_google_map.dart';
 import 'package:cms/core/api/api_exception.dart';
 import 'package:cms/core/api/services/appointment_api_service.dart';
@@ -193,14 +194,11 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
                             SizedBox(
                               width: 62,
                               height: 62,
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(
-                                  8,
-                                ), // Keeps it perfectly square
-                                child: Image.asset(
-                                  Assets.assetsImagesDoctorFolanAlfolani,
-                                  fit: BoxFit.cover,
-                                ),
+                              child: AppNetworkImage.doctor(
+                                imageUrl: appointment.doctorImageUrl,
+                                width: 62,
+                                height: 62,
+                                borderRadius: BorderRadius.circular(8),
                               ),
                             ),
                             const SizedBox(width: 14),

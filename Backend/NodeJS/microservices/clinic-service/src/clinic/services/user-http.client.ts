@@ -68,6 +68,8 @@ export class UserHttpClient {
       specialization?: string;
       yearsOfExperience?: number;
       status?: string;
+      avatarUrl?: string;
+      hasAvatar?: boolean;
       profile?: Record<string, unknown>;
     }>
   > {

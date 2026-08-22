@@ -535,6 +535,7 @@ export class AppointmentService {
       clinicPhone: clinic?.phone,
       doctorName: doctor ? `${doctor.firstName} ${doctor.lastName}`.trim() : undefined,
       doctorSpecialization: doctor?.specialization,
+      doctorAvatarUrl: doctor?.avatarUrl,
       patientName:
         (patient
           ? `${patient.firstName ?? ''} ${patient.lastName ?? ''}`.trim() || undefined
@@ -585,6 +586,7 @@ export class AppointmentService {
         clinicPhone: clinic?.phone,
         doctorName: doctor ? `${doctor.firstName} ${doctor.lastName}`.trim() : undefined,
         doctorSpecialization: doctor?.specialization,
+        doctorAvatarUrl: doctor?.avatarUrl,
         patientName:
           (patient
             ? `${patient.firstName ?? ''} ${patient.lastName ?? ''}`.trim() || undefined

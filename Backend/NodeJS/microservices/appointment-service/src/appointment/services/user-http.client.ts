@@ -7,6 +7,8 @@ export interface PublicDoctorProfile {
   firstName: string;
   lastName: string;
   specialization?: string;
+  avatarUrl?: string;
+  hasAvatar?: boolean;
   profile?: Record<string, unknown>;
 }
 

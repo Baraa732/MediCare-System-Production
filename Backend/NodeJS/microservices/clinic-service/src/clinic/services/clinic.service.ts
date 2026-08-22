@@ -667,6 +667,8 @@ export class ClinicService {
           : undefined,
         specialization: profile?.specialization,
         yearsOfExperience: years,
+        avatarUrl: profile?.avatarUrl,
+        hasAvatar: profile?.hasAvatar,
         profile: profile?.profile,
       };
     });

@@ -49,6 +49,9 @@ class EntityMappers {
     final last = json['lastName']?.toString() ?? '';
     final full = json['fullName']?.toString() ??
         [first, last].where((p) => p.isNotEmpty).join(' ');
+    final profile = json['profile'] is Map
+        ? Map<String, dynamic>.from(json['profile'] as Map)
+        : null;
 
     return Doctor(
       id: json['userId']?.toString() ?? json['id']?.toString() ?? '',
@@ -58,7 +61,9 @@ class EntityMappers {
           : '—',
       specialty: json['specialization']?.toString() ?? 'General',
       imageUrl: MediaUrl.resolve(
-        json['avatarUrl']?.toString() ?? fallbackImage,
+        json['avatarUrl']?.toString() ??
+            profile?['avatarUrl']?.toString() ??
+            fallbackImage,
       ),
     );
   }
